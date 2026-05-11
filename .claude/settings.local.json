@@ -13,7 +13,9 @@
       "Bash(python -c \"from backend.main import app; routes = [r.path for r in app.routes]; print\\('Routes:', routes\\)\")",
       "Bash(python -c ' *)",
       "Bash(python -c \"from backend.main import app; print\\('OK'\\)\")",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)"
     ]
   }
 }

@@ -1,3 +1,6 @@
+import os
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.utils.env import ANTHROPIC_API_KEY
@@ -12,11 +15,25 @@ if not ANTHROPIC_API_KEY:
         "ANTHROPIC_API_KEY is not set. Add it to .env.local or .env in the project root."
     )
 
-app = FastAPI(title="Jarvis by MG&CO", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Create all data directories on startup — required on Railway's ephemeral filesystem."""
+    for path in [
+        "data/user_models",
+        "data/proactive",
+        "data/last_interaction",
+        "data/notes",
+    ]:
+        os.makedirs(path, exist_ok=True)
+    yield
+
+
+app = FastAPI(title="Jarvis by MG&CO", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

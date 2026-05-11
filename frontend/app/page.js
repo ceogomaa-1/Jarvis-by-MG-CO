@@ -95,7 +95,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!userId) return
-    fetch(`http://localhost:8000/api/user/onboarding-status/${userId}`)
+    fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/onboarding-status/${userId}`)
       .then((r) => r.json())
       .then((data) => setOnboardingComplete(data.onboarding_complete))
       .catch(() => setOnboardingComplete(true))
@@ -107,7 +107,7 @@ export default function Home() {
 
     const poll = async () => {
       try {
-        const res = await fetch(`http://localhost:8000/api/proactive/check/${userId}`)
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/proactive/check/${userId}`)
         if (!res.ok) return
         const data = await res.json()
         if (data.has_message && data.message) {
@@ -155,7 +155,7 @@ export default function Home() {
     let addedStreamingMessage = false
 
     try {
-      const res = await fetch('http://localhost:8000/api/chat/stream', {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -227,7 +227,7 @@ export default function Home() {
 
       // Re-check onboarding after response
       if (!onboardingComplete) {
-        fetch(`http://localhost:8000/api/user/onboarding-status/${userId}`)
+        fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/user/onboarding-status/${userId}`)
           .then((r) => r.json())
           .then((d) => setOnboardingComplete(d.onboarding_complete))
           .catch(() => {})

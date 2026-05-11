@@ -1,6 +1,7 @@
-fastapi
-uvicorn[standard]
 anthropic
 mem0ai
+fastapi
+uvicorn[standard]
 python-dotenv
-pydantic
+httpx
+qdrant-client
