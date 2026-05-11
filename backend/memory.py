@@ -1,0 +1,63 @@
+import asyncio
+import logging
+import traceback
+from mem0 import MemoryClient
+from backend.utils.env import MEM0_API_KEY
+
+logger = logging.getLogger(__name__)
+
+print(f"MEMORY: Initializing MemoryClient (cloud mode). API key present: {bool(MEM0_API_KEY)}")
+_client = MemoryClient(api_key=MEM0_API_KEY)
+print("MEMORY: MemoryClient initialized successfully.")
+
+
+async def save_interaction(user_id: str, user_message: str, jarvis_response: str) -> bool:
+    """Save a conversation exchange to Mem0. Mem0 automatically extracts facts,
+    preferences, and patterns and stores them as searchable memories for this user."""
+    messages = [
+        {"role": "user", "content": user_message},
+        {"role": "assistant", "content": jarvis_response},
+    ]
+    print(f"MEMORY: Attempting to save interaction for user {user_id}")
+    print(f"MEMORY: Messages being sent to Mem0: {messages}")
+    try:
+        result = await asyncio.to_thread(_client.add, messages, user_id=user_id)
+        print(f"MEMORY: client.add() result: {result}")
+        return True
+    except Exception as e:
+        print(f"MEMORY: ERROR — save_interaction failed for user {user_id}: {e}")
+        traceback.print_exc()
+        return False
+
+
+async def get_relevant_memories(user_id: str, current_message: str) -> str:
+    """Search Mem0 for memories relevant to the current message and return them
+    as a formatted string ready to inject into jarvis_think() as memory_context."""
+    try:
+        results = await asyncio.to_thread(
+            _client.search, current_message, filters={"user_id": user_id}, limit=10
+        )
+        # Mem0 may return a list or a dict with a "results" key depending on version
+        if isinstance(results, dict):
+            results = results.get("results", [])
+        if not results:
+            return ""
+        lines = [f"- {r['memory']}" for r in results if r.get("memory")]
+        return "\n".join(lines)
+    except Exception as e:
+        print(f"MEMORY: ERROR — get_relevant_memories failed for user {user_id}: {e}")
+        traceback.print_exc()
+        return ""
+
+
+async def get_all_memories(user_id: str) -> list:
+    """Return every memory Mem0 has stored for this user. Used by the debug endpoint."""
+    try:
+        results = await asyncio.to_thread(_client.get_all, filters={"user_id": user_id})
+        if isinstance(results, dict):
+            results = results.get("results", [])
+        return results or []
+    except Exception as e:
+        print(f"MEMORY: ERROR — get_all_memories failed for user {user_id}: {e}")
+        traceback.print_exc()
+        return []

@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(pip install *)",
+      "Bash(npx next *)",
+      "Bash(python -c \"from backend.utils.env import ANTHROPIC_API_KEY, MEM0_API_KEY; print\\('env OK — key loaded:', bool\\(ANTHROPIC_API_KEY\\)\\)\")",
+      "Bash(python -c \"from backend.models.schemas import ChatRequest, ChatResponse, Message; print\\('schemas OK'\\)\")",
+      "Bash(python -c \"from backend.llm import jarvis_think; print\\('llm OK'\\)\")",
+      "Bash(python -c \"from backend.main import app; print\\('FastAPI app OK'\\)\")",
+      "Bash(python -m uvicorn --version)",
+      "Bash(python -c \"from backend.memory import save_interaction, get_relevant_memories, get_all_memories; print\\('memory.py OK'\\)\")",
+      "Bash(python -c \"from backend.main import app; routes = [r.path for r in app.routes]; print\\('Routes:', routes\\)\")",
+      "Bash(python -c ' *)",
+      "Bash(python -c \"from backend.main import app; print\\('OK'\\)\")",
+      "Bash(git add *)"
+    ]
+  }
+}

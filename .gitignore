@@ -1,0 +1,21 @@
+# User data — never commit
+data/user_models/*.json
+data/proactive/*.json
+data/proactive/*.txt
+data/last_interaction/*.txt
+data/notes/*.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+.env.local
+
+# Node
+frontend/node_modules/
+frontend/.next/
+
+# OS
+.DS_Store
+Thumbs.db
