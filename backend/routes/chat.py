@@ -9,7 +9,7 @@ from backend.models.schemas import ChatRequest, ChatResponse
 from backend.llm import jarvis_think, jarvis_think_stream
 from backend.memory import get_relevant_memories, save_interaction
 from backend.user_model import get_user_model, summarize_user_for_prompt, update_user_model, get_onboarding_prompt
-from backend.agent import AVAILABLE_TOOLS, execute_tool
+from backend.agent import ANTHROPIC_TOOLS as AVAILABLE_TOOLS, execute_tool
 from backend.triggers import analyze_conversation_for_insight
 
 router = APIRouter()
