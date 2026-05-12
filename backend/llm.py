@@ -1,5 +1,6 @@
 # SWAP ZONE: To replace Claude with a local Llama model, only edit the jarvis_think() function below. Nothing else in the codebase needs to change.
 
+import asyncio
 import anthropic
 from backend.utils.env import ANTHROPIC_API_KEY
 
@@ -51,7 +52,6 @@ def _build_system_prompt(
     memory_context: str,
     user_model_context: str,
     system_override: str | None,
-    available_tools: list | None,
     tone_context: str,
 ) -> str:
     if system_override:
@@ -62,25 +62,16 @@ def _build_system_prompt(
             system_prompt += f"\n\nWhat I already know about you: {memory_context}"
         if user_model_context:
             system_prompt += f"\n\nYour current profile: {user_model_context}"
-
-    if available_tools:
-        system_prompt += (
-            "\n\nAVAILABLE TOOLS — you MUST use these when relevant:\n\n"
-            "get_current_datetime — USE THIS whenever the user asks about the current time, date, day, "
-            "or anything time-related. You do NOT know the current time without this tool. Always call it.\n\n"
-            "web_search — USE THIS for any current events, news, prices, or information that may have changed recently.\n\n"
-            "save_note — USE THIS when the user asks you to remember, remind, or save something specific.\n\n"
-            "get_notes — USE THIS when the user asks what their reminders or notes are.\n\n"
-            "To use a tool respond with EXACTLY:\n"
-            "TOOL_CALL: tool_name | parameter\n\n"
-            "You MUST use get_current_datetime when asked about time or date. "
-            "Never say you don't have access to real-time information — you have tools for that."
-        )
-
     if tone_context:
         system_prompt += f"\n\n{tone_context}"
-
     return system_prompt
+
+
+def _extract_text(content) -> str:
+    for block in content:
+        if hasattr(block, "text"):
+            return block.text
+    return ""
 
 
 async def jarvis_think(
@@ -91,20 +82,60 @@ async def jarvis_think(
     system_override: str | None = None,
     available_tools: list | None = None,
     tone_context: str = "",
+    user_id: str = "",
 ) -> str:
-    system_prompt = _build_system_prompt(
-        memory_context, user_model_context, system_override, available_tools, tone_context
-    )
+    from backend.agent import execute_tool, ANTHROPIC_TOOLS  # local import avoids circular deps at module load
+
+    system_prompt = _build_system_prompt(memory_context, user_model_context, system_override, tone_context)
     messages = [{"role": m["role"], "content": m["content"]} for m in conversation_history]
     messages.append({"role": "user", "content": user_message})
 
-    result = await _client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=1024,
-        system=system_prompt,
-        messages=messages,  # type: ignore[arg-type]
-    )
-    return result.content[0].text  # type: ignore[union-attr]
+    kwargs: dict = {
+        "model": "claude-sonnet-4-6",
+        "max_tokens": 1024,
+        "system": system_prompt,
+        "messages": messages,  # type: ignore[arg-type]
+    }
+    if available_tools and user_id:
+        kwargs["tools"] = ANTHROPIC_TOOLS
+
+    result = await _client.messages.create(**kwargs)
+
+    # Native tool use loop
+    if result.stop_reason == "tool_use" and user_id:
+        # Build the assistant content block list and collect all tool calls
+        assistant_content = []
+        tool_results = []
+        for block in result.content:
+            if block.type == "text":
+                assistant_content.append({"type": "text", "text": block.text})
+            elif block.type == "tool_use":
+                tool_result = await execute_tool(user_id, block.name, block.input)
+                print(f"LLM: Tool {block.name} → {tool_result[:80]}")
+                assistant_content.append({
+                    "type": "tool_use",
+                    "id": block.id,
+                    "name": block.name,
+                    "input": block.input,
+                })
+                tool_results.append({
+                    "type": "tool_result",
+                    "tool_use_id": block.id,
+                    "content": tool_result,
+                })
+
+        messages.append({"role": "assistant", "content": assistant_content})
+        messages.append({"role": "user", "content": tool_results})
+
+        result = await _client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=1024,
+            system=system_prompt,
+            messages=messages,  # type: ignore[arg-type]
+            tools=ANTHROPIC_TOOLS,  # type: ignore[arg-type]
+        )
+
+    return _extract_text(result.content)
 
 
 async def jarvis_think_stream(
@@ -115,19 +146,19 @@ async def jarvis_think_stream(
     system_override: str | None = None,
     available_tools: list | None = None,
     tone_context: str = "",
+    user_id: str = "",
 ):
-    """Streaming version of jarvis_think. Yields text chunks as they arrive."""
-    system_prompt = _build_system_prompt(
-        memory_context, user_model_context, system_override, available_tools, tone_context
+    """Calls jarvis_think() (which handles tool use) then fake-streams the result char by char."""
+    result = await jarvis_think(
+        user_message=user_message,
+        conversation_history=conversation_history,
+        memory_context=memory_context,
+        user_model_context=user_model_context,
+        system_override=system_override,
+        available_tools=available_tools,
+        tone_context=tone_context,
+        user_id=user_id,
     )
-    messages = [{"role": m["role"], "content": m["content"]} for m in conversation_history]
-    messages.append({"role": "user", "content": user_message})
-
-    async with _client.messages.stream(
-        model="claude-sonnet-4-6",
-        max_tokens=1024,
-        system=system_prompt,
-        messages=messages,  # type: ignore[arg-type]
-    ) as stream:
-        async for text in stream.text_stream:
-            yield text
+    for char in result:
+        yield char
+        await asyncio.sleep(0.01)

@@ -9,31 +9,51 @@ import httpx
 
 _NOTES_DIR = Path(__file__).resolve().parent.parent / "data" / "notes"
 
-AVAILABLE_TOOLS = [
-    {
-        "name": "web_search",
-        "description": "Search the web for current information, news, facts, or anything you don't already know",
-        "parameter": "search query string",
-    },
+# Anthropic native tool use format
+ANTHROPIC_TOOLS = [
     {
         "name": "get_current_datetime",
-        "description": "Get the current date, time, and day of week",
-        "parameter": "none required — pass any string",
+        "description": "Get the current date and time. Call this whenever the user asks about the current time, date, or day.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "web_search",
+        "description": "Search the web for current information",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Search query"},
+            },
+            "required": ["query"],
+        },
     },
     {
         "name": "save_note",
-        "description": "Save a note or reminder for the user. For reminders include the time after a pipe separator.",
-        "parameter": "note text | remind_at: <time> (e.g. 'drink water | remind_at: in 10 minutes' or 'call Alex | remind_at: tomorrow at 9am')",
+        "description": "Save a note or reminder for the user",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "note": {"type": "string"},
+                "remind_at": {
+                    "type": "string",
+                    "description": "Optional reminder time in natural language, e.g. 'in 5 minutes' or '5:40pm' or 'tomorrow at 9am'",
+                },
+            },
+            "required": ["note"],
+        },
     },
     {
         "name": "get_notes",
         "description": "Get all active notes and reminders for the user",
-        "parameter": "none required — pass any string",
-    },
-    {
-        "name": "mark_note_done",
-        "description": "Mark a note as done/complete by its ID",
-        "parameter": "note ID string",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
     },
 ]
 
@@ -45,65 +65,49 @@ def _parse_remind_at(text: str) -> str | None:
     text = text.strip().lower()
     now = datetime.now()
 
-    # "in X minutes"
     m = re.match(r"in (\d+) minutes?", text)
     if m:
         return (now + timedelta(minutes=int(m.group(1)))).isoformat()
 
-    # "in X hours"
     m = re.match(r"in (\d+) hours?", text)
     if m:
         return (now + timedelta(hours=int(m.group(1)))).isoformat()
 
-    # "in X days"
     m = re.match(r"in (\d+) days?", text)
     if m:
         return (now + timedelta(days=int(m.group(1)))).isoformat()
 
-    # "tomorrow at H[:MM] [am/pm]"
     m = re.match(r"tomorrow at (\d{1,2})(?::(\d{2}))?\s*(am|pm)?", text)
     if m:
         hour, minute, period = int(m.group(1)), int(m.group(2) or 0), m.group(3)
-        if period == "pm" and hour < 12:
-            hour += 12
-        elif period == "am" and hour == 12:
-            hour = 0
-        target = (now + timedelta(days=1)).replace(hour=hour, minute=minute, second=0, microsecond=0)
-        return target.isoformat()
+        if period == "pm" and hour < 12: hour += 12
+        elif period == "am" and hour == 12: hour = 0
+        return (now + timedelta(days=1)).replace(hour=hour, minute=minute, second=0, microsecond=0).isoformat()
 
-    # "today at H[:MM] [am/pm]"
     m = re.match(r"today at (\d{1,2})(?::(\d{2}))?\s*(am|pm)?", text)
     if m:
         hour, minute, period = int(m.group(1)), int(m.group(2) or 0), m.group(3)
-        if period == "pm" and hour < 12:
-            hour += 12
-        elif period == "am" and hour == 12:
-            hour = 0
+        if period == "pm" and hour < 12: hour += 12
+        elif period == "am" and hour == 12: hour = 0
         target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-        if target <= now:
-            target += timedelta(days=1)
+        if target <= now: target += timedelta(days=1)
         return target.isoformat()
 
-    # "H[:MM] am/pm" (today, or tomorrow if already past)
     m = re.match(r"(\d{1,2})(?::(\d{2}))?\s*(am|pm)", text)
     if m:
         hour, minute, period = int(m.group(1)), int(m.group(2) or 0), m.group(3)
-        if period == "pm" and hour < 12:
-            hour += 12
-        elif period == "am" and hour == 12:
-            hour = 0
+        if period == "pm" and hour < 12: hour += 12
+        elif period == "am" and hour == 12: hour = 0
         target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-        if target <= now:
-            target += timedelta(days=1)
+        if target <= now: target += timedelta(days=1)
         return target.isoformat()
 
     return None
 
 
-# ─── Tools ────────────────────────────────────────────────────────────────────
+# ─── Tool implementations ──────────────────────────────────────────────────────
 
 async def web_search(query: str) -> str:
-    """Search via DuckDuckGo Instant Answer API — no key required."""
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             r = await client.get(
@@ -111,7 +115,6 @@ async def web_search(query: str) -> str:
                 params={"q": query, "format": "json", "no_html": 1, "skip_disambig": 1},
             )
             data = r.json()
-
         parts = []
         if data.get("Answer"):
             parts.append(f"Direct answer: {data['Answer']}")
@@ -120,11 +123,9 @@ async def web_search(query: str) -> str:
         topics = [t for t in data.get("RelatedTopics", []) if isinstance(t, dict) and t.get("Text")]
         if topics:
             parts.append("Related:\n" + "\n".join(f"- {t['Text']}" for t in topics[:5]))
-
         if not parts:
-            return f"No instant-answer results found for '{query}'. Try a more specific query."
+            return f"No instant-answer results found for '{query}'."
         return f"Search results for '{query}':\n\n" + "\n\n".join(parts)
-
     except Exception as e:
         return f"Search failed: {e}"
 
@@ -150,17 +151,8 @@ def _save_notes(user_id: str, notes: list):
     )
 
 
-async def save_note(user_id: str, note: str, remind_at: str = None) -> str:
-    """Save a note. The `note` parameter may contain '| remind_at: <time>' appended by the tool caller."""
+async def save_note(user_id: str, note: str, remind_at_iso: str | None = None) -> str:
     try:
-        remind_at_iso = remind_at  # Use explicit param if provided
-
-        # Parse combined parameter format: "note text | remind_at: <time>"
-        if " | remind_at: " in note:
-            parts = note.split(" | remind_at: ", 1)
-            note = parts[0].strip()
-            remind_at_iso = _parse_remind_at(parts[1].strip())
-
         notes = _load_notes(user_id)
         entry = {
             "id": uuid.uuid4().hex[:8],
@@ -171,12 +163,10 @@ async def save_note(user_id: str, note: str, remind_at: str = None) -> str:
         }
         notes.append(entry)
         _save_notes(user_id, notes)
-
         result = f"Note saved (id: {entry['id']}): {note}"
         if remind_at_iso:
             result += f" — reminder set for {remind_at_iso}"
         return result
-
     except Exception as e:
         return f"Failed to save note: {e}"
 
@@ -210,21 +200,23 @@ async def mark_note_done(user_id: str, note_id: str) -> str:
         return f"Failed to mark note done: {e}"
 
 
-# ─── Dispatcher ───────────────────────────────────────────────────────────────
+# ─── Dispatcher (accepts structured dict input from Anthropic native tool use) ─
 
-async def execute_tool(user_id: str, tool_name: str, parameter: str) -> str:
-    """Dispatch a tool call by name and return the result string."""
+async def execute_tool(user_id: str, tool_name: str, tool_input: dict) -> str:
     try:
-        if tool_name == "web_search":
-            return await web_search(parameter)
-        elif tool_name == "get_current_datetime":
+        if tool_name == "get_current_datetime":
             return await get_current_datetime()
+        elif tool_name == "web_search":
+            return await web_search(tool_input.get("query", ""))
         elif tool_name == "save_note":
-            return await save_note(user_id, parameter)
+            note = tool_input.get("note", "")
+            remind_at_str = tool_input.get("remind_at")
+            remind_at_iso = _parse_remind_at(remind_at_str) if remind_at_str else None
+            return await save_note(user_id, note, remind_at_iso)
         elif tool_name == "get_notes":
             return await get_notes(user_id)
         elif tool_name == "mark_note_done":
-            return await mark_note_done(user_id, parameter)
+            return await mark_note_done(user_id, tool_input.get("note_id", ""))
         else:
             return f"Unknown tool: {tool_name}"
     except Exception as e:
