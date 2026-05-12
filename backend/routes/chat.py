@@ -172,11 +172,9 @@ async def chat_stream(request: ChatRequest):
     tools = AVAILABLE_TOOLS if not system_override else None
 
     async def event_generator():
-        # ── Pass 1: stream the initial response ──────────────────────────────
-        first_text: list[str] = []
-        errored = False
         try:
-            async for chunk in jarvis_think_stream(
+            # ── Pass 1: get full response (handles tool calls cleanly) ────────
+            response_text = await jarvis_think(
                 user_message=request.message,
                 conversation_history=history,
                 memory_context=memory_context,
@@ -184,61 +182,49 @@ async def chat_stream(request: ChatRequest):
                 system_override=system_override,
                 available_tools=tools,
                 tone_context=tone_context,
-            ):
-                first_text.append(chunk)
-                yield f"data: {json.dumps(chunk)}\n\n"
-        except Exception as e:
-            print(f"CHAT STREAM: Error during generation for {request.user_id}: {e}")
-            yield "data: [ERROR]\n\n"
-            errored = True
+            )
 
-        first_response = "".join(first_text)
-        final_response = first_response
-
-        # ── Pass 2: execute tool and stream second response if needed ─────────
-        if not errored:
-            tool_call = _parse_tool_call(first_response)
+            # ── Pass 2: execute tool and get final response if needed ─────────
+            tool_call = _parse_tool_call(response_text)
             if tool_call:
                 tool_name, parameter = tool_call
                 print(f"CHAT STREAM: Tool call — {tool_name} | {parameter}")
                 tool_result = await execute_tool(request.user_id, tool_name, parameter)
                 print(f"CHAT STREAM: Tool result — {tool_result[:100]}")
-
-                pre_tool_text = first_response.split("TOOL_CALL:")[0].strip() or "One moment."
-                second_text: list[str] = []
-                try:
-                    async for chunk in jarvis_think_stream(
-                        user_message=f"[Tool result — {tool_name}]: {tool_result}",
-                        conversation_history=history + [
-                            {"role": "user", "content": request.message},
-                            {"role": "assistant", "content": pre_tool_text},
-                        ],
-                        memory_context=memory_context,
-                        user_model_context=user_model_context,
-                        tone_context=tone_context,
-                    ):
-                        second_text.append(chunk)
-                        yield f"data: {json.dumps(chunk)}\n\n"
-                except Exception as e:
-                    print(f"CHAT STREAM: Error during tool result stream for {request.user_id}: {e}")
-
-                if second_text:
-                    final_response = "".join(second_text)
-
-        # ── Post-tasks with the definitive final response ─────────────────────
-        if final_response:
-            _record_interaction(request.user_id)
-            async def _run_post_tasks():
-                await asyncio.gather(
-                    save_interaction(request.user_id, request.message, final_response),
-                    update_user_model(request.user_id, request.message, final_response),
+                pre_tool_text = response_text.split("TOOL_CALL:")[0].strip() or "One moment."
+                response_text = await jarvis_think(
+                    user_message=f"[Tool result — {tool_name}]: {tool_result}",
+                    conversation_history=history + [
+                        {"role": "user", "content": request.message},
+                        {"role": "assistant", "content": pre_tool_text},
+                    ],
+                    memory_context=memory_context,
+                    user_model_context=user_model_context,
+                    tone_context=tone_context,
                 )
-            asyncio.create_task(_run_post_tasks())
-            asyncio.create_task(
-                analyze_conversation_for_insight(
-                    request.user_id, request.message, final_response
-                )
+
+            # ── Fake-stream the final response character by character ──────────
+            for char in response_text:
+                yield f"data: {json.dumps(char)}\n\n"
+                await asyncio.sleep(0.01)
+
+        except Exception as e:
+            print(f"CHAT STREAM: Error for {request.user_id}: {e}")
+            yield "data: [ERROR]\n\n"
+            yield "data: [DONE]\n\n"
+            return
+
+        # ── Post-tasks ────────────────────────────────────────────────────────
+        _record_interaction(request.user_id)
+        async def _run_post_tasks():
+            await asyncio.gather(
+                save_interaction(request.user_id, request.message, response_text),
+                update_user_model(request.user_id, request.message, response_text),
             )
+        asyncio.create_task(_run_post_tasks())
+        asyncio.create_task(
+            analyze_conversation_for_insight(request.user_id, request.message, response_text)
+        )
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(
