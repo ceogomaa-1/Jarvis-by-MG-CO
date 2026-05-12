@@ -102,7 +102,7 @@ async def jarvis_think(
     result = await _client.messages.create(**kwargs)
 
     # Native tool use loop
-    if result.stop_reason == "tool_use" and user_id:
+    if result.stop_reason == "tool_use":
         # Build the assistant content block list and collect all tool calls
         assistant_content = []
         tool_results = []
