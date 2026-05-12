@@ -6,10 +6,10 @@ from pathlib import Path
 from fastapi import APIRouter, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from backend.models.schemas import ChatRequest, ChatResponse
-from backend.llm import jarvis_think, jarvis_think_stream
+from backend.llm import jarvis_think
 from backend.memory import get_relevant_memories, save_interaction
 from backend.user_model import get_user_model, summarize_user_for_prompt, update_user_model, get_onboarding_prompt
-from backend.agent import ANTHROPIC_TOOLS as AVAILABLE_TOOLS, execute_tool
+from backend.agent import ANTHROPIC_TOOLS as AVAILABLE_TOOLS
 from backend.triggers import analyze_conversation_for_insight
 
 router = APIRouter()
@@ -78,16 +78,6 @@ def _record_interaction(user_id: str):
         print(f"CHAT: Failed to record last_interaction for {user_id}: {e}")
 
 
-def _parse_tool_call(response: str) -> tuple[str, str] | None:
-    for line in response.split("\n"):
-        if line.startswith("TOOL_CALL:"):
-            parts = line.replace("TOOL_CALL:", "").strip().split(" | ", 1)
-            tool_name = parts[0].strip()
-            parameter = parts[1].strip() if len(parts) > 1 else ""
-            return tool_name, parameter
-    return None
-
-
 async def _get_context(user_id: str, message: str):
     """Fetch memory context and user profile summary concurrently."""
     return await asyncio.gather(
@@ -121,26 +111,8 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
         system_override=system_override,
         available_tools=tools,
         tone_context=tone_context,
+        user_id=request.user_id,
     )
-
-    # Handle tool call if present
-    tool_call = _parse_tool_call(response_text)
-    if tool_call:
-        tool_name, parameter = tool_call
-        print(f"CHAT: Tool call — {tool_name} | {parameter}")
-        tool_result = await execute_tool(request.user_id, tool_name, parameter)
-        print(f"CHAT: Tool result — {tool_result[:100]}")
-        pre_tool_text = response_text.split("TOOL_CALL:")[0].strip() or "One moment."
-        response_text = await jarvis_think(
-            user_message=f"[Tool result — {tool_name}]: {tool_result}",
-            conversation_history=history + [
-                {"role": "user", "content": request.message},
-                {"role": "assistant", "content": pre_tool_text},
-            ],
-            memory_context=memory_context,
-            user_model_context=user_model_context,
-            tone_context=tone_context,
-        )
 
     _record_interaction(request.user_id)
     print(f"CHAT: Running post-response tasks for user {request.user_id}")
@@ -173,7 +145,6 @@ async def chat_stream(request: ChatRequest):
 
     async def event_generator():
         try:
-            # ── Pass 1: get full response (handles tool calls cleanly) ────────
             response_text = await jarvis_think(
                 user_message=request.message,
                 conversation_history=history,
@@ -182,28 +153,9 @@ async def chat_stream(request: ChatRequest):
                 system_override=system_override,
                 available_tools=tools,
                 tone_context=tone_context,
+                user_id=request.user_id,
             )
 
-            # ── Pass 2: execute tool and get final response if needed ─────────
-            tool_call = _parse_tool_call(response_text)
-            if tool_call:
-                tool_name, parameter = tool_call
-                print(f"CHAT STREAM: Tool call — {tool_name} | {parameter}")
-                tool_result = await execute_tool(request.user_id, tool_name, parameter)
-                print(f"CHAT STREAM: Tool result — {tool_result[:100]}")
-                pre_tool_text = response_text.split("TOOL_CALL:")[0].strip() or "One moment."
-                response_text = await jarvis_think(
-                    user_message=f"[Tool result — {tool_name}]: {tool_result}",
-                    conversation_history=history + [
-                        {"role": "user", "content": request.message},
-                        {"role": "assistant", "content": pre_tool_text},
-                    ],
-                    memory_context=memory_context,
-                    user_model_context=user_model_context,
-                    tone_context=tone_context,
-                )
-
-            # ── Fake-stream the final response character by character ──────────
             for char in response_text:
                 yield f"data: {json.dumps(char)}\n\n"
                 await asyncio.sleep(0.01)
@@ -214,7 +166,6 @@ async def chat_stream(request: ChatRequest):
             yield "data: [DONE]\n\n"
             return
 
-        # ── Post-tasks ────────────────────────────────────────────────────────
         _record_interaction(request.user_id)
         async def _run_post_tasks():
             await asyncio.gather(
