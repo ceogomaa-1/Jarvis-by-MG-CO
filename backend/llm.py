@@ -64,19 +64,17 @@ def _build_system_prompt(
             system_prompt += f"\n\nYour current profile: {user_model_context}"
 
     if available_tools:
-        tool_lines = "\n".join(
-            f"- {t['name']}: {t['description']} (parameter: {t['parameter']})"
-            for t in available_tools
-        )
         system_prompt += (
-            "\n\nYou have access to these tools. Use them when they would genuinely help the user:\n"
-            + tool_lines
-            + "\n\nTo use a tool, respond with EXACTLY this format on its own line:\n"
-            "TOOL_CALL: tool_name | parameter\n"
-            "Example:\n"
-            "TOOL_CALL: web_search | latest AI funding rounds 2026\n"
-            "After seeing the tool result, continue your response.\n"
-            "Only use tools when they add real value. Don't use tools for things you already know."
+            "\n\nAVAILABLE TOOLS — you MUST use these when relevant:\n\n"
+            "get_current_datetime — USE THIS whenever the user asks about the current time, date, day, "
+            "or anything time-related. You do NOT know the current time without this tool. Always call it.\n\n"
+            "web_search — USE THIS for any current events, news, prices, or information that may have changed recently.\n\n"
+            "save_note — USE THIS when the user asks you to remember, remind, or save something specific.\n\n"
+            "get_notes — USE THIS when the user asks what their reminders or notes are.\n\n"
+            "To use a tool respond with EXACTLY:\n"
+            "TOOL_CALL: tool_name | parameter\n\n"
+            "You MUST use get_current_datetime when asked about time or date. "
+            "Never say you don't have access to real-time information — you have tools for that."
         )
 
     if tone_context:
