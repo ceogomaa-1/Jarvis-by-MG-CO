@@ -65,14 +65,20 @@ def _build_system_prompt(
     system_override: str | None,
     tone_context: str,
 ) -> str:
+    # The absolute rules live at the top of _BASE_SYSTEM_PROMPT, before the "---" separator.
+    # Extract them so they can be prepended even when system_override replaces the rest.
+    _absolute_rules = _BASE_SYSTEM_PROMPT.split("---\n\n")[0]
+
     if system_override:
-        system_prompt = system_override
+        system_prompt = _absolute_rules + system_override
     else:
         system_prompt = _BASE_SYSTEM_PROMPT
-        if memory_context:
-            system_prompt += f"\n\nWhat I already know about you: {memory_context}"
-        if user_model_context:
-            system_prompt += f"\n\nYour current profile: {user_model_context}"
+
+    # Always inject memory and user model context regardless of override
+    if memory_context:
+        system_prompt += f"\n\nWhat I already know about you: {memory_context}"
+    if user_model_context:
+        system_prompt += f"\n\nYour current profile: {user_model_context}"
     if tone_context:
         system_prompt += f"\n\n{tone_context}"
     return system_prompt
