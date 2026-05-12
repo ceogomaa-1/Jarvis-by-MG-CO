@@ -92,7 +92,9 @@ async def _get_context(user_id: str, message: str):
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
     from datetime import datetime
-    current_dt = datetime.now().strftime("Today is %A, %B %d, %Y. Current time is %I:%M %p.")
+    import pytz
+    eastern = pytz.timezone('America/Toronto')
+    current_dt = datetime.now(eastern).strftime("Today is %A, %B %d, %Y. Current time is %I:%M %p EST.")
     memory_context, user_model_context = await _get_context(request.user_id, request.message)
     memory_context = f"{current_dt}\n\n{memory_context}"
 
@@ -149,7 +151,9 @@ async def chat_stream(request: ChatRequest):
 
     async def event_generator():
         from datetime import datetime
-        current_dt = datetime.now().strftime("Today is %A, %B %d, %Y. Current time is %I:%M %p.")
+        import pytz
+        eastern = pytz.timezone('America/Toronto')
+        current_dt = datetime.now(eastern).strftime("Today is %A, %B %d, %Y. Current time is %I:%M %p EST.")
         memory_context_with_dt = f"{current_dt}\n\n{memory_context}"
         try:
             response_text = await jarvis_think(
