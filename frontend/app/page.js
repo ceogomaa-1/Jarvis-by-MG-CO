@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 
-const BACKEND = 'https://web-production-ba9c1.up.railway.app'
+const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
 const OPENING_MESSAGE = {
   role: 'assistant',
