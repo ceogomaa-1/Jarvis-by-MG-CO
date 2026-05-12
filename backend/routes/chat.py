@@ -2,6 +2,7 @@ import asyncio
 import json
 from datetime import datetime
 from pathlib import Path
+import pytz
 
 from fastapi import APIRouter, BackgroundTasks
 from fastapi.responses import StreamingResponse
@@ -103,6 +104,9 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
     history = [{"role": m.role, "content": m.content} for m in request.conversation_history]
     tools = AVAILABLE_TOOLS if not system_override else None
 
+    current_time = datetime.now().strftime("%A, %B %d, %Y at %I:%M %p")
+    memory_context += f"\n\nCURRENT DATE AND TIME: {current_time}"
+
     response_text = await jarvis_think(
         user_message=request.message,
         conversation_history=history,
@@ -142,6 +146,9 @@ async def chat_stream(request: ChatRequest):
 
     history = [{"role": m.role, "content": m.content} for m in request.conversation_history]
     tools = AVAILABLE_TOOLS if not system_override else None
+
+    current_time = datetime.now().strftime("%A, %B %d, %Y at %I:%M %p")
+    memory_context += f"\n\nCURRENT DATE AND TIME: {current_time}"
 
     async def event_generator():
         try:
