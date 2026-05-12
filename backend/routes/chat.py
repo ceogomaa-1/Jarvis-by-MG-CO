@@ -91,7 +91,10 @@ async def _get_context(user_id: str, message: str):
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
+    from datetime import datetime
+    current_dt = datetime.now().strftime("Today is %A, %B %d, %Y. Current time is %I:%M %p.")
     memory_context, user_model_context = await _get_context(request.user_id, request.message)
+    memory_context = f"{current_dt}\n\n{memory_context}"
 
     user_model = await get_user_model(request.user_id)
     system_override = None
@@ -103,9 +106,6 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
 
     history = [{"role": m.role, "content": m.content} for m in request.conversation_history]
     tools = AVAILABLE_TOOLS if not system_override else None
-
-    current_time = datetime.now().strftime("%A, %B %d, %Y at %I:%M %p")
-    memory_context += f"\n\nCURRENT DATE AND TIME: {current_time}"
 
     response_text = await jarvis_think(
         user_message=request.message,
@@ -147,15 +147,15 @@ async def chat_stream(request: ChatRequest):
     history = [{"role": m.role, "content": m.content} for m in request.conversation_history]
     tools = AVAILABLE_TOOLS if not system_override else None
 
-    current_time = datetime.now().strftime("%A, %B %d, %Y at %I:%M %p")
-    memory_context += f"\n\nCURRENT DATE AND TIME: {current_time}"
-
     async def event_generator():
+        from datetime import datetime
+        current_dt = datetime.now().strftime("Today is %A, %B %d, %Y. Current time is %I:%M %p.")
+        memory_context_with_dt = f"{current_dt}\n\n{memory_context}"
         try:
             response_text = await jarvis_think(
                 user_message=request.message,
                 conversation_history=history,
-                memory_context=memory_context,
+                memory_context=memory_context_with_dt,
                 user_model_context=user_model_context,
                 system_override=system_override,
                 available_tools=tools,
