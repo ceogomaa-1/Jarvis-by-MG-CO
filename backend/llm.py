@@ -96,7 +96,7 @@ async def jarvis_think(
         "system": system_prompt,
         "messages": messages,  # type: ignore[arg-type]
     }
-    if available_tools and user_id:
+    if available_tools:
         kwargs["tools"] = ANTHROPIC_TOOLS
 
     result = await _client.messages.create(**kwargs)
