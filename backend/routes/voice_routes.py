@@ -63,7 +63,7 @@ async def create_voice_session(request: VoiceSessionRequest):
             },
             json={
                 "model": "gpt-4o-realtime-preview-2024-12-17",
-                "voice": "shimmer",
+                "voice": "coral",
                 "instructions": system_prompt,
                 "input_audio_transcription": {"model": "whisper-1"},
                 "turn_detection": {
