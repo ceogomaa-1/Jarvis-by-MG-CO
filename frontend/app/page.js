@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { supabase } from '../lib/supabase'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
@@ -9,15 +10,6 @@ const OPENING_MESSAGE = {
   role: 'assistant',
   content:
     "I'm Jarvis. Before I'm actually useful to you, I need to know you — not through a form, through a conversation. What's the one thing taking up the most space in your head right now?",
-}
-
-function getUserId() {
-  let id = localStorage.getItem('jarvis_user_id')
-  if (!id) {
-    id = 'user_' + crypto.randomUUID().replace(/-/g, '').slice(0, 8)
-    localStorage.setItem('jarvis_user_id', id)
-  }
-  return id
 }
 
 // ─── Orb helpers ──────────────────────────────────────────────────────────────
@@ -659,13 +651,44 @@ export default function Home() {
   const [input, setInput]                 = useState('')
   const [loading, setLoading]             = useState(false)
   const [userId, setUserId]               = useState(null)
+  const [user, setUser]                   = useState(null)
+  const [authLoading, setAuthLoading]     = useState(true)
   const [onboardingComplete, setOnboarding] = useState(null)
   const [showPanel, setShowPanel]         = useState(false)
   const [micOn, setMicOn]                 = useState(false)
   const [proactiveHint, setProactiveHint] = useState(null)
   const msgIdRef = useRef(1)
 
-  useEffect(() => { setUserId(getUserId()) }, [])
+  // ─── Auth ──────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!supabase) {
+      setAuthLoading(false)
+      return
+    }
+    const getSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user) {
+        setUser(session.user)
+        const jarvisId = 'user_' + session.user.id.replace(/-/g, '').slice(0, 8)
+        setUserId(jarvisId)
+      } else {
+        window.location.href = '/login'
+      }
+      setAuthLoading(false)
+    }
+    getSession()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        setUser(session.user)
+        const jarvisId = 'user_' + session.user.id.replace(/-/g, '').slice(0, 8)
+        setUserId(jarvisId)
+      } else {
+        window.location.href = '/login'
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [])
 
   useEffect(() => {
     if (!userId) return
@@ -700,6 +723,16 @@ export default function Home() {
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
   }, [])
+
+  if (authLoading) {
+    return (
+      <div style={{ background: 'var(--bg)', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ fontFamily: 'var(--display)', fontSize: '1.6rem', letterSpacing: '0.5em', paddingLeft: '0.5em', color: 'var(--ink)' }}>
+          JARVIS
+        </div>
+      </div>
+    )
+  }
 
   const lastMsg = messages[messages.length - 1]
   const isStreaming = lastMsg?.streaming === true
@@ -858,6 +891,36 @@ export default function Home() {
                 onMouseEnter={e => e.currentTarget.style.opacity = '1'}
                 onMouseLeave={e => e.currentTarget.style.opacity = '0.6'}
               >◉</button>
+            )}
+
+            {/* Avatar + sign out */}
+            {user && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 4 }}>
+                {user.user_metadata?.avatar_url && (
+                  <img
+                    src={user.user_metadata.avatar_url}
+                    alt="avatar"
+                    referrerPolicy="no-referrer"
+                    style={{ width: 24, height: 24, borderRadius: '50%', opacity: 0.8, border: '1px solid var(--line)' }}
+                  />
+                )}
+                <button
+                  onClick={async () => {
+                    await supabase.auth.signOut()
+                    window.location.href = '/login'
+                  }}
+                  style={{
+                    background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                    fontFamily: 'var(--sans)', fontSize: '0.65rem', letterSpacing: '0.1em',
+                    color: 'var(--ink-mute)', textTransform: 'uppercase', opacity: 0.55,
+                    transition: 'opacity 0.2s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                  onMouseLeave={e => e.currentTarget.style.opacity = '0.55'}
+                >
+                  Sign out
+                </button>
+              </div>
             )}
           </div>
         </div>
