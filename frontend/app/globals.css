@@ -99,3 +99,22 @@ html, body {
 }
 
 .panel-slide { animation: slideIn 0.25s ease-out forwards; }
+
+@keyframes orbSpeak {
+  0%, 100% {
+    box-shadow: 0 0 40px rgba(255, 144, 114, 0.35);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 90px rgba(255, 144, 114, 0.75);
+    transform: scale(1.04);
+  }
+}
+
+@keyframes orbListen {
+  0%, 100% { opacity: 0.82; }
+  50%       { opacity: 1; }
+}
+
+.orb-speaking { animation: orbSpeak 1.8s ease-in-out infinite; }
+.orb-listening { animation: orbListen 2.4s ease-in-out infinite; }

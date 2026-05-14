@@ -14,3 +14,4 @@ else:
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 MEM0_API_KEY = os.getenv("MEM0_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")

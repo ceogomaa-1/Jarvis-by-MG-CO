@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import { VoiceManager } from '../lib/voiceManager'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
@@ -491,9 +492,9 @@ function Message({ msg, isLatest }) {
 
   return (
     <div style={{ marginBottom: 22, maxWidth: '78%', opacity: isLatest ? 1 : 0.72, transition: 'opacity 600ms ease' }}>
-      {msg.proactive && (
-        <div style={{ fontFamily: 'var(--sans)', fontSize: 9, letterSpacing: '0.35em', textTransform: 'uppercase', color: 'var(--accent)', marginBottom: 8, fontWeight: 500 }}>
-          Proactive · just now
+      {(msg.proactive || msg.fromVoice) && (
+        <div style={{ fontFamily: 'var(--sans)', fontSize: 9, letterSpacing: '0.35em', textTransform: 'uppercase', color: 'var(--accent)', marginBottom: 8, fontWeight: 500, opacity: 0.7 }}>
+          {msg.proactive ? 'Proactive · just now' : 'Voice'}
         </div>
       )}
       <div style={{ fontFamily: 'var(--serif)', fontSize: 22, lineHeight: 1.35, fontWeight: 400, color: 'var(--ink)', letterSpacing: 0.2 }}>
@@ -546,7 +547,8 @@ function Conversation({ messages, loading }) {
 
 // ─── Input bar ────────────────────────────────────────────────────────────────
 
-function InputBar({ orbState, input, setInput, onSend, onMic, loading, disabled }) {
+function InputBar({ orbState, input, setInput, onSend, onMicClick, voiceMode, voiceConnecting, loading, disabled }) {
+  const isVoiceActive = voiceMode
   const isListening = orbState === 'listening'
 
   const handleKey = (e) => {
@@ -556,37 +558,63 @@ function InputBar({ orbState, input, setInput, onSend, onMic, loading, disabled 
     }
   }
 
+  const micBg = voiceConnecting
+    ? 'rgba(255,144,114,0.3)'
+    : isVoiceActive
+    ? 'var(--accent)'
+    : 'rgba(243,234,217,0.07)'
+
+  const micColor = voiceConnecting || isVoiceActive ? '#1a0e08' : 'var(--ink-soft)'
+  const micShadow = isVoiceActive ? '0 0 24px rgba(255,144,114,0.6)' : 'none'
+
+  let placeholder = 'Say something to Jarvis'
+  if (isVoiceActive) placeholder = 'Voice active — or type here'
+  else if (isListening) placeholder = 'Listening...'
+
   return (
-    <div style={{ padding: '20px 40px 32px', display: 'flex', justifyContent: 'center' }}>
+    <div style={{ padding: '20px 40px 32px', display: 'flex', justifyContent: 'center', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
       <div style={{
         width: '100%', maxWidth: 720,
         display: 'flex', alignItems: 'center', gap: 14,
         padding: '14px 18px',
-        background: isListening ? 'rgba(255,144,114,0.06)' : 'rgba(243,234,217,0.035)',
-        border: `1px solid ${isListening ? 'rgba(255,144,114,0.45)' : 'var(--line)'}`,
+        background: isVoiceActive ? 'rgba(255,144,114,0.06)' : 'rgba(243,234,217,0.035)',
+        border: `1px solid ${isVoiceActive ? 'rgba(255,144,114,0.45)' : 'var(--line)'}`,
         borderRadius: 999, backdropFilter: 'blur(10px)',
         transition: 'border-color 300ms ease, background 300ms ease',
       }}>
-        <button onClick={onMic} aria-label="microphone" style={{
-          width: 36, height: 36, borderRadius: 999, flexShrink: 0,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: isListening ? 'var(--accent)' : 'rgba(243,234,217,0.07)',
-          border: '1px solid rgba(243,234,217,0.12)',
-          color: isListening ? '#1a0e08' : 'var(--ink-soft)',
-          cursor: 'pointer', transition: 'all 250ms ease',
-          boxShadow: isListening ? '0 0 24px rgba(255,144,114,0.6)' : 'none',
-        }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="9" y="3" width="6" height="12" rx="3" />
-            <path d="M5 11a7 7 0 0 0 14 0" />
-            <line x1="12" y1="18" x2="12" y2="22" />
-          </svg>
+        <button
+          onClick={onMicClick}
+          disabled={voiceConnecting}
+          aria-label={isVoiceActive ? 'stop voice' : 'start voice'}
+          style={{
+            width: 36, height: 36, borderRadius: 999, flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: micBg, border: '1px solid rgba(243,234,217,0.12)',
+            color: micColor, cursor: voiceConnecting ? 'default' : 'pointer',
+            transition: 'all 250ms ease', boxShadow: micShadow,
+          }}
+        >
+          {voiceConnecting ? (
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', animation: 'inkPulse 0.8s ease-in-out infinite', display: 'inline-block' }} />
+          ) : isVoiceActive ? (
+            // Stop icon
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="4" y="4" width="16" height="16" rx="2" />
+            </svg>
+          ) : (
+            // Mic icon
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="9" y="3" width="6" height="12" rx="3" />
+              <path d="M5 11a7 7 0 0 0 14 0" />
+              <line x1="12" y1="18" x2="12" y2="22" />
+            </svg>
+          )}
         </button>
         <input
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKey}
-          placeholder={isListening ? 'Listening…' : 'Say something to Jarvis'}
+          placeholder={placeholder}
           disabled={disabled || loading}
           style={{
             flex: 1, background: 'transparent', border: 0, outline: 'none',
@@ -655,8 +683,12 @@ export default function Home() {
   const [authLoading, setAuthLoading]     = useState(true)
   const [onboardingComplete, setOnboarding] = useState(null)
   const [showPanel, setShowPanel]         = useState(false)
-  const [micOn, setMicOn]                 = useState(false)
   const [proactiveHint, setProactiveHint] = useState(null)
+  const [voiceMode, setVoiceMode]         = useState(false)
+  const [jarvisSpeaking, setJarvisSpeaking] = useState(false)
+  const [voiceConnecting, setVoiceConnecting] = useState(false)
+  const [voiceError, setVoiceError]       = useState(null)
+  const voiceManagerRef = useRef(null)
   const msgIdRef = useRef(1)
 
   // ─── Auth ──────────────────────────────────────────────────────────────────
@@ -734,12 +766,61 @@ export default function Home() {
     )
   }
 
+  // ─── Voice ──────────────────────────────────────────────────────────────────
+  async function startVoice() {
+    if (!userId) return
+    setVoiceConnecting(true)
+    setVoiceError(null)
+    try {
+      const res = await fetch(`${BACKEND}/api/voice/session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId }),
+      })
+      if (!res.ok) throw new Error(`Session error ${res.status}`)
+      const { client_secret } = await res.json()
+
+      const vm = new VoiceManager(
+        () => setJarvisSpeaking(true),
+        () => setJarvisSpeaking(false),
+        (role, text) => {
+          msgIdRef.current += 1
+          setMessages(prev => [...prev, {
+            id: msgIdRef.current,
+            role: role === 'jarvis' ? 'assistant' : 'user',
+            content: text,
+            fromVoice: true,
+          }])
+        }
+      )
+      await vm.connect(client_secret)
+      voiceManagerRef.current = vm
+      setVoiceMode(true)
+    } catch (err) {
+      console.error('Voice connection failed:', err)
+      setVoiceError('Could not start voice. Check mic permissions.')
+    } finally {
+      setVoiceConnecting(false)
+    }
+  }
+
+  function stopVoice() {
+    voiceManagerRef.current?.disconnect()
+    voiceManagerRef.current = null
+    setVoiceMode(false)
+    setJarvisSpeaking(false)
+  }
+
+  // Clean up voice on unmount
+  useEffect(() => () => voiceManagerRef.current?.disconnect(), [])
+
   const lastMsg = messages[messages.length - 1]
   const isStreaming = lastMsg?.streaming === true
   const orbState =
-    micOn && !loading && !isStreaming ? 'listening' :
-    loading     ? 'thinking' :
-    isStreaming  ? 'speaking' :
+    voiceMode && jarvisSpeaking ? 'speaking' :
+    voiceMode                   ? 'listening' :
+    loading                     ? 'thinking' :
+    isStreaming                  ? 'speaking' :
     'idle'
 
   async function sendMessage() {
@@ -932,7 +1013,10 @@ export default function Home() {
           alignItems: 'center', justifyContent: 'center',
           gap: 28, padding: '0 20px 40px',
         }}>
-          <div style={{ animation: 'softFloat 6s ease-in-out infinite' }}>
+          <div
+            style={{ animation: 'softFloat 6s ease-in-out infinite', borderRadius: '50%' }}
+            className={jarvisSpeaking ? 'orb-speaking' : voiceMode ? 'orb-listening' : ''}
+          >
             <Orb state={orbState} orbStyle="aurora" accent="#ff9072" size={340} />
           </div>
           <div style={{
@@ -940,12 +1024,27 @@ export default function Home() {
             color: 'var(--ink-soft)', fontWeight: 300, textAlign: 'center',
             maxWidth: 320, lineHeight: 1.45, minHeight: 48,
           }}>
-            {captionFor(orbState)}
+            {voiceMode ? '' : captionFor(orbState)}
           </div>
           <div style={{ fontFamily: 'var(--sans)', fontSize: 9, letterSpacing: '0.38em', textTransform: 'uppercase', color: 'var(--ink-mute)' }}>
-            memory · present
+            {voiceMode ? (
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{
+                  width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)',
+                  animation: 'inkPulse 1.4s ease-in-out infinite', display: 'inline-block',
+                }} />
+                <span style={{ color: 'var(--accent)', letterSpacing: '0.2em' }}>
+                  {jarvisSpeaking ? 'Speaking' : 'Listening'}
+                </span>
+              </span>
+            ) : 'memory · present'}
           </div>
-          {onboardingComplete === false && (
+          {voiceError && (
+            <div style={{ fontFamily: 'var(--sans)', fontSize: 9, color: '#ef4444', textAlign: 'center', maxWidth: 280, letterSpacing: '0.05em' }}>
+              {voiceError}
+            </div>
+          )}
+          {onboardingComplete === false && !voiceMode && (
             <div className="onboarding-pulse" style={{ fontFamily: 'var(--sans)', fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--accent)', opacity: 0.6 }}>
               Getting to know you…
             </div>
@@ -969,7 +1068,9 @@ export default function Home() {
             input={input}
             setInput={setInput}
             onSend={sendMessage}
-            onMic={() => setMicOn(v => !v)}
+            onMicClick={voiceMode ? stopVoice : startVoice}
+            voiceMode={voiceMode}
+            voiceConnecting={voiceConnecting}
             loading={loading || isStreaming}
             disabled={!userId}
           />
