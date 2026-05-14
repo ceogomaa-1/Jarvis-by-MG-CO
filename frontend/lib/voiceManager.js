@@ -11,7 +11,7 @@ export class VoiceManager {
   }
 
   async connect(signedUrl, systemPrompt) {
-    console.log('Connecting to ElevenLabs with URL:', signedUrl.slice(0, 50))
+    console.log('Connecting to ElevenLabs with URL:', signedUrl)
 
     // Unlock browser autoplay before connecting
     const AudioContext = window.AudioContext || window.webkitAudioContext

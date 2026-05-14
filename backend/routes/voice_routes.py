@@ -81,6 +81,8 @@ You are always listening. Respond immediately when the user finishes speaking.""
     data = resp.json()
     signed_url = data.get("signed_url")
     print(f"VOICE: signed_url present: {bool(signed_url)}")
+    print(f"VOICE: Full signed_url length: {len(signed_url)}")
+    print(f"VOICE: signed_url preview: {signed_url[:80]}")
     if not signed_url:
         raise HTTPException(status_code=502, detail="No signed_url in ElevenLabs response")
 
