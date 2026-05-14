@@ -18,9 +18,12 @@ class VoiceSessionRequest(BaseModel):
 
 @router.post("/voice/session")
 async def get_voice_session(request: VoiceSessionRequest):
+    print("VOICE: endpoint hit")
+    print(f"VOICE: Getting session for user {request.user_id}")
     api_key = os.getenv("ELEVENLABS_API_KEY")
     agent_id = os.getenv("ELEVENLABS_AGENT_ID")
     if not api_key or not agent_id:
+        print("VOICE: missing credentials — ELEVENLABS_API_KEY or ELEVENLABS_AGENT_ID not set")
         raise HTTPException(status_code=503, detail="ElevenLabs credentials not configured")
 
     memory_context = await get_relevant_memories(
@@ -70,11 +73,14 @@ You are always listening. Respond immediately when the user finishes speaking.""
             timeout=30.0,
         )
 
+    print(f"VOICE: ElevenLabs response status: {resp.status_code}")
     if resp.status_code != 200:
+        print(f"VOICE: ElevenLabs error body: {resp.text}")
         raise HTTPException(status_code=resp.status_code, detail=resp.text)
 
     data = resp.json()
     signed_url = data.get("signed_url")
+    print(f"VOICE: signed_url present: {bool(signed_url)}")
     if not signed_url:
         raise HTTPException(status_code=502, detail="No signed_url in ElevenLabs response")
 

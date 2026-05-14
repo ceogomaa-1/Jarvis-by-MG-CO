@@ -836,10 +836,10 @@ export default function Home() {
     'idle'
 
   async function sendMessage() {
+    console.log('sendMessage called with:', input)
     const text = input.trim()
     if (!text || loading || isStreaming) return
     setInput('')
-    setMicOn(false)
 
     const historyForApi = messages.slice(1).map(({ role, content }) => ({ role, content }))
     msgIdRef.current += 1

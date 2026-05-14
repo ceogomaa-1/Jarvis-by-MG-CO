@@ -11,6 +11,7 @@ export class VoiceManager {
   }
 
   async connect(signedUrl, systemPrompt) {
+    console.log('Connecting to ElevenLabs with URL:', signedUrl.slice(0, 50))
     try {
       this.conversation = await Conversation.startSession({
         signedUrl,
