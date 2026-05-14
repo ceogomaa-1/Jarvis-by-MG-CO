@@ -79,6 +79,7 @@ You are always listening. Respond immediately when the user finishes speaking.""
         raise HTTPException(status_code=resp.status_code, detail=resp.text)
 
     data = resp.json()
+    print(f"VOICE: Full ElevenLabs response: {data}")
     signed_url = data.get("signed_url")
     print(f"VOICE: signed_url present: {bool(signed_url)}")
     print(f"VOICE: Full signed_url length: {len(signed_url)}")
