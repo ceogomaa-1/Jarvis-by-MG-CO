@@ -11,69 +11,56 @@ export class VoiceManager {
   }
 
   async connect(signedUrl, systemPrompt) {
-    console.log('Connecting to ElevenLabs with URL:', signedUrl)
-    console.log('FULL ElevenLabs URL:', signedUrl)
-
-    // Unlock browser autoplay before connecting
-    const AudioContext = window.AudioContext || window.webkitAudioContext
-    const audioCtx = new AudioContext()
-    if (audioCtx.state === 'suspended') {
-      await audioCtx.resume()
-    }
-    const buffer = audioCtx.createBuffer(1, 1, 22050)
-    const source = audioCtx.createBufferSource()
-    source.buffer = buffer
-    source.connect(audioCtx.destination)
-    source.start()
-
     try {
+      // Unlock audio context first
+      const AudioContext = window.AudioContext || window.webkitAudioContext
+      if (AudioContext) {
+        const ctx = new AudioContext()
+        await ctx.resume()
+      }
+
       this.conversation = await Conversation.startSession({
-        signedUrl,
-
-        overrides: {
-          agent: {
-            prompt: { prompt: systemPrompt },
-            firstMessage: '',
-          },
-        },
-
+        signedUrl: signedUrl,
         onConnect: () => {
           this.isConnected = true
+          console.log('ElevenLabs connected successfully')
         },
-
         onDisconnect: () => {
           this.isConnected = false
+          console.log('ElevenLabs disconnected')
+          this.onSpeakingEnd?.()
         },
-
         onError: (error) => {
           console.error('ElevenLabs error:', error)
           this.onError?.(error)
         },
-
-        onModeChange: (modeEvent) => {
-          console.log('ElevenLabs mode:', JSON.stringify(modeEvent))
-          const mode = modeEvent?.mode ?? modeEvent
+        onModeChange: (modeInfo) => {
+          console.log('Mode change:', JSON.stringify(modeInfo))
+          const mode = modeInfo?.mode || modeInfo
           if (mode === 'speaking') {
             this.onSpeakingStart?.()
           } else {
             this.onSpeakingEnd?.()
           }
         },
-
         onMessage: (msg) => {
           console.log('ElevenLabs message:', JSON.stringify(msg))
-          const message = msg?.message
-          const source = msg?.source
-          if (!message?.trim()) return
-          if (source === 'ai') {
-            this.onTranscript?.('jarvis', message)
-          } else if (source === 'user') {
-            this.onTranscript?.('user', message)
+          const source = msg?.source || msg?.role
+          const message = msg?.message || msg?.text || msg?.content
+          if (message && message.trim()) {
+            if (source === 'ai' || source === 'assistant') {
+              this.onTranscript?.('jarvis', message)
+            } else if (source === 'user') {
+              this.onTranscript?.('user', message)
+            }
           }
         },
       })
+
+      console.log('Session started:', this.conversation)
+
     } catch (err) {
-      console.error('Failed to connect to ElevenLabs:', err)
+      console.error('ElevenLabs connection error:', err)
       this.onError?.(err)
       throw err
     }
