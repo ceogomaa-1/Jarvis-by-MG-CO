@@ -756,6 +756,9 @@ export default function Home() {
     return () => window.removeEventListener('focus', onFocus)
   }, [])
 
+  // Voice cleanup on unmount — must be before any conditional return
+  useEffect(() => () => voiceManagerRef.current?.disconnect(), [])
+
   if (authLoading) {
     return (
       <div style={{ background: 'var(--bg)', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -810,9 +813,6 @@ export default function Home() {
     setVoiceMode(false)
     setJarvisSpeaking(false)
   }
-
-  // Clean up voice on unmount
-  useEffect(() => () => voiceManagerRef.current?.disconnect(), [])
 
   const lastMsg = messages[messages.length - 1]
   const isStreaming = lastMsg?.streaming === true
