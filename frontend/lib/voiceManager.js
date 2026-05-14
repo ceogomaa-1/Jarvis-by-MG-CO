@@ -12,6 +12,19 @@ export class VoiceManager {
 
   async connect(signedUrl, systemPrompt) {
     console.log('Connecting to ElevenLabs with URL:', signedUrl.slice(0, 50))
+
+    // Unlock browser autoplay before connecting
+    const AudioContext = window.AudioContext || window.webkitAudioContext
+    const audioCtx = new AudioContext()
+    if (audioCtx.state === 'suspended') {
+      await audioCtx.resume()
+    }
+    const buffer = audioCtx.createBuffer(1, 1, 22050)
+    const source = audioCtx.createBufferSource()
+    source.buffer = buffer
+    source.connect(audioCtx.destination)
+    source.start()
+
     try {
       this.conversation = await Conversation.startSession({
         signedUrl,
@@ -36,7 +49,9 @@ export class VoiceManager {
           this.onError?.(error)
         },
 
-        onModeChange: ({ mode }) => {
+        onModeChange: (modeEvent) => {
+          console.log('ElevenLabs mode:', JSON.stringify(modeEvent))
+          const mode = modeEvent?.mode ?? modeEvent
           if (mode === 'speaking') {
             this.onSpeakingStart?.()
           } else {
@@ -44,7 +59,10 @@ export class VoiceManager {
           }
         },
 
-        onMessage: ({ message, source }) => {
+        onMessage: (msg) => {
+          console.log('ElevenLabs message:', JSON.stringify(msg))
+          const message = msg?.message
+          const source = msg?.source
           if (!message?.trim()) return
           if (source === 'ai') {
             this.onTranscript?.('jarvis', message)
