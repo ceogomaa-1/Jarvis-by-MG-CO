@@ -46,12 +46,13 @@ async def create_voice_session(request: VoiceSessionRequest):
         summarize_user_for_prompt(request.user_id),
     )
 
+    memory_context = f"{current_dt}\n\n{memory_context}" if memory_context else current_dt
+
     system_prompt = _BASE_SYSTEM_PROMPT
     if memory_context:
         system_prompt += f"\n\nWhat I already know about you: {memory_context}"
     if user_model_context:
         system_prompt += f"\n\nYour current profile: {user_model_context}"
-    system_prompt += f"\n\n{current_dt}"
     system_prompt += _VOICE_ADDON
 
     async with httpx.AsyncClient() as client:

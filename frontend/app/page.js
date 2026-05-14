@@ -675,7 +675,7 @@ function captionFor(s) {
 
 export default function Home() {
   const [showIntro, setShowIntro]         = useState(true)
-  const [messages, setMessages]           = useState([OPENING_MESSAGE])
+  const [messages, setMessages]           = useState([])
   const [input, setInput]                 = useState('')
   const [loading, setLoading]             = useState(false)
   const [userId, setUserId]               = useState(null)
@@ -701,7 +701,7 @@ export default function Home() {
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.user) {
         setUser(session.user)
-        const jarvisId = 'user_' + session.user.id.replace(/-/g, '').slice(0, 8)
+        const jarvisId = 'user_' + session.user.id.replace(/-/g, '')
         setUserId(jarvisId)
       } else {
         window.location.href = '/login'
@@ -713,7 +713,7 @@ export default function Home() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
         setUser(session.user)
-        const jarvisId = 'user_' + session.user.id.replace(/-/g, '').slice(0, 8)
+        const jarvisId = 'user_' + session.user.id.replace(/-/g, '')
         setUserId(jarvisId)
       } else {
         window.location.href = '/login'
@@ -726,7 +726,12 @@ export default function Home() {
     if (!userId) return
     fetch(`${BACKEND}/api/user/onboarding-status/${userId}`)
       .then(r => r.json())
-      .then(d => setOnboarding(d.onboarding_complete))
+      .then(d => {
+        setOnboarding(d.onboarding_complete)
+        if (!d.onboarding_complete) {
+          setMessages([OPENING_MESSAGE])
+        }
+      })
       .catch(() => setOnboarding(true))
   }, [userId])
 
