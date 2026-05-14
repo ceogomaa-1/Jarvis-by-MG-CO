@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
-import { VoiceManager } from '../lib/voiceManager'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
@@ -780,18 +779,22 @@ export default function Home() {
     setVoiceConnecting(true)
     setVoiceError(null)
     try {
+      await navigator.mediaDevices.getUserMedia({ audio: true })
+
       const res = await fetch(`${BACKEND}/api/voice/session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: userId }),
       })
       if (!res.ok) throw new Error(`Session error ${res.status}`)
-      const { client_secret } = await res.json()
+      const { signed_url, system_prompt } = await res.json()
 
+      const { VoiceManager } = await import('../lib/voiceManager')
       const vm = new VoiceManager(
         () => setJarvisSpeaking(true),
         () => setJarvisSpeaking(false),
         (role, text) => {
+          if (!text?.trim()) return
           msgIdRef.current += 1
           setMessages(prev => [...prev, {
             id: msgIdRef.current,
@@ -799,9 +802,13 @@ export default function Home() {
             content: text,
             fromVoice: true,
           }])
+        },
+        () => {
+          setVoiceMode(false)
+          setJarvisSpeaking(false)
         }
       )
-      await vm.connect(client_secret)
+      await vm.connect(signed_url, system_prompt)
       voiceManagerRef.current = vm
       setVoiceMode(true)
     } catch (err) {
@@ -812,8 +819,8 @@ export default function Home() {
     }
   }
 
-  function stopVoice() {
-    voiceManagerRef.current?.disconnect()
+  async function stopVoice() {
+    await voiceManagerRef.current?.disconnect()
     voiceManagerRef.current = null
     setVoiceMode(false)
     setJarvisSpeaking(false)
