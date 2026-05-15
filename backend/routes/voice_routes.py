@@ -1,3 +1,4 @@
+import asyncio
 import os
 from datetime import datetime
 
@@ -8,6 +9,7 @@ from pydantic import BaseModel
 
 from backend.memory import get_relevant_memories
 from backend.user_model import summarize_user_for_prompt
+from backend.conversation import get_conversation_history
 
 router = APIRouter()
 
@@ -26,10 +28,11 @@ async def get_voice_session(request: VoiceSessionRequest):
         print("VOICE: missing credentials — ELEVENLABS_API_KEY or ELEVENLABS_AGENT_ID not set")
         raise HTTPException(status_code=503, detail="ElevenLabs credentials not configured")
 
-    memory_context = await get_relevant_memories(
-        request.user_id, "general context and who the user is"
+    memory_context, user_model_summary, recent_history = await asyncio.gather(
+        get_relevant_memories(request.user_id, "general context and who the user is"),
+        summarize_user_for_prompt(request.user_id),
+        get_conversation_history(request.user_id, limit=6),
     )
-    user_model_summary = await summarize_user_for_prompt(request.user_id)
 
     eastern = pytz.timezone("America/Toronto")
     current_dt = datetime.now(eastern).strftime(
@@ -60,6 +63,11 @@ You remember everything about this person. The information below is what you alr
 {f"What I already know about you: {memory_context}" if memory_context else ""}
 
 {f"Your profile: {user_model_summary}" if user_model_summary else "New user — still getting to know them."}
+
+{("Recent conversation:\n" + "\n".join(
+    f"{'You' if m['role'] == 'assistant' else 'User'}: {m['content']}"
+    for m in recent_history
+)) if recent_history else ""}
 
 VOICE MODE:
 You are speaking, not typing. Be conversational.

@@ -723,15 +723,23 @@ export default function Home() {
 
   useEffect(() => {
     if (!userId) return
-    fetch(`${BACKEND}/api/user/onboarding-status/${userId}`)
-      .then(r => r.json())
-      .then(d => {
-        setOnboarding(d.onboarding_complete)
-        if (!d.onboarding_complete) {
-          setMessages([OPENING_MESSAGE])
-        }
-      })
-      .catch(() => setOnboarding(true))
+    Promise.all([
+      fetch(`${BACKEND}/api/user/onboarding-status/${userId}`).then(r => r.json()),
+      fetch(`${BACKEND}/api/history/${userId}`).then(r => r.json()),
+    ]).then(([onboardingData, historyData]) => {
+      setOnboarding(onboardingData.onboarding_complete)
+      const history = historyData.messages || []
+      if (history.length > 0) {
+        msgIdRef.current = history.length
+        setMessages(history.map((m, i) => ({
+          id: i + 1,
+          role: m.role,
+          content: m.content,
+        })))
+      } else if (!onboardingData.onboarding_complete) {
+        setMessages([OPENING_MESSAGE])
+      }
+    }).catch(() => setOnboarding(true))
   }, [userId])
 
   // Proactive polling — every 5 min

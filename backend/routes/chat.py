@@ -12,6 +12,7 @@ from backend.memory import get_relevant_memories, save_interaction
 from backend.user_model import get_user_model, summarize_user_for_prompt, update_user_model, get_onboarding_prompt
 from backend.agent import ANTHROPIC_TOOLS as AVAILABLE_TOOLS
 from backend.triggers import analyze_conversation_for_insight
+from backend.conversation import get_conversation_history, save_conversation_turn
 
 router = APIRouter()
 
@@ -106,7 +107,8 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
     tone = detect_emotional_tone(request.message)
     tone_context = TONE_INSTRUCTIONS.get(tone, "")
 
-    history = [{"role": m.role, "content": m.content} for m in request.conversation_history]
+    # Use DB conversation history as source of truth
+    history = await get_conversation_history(request.user_id, limit=20)
     tools = AVAILABLE_TOOLS if not system_override else None
 
     response_text = await jarvis_think(
@@ -125,6 +127,8 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
     await asyncio.gather(
         save_interaction(request.user_id, request.message, response_text),
         update_user_model(request.user_id, request.message, response_text),
+        save_conversation_turn(request.user_id, "user", request.message),
+        save_conversation_turn(request.user_id, "assistant", response_text),
     )
     background_tasks.add_task(
         analyze_conversation_for_insight, request.user_id, request.message, response_text
@@ -146,7 +150,8 @@ async def chat_stream(request: ChatRequest):
     tone = detect_emotional_tone(request.message)
     tone_context = TONE_INSTRUCTIONS.get(tone, "")
 
-    history = [{"role": m.role, "content": m.content} for m in request.conversation_history]
+    # Use DB conversation history as source of truth
+    history = await get_conversation_history(request.user_id, limit=20)
     tools = AVAILABLE_TOOLS if not system_override else None
 
     async def event_generator():
@@ -182,6 +187,8 @@ async def chat_stream(request: ChatRequest):
             await asyncio.gather(
                 save_interaction(request.user_id, request.message, response_text),
                 update_user_model(request.user_id, request.message, response_text),
+                save_conversation_turn(request.user_id, "user", request.message),
+                save_conversation_turn(request.user_id, "assistant", response_text),
             )
         asyncio.create_task(_run_post_tasks())
         asyncio.create_task(
