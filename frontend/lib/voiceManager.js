@@ -27,9 +27,6 @@ export class VoiceManager {
               prompt: systemPrompt,
             },
           },
-          tts: {
-            voiceId: 'Sarah',
-          },
         },
         onConnect: () => {
           this.isConnected = true
