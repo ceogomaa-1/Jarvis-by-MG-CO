@@ -794,8 +794,15 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: userId }),
       })
-      if (!res.ok) throw new Error(`Session error ${res.status}`)
-      const { signed_url, system_prompt } = await res.json()
+      console.log('Voice session response status:', res.status)
+      if (!res.ok) {
+        const errorText = await res.text()
+        console.error('Backend voice error:', errorText)
+        throw new Error(`Backend returned ${res.status}: ${errorText}`)
+      }
+      const data = await res.json()
+      console.log('Got signed_url:', data.signed_url ? `yes (length: ${data.signed_url.length})` : 'no')
+      const { signed_url, system_prompt } = data
 
       const { VoiceManager } = await import('../lib/voiceManager')
       const vm = new VoiceManager(

@@ -11,14 +11,20 @@ export class VoiceManager {
   }
 
   async connect(signedUrl, systemPrompt) {
+    console.log('VoiceManager.connect() called')
+    console.log('signedUrl present:', !!signedUrl, signedUrl ? `length: ${signedUrl.length}` : '')
+    console.log('systemPrompt length:', systemPrompt?.length ?? 0)
     try {
       // Unlock audio context first
       const AudioContext = window.AudioContext || window.webkitAudioContext
       if (AudioContext) {
         const ctx = new AudioContext()
+        console.log('AudioContext state before resume:', ctx.state)
         await ctx.resume()
+        console.log('AudioContext state after resume:', ctx.state)
       }
 
+      console.log('Calling Conversation.startSession()...')
       this.conversation = await Conversation.startSession({
         signedUrl: signedUrl,
         overrides: {
@@ -68,6 +74,8 @@ export class VoiceManager {
 
     } catch (err) {
       console.error('ElevenLabs connection error:', err)
+      console.error('Error type:', err?.constructor?.name)
+      console.error('Error message:', err?.message)
       this.onError?.(err)
       throw err
     }
