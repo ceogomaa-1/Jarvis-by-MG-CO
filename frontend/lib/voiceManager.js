@@ -21,6 +21,16 @@ export class VoiceManager {
 
       this.conversation = await Conversation.startSession({
         signedUrl: signedUrl,
+        overrides: {
+          agent: {
+            prompt: {
+              prompt: systemPrompt,
+            },
+          },
+          tts: {
+            voiceId: 'Sarah',
+          },
+        },
         onConnect: () => {
           this.isConnected = true
           console.log('ElevenLabs connected successfully')
