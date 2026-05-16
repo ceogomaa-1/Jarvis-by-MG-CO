@@ -90,7 +90,6 @@ You are always listening. Respond immediately when the user finishes speaking.""
         resp = await client.get(
             f"https://api.elevenlabs.io/v1/convai/conversation/get_signed_url?agent_id={agent_id}",
             headers={"xi-api-key": api_key},
-            json={"tts": {"voice_id": "liXYZRafib6dsV7EExjZ"}},
             timeout=30.0,
         )
 
