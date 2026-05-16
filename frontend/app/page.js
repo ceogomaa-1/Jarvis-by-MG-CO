@@ -689,6 +689,9 @@ export default function Home() {
   const [voiceError, setVoiceError]       = useState(null)
   const voiceManagerRef = useRef(null)
   const msgIdRef = useRef(1)
+  const conversationBufferRef = useRef([])
+  const reconnectAttemptsRef = useRef(0)
+  const MAX_RECONNECT = 3
 
   // ─── Auth ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -782,8 +785,24 @@ export default function Home() {
   }
 
   // ─── Voice ──────────────────────────────────────────────────────────────────
+  async function flushVoiceTranscript() {
+    const buffer = conversationBufferRef.current
+    if (!buffer.length || !userId) return
+    conversationBufferRef.current = []
+    try {
+      await fetch(`${BACKEND}/api/voice/save-transcript`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, messages: buffer }),
+      })
+    } catch (err) {
+      console.error('Failed to save voice transcript:', err)
+    }
+  }
+
   async function startVoice() {
     if (!userId) return
+    reconnectAttemptsRef.current = 0
     setVoiceConnecting(true)
     setVoiceError(null)
     try {
@@ -818,9 +837,29 @@ export default function Home() {
             fromVoice: true,
           }])
         },
-        () => {
-          setVoiceMode(false)
-          setJarvisSpeaking(false)
+        (error) => {
+          if (error === 'reconnecting') {
+            if (reconnectAttemptsRef.current < MAX_RECONNECT) {
+              reconnectAttemptsRef.current += 1
+              console.log(`Auto-reconnect attempt ${reconnectAttemptsRef.current}/${MAX_RECONNECT}`)
+              voiceManagerRef.current = null
+              setJarvisSpeaking(false)
+              setTimeout(() => startVoice(), 500)
+            } else {
+              setVoiceMode(false)
+              setJarvisSpeaking(false)
+              setVoiceError('Voice disconnected. Click mic to reconnect.')
+            }
+          } else {
+            setVoiceMode(false)
+            setJarvisSpeaking(false)
+          }
+        },
+        (update) => {
+          conversationBufferRef.current.push(update)
+          if (conversationBufferRef.current.length >= 10) {
+            flushVoiceTranscript()
+          }
         }
       )
       await vm.connect(signed_url, system_prompt)
@@ -835,6 +874,7 @@ export default function Home() {
   }
 
   async function stopVoice() {
+    await flushVoiceTranscript()
     await voiceManagerRef.current?.disconnect()
     voiceManagerRef.current = null
     setVoiceMode(false)

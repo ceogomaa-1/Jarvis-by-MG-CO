@@ -1,16 +1,20 @@
 import { Conversation } from '@11labs/client'
 
 export class VoiceManager {
-  constructor(onSpeakingStart, onSpeakingEnd, onTranscript, onError) {
+  constructor(onSpeakingStart, onSpeakingEnd, onTranscript, onError, onMemoryUpdate) {
     this.conversation = null
     this.onSpeakingStart = onSpeakingStart
     this.onSpeakingEnd = onSpeakingEnd
     this.onTranscript = onTranscript
     this.onError = onError
+    this.onMemoryUpdate = onMemoryUpdate
     this.isConnected = false
+    this._didManualDisconnect = false
+    this._reconnectTimeout = null
   }
 
   async connect(signedUrl, systemPrompt) {
+    this._didManualDisconnect = false
     console.log('VoiceManager.connect() called')
     console.log('signedUrl present:', !!signedUrl, signedUrl ? `length: ${signedUrl.length}` : '')
     console.log('systemPrompt length:', systemPrompt?.length ?? 0)
@@ -29,9 +33,7 @@ export class VoiceManager {
         signedUrl: signedUrl,
         overrides: {
           agent: {
-            prompt: {
-              prompt: systemPrompt,
-            },
+            prompt: { prompt: systemPrompt },
           },
         },
         onConnect: () => {
@@ -42,6 +44,13 @@ export class VoiceManager {
           this.isConnected = false
           console.log('ElevenLabs disconnected')
           this.onSpeakingEnd?.()
+          // Signal parent to reconnect with a fresh signed URL, unless we disconnected on purpose
+          if (!this._didManualDisconnect) {
+            this._reconnectTimeout = setTimeout(() => {
+              console.log('Auto-reconnect: signaling parent...')
+              this.onError?.('reconnecting')
+            }, 2000)
+          }
         },
         onError: (error) => {
           console.error('ElevenLabs error:', error)
@@ -63,15 +72,15 @@ export class VoiceManager {
           if (message && message.trim()) {
             if (source === 'ai' || source === 'assistant') {
               this.onTranscript?.('jarvis', message)
+              this.onMemoryUpdate?.({ role: 'assistant', content: message })
             } else if (source === 'user') {
               this.onTranscript?.('user', message)
+              this.onMemoryUpdate?.({ role: 'user', content: message })
             }
           }
         },
       })
-
       console.log('Session started:', this.conversation)
-
     } catch (err) {
       console.error('ElevenLabs connection error:', err)
       console.error('Error type:', err?.constructor?.name)
@@ -82,6 +91,8 @@ export class VoiceManager {
   }
 
   async disconnect() {
+    this._didManualDisconnect = true
+    clearTimeout(this._reconnectTimeout)
     if (this.conversation) {
       await this.conversation.endSession()
       this.conversation = null
