@@ -1,13 +1,14 @@
 import { Conversation } from '@11labs/client'
 
 export class VoiceManager {
-  constructor(onSpeakingStart, onSpeakingEnd, onTranscript, onError, onMemoryUpdate) {
+  constructor(onSpeakingStart, onSpeakingEnd, onTranscript, onError, onMemoryUpdate, onFlushTranscript) {
     this.conversation = null
     this.onSpeakingStart = onSpeakingStart
     this.onSpeakingEnd = onSpeakingEnd
     this.onTranscript = onTranscript
     this.onError = onError
     this.onMemoryUpdate = onMemoryUpdate
+    this.onFlushTranscript = onFlushTranscript
     this.isConnected = false
     this._didManualDisconnect = false
     this._reconnectTimeout = null
@@ -44,7 +45,7 @@ export class VoiceManager {
           this.isConnected = false
           console.log('ElevenLabs disconnected')
           this.onSpeakingEnd?.()
-          // Signal parent to reconnect with a fresh signed URL, unless we disconnected on purpose
+          this.onFlushTranscript?.()
           if (!this._didManualDisconnect) {
             this._reconnectTimeout = setTimeout(() => {
               console.log('Auto-reconnect: signaling parent...')

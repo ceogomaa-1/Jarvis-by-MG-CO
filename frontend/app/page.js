@@ -872,7 +872,8 @@ export default function Home() {
           if (conversationBufferRef.current.length >= 10) {
             flushVoiceTranscript()
           }
-        }
+        },
+        () => flushVoiceTranscript()
       )
       await vm.connect(signed_url, system_prompt)
       voiceManagerRef.current = vm
