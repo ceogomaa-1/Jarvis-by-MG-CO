@@ -37,9 +37,15 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=False,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
+
+
+@app.options("/{path:path}")
+async def options_handler(path: str):
+    return {"status": "ok"}
+
 
 app.include_router(chat_router, prefix="/api")
 app.include_router(memory_router, prefix="/api")

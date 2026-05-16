@@ -1,5 +1,6 @@
 import asyncio
 import os
+import traceback
 from datetime import datetime
 
 import httpx
@@ -20,6 +21,17 @@ class VoiceSessionRequest(BaseModel):
 
 @router.post("/voice/session")
 async def get_voice_session(request: VoiceSessionRequest):
+    try:
+        return await _get_voice_session(request)
+    except HTTPException:
+        raise
+    except Exception:
+        print("VOICE SESSION ERROR:")
+        print(traceback.format_exc())
+        raise
+
+
+async def _get_voice_session(request: VoiceSessionRequest):
     print("VOICE: endpoint hit")
     print(f"VOICE: Getting session for user {request.user_id}")
     api_key = os.getenv("ELEVENLABS_API_KEY")
