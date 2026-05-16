@@ -57,7 +57,6 @@ export class VoiceManager {
           this.onError?.(error)
         },
         onModeChange: (modeInfo) => {
-          console.log('Mode change:', JSON.stringify(modeInfo))
           const mode = modeInfo?.mode || modeInfo
           if (mode === 'speaking') {
             this.onSpeakingStart?.()
@@ -66,10 +65,49 @@ export class VoiceManager {
           }
         },
         onMessage: (msg) => {
-          console.log('ElevenLabs message:', JSON.stringify(msg))
+          console.log('RAW ElevenLabs message:', JSON.stringify(msg))
+          const type = msg?.type
+
+          // Format 1: transcript event
+          if (type === 'transcript') {
+            const role = msg?.role
+            const text = msg?.transcript || msg?.message || msg?.text
+            if (text?.trim()) {
+              if (role === 'user') {
+                this.onTranscript?.('user', text)
+                this.onMemoryUpdate?.({ role: 'user', content: text })
+              } else if (role === 'assistant' || role === 'agent') {
+                this.onTranscript?.('jarvis', text)
+                this.onMemoryUpdate?.({ role: 'assistant', content: text })
+              }
+            }
+            return
+          }
+
+          // Format 2: agent_response event
+          if (type === 'agent_response') {
+            const text = msg?.agent_response || msg?.message || msg?.text
+            if (text?.trim()) {
+              this.onTranscript?.('jarvis', text)
+              this.onMemoryUpdate?.({ role: 'assistant', content: text })
+            }
+            return
+          }
+
+          // Format 3: user_transcript event
+          if (type === 'user_transcript') {
+            const text = msg?.user_transcript || msg?.message || msg?.text
+            if (text?.trim()) {
+              this.onTranscript?.('user', text)
+              this.onMemoryUpdate?.({ role: 'user', content: text })
+            }
+            return
+          }
+
+          // Format 4: legacy source-based format
           const source = msg?.source || msg?.role
           const message = msg?.message || msg?.text || msg?.content
-          if (message && message.trim()) {
+          if (message?.trim()) {
             if (source === 'ai' || source === 'assistant') {
               this.onTranscript?.('jarvis', message)
               this.onMemoryUpdate?.({ role: 'assistant', content: message })

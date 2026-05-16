@@ -693,6 +693,17 @@ export default function Home() {
   const reconnectAttemptsRef = useRef(0)
   const MAX_RECONNECT = 3
 
+  // Flush voice transcript every 30s so memory saves even on short sessions
+  useEffect(() => {
+    if (!userId) return
+    const interval = setInterval(() => {
+      if (conversationBufferRef.current.length > 0) {
+        flushVoiceTranscript()
+      }
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [userId])
+
   // ─── Auth ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!supabase) {
@@ -839,6 +850,7 @@ export default function Home() {
         },
         (error) => {
           if (error === 'reconnecting') {
+            flushVoiceTranscript()
             if (reconnectAttemptsRef.current < MAX_RECONNECT) {
               reconnectAttemptsRef.current += 1
               console.log(`Auto-reconnect attempt ${reconnectAttemptsRef.current}/${MAX_RECONNECT}`)
