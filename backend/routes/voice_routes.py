@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from backend.memory import get_relevant_memories, save_interaction
 from backend.user_model import summarize_user_for_prompt, update_user_model
 from backend.conversation import get_conversation_history, save_conversation_turn
+from backend.tools.soul import get_soul
 
 router = APIRouter()
 
@@ -51,7 +52,9 @@ async def _get_voice_session(request: VoiceSessionRequest):
         "Today is %A, %B %d, %Y. Current time is %I:%M %p EST."
     )
 
-    system_prompt = f"""ABSOLUTE RULES — NEVER BREAK THESE:
+    soul = get_soul()
+    soul_prefix = f"{soul}\n\n---\n\n" if soul else ""
+    system_prompt = soul_prefix + f"""ABSOLUTE RULES — NEVER BREAK THESE:
 1. ZERO emojis. Not one. Ever.
 2. Never start with: Hey, Hi, Hello, Sure, Of course, Certainly, Absolutely, Great, Noted
 3. Never say: As an AI, I don't have access to, I'm just an AI

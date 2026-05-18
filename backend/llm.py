@@ -3,6 +3,7 @@
 import asyncio
 import anthropic
 from backend.utils.env import ANTHROPIC_API_KEY
+from backend.tools.soul import get_soul
 
 _client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
 
@@ -65,8 +66,6 @@ def _build_system_prompt(
     system_override: str | None,
     tone_context: str,
 ) -> str:
-    # The absolute rules live at the top of _BASE_SYSTEM_PROMPT, before the "---" separator.
-    # Extract them so they can be prepended even when system_override replaces the rest.
     _absolute_rules = _BASE_SYSTEM_PROMPT.split("---\n\n")[0]
 
     if system_override:
@@ -74,7 +73,10 @@ def _build_system_prompt(
     else:
         system_prompt = _BASE_SYSTEM_PROMPT
 
-    # Always inject memory and user model context regardless of override
+    soul = get_soul()
+    if soul:
+        system_prompt = soul + "\n\n---\n\n" + system_prompt
+
     if memory_context:
         system_prompt += f"\n\nWhat I already know about you: {memory_context}"
     if user_model_context:
@@ -101,7 +103,16 @@ async def jarvis_think(
     tone_context: str = "",
     user_id: str = "",
 ) -> str:
-    from backend.agent import execute_tool, ANTHROPIC_TOOLS  # local import avoids circular deps at module load
+    # Local imports to avoid circular deps at module load time
+    from backend.agent import execute_tool, ANTHROPIC_TOOLS
+    from backend.tools.registry import TOOL_REGISTRY, get_tools_for_claude  # __init__ auto-registers tools
+
+    # Registry tools override legacy tools of the same name; legacy tools fill the rest
+    registry_names = {t["name"] for t in get_tools_for_claude()}
+    all_tools = (
+        [t for t in ANTHROPIC_TOOLS if t["name"] not in registry_names]
+        + get_tools_for_claude()
+    )
 
     system_prompt = _build_system_prompt(memory_context, user_model_context, system_override, tone_context)
     messages = [{"role": m["role"], "content": m["content"]} for m in conversation_history]
@@ -114,21 +125,25 @@ async def jarvis_think(
         "messages": messages,  # type: ignore[arg-type]
     }
     if available_tools:
-        kwargs["tools"] = ANTHROPIC_TOOLS
+        kwargs["tools"] = all_tools
 
     result = await _client.messages.create(**kwargs)
 
     # Native tool use loop
     if result.stop_reason == "tool_use":
-        # Build the assistant content block list and collect all tool calls
         assistant_content = []
         tool_results = []
         for block in result.content:
             if block.type == "text":
                 assistant_content.append({"type": "text", "text": block.text})
             elif block.type == "tool_use":
-                tool_result = await execute_tool(user_id, block.name, block.input)
-                print(f"LLM: Tool {block.name} → {tool_result[:80]}")
+                # Registry takes priority; fall back to legacy execute_tool
+                if block.name in TOOL_REGISTRY:
+                    tool_fn = TOOL_REGISTRY[block.name]["execute"]
+                    tool_result = await tool_fn(**block.input)
+                else:
+                    tool_result = await execute_tool(user_id, block.name, block.input)
+                print(f"LLM: Tool {block.name} → {str(tool_result)[:80]}")
                 assistant_content.append({
                     "type": "tool_use",
                     "id": block.id,
@@ -149,7 +164,7 @@ async def jarvis_think(
             max_tokens=1024,
             system=system_prompt,
             messages=messages,  # type: ignore[arg-type]
-            tools=ANTHROPIC_TOOLS,  # type: ignore[arg-type]
+            tools=all_tools,  # type: ignore[arg-type]
         )
 
     return _extract_text(result.content)
