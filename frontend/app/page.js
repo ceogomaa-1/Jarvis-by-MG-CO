@@ -390,10 +390,13 @@ function KnowledgePanel({ userId, onClose }) {
 
   const Section = ({ title, items }) => {
     if (!items || items.length === 0) return null
+    const safeItems = items.map(item =>
+      typeof item === 'object' ? JSON.stringify(item) : String(item)
+    )
     return (
       <div style={{ marginBottom: '1.25rem' }}>
         <p style={{ fontFamily: 'var(--sans)', color: 'var(--accent)', fontSize: '0.6rem', letterSpacing: '0.15em', textTransform: 'uppercase', opacity: 0.6, margin: '0 0 0.5rem' }}>{title}</p>
-        {items.map((item, i) => (
+        {safeItems.map((item, i) => (
           <p key={i} style={{ fontFamily: 'var(--sans)', color: 'var(--ink)', fontSize: '0.8rem', lineHeight: 1.6, margin: '0.2rem 0', opacity: 0.85 }}>
             <span style={{ color: 'var(--accent)', marginRight: '0.4rem' }}>●</span>{item}
           </p>
@@ -408,16 +411,15 @@ function KnowledgePanel({ userId, onClose }) {
   const work = model?.work_context || {}
 
   const identityItems = [
-    id.name && `Name: ${id.name}`,
-    id.preferred_name && id.preferred_name !== id.name && `Goes by: ${id.preferred_name}`,
-    id.role && `Role: ${id.role}`,
-    id.company && `Company: ${id.company}`,
-    id.location && `Based in: ${id.location}`,
+    id.name && typeof id.name === 'string' && `Name: ${id.name}`,
+    id.role && typeof id.role === 'string' && `Role: ${id.role}`,
+    id.company && typeof id.company === 'string' && `Company: ${id.company}`,
+    id.location && typeof id.location === 'string' && `Based in: ${id.location}`,
   ].filter(Boolean)
 
   const trustLabel = relationship.trust_level
     ? `${relationship.trust_level} (${relationship.interaction_count || 0} interactions)`
-    : null
+    : 'new (0 interactions)'
 
   return (
     <>
