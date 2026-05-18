@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from backend.memory import get_relevant_memories, save_interaction
-from backend.user_model import summarize_user_for_prompt
+from backend.user_model import summarize_user_for_prompt, update_user_model
 from backend.conversation import get_conversation_history, save_conversation_turn
 
 router = APIRouter()
@@ -131,13 +131,14 @@ async def save_voice_transcript(request: TranscriptRequest):
     for msg in request.messages:
         await save_conversation_turn(request.user_id, msg.role, msg.content)
 
-    # Extract memories: pair consecutive user→assistant turns and feed to Mem0
+    # Extract memories and update user model: pair consecutive user→assistant turns
     user_msg = None
     for msg in request.messages:
         if msg.role == "user":
             user_msg = msg.content
         elif msg.role == "assistant" and user_msg:
             await save_interaction(request.user_id, user_msg, msg.content)
+            await update_user_model(request.user_id, user_msg, msg.content)
             user_msg = None
 
     return {"status": "saved", "count": len(request.messages)}

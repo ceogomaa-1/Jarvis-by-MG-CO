@@ -1,11 +1,21 @@
 import json
+import os
 import traceback
 from datetime import datetime, timezone
-from pathlib import Path
 
+import httpx
 from backend.llm import jarvis_think
 
-_DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "user_models"
+# Required Supabase table — run once in SQL editor:
+#   CREATE TABLE user_models (
+#       user_id     TEXT PRIMARY KEY,
+#       model_data  JSONB NOT NULL,
+#       updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+#   );
+
+_SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL", "")
+_SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+_MODEL_TABLE = "user_models"
 
 # ─── Schema ───────────────────────────────────────────────────────────────────
 
@@ -59,35 +69,63 @@ def _fresh_model(user_id: str) -> dict:
     }
 
 
-# ─── Persistence ──────────────────────────────────────────────────────────────
+# ─── Persistence (Supabase) ───────────────────────────────────────────────────
+
+def _supabase_headers() -> dict:
+    return {
+        "apikey": _SUPABASE_KEY,
+        "Authorization": f"Bearer {_SUPABASE_KEY}",
+        "Content-Type": "application/json",
+    }
+
 
 async def get_user_model(user_id: str) -> dict:
-    """Load the user model from disk. Creates a fresh one if it doesn't exist yet."""
-    path = _DATA_DIR / f"{user_id}.json"
+    """Load the user model from Supabase. Returns a fresh model if none exists."""
+    if not _SUPABASE_URL or not _SUPABASE_KEY:
+        return _fresh_model(user_id)
     try:
-        if not path.exists():
-            model = _fresh_model(user_id)
-            await save_user_model(user_id, model)
-            return model
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{_SUPABASE_URL}/rest/v1/{_MODEL_TABLE}",
+                headers=_supabase_headers(),
+                params={"user_id": f"eq.{user_id}", "limit": 1},
+                timeout=10.0,
+            )
+        if resp.status_code == 200:
+            rows = resp.json()
+            if rows:
+                data = rows[0].get("model_data", {})
+                if isinstance(data, str):
+                    data = json.loads(data)
+                return data
+        return _fresh_model(user_id)
     except Exception as e:
-        print(f"USER_MODEL: ERROR loading model for {user_id}: {e}")
+        print(f"USER_MODEL: ERROR loading from Supabase for {user_id}: {e}")
         traceback.print_exc()
         return _fresh_model(user_id)
 
 
 async def save_user_model(user_id: str, model: dict) -> bool:
-    """Persist the user model to disk, stamping last_updated."""
+    """Upsert the user model to Supabase, stamping last_updated."""
+    if not _SUPABASE_URL or not _SUPABASE_KEY:
+        return False
     try:
-        _DATA_DIR.mkdir(parents=True, exist_ok=True)
         model["last_updated"] = datetime.now(timezone.utc).isoformat()
-        path = _DATA_DIR / f"{user_id}.json"
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(model, f, indent=2, ensure_ascii=False)
+        headers = _supabase_headers()
+        headers["Prefer"] = "resolution=merge-duplicates"
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                f"{_SUPABASE_URL}/rest/v1/{_MODEL_TABLE}",
+                headers=headers,
+                json={"user_id": user_id, "model_data": model},
+                timeout=10.0,
+            )
+        if resp.status_code not in (200, 201):
+            print(f"USER_MODEL: Save failed ({resp.status_code}): {resp.text[:200]}")
+            return False
         return True
     except Exception as e:
-        print(f"USER_MODEL: ERROR saving model for {user_id}: {e}")
+        print(f"USER_MODEL: ERROR saving to Supabase for {user_id}: {e}")
         traceback.print_exc()
         return False
 
