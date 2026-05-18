@@ -14,7 +14,7 @@ export default function Login() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: 'https://jarvis-by-mg-co.vercel.app/auth/callback',
+        redirectTo: `${window.location.origin}/auth/callback`,
       },
     })
     if (error) {
