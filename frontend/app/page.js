@@ -710,27 +710,50 @@ export default function Home() {
       setAuthLoading(false)
       return
     }
+
     const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user) {
-        setUser(session.user)
-        const jarvisId = 'user_' + session.user.id.replace(/-/g, '')
-        setUserId(jarvisId)
-      } else {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession()
+        if (error) {
+          console.error('Session error:', error)
+          const { data: refreshData } = await supabase.auth.refreshSession()
+          if (refreshData?.session?.user) {
+            setUser(refreshData.session.user)
+            setUserId('user_' + refreshData.session.user.id.replace(/-/g, ''))
+            setAuthLoading(false)
+            return
+          }
+          window.location.href = '/login'
+          return
+        }
+        if (session?.user) {
+          setUser(session.user)
+          setUserId('user_' + session.user.id.replace(/-/g, ''))
+        } else {
+          window.location.href = '/login'
+        }
+      } catch (err) {
+        console.error('Auth error:', err)
         window.location.href = '/login'
+      } finally {
+        setAuthLoading(false)
       }
-      setAuthLoading(false)
     }
     getSession()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
-        setUser(session.user)
-        const jarvisId = 'user_' + session.user.id.replace(/-/g, '')
-        setUserId(jarvisId)
-      } else {
+      console.log('Auth event:', event)
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+        if (session?.user) {
+          setUser(session.user)
+          setUserId('user_' + session.user.id.replace(/-/g, ''))
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null)
+        setUserId(null)
         window.location.href = '/login'
       }
+      // INITIAL_SESSION, PASSWORD_RECOVERY etc — silently ignored
     })
     return () => subscription.unsubscribe()
   }, [])

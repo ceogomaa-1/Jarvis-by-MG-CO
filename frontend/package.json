@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@11labs/client": "^0.2.0",
+    "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.105.4",
     "next": "^14.2.0",
     "react": "^18.3.0",
