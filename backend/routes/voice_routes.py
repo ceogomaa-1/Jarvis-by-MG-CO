@@ -12,6 +12,7 @@ from backend.memory import get_relevant_memories, save_interaction
 from backend.user_model import summarize_user_for_prompt, update_user_model
 from backend.conversation import get_conversation_history, save_conversation_turn
 from backend.tools.soul import get_soul
+from backend.tools.google_calendar import get_calendar_events, create_calendar_event
 
 router = APIRouter()
 
@@ -156,6 +157,28 @@ class VoiceToolRequest(BaseModel):
 @router.post("/voice/tool/calendar")
 async def voice_tool_calendar(request: VoiceToolRequest):
     """Called by ElevenLabs as a server-side tool during voice conversations."""
-    from backend.tools.google_calendar import get_calendar_events
     result = await get_calendar_events(user_id=request.user_id, max_results=5)
     return {"result": result}
+
+
+class VoiceCalendarCreateRequest(BaseModel):
+    user_id: str
+    title: str
+    start_time: str
+    end_time: str = None
+    description: str = ""
+
+
+@router.post("/voice/tool/calendar/create")
+async def voice_tool_calendar_create(request: VoiceCalendarCreateRequest):
+    try:
+        result = await create_calendar_event(
+            user_id=request.user_id,
+            title=request.title,
+            start_time=request.start_time,
+            end_time=request.end_time,
+            description=request.description,
+        )
+        return {"result": result}
+    except Exception as e:
+        return {"result": f"Could not create event: {str(e)}"}
