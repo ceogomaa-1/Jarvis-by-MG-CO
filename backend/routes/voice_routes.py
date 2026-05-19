@@ -13,6 +13,7 @@ from backend.user_model import summarize_user_for_prompt, update_user_model
 from backend.conversation import get_conversation_history, save_conversation_turn
 from backend.tools.soul import get_soul
 from backend.tools.google_calendar import get_calendar_events, create_calendar_event
+from backend.tools.gmail import get_emails, send_email
 
 router = APIRouter()
 
@@ -182,3 +183,43 @@ async def voice_tool_calendar_create(request: VoiceCalendarCreateRequest):
         return {"result": result}
     except Exception as e:
         return {"result": f"Could not create event: {str(e)}"}
+
+
+class VoiceEmailRequest(BaseModel):
+    user_id: str
+    max_results: int = 5
+    query: str = ""
+
+
+class VoiceSendEmailRequest(BaseModel):
+    user_id: str
+    to: str
+    subject: str
+    body: str
+
+
+@router.post("/voice/tool/email")
+async def voice_tool_email(request: VoiceEmailRequest):
+    try:
+        result = await get_emails(
+            user_id=request.user_id,
+            max_results=request.max_results,
+            query=request.query,
+        )
+        return {"result": result}
+    except Exception as e:
+        return {"result": f"Could not fetch emails: {str(e)}"}
+
+
+@router.post("/voice/tool/email/send")
+async def voice_tool_email_send(request: VoiceSendEmailRequest):
+    try:
+        result = await send_email(
+            user_id=request.user_id,
+            to=request.to,
+            subject=request.subject,
+            body=request.body,
+        )
+        return {"result": result}
+    except Exception as e:
+        return {"result": f"Could not send email: {str(e)}"}
