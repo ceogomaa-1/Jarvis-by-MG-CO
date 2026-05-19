@@ -805,7 +805,7 @@ export default function Home() {
   const sessionTokenRef = useRef(null)
   const fileInputRef = useRef(null)
   const [uploadingFile, setUploadingFile] = useState(false)
-  const MAX_RECONNECT = 3
+  const MAX_RECONNECT = 5
 
   // Flush voice transcript every 30s so memory saves even on short sessions
   useEffect(() => {
@@ -970,7 +970,6 @@ export default function Home() {
 
   async function startVoice() {
     if (!userId) return
-    reconnectAttemptsRef.current = 0
     setVoiceConnecting(true)
     setVoiceError(null)
     try {
@@ -1014,7 +1013,7 @@ export default function Home() {
               console.log(`Auto-reconnect attempt ${reconnectAttemptsRef.current}/${MAX_RECONNECT}`)
               voiceManagerRef.current = null
               setJarvisSpeaking(false)
-              setTimeout(() => startVoice(), 500)
+              setTimeout(() => startVoice(), 3000)
             } else {
               setVoiceMode(false)
               setJarvisSpeaking(false)
@@ -1045,6 +1044,7 @@ export default function Home() {
   }
 
   async function stopVoice() {
+    reconnectAttemptsRef.current = 0
     await flushVoiceTranscript()
     await voiceManagerRef.current?.disconnect()
     voiceManagerRef.current = null
