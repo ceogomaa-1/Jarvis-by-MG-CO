@@ -548,7 +548,7 @@ function Conversation({ messages, loading }) {
 
 // ─── Input bar ────────────────────────────────────────────────────────────────
 
-function InputBar({ orbState, input, setInput, onSend, onMicClick, voiceMode, voiceConnecting, loading, disabled }) {
+function InputBar({ orbState, input, setInput, onSend, onMicClick, voiceMode, voiceConnecting, loading, disabled, fileInputRef, uploadingFile, onFileUpload }) {
   const isVoiceActive = voiceMode
   const isListening = orbState === 'listening'
 
@@ -611,6 +611,27 @@ function InputBar({ orbState, input, setInput, onSend, onMicClick, voiceMode, vo
             </svg>
           )}
         </button>
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploadingFile}
+          aria-label="attach file"
+          style={{
+            width: 36, height: 36, borderRadius: 999, flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(243,234,217,0.07)', border: '1px solid rgba(243,234,217,0.12)',
+            color: uploadingFile ? 'var(--accent)' : 'var(--ink-soft)',
+            cursor: uploadingFile ? 'default' : 'pointer',
+          }}
+        >
+          {uploadingFile ? (
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', animation: 'inkPulse 0.8s ease-in-out infinite', display: 'inline-block' }} />
+          ) : (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
+            </svg>
+          )}
+        </button>
+        <input ref={fileInputRef} type="file" style={{ display: 'none' }} accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.txt,.md,.csv" onChange={onFileUpload} />
         <input
           value={input}
           onChange={e => setInput(e.target.value)}
@@ -781,6 +802,8 @@ export default function Home() {
   const msgIdRef = useRef(1)
   const conversationBufferRef = useRef([])
   const reconnectAttemptsRef = useRef(0)
+  const fileInputRef = useRef(null)
+  const [uploadingFile, setUploadingFile] = useState(false)
   const MAX_RECONNECT = 3
 
   // Flush voice transcript every 30s so memory saves even on short sessions
@@ -1025,6 +1048,32 @@ export default function Home() {
     setJarvisSpeaking(false)
   }
 
+  async function handleFileUpload(e) {
+    const file = e.target.files?.[0]
+    if (!file || !userId) return
+    e.target.value = ''
+    setUploadingFile(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('user_id', userId)
+      const res = await fetch(`${BACKEND}/api/files/upload`, {
+        method: 'POST',
+        body: formData,
+      })
+      if (!res.ok) throw new Error(`Upload failed: ${res.status}`)
+      const data = await res.json()
+      await sendMessage({
+        displayText: `[File: ${data.filename}]`,
+        apiText: `[File: ${data.filename}]\n\nContent:\n${data.content}`,
+      })
+    } catch (err) {
+      console.error('File upload error:', err)
+    } finally {
+      setUploadingFile(false)
+    }
+  }
+
   const lastMsg = messages[messages.length - 1]
   const isStreaming = lastMsg?.streaming === true
   const orbState =
@@ -1034,16 +1083,17 @@ export default function Home() {
     isStreaming                  ? 'speaking' :
     'idle'
 
-  async function sendMessage() {
-    console.log('sendMessage called with:', input)
-    const text = input.trim()
-    if (!text || loading || isStreaming) return
-    setInput('')
+  async function sendMessage(override = null) {
+    const apiText = (override?.apiText ?? input).trim()
+    const displayText = (override?.displayText ?? apiText)
+    console.log('sendMessage called with:', apiText.slice(0, 80))
+    if (!apiText || loading || isStreaming) return
+    if (!override) setInput('')
 
     const historyForApi = messages.slice(1).map(({ role, content }) => ({ role, content }))
     msgIdRef.current += 1
     const userMsgId = msgIdRef.current
-    setMessages(prev => [...prev, { id: userMsgId, role: 'user', content: text }])
+    setMessages(prev => [...prev, { id: userMsgId, role: 'user', content: displayText }])
     setLoading(true)
 
     let streamMsgId = null
@@ -1051,7 +1101,7 @@ export default function Home() {
       const res = await fetch(`${BACKEND}/api/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, message: text, conversation_history: historyForApi }),
+        body: JSON.stringify({ user_id: userId, message: apiText, conversation_history: historyForApi }),
       })
       if (!res.ok) throw new Error(`${res.status}`)
 
@@ -1290,6 +1340,9 @@ export default function Home() {
             voiceConnecting={voiceConnecting}
             loading={loading || isStreaming}
             disabled={!userId}
+            fileInputRef={fileInputRef}
+            uploadingFile={uploadingFile}
+            onFileUpload={handleFileUpload}
           />
         </div>
       </div>

@@ -12,6 +12,7 @@ from backend.routes.notes_routes import router as notes_router
 from backend.routes.voice_routes import router as voice_router
 from backend.routes.history_routes import router as history_router
 from backend.routes.google_auth_routes import router as google_auth_router
+from backend.routes.files_routes import router as files_router
 
 if not ANTHROPIC_API_KEY:
     raise RuntimeError(
@@ -56,6 +57,7 @@ app.include_router(notes_router, prefix="/api")
 app.include_router(voice_router, prefix="/api")
 app.include_router(history_router, prefix="/api")
 app.include_router(google_auth_router, prefix="/api")
+app.include_router(files_router, prefix="/api")
 
 
 @app.on_event("startup")
