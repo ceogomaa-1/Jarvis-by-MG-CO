@@ -58,6 +58,13 @@ app.include_router(history_router, prefix="/api")
 app.include_router(google_auth_router, prefix="/api")
 
 
+@app.on_event("startup")
+async def print_routes():
+    for route in app.routes:
+        if hasattr(route, "methods"):
+            print(f"ROUTE: {route.methods} {route.path}")
+
+
 @app.get("/")
 async def root():
     return {"status": "Jarvis is alive"}

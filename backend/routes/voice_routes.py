@@ -145,3 +145,17 @@ async def save_voice_transcript(request: TranscriptRequest):
             user_msg = None
 
     return {"status": "saved", "count": len(request.messages)}
+
+
+# ─── ElevenLabs server-side tool webhook ─────────────────────────────────────
+
+class VoiceToolRequest(BaseModel):
+    user_id: str
+
+
+@router.post("/voice/tool/calendar")
+async def voice_tool_calendar(request: VoiceToolRequest):
+    """Called by ElevenLabs as a server-side tool during voice conversations."""
+    from backend.tools.google_calendar import get_calendar_events
+    result = await get_calendar_events(user_id=request.user_id, max_results=5)
+    return {"result": result}
