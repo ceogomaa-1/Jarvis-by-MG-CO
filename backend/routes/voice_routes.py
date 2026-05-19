@@ -237,3 +237,79 @@ async def voice_tool_search(request: VoiceWebSearchRequest):
         return {"result": result}
     except Exception as e:
         return {"result": f"Search failed: {str(e)}"}
+
+
+# ─── Memory search ────────────────────────────────────────────────────────────
+
+class VoiceSearchRequest(BaseModel):
+    user_id: str
+    query: str
+
+
+@router.post("/voice/tool/memory-search")
+async def voice_tool_memory_search(request: VoiceSearchRequest):
+    try:
+        from backend.memory import get_relevant_memories
+        memories = await get_relevant_memories(request.user_id, request.query)
+
+        conv_results = ""
+        supabase_url = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL", "")
+        supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+        if supabase_url and supabase_key:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(
+                    f"{supabase_url}/rest/v1/conversations",
+                    headers={
+                        "apikey": supabase_key,
+                        "Authorization": f"Bearer {supabase_key}",
+                    },
+                    params={
+                        "user_id": f"eq.{request.user_id}",
+                        "content": f"ilike.*{request.query}*",
+                        "order": "created_at.desc",
+                        "limit": 5,
+                        "select": "role,content,created_at",
+                    },
+                    timeout=10.0,
+                )
+            if resp.status_code == 200:
+                rows = resp.json()
+                if rows:
+                    conv_results = "\n".join(
+                        f"{r['role'].upper()}: {r['content'][:200]}" for r in rows
+                    )
+
+        parts = []
+        if memories:
+            parts.append(f"What I remember: {memories}")
+        if conv_results:
+            parts.append(f"Found in past conversations: {conv_results}")
+
+        if parts:
+            return {"result": "\n\n".join(parts)}
+        return {"result": f"Nothing found about '{request.query}' in memory."}
+
+    except Exception as e:
+        return {"result": f"Memory search failed: {str(e)}"}
+
+
+# ─── Timer ────────────────────────────────────────────────────────────────────
+
+class VoiceTimerRequest(BaseModel):
+    user_id: str
+    duration_seconds: int
+    label: str = "Timer"
+
+
+@router.post("/voice/tool/timer")
+async def voice_tool_timer(request: VoiceTimerRequest):
+    try:
+        from backend.tools.timer_tool import set_timer
+        result = await set_timer(
+            duration_seconds=request.duration_seconds,
+            user_id=request.user_id,
+            label=request.label,
+        )
+        return {"result": result}
+    except Exception as e:
+        return {"result": f"Could not set timer: {str(e)}"}

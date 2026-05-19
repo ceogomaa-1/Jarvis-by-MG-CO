@@ -7,6 +7,22 @@ from backend.tools.registry import register_tool
 from backend.tools.google_calendar import get_access_token, get_user_refresh_token
 
 
+def _extract_body(payload: dict) -> str:
+    """Recursively extract plain-text body from a Gmail message payload."""
+    if not payload:
+        return ""
+    mime_type = payload.get("mimeType", "")
+    if mime_type == "text/plain":
+        data = payload.get("body", {}).get("data", "")
+        if data:
+            return base64.urlsafe_b64decode(data + "==").decode("utf-8", errors="ignore")
+    for part in payload.get("parts", []):
+        result = _extract_body(part)
+        if result:
+            return result
+    return ""
+
+
 @register_tool(
     name="get_emails",
     description="Read recent emails from the user's Gmail inbox. Use when asked about emails, messages, what came in, or checking inbox.",
@@ -55,14 +71,19 @@ async def get_emails(user_id: str, max_results: int = 5, query: str = "") -> str
             detail = await client.get(
                 f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{msg['id']}",
                 headers={"Authorization": f"Bearer {access_token}"},
-                params={"format": "metadata", "metadataHeaders": ["From", "Subject", "Date"]},
+                params={"format": "full"},
             )
-            headers = detail.json().get("payload", {}).get("headers", [])
-            hd = {h["name"]: h["value"] for h in headers}
+            msg_data = detail.json()
+            payload = msg_data.get("payload", {})
+            raw_headers = payload.get("headers", [])
+            hd = {h["name"]: h["value"] for h in raw_headers}
+            body = _extract_body(payload)
+            body_preview = body[:500].strip() if body else "No body content"
             results.append(
                 f"From: {hd.get('From', 'Unknown')}\n"
                 f"Subject: {hd.get('Subject', 'No subject')}\n"
-                f"Date: {hd.get('Date', '')}"
+                f"Date: {hd.get('Date', '')}\n"
+                f"Message: {body_preview}"
             )
 
     return "Recent emails:\n\n" + "\n\n---\n\n".join(results)
