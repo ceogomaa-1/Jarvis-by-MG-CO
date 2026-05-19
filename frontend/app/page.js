@@ -665,6 +665,93 @@ function IntroSplash({ onDone }) {
   )
 }
 
+// ─── Google Connect Prompt ────────────────────────────────────────────────────
+
+function GoogleConnectPrompt({ userId, onConnected }) {
+  const [step, setStep] = useState(0)
+
+  const steps = [
+    {
+      message: "Before we go further — I want to actually be useful to you. Not just talk. To do that, I need access to your world.",
+    },
+    {
+      message: "Your calendar. Your email. The things that actually run your day. I won't touch anything without telling you first.",
+    },
+    {
+      message: "Connect your Google account and I'll have eyes on what matters. You can disconnect anytime.",
+    },
+  ]
+
+  const handleConnect = () => {
+    window.location.href = `https://jarvis-backend-4oz6.onrender.com/api/google/auth/${userId}`
+  }
+
+  useEffect(() => {
+    if (step < 2) {
+      const timer = setTimeout(() => setStep(s => s + 1), 2500)
+      return () => clearTimeout(timer)
+    }
+  }, [step])
+
+  const current = steps[Math.min(step, steps.length - 1)]
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0,
+      background: 'var(--bg)',
+      display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center',
+      zIndex: 100, padding: '40px',
+      gap: 40,
+    }}>
+      <div
+        key={step}
+        className="msg-enter"
+        style={{
+          fontFamily: 'var(--serif)',
+          fontSize: 26, lineHeight: 1.4,
+          color: 'var(--ink)', fontWeight: 300,
+          maxWidth: 560, textAlign: 'center',
+          letterSpacing: 0.2,
+        }}
+      >
+        {current.message}
+      </div>
+      {step >= 2 && (
+        <button
+          onClick={handleConnect}
+          className="msg-enter"
+          style={{
+            background: 'transparent',
+            border: '1px solid var(--accent)',
+            color: 'var(--accent)',
+            fontFamily: 'var(--sans)',
+            fontSize: 11, letterSpacing: '0.3em',
+            textTransform: 'uppercase',
+            padding: '14px 32px',
+            borderRadius: 999,
+            cursor: 'pointer',
+          }}
+        >
+          Connect Google
+        </button>
+      )}
+      <button
+        onClick={onConnected}
+        style={{
+          background: 'transparent', border: 'none',
+          color: 'var(--ink-mute)', cursor: 'pointer',
+          fontFamily: 'var(--sans)', fontSize: 10,
+          letterSpacing: '0.2em', textTransform: 'uppercase',
+          marginTop: 8,
+        }}
+      >
+        Skip for now
+      </button>
+    </div>
+  )
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 function captionFor(s) {
@@ -689,6 +776,7 @@ export default function Home() {
   const [jarvisSpeaking, setJarvisSpeaking] = useState(false)
   const [voiceConnecting, setVoiceConnecting] = useState(false)
   const [voiceError, setVoiceError]       = useState(null)
+  const [googleConnected, setGoogleConnected] = useState(null)
   const voiceManagerRef = useRef(null)
   const msgIdRef = useRef(1)
   const conversationBufferRef = useRef([])
@@ -704,6 +792,24 @@ export default function Home() {
       }
     }, 30000)
     return () => clearInterval(interval)
+  }, [userId])
+
+  // Detect ?calendar=connected after Google OAuth redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('calendar') === 'connected') {
+      setGoogleConnected(true)
+      window.history.replaceState({}, '', '/')
+    }
+  }, [])
+
+  // Check Google connection status once userId is known
+  useEffect(() => {
+    if (!userId) return
+    fetch(`${BACKEND}/api/google/status/${userId}`)
+      .then(r => r.json())
+      .then(data => setGoogleConnected(data.connected))
+      .catch(() => setGoogleConnected(false))
   }, [userId])
 
   // ─── Auth ──────────────────────────────────────────────────────────────────
@@ -900,7 +1006,7 @@ export default function Home() {
         },
         () => flushVoiceTranscript()
       )
-      await vm.connect(signed_url, system_prompt)
+      await vm.connect(signed_url, system_prompt, userId)
       voiceManagerRef.current = vm
       setVoiceMode(true)
     } catch (err) {
@@ -1018,6 +1124,12 @@ export default function Home() {
     <>
       {showIntro && <IntroSplash onDone={() => setShowIntro(false)} />}
       {showPanel && userId && <KnowledgePanel userId={userId} onClose={() => setShowPanel(false)} />}
+      {googleConnected === false && !showIntro && userId && (
+        <GoogleConnectPrompt
+          userId={userId}
+          onConnected={() => setGoogleConnected(true)}
+        />
+      )}
 
       {/* Film grain */}
       <svg style={{ position: 'fixed', top: 0, left: 0, width: 0, height: 0, overflow: 'hidden' }}>

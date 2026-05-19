@@ -75,3 +75,10 @@ async def google_callback(code: str, state: str):
         return RedirectResponse("https://jarvis-by-mg-co.vercel.app/?calendar=connected")
 
     return {"error": "No refresh token received", "tokens": tokens}
+
+
+@router.get("/google/status/{user_id}")
+async def google_status(user_id: str):
+    from backend.tools.google_calendar import get_user_refresh_token
+    token = await get_user_refresh_token(user_id)
+    return {"connected": bool(token)}

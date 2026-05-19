@@ -14,7 +14,7 @@ export class VoiceManager {
     this._reconnectTimeout = null
   }
 
-  async connect(signedUrl, systemPrompt) {
+  async connect(signedUrl, systemPrompt, userId) {
     this._didManualDisconnect = false
     console.log('VoiceManager.connect() called')
     console.log('signedUrl present:', !!signedUrl, signedUrl ? `length: ${signedUrl.length}` : '')
@@ -36,6 +36,9 @@ export class VoiceManager {
           agent: {
             prompt: { prompt: systemPrompt },
           },
+        },
+        dynamicVariables: {
+          user_id: userId || '',
         },
         onConnect: () => {
           this.isConnected = true
