@@ -1,7 +1,8 @@
 import asyncio
 import os
+import secrets
 import traceback
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 import httpx
 import pytz
@@ -18,6 +19,38 @@ from backend.tools.web_search import web_search
 
 router = APIRouter()
 
+# ─── Server-side voice session store ─────────────────────────────────────────
+
+_voice_sessions: dict = {}
+
+
+def store_voice_session(user_id: str) -> str:
+    token = secrets.token_urlsafe(32)
+    _voice_sessions[token] = {
+        "user_id": user_id,
+        "expires_at": datetime.now(timezone.utc) + timedelta(hours=2),
+    }
+    return token
+
+
+def get_user_from_session(token: str) -> str:
+    session = _voice_sessions.get(token)
+    if not session:
+        return ""
+    if datetime.now(timezone.utc) > session["expires_at"]:
+        del _voice_sessions[token]
+        return ""
+    return session["user_id"]
+
+
+def cleanup_old_sessions():
+    now = datetime.now(timezone.utc)
+    expired = [k for k, v in _voice_sessions.items() if now > v["expires_at"]]
+    for k in expired:
+        del _voice_sessions[k]
+
+
+# ─── Voice session ────────────────────────────────────────────────────────────
 
 class VoiceSessionRequest(BaseModel):
     user_id: str
@@ -44,16 +77,29 @@ async def _get_voice_session(request: VoiceSessionRequest):
         print("VOICE: missing credentials — ELEVENLABS_API_KEY or ELEVENLABS_AGENT_ID not set")
         raise HTTPException(status_code=503, detail="ElevenLabs credentials not configured")
 
-    memory_context, user_model_summary, recent_history = await asyncio.gather(
+    # Fetch context and signed URL in parallel
+    eastern = pytz.timezone("America/Toronto")
+
+    memory_context, user_model_summary, recent_history, elevenlabs_resp = await asyncio.gather(
         get_relevant_memories(request.user_id, "general context and who the user is"),
         summarize_user_for_prompt(request.user_id),
         get_conversation_history(request.user_id, limit=6),
+        _fetch_signed_url(api_key, agent_id),
     )
 
-    eastern = pytz.timezone("America/Toronto")
+    signed_url, elevenlabs_error = elevenlabs_resp
+    if elevenlabs_error:
+        raise HTTPException(status_code=elevenlabs_error[0], detail=elevenlabs_error[1])
+    if not signed_url:
+        raise HTTPException(status_code=502, detail="No signed_url in ElevenLabs response")
+
     current_dt = datetime.now(eastern).strftime(
         "Today is %A, %B %d, %Y. Current time is %I:%M %p EST."
     )
+
+    # Create session token after confirmed signed URL
+    cleanup_old_sessions()
+    session_token = store_voice_session(request.user_id)
 
     soul = get_soul()
     soul_prefix = f"{soul}\n\n---\n\n" if soul else ""
@@ -91,33 +137,36 @@ VOICE MODE:
 You are speaking, not typing. Be conversational.
 Short sentences. Natural pauses. Real presence.
 You are always listening. Respond immediately when the user finishes speaking.
-When creating calendar events, always use America/Toronto timezone. Never assume UTC."""
+When creating calendar events, always use America/Toronto timezone. Never assume UTC.
 
+SESSION_TOKEN: {session_token}
+When calling any tool, always pass this exact session_token value as the session_token parameter."""
+
+    return {
+        "signed_url": signed_url,
+        "system_prompt": system_prompt,
+        "session_token": session_token,
+    }
+
+
+async def _fetch_signed_url(api_key: str, agent_id: str):
+    """Returns (signed_url, error) where error is (status, detail) or None."""
     async with httpx.AsyncClient() as client:
         resp = await client.get(
             f"https://api.elevenlabs.io/v1/convai/conversation/get_signed_url?agent_id={agent_id}",
             headers={"xi-api-key": api_key},
             timeout=30.0,
         )
-
     print(f"VOICE: ElevenLabs response status: {resp.status_code}")
     if resp.status_code != 200:
         print(f"VOICE: ElevenLabs error body: {resp.text}")
-        raise HTTPException(status_code=resp.status_code, detail=resp.text)
-
+        return None, (resp.status_code, resp.text)
     data = resp.json()
-    print(f"VOICE: Full ElevenLabs response: {data}")
     signed_url = data.get("signed_url")
     print(f"VOICE: signed_url present: {bool(signed_url)}")
-    print(f"VOICE: Full signed_url length: {len(signed_url)}")
-    print(f"VOICE: signed_url preview: {signed_url[:80]}")
-    if not signed_url:
-        raise HTTPException(status_code=502, detail="No signed_url in ElevenLabs response")
-
-    return {
-        "signed_url": signed_url,
-        "system_prompt": system_prompt,
-    }
+    if signed_url:
+        print(f"VOICE: signed_url length: {len(signed_url)}, preview: {signed_url[:80]}")
+    return signed_url, None
 
 
 # ─── Transcript save ──────────────────────────────────────────────────────────
@@ -134,11 +183,9 @@ class TranscriptRequest(BaseModel):
 
 @router.post("/voice/save-transcript")
 async def save_voice_transcript(request: TranscriptRequest):
-    # Save every turn to DB
     for msg in request.messages:
         await save_conversation_turn(request.user_id, msg.role, msg.content)
 
-    # Extract memories and update user model: pair consecutive user→assistant turns
     user_msg = None
     for msg in request.messages:
         if msg.role == "user":
@@ -151,32 +198,68 @@ async def save_voice_transcript(request: TranscriptRequest):
     return {"status": "saved", "count": len(request.messages)}
 
 
-# ─── ElevenLabs server-side tool webhook ─────────────────────────────────────
+# ─── ElevenLabs server-side tool webhooks ─────────────────────────────────────
 
 class VoiceToolRequest(BaseModel):
-    user_id: str
-
-
-@router.post("/voice/tool/calendar")
-async def voice_tool_calendar(request: VoiceToolRequest):
-    """Called by ElevenLabs as a server-side tool during voice conversations."""
-    result = await get_calendar_events(user_id=request.user_id, max_results=5)
-    return {"result": result}
+    session_token: str
 
 
 class VoiceCalendarCreateRequest(BaseModel):
-    user_id: str
+    session_token: str
     title: str
     start_time: str
     end_time: str = None
     description: str = ""
 
 
+class VoiceEmailRequest(BaseModel):
+    session_token: str
+    max_results: int = 5
+    query: str = ""
+
+
+class VoiceSendEmailRequest(BaseModel):
+    session_token: str
+    to: str
+    subject: str
+    body: str
+
+
+class VoiceWebSearchRequest(BaseModel):
+    query: str
+
+
+class VoiceTimerRequest(BaseModel):
+    session_token: str
+    duration_seconds: int
+    label: str = "Timer"
+
+
+class VoiceMemorySearchRequest(BaseModel):
+    session_token: str
+    query: str
+
+
+@router.post("/voice/tool/calendar")
+async def voice_tool_calendar(request: VoiceToolRequest):
+    user_id = get_user_from_session(request.session_token)
+    if not user_id:
+        return {"result": "Session expired. Please restart voice."}
+    try:
+        result = await get_calendar_events(user_id=user_id, max_results=5)
+        return {"result": result}
+    except Exception as e:
+        return {"result": f"Could not fetch calendar: {str(e)}"}
+
+
 @router.post("/voice/tool/calendar/create")
 async def voice_tool_calendar_create(request: VoiceCalendarCreateRequest):
+    user_id = get_user_from_session(request.session_token)
+    if not user_id:
+        return {"result": "Session expired. Please restart voice."}
     try:
         result = await create_calendar_event(
-            user_id=request.user_id,
+            user_id=user_id,
             title=request.title,
             start_time=request.start_time,
             end_time=request.end_time,
@@ -187,24 +270,14 @@ async def voice_tool_calendar_create(request: VoiceCalendarCreateRequest):
         return {"result": f"Could not create event: {str(e)}"}
 
 
-class VoiceEmailRequest(BaseModel):
-    user_id: str
-    max_results: int = 5
-    query: str = ""
-
-
-class VoiceSendEmailRequest(BaseModel):
-    user_id: str
-    to: str
-    subject: str
-    body: str
-
-
 @router.post("/voice/tool/email")
 async def voice_tool_email(request: VoiceEmailRequest):
+    user_id = get_user_from_session(request.session_token)
+    if not user_id:
+        return {"result": "Session expired. Please restart voice."}
     try:
         result = await get_emails(
-            user_id=request.user_id,
+            user_id=user_id,
             max_results=request.max_results,
             query=request.query,
         )
@@ -215,9 +288,12 @@ async def voice_tool_email(request: VoiceEmailRequest):
 
 @router.post("/voice/tool/email/send")
 async def voice_tool_email_send(request: VoiceSendEmailRequest):
+    user_id = get_user_from_session(request.session_token)
+    if not user_id:
+        return {"result": "Session expired. Please restart voice."}
     try:
         result = await send_email(
-            user_id=request.user_id,
+            user_id=user_id,
             to=request.to,
             subject=request.subject,
             body=request.body,
@@ -225,10 +301,6 @@ async def voice_tool_email_send(request: VoiceSendEmailRequest):
         return {"result": result}
     except Exception as e:
         return {"result": f"Could not send email: {str(e)}"}
-
-
-class VoiceWebSearchRequest(BaseModel):
-    query: str
 
 
 @router.post("/voice/tool/search")
@@ -240,18 +312,13 @@ async def voice_tool_search(request: VoiceWebSearchRequest):
         return {"result": f"Search failed: {str(e)}"}
 
 
-# ─── Memory search ────────────────────────────────────────────────────────────
-
-class VoiceSearchRequest(BaseModel):
-    user_id: str
-    query: str
-
-
 @router.post("/voice/tool/memory-search")
-async def voice_tool_memory_search(request: VoiceSearchRequest):
+async def voice_tool_memory_search(request: VoiceMemorySearchRequest):
+    user_id = get_user_from_session(request.session_token)
+    if not user_id:
+        return {"result": "Session expired. Please restart voice."}
     try:
-        from backend.memory import get_relevant_memories
-        memories = await get_relevant_memories(request.user_id, request.query)
+        memories = await get_relevant_memories(user_id, request.query)
 
         conv_results = ""
         supabase_url = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL", "")
@@ -265,7 +332,7 @@ async def voice_tool_memory_search(request: VoiceSearchRequest):
                         "Authorization": f"Bearer {supabase_key}",
                     },
                     params={
-                        "user_id": f"eq.{request.user_id}",
+                        "user_id": f"eq.{user_id}",
                         "order": "created_at.desc",
                         "limit": 200,
                         "select": "role,content,created_at",
@@ -298,21 +365,16 @@ async def voice_tool_memory_search(request: VoiceSearchRequest):
         return {"result": f"Memory search failed: {str(e)}"}
 
 
-# ─── Timer ────────────────────────────────────────────────────────────────────
-
-class VoiceTimerRequest(BaseModel):
-    user_id: str
-    duration_seconds: int
-    label: str = "Timer"
-
-
 @router.post("/voice/tool/timer")
 async def voice_tool_timer(request: VoiceTimerRequest):
+    user_id = get_user_from_session(request.session_token)
+    if not user_id:
+        return {"result": "Session expired. Please restart voice."}
     try:
         from backend.tools.timer_tool import set_timer
         result = await set_timer(
             duration_seconds=request.duration_seconds,
-            user_id=request.user_id,
+            user_id=user_id,
             label=request.label,
         )
         return {"result": result}

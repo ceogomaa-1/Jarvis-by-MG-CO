@@ -8,7 +8,7 @@
     "start": "next start"
   },
   "dependencies": {
-    "@11labs/client": "^0.2.0",
+    "@11labs/client": "latest",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.105.4",
     "next": "^14.2.0",

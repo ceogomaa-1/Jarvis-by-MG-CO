@@ -802,6 +802,7 @@ export default function Home() {
   const msgIdRef = useRef(1)
   const conversationBufferRef = useRef([])
   const reconnectAttemptsRef = useRef(0)
+  const sessionTokenRef = useRef(null)
   const fileInputRef = useRef(null)
   const [uploadingFile, setUploadingFile] = useState(false)
   const MAX_RECONNECT = 3
@@ -986,7 +987,8 @@ export default function Home() {
       }
       const data = await res.json()
       console.log('Got signed_url:', data.signed_url ? `yes (length: ${data.signed_url.length})` : 'no')
-      const { signed_url, system_prompt } = data
+      const { signed_url, system_prompt, session_token } = data
+      sessionTokenRef.current = session_token
 
       const { VoiceManager } = await import('../lib/voiceManager')
       const vm = new VoiceManager(
