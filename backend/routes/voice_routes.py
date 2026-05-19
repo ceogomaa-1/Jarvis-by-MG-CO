@@ -14,6 +14,7 @@ from backend.conversation import get_conversation_history, save_conversation_tur
 from backend.tools.soul import get_soul
 from backend.tools.google_calendar import get_calendar_events, create_calendar_event
 from backend.tools.gmail import get_emails, send_email
+from backend.tools.web_search import web_search
 
 router = APIRouter()
 
@@ -223,3 +224,16 @@ async def voice_tool_email_send(request: VoiceSendEmailRequest):
         return {"result": result}
     except Exception as e:
         return {"result": f"Could not send email: {str(e)}"}
+
+
+class VoiceWebSearchRequest(BaseModel):
+    query: str
+
+
+@router.post("/voice/tool/search")
+async def voice_tool_search(request: VoiceWebSearchRequest):
+    try:
+        result = await web_search(query=request.query)
+        return {"result": result}
+    except Exception as e:
+        return {"result": f"Search failed: {str(e)}"}
