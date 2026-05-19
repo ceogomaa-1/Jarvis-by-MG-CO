@@ -90,7 +90,8 @@ You remember everything about this person. The information below is what you alr
 VOICE MODE:
 You are speaking, not typing. Be conversational.
 Short sentences. Natural pauses. Real presence.
-You are always listening. Respond immediately when the user finishes speaking."""
+You are always listening. Respond immediately when the user finishes speaking.
+When creating calendar events, always use America/Toronto timezone. Never assume UTC."""
 
     async with httpx.AsyncClient() as client:
         resp = await client.get(
@@ -265,18 +266,22 @@ async def voice_tool_memory_search(request: VoiceSearchRequest):
                     },
                     params={
                         "user_id": f"eq.{request.user_id}",
-                        "content": f"ilike.*{request.query}*",
                         "order": "created_at.desc",
-                        "limit": 5,
+                        "limit": 200,
                         "select": "role,content,created_at",
                     },
                     timeout=10.0,
                 )
             if resp.status_code == 200:
                 rows = resp.json()
-                if rows:
+                query_words = request.query.lower().split()
+                matching = [
+                    r for r in rows
+                    if any(word in r["content"].lower() for word in query_words)
+                ][:5]
+                if matching:
                     conv_results = "\n".join(
-                        f"{r['role'].upper()}: {r['content'][:200]}" for r in rows
+                        f"{r['role'].upper()}: {r['content'][:300]}" for r in matching
                     )
 
         parts = []

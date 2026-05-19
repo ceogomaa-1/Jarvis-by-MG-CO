@@ -55,15 +55,26 @@ async def get_emails(user_id: str, max_results: int = 5, query: str = "") -> str
     access_token = await get_access_token(refresh_token)
 
     async with httpx.AsyncClient() as client:
+        profile_resp = await client.get(
+            "https://gmail.googleapis.com/gmail/v1/users/me/profile",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+    account_email = profile_resp.json().get("emailAddress", "unknown")
+
+    async with httpx.AsyncClient() as client:
         resp = await client.get(
             "https://gmail.googleapis.com/gmail/v1/users/me/messages",
             headers={"Authorization": f"Bearer {access_token}"},
-            params={"maxResults": max_results, "q": query if query else "in:inbox"},
+            params={
+                "maxResults": max_results,
+                "q": query if query else "in:inbox",
+                "orderBy": "internalDate",
+            },
         )
 
     messages = resp.json().get("messages", [])
     if not messages:
-        return "No emails found."
+        return f"No emails found in inbox for: {account_email}"
 
     results = []
     async with httpx.AsyncClient() as client:
@@ -81,12 +92,13 @@ async def get_emails(user_id: str, max_results: int = 5, query: str = "") -> str
             body_preview = body[:500].strip() if body else "No body content"
             results.append(
                 f"From: {hd.get('From', 'Unknown')}\n"
+                f"To: {hd.get('To', account_email)}\n"
                 f"Subject: {hd.get('Subject', 'No subject')}\n"
                 f"Date: {hd.get('Date', '')}\n"
                 f"Message: {body_preview}"
             )
 
-    return "Recent emails:\n\n" + "\n\n---\n\n".join(results)
+    return f"Reading inbox for: {account_email}\n\n" + "\n\n---\n\n".join(results)
 
 
 @register_tool(

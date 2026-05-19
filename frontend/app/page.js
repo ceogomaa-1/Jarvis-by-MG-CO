@@ -875,7 +875,7 @@ export default function Home() {
       setOnboarding(onboardingData.onboarding_complete)
       const history = historyData.messages || []
       if (history.length > 0) {
-        msgIdRef.current = history.length
+        msgIdRef.current = history.length + 1
         setMessages(history.map((m, i) => ({
           id: i + 1,
           role: m.role,

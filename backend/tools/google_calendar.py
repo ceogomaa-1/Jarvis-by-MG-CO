@@ -138,9 +138,22 @@ async def create_calendar_event(
 
     access_token = await get_access_token(refresh_token)
 
-    if not end_time:
+    eastern = pytz.timezone("America/Toronto")
+    try:
         start_dt = datetime.fromisoformat(start_time)
-        end_time = (start_dt + timedelta(hours=1)).isoformat()
+        if start_dt.tzinfo is None:
+            start_dt = eastern.localize(start_dt)
+        start_time = start_dt.isoformat()
+
+        if end_time:
+            end_dt = datetime.fromisoformat(end_time)
+            if end_dt.tzinfo is None:
+                end_dt = eastern.localize(end_dt)
+            end_time = end_dt.isoformat()
+        else:
+            end_time = (start_dt + timedelta(hours=1)).isoformat()
+    except Exception:
+        pass
 
     event = {
         "summary": title,
