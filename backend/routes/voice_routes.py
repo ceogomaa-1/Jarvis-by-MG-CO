@@ -1,8 +1,7 @@
 import asyncio
 import os
-import secrets
 import traceback
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 
 import httpx
 import pytz
@@ -18,36 +17,6 @@ from backend.tools.gmail import get_emails, send_email
 from backend.tools.web_search import web_search
 
 router = APIRouter()
-
-# ─── Server-side voice session store ─────────────────────────────────────────
-
-_voice_sessions: dict = {}
-
-
-def store_voice_session(user_id: str) -> str:
-    token = secrets.token_urlsafe(32)
-    _voice_sessions[token] = {
-        "user_id": user_id,
-        "expires_at": datetime.now(timezone.utc) + timedelta(hours=2),
-    }
-    return token
-
-
-def get_user_from_session(token: str) -> str:
-    session = _voice_sessions.get(token)
-    if not session:
-        return ""
-    if datetime.now(timezone.utc) > session["expires_at"]:
-        del _voice_sessions[token]
-        return ""
-    return session["user_id"]
-
-
-def cleanup_old_sessions():
-    now = datetime.now(timezone.utc)
-    expired = [k for k, v in _voice_sessions.items() if now > v["expires_at"]]
-    for k in expired:
-        del _voice_sessions[k]
 
 
 # ─── Voice session ────────────────────────────────────────────────────────────
@@ -77,10 +46,9 @@ async def _get_voice_session(request: VoiceSessionRequest):
         print("VOICE: missing credentials — ELEVENLABS_API_KEY or ELEVENLABS_AGENT_ID not set")
         raise HTTPException(status_code=503, detail="ElevenLabs credentials not configured")
 
-    # Fetch context and signed URL in parallel
     eastern = pytz.timezone("America/Toronto")
 
-    memory_context, user_model_summary, recent_history, elevenlabs_resp = await asyncio.gather(
+    memory_context, user_model_summary, _, elevenlabs_resp = await asyncio.gather(
         get_relevant_memories(request.user_id, "general context and who the user is"),
         summarize_user_for_prompt(request.user_id),
         get_conversation_history(request.user_id, limit=6),
@@ -96,10 +64,6 @@ async def _get_voice_session(request: VoiceSessionRequest):
     current_dt = datetime.now(eastern).strftime(
         "Today is %A, %B %d, %Y. Current time is %I:%M %p EST."
     )
-
-    # Create session token after confirmed signed URL
-    cleanup_old_sessions()
-    session_token = store_voice_session(request.user_id)
 
     memory_short = (memory_context or "")[:300]
     model_short = (user_model_summary or "")[:200]
@@ -119,7 +83,6 @@ You are Jarvis — second mind built by Mohamed Gomaa, MG&CO Technologies. Direc
     return {
         "signed_url": signed_url,
         "system_prompt": system_prompt,
-        "session_token": session_token,
     }
 
 
@@ -175,11 +138,11 @@ async def save_voice_transcript(request: TranscriptRequest):
 # ─── ElevenLabs server-side tool webhooks ─────────────────────────────────────
 
 class VoiceToolRequest(BaseModel):
-    session_token: str
+    user_id: str
 
 
 class VoiceCalendarCreateRequest(BaseModel):
-    session_token: str
+    user_id: str
     title: str
     start_time: str
     end_time: str = None
@@ -187,13 +150,13 @@ class VoiceCalendarCreateRequest(BaseModel):
 
 
 class VoiceEmailRequest(BaseModel):
-    session_token: str
+    user_id: str
     max_results: int = 5
     query: str = ""
 
 
 class VoiceSendEmailRequest(BaseModel):
-    session_token: str
+    user_id: str
     to: str
     subject: str
     body: str
@@ -204,23 +167,20 @@ class VoiceWebSearchRequest(BaseModel):
 
 
 class VoiceTimerRequest(BaseModel):
-    session_token: str
+    user_id: str
     duration_seconds: int
     label: str = "Timer"
 
 
 class VoiceMemorySearchRequest(BaseModel):
-    session_token: str
+    user_id: str
     query: str
 
 
 @router.post("/voice/tool/calendar")
 async def voice_tool_calendar(request: VoiceToolRequest):
-    user_id = get_user_from_session(request.session_token)
-    if not user_id:
-        return {"result": "Session expired. Please restart voice."}
     try:
-        result = await get_calendar_events(user_id=user_id, max_results=5)
+        result = await get_calendar_events(user_id=request.user_id, max_results=5)
         return {"result": result}
     except Exception as e:
         return {"result": f"Could not fetch calendar: {str(e)}"}
@@ -228,12 +188,9 @@ async def voice_tool_calendar(request: VoiceToolRequest):
 
 @router.post("/voice/tool/calendar/create")
 async def voice_tool_calendar_create(request: VoiceCalendarCreateRequest):
-    user_id = get_user_from_session(request.session_token)
-    if not user_id:
-        return {"result": "Session expired. Please restart voice."}
     try:
         result = await create_calendar_event(
-            user_id=user_id,
+            user_id=request.user_id,
             title=request.title,
             start_time=request.start_time,
             end_time=request.end_time,
@@ -246,12 +203,9 @@ async def voice_tool_calendar_create(request: VoiceCalendarCreateRequest):
 
 @router.post("/voice/tool/email")
 async def voice_tool_email(request: VoiceEmailRequest):
-    user_id = get_user_from_session(request.session_token)
-    if not user_id:
-        return {"result": "Session expired. Please restart voice."}
     try:
         result = await get_emails(
-            user_id=user_id,
+            user_id=request.user_id,
             max_results=request.max_results,
             query=request.query,
         )
@@ -262,12 +216,9 @@ async def voice_tool_email(request: VoiceEmailRequest):
 
 @router.post("/voice/tool/email/send")
 async def voice_tool_email_send(request: VoiceSendEmailRequest):
-    user_id = get_user_from_session(request.session_token)
-    if not user_id:
-        return {"result": "Session expired. Please restart voice."}
     try:
         result = await send_email(
-            user_id=user_id,
+            user_id=request.user_id,
             to=request.to,
             subject=request.subject,
             body=request.body,
@@ -288,11 +239,8 @@ async def voice_tool_search(request: VoiceWebSearchRequest):
 
 @router.post("/voice/tool/memory-search")
 async def voice_tool_memory_search(request: VoiceMemorySearchRequest):
-    user_id = get_user_from_session(request.session_token)
-    if not user_id:
-        return {"result": "Session expired. Please restart voice."}
     try:
-        memories = await get_relevant_memories(user_id, request.query)
+        memories = await get_relevant_memories(request.user_id, request.query)
 
         conv_results = ""
         supabase_url = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL", "")
@@ -306,7 +254,7 @@ async def voice_tool_memory_search(request: VoiceMemorySearchRequest):
                         "Authorization": f"Bearer {supabase_key}",
                     },
                     params={
-                        "user_id": f"eq.{user_id}",
+                        "user_id": f"eq.{request.user_id}",
                         "order": "created_at.desc",
                         "limit": 200,
                         "select": "role,content,created_at",
@@ -341,14 +289,11 @@ async def voice_tool_memory_search(request: VoiceMemorySearchRequest):
 
 @router.post("/voice/tool/timer")
 async def voice_tool_timer(request: VoiceTimerRequest):
-    user_id = get_user_from_session(request.session_token)
-    if not user_id:
-        return {"result": "Session expired. Please restart voice."}
     try:
         from backend.tools.timer_tool import set_timer
         result = await set_timer(
             duration_seconds=request.duration_seconds,
-            user_id=user_id,
+            user_id=request.user_id,
             label=request.label,
         )
         return {"result": result}

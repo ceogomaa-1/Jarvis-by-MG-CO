@@ -37,6 +37,9 @@ export class VoiceManager {
             prompt: { prompt: systemPrompt },
           },
         },
+        dynamicVariables: {
+          user_id: userId,
+        },
         onConnect: () => {
           this.isConnected = true
           console.log('ElevenLabs connected successfully')
