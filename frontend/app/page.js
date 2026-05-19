@@ -877,15 +877,17 @@ export default function Home() {
       console.log('Auth event:', event)
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
         if (session?.user) {
-          setUser(session.user)
-          setUserId('user_' + session.user.id.replace(/-/g, ''))
+          const newJarvisId = 'user_' + session.user.id.replace(/-/g, '')
+          // Only update state if user actually changed — prevents re-renders
+          // that would destroy the active ElevenLabs WebSocket during token refresh
+          setUser(prev => prev?.id === session.user.id ? prev : session.user)
+          setUserId(prev => prev === newJarvisId ? prev : newJarvisId)
         }
       } else if (event === 'SIGNED_OUT') {
         setUser(null)
         setUserId(null)
         window.location.href = '/login'
       }
-      // INITIAL_SESSION, PASSWORD_RECOVERY etc — silently ignored
     })
     return () => subscription.unsubscribe()
   }, [])
