@@ -81,10 +81,12 @@ def _record_interaction(user_id: str):
 
 
 async def _get_context(user_id: str, message: str):
-    """Fetch memory context and user profile summary concurrently."""
+    """Fetch memory, user profile, and learned skills concurrently."""
+    from backend.skills.skills_manager import get_skills_summary
     return await asyncio.gather(
         get_relevant_memories(user_id, message),
         summarize_user_for_prompt(user_id),
+        get_skills_summary(user_id),
     )
 
 
@@ -96,8 +98,10 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
     import pytz
     eastern = pytz.timezone('America/Toronto')
     current_dt = datetime.now(eastern).strftime("Today is %A, %B %d, %Y. Current time is %I:%M %p EST.")
-    memory_context, user_model_context = await _get_context(request.user_id, request.message)
+    memory_context, user_model_context, skills_summary = await _get_context(request.user_id, request.message)
     memory_context = f"{current_dt}\n\n{memory_context}"
+    if skills_summary:
+        user_model_context = f"{user_model_context}\n\n{skills_summary}" if user_model_context else skills_summary
 
     user_model = await get_user_model(request.user_id)
     system_override = None
@@ -140,7 +144,9 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
 
 @router.post("/chat/stream")
 async def chat_stream(request: ChatRequest):
-    memory_context, user_model_context = await _get_context(request.user_id, request.message)
+    memory_context, user_model_context, skills_summary = await _get_context(request.user_id, request.message)
+    if skills_summary:
+        user_model_context = f"{user_model_context}\n\n{skills_summary}" if user_model_context else skills_summary
 
     user_model = await get_user_model(request.user_id)
     system_override = None

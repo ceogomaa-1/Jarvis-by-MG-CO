@@ -48,11 +48,14 @@ async def _get_voice_session(request: VoiceSessionRequest):
 
     eastern = pytz.timezone("America/Toronto")
 
-    memory_context, user_model_summary, _, elevenlabs_resp = await asyncio.gather(
+    from backend.skills.skills_manager import get_skills_summary
+
+    memory_context, user_model_summary, _, elevenlabs_resp, skills_summary = await asyncio.gather(
         get_relevant_memories(request.user_id, "general context and who the user is"),
         summarize_user_for_prompt(request.user_id),
         get_conversation_history(request.user_id, limit=6),
         _fetch_signed_url(api_key, agent_id),
+        get_skills_summary(request.user_id),
     )
 
     signed_url, elevenlabs_error = elevenlabs_resp
@@ -70,11 +73,12 @@ async def _get_voice_session(request: VoiceSessionRequest):
 
     system_prompt = f"""NEVER use [bracketed tags]. Plain words only.
 
-You are Jarvis — second mind built by Mohamed Gomaa, MG&CO Technologies. Direct, warm, dry humor. Push back when wrong. Short sentences. Never say Absolutely, Great question, Of course. No emojis.
+You are Jarvis. Second mind built by Mohamed Gomaa at MG&CO Technologies. Direct, warm, dry humor. Push back when wrong. Never performative. Short sentences. Natural speech. Never say Absolutely, Great question, Of course.
 
 {current_dt}
 {("Memory: " + memory_short) if memory_short else ""}
-{("Profile: " + model_short) if model_short else ""}"""
+{("Profile: " + model_short) if model_short else "New user."}
+{skills_summary[:300] if skills_summary else ""}"""
 
     print(f"VOICE: system_prompt length: {len(system_prompt)}")
     if len(system_prompt) > 1800:
@@ -131,6 +135,15 @@ async def save_voice_transcript(request: TranscriptRequest):
             await save_interaction(request.user_id, user_msg, msg.content)
             await update_user_model(request.user_id, user_msg, msg.content)
             user_msg = None
+
+    if len(request.messages) >= 6:
+        from backend.skills.skills_manager import extract_and_save_skills
+        asyncio.create_task(
+            extract_and_save_skills(
+                request.user_id,
+                [{"role": m.role, "content": m.content} for m in request.messages],
+            )
+        )
 
     return {"status": "saved", "count": len(request.messages)}
 
