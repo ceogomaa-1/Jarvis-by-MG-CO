@@ -1,6 +1,8 @@
 import os
 from contextlib import asynccontextmanager
 
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.utils.env import ANTHROPIC_API_KEY
@@ -13,6 +15,7 @@ from backend.routes.voice_routes import router as voice_router
 from backend.routes.history_routes import router as history_router
 from backend.routes.google_auth_routes import router as google_auth_router
 from backend.routes.files_routes import router as files_router
+from backend.cron.briefing import run_morning_briefings
 
 if not ANTHROPIC_API_KEY:
     raise RuntimeError(
@@ -20,9 +23,12 @@ if not ANTHROPIC_API_KEY:
     )
 
 
+scheduler = AsyncIOScheduler()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Create all data directories on startup — required on Railway's ephemeral filesystem."""
+    """Create data dirs and start cron scheduler on startup."""
     for path in [
         "data/user_models",
         "data/proactive",
@@ -30,7 +36,20 @@ async def lifespan(app: FastAPI):
         "data/notes",
     ]:
         os.makedirs(path, exist_ok=True)
+
+    scheduler.add_job(
+        run_morning_briefings,
+        CronTrigger(hour=8, minute=0, timezone="America/Toronto"),
+        id="morning_briefings",
+        replace_existing=True,
+    )
+    scheduler.start()
+    print("CRON: Scheduler started — morning briefings at 08:00 Toronto")
+
     yield
+
+    scheduler.shutdown()
+    print("CRON: Scheduler stopped")
 
 
 app = FastAPI(title="Jarvis by MG&CO", version="0.1.0", lifespan=lifespan)

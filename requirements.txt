@@ -7,3 +7,4 @@ httpx
 qdrant-client
 pypdf>=4.0.0
 python-multipart
+APScheduler>=3.10.0

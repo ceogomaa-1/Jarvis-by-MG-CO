@@ -1,12 +1,55 @@
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 
+import httpx
 from fastapi import APIRouter
 from backend.llm import jarvis_think
 from backend.triggers import get_pending_proactive_message, mark_proactive_delivered
 
 router = APIRouter()
+
+_SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL", "")
+_SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+
+
+@router.get("/proactive/{user_id}")
+async def get_proactive_messages(user_id: str):
+    """Return unread proactive messages (morning briefings, etc.) and mark them read."""
+    if not _SUPABASE_URL or not _SUPABASE_KEY:
+        return {"messages": []}
+    headers = {
+        "apikey": _SUPABASE_KEY,
+        "Authorization": f"Bearer {_SUPABASE_KEY}",
+        "Content-Type": "application/json",
+    }
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"{_SUPABASE_URL}/rest/v1/proactive_messages",
+            headers=headers,
+            params={
+                "user_id": f"eq.{user_id}",
+                "read": "eq.false",
+                "order": "created_at.desc",
+                "limit": 3,
+            },
+            timeout=10.0,
+        )
+    messages = resp.json() if resp.status_code == 200 else []
+
+    if messages:
+        ids = ",".join(str(m["id"]) for m in messages)
+        async with httpx.AsyncClient() as client:
+            await client.patch(
+                f"{_SUPABASE_URL}/rest/v1/proactive_messages",
+                headers=headers,
+                params={"id": f"in.({ids})"},
+                json={"read": True},
+                timeout=10.0,
+            )
+
+    return {"messages": [m["message"] for m in messages]}
 
 _NOTES_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "notes"
 _NO_MESSAGE = {"has_message": False, "message": None, "trigger_type": None}

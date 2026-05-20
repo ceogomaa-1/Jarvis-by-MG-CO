@@ -835,6 +835,27 @@ export default function Home() {
       .catch(() => setGoogleConnected(false))
   }, [userId])
 
+  // Fetch unread proactive messages (morning briefings) on login
+  useEffect(() => {
+    if (!userId) return
+    fetch(`${BACKEND}/api/proactive/${userId}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.messages?.length > 0) {
+          data.messages.forEach(msg => {
+            msgIdRef.current += 1
+            setMessages(prev => [...prev, {
+              id: msgIdRef.current,
+              role: 'assistant',
+              content: msg,
+              proactive: true,
+            }])
+          })
+        }
+      })
+      .catch(() => {})
+  }, [userId])
+
   // ─── Auth ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!supabase) {
