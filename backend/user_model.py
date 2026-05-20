@@ -66,6 +66,16 @@ def _fresh_model(user_id: str) -> dict:
             "inside_references": [],
             "things_jarvis_should_never_forget": [],
         },
+        "thinking_patterns": {
+            "decision_making_style": "",
+            "responds_to_pressure": "",
+            "motivation_pattern": "",
+            "communication_preferences": "",
+            "biggest_fears": [],
+            "core_values": [],
+            "how_they_handle_setbacks": "",
+            "what_makes_them_light_up": "",
+        },
     }
 
 
@@ -207,7 +217,15 @@ async def update_user_model(user_id: str, user_message: str, jarvis_response: st
             f'- If user mentions a project → add to current_focus.active_projects\n'
             f'- If user mentions a person → add to work_context.key_people\n'
             f'- If user shows a communication preference → update personality fields\n'
-            f'- If user mentions something critical to remember → add to jarvis_relationship.things_jarvis_should_never_forget\n\n'
+            f'- If user mentions something critical to remember → add to jarvis_relationship.things_jarvis_should_never_forget\n'
+            f'- If user shows how they make decisions → update thinking_patterns.decision_making_style\n'
+            f'- If user reacts to stress or pressure → update thinking_patterns.responds_to_pressure\n'
+            f'- If user reveals what drives them → update thinking_patterns.motivation_pattern\n'
+            f'- If user shows communication style → update thinking_patterns.communication_preferences\n'
+            f'- If user reveals fears or anxieties → add to thinking_patterns.biggest_fears\n'
+            f'- If user demonstrates core values → add to thinking_patterns.core_values\n'
+            f'- If user shares how they handle failure → update thinking_patterns.how_they_handle_setbacks\n'
+            f'- If user gets excited about something → update thinking_patterns.what_makes_them_light_up\n\n'
             f'If nothing meaningful to extract, return empty object: {{}}'
         )
 
@@ -315,6 +333,21 @@ async def summarize_user_for_prompt(user_id: str) -> str:
             if pref:
                 style_str += (", " if style_str else "") + f"prefers {pref} responses"
             lines.append(f"COMMUNICATION STYLE:\n{style_str}")
+
+        thinking = model.get("thinking_patterns", {})
+        decision_style = thinking.get("decision_making_style", "")
+        motivation = thinking.get("motivation_pattern", "")
+        values = thinking.get("core_values", [])
+        what_lights_up = thinking.get("what_makes_them_light_up", "")
+
+        if decision_style:
+            lines.append(f"Decision style: {decision_style}")
+        if motivation:
+            lines.append(f"Motivation: {motivation}")
+        if values:
+            lines.append("Core values: " + ", ".join(values[:3]))
+        if what_lights_up:
+            lines.append(f"Gets excited about: {what_lights_up}")
 
         return "\n\n".join(lines)
 
