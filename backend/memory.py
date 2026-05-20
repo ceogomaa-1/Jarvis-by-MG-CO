@@ -50,6 +50,45 @@ async def get_relevant_memories(user_id: str, current_message: str) -> str:
         return ""
 
 
+async def extract_emotional_context(
+    user_id: str,
+    user_message: str,
+    assistant_response: str,
+) -> dict:
+    """Extract emotional signals from a conversation exchange."""
+    import json
+    from backend.llm import jarvis_think
+
+    prompt = (
+        f'Analyze this conversation exchange for emotional signals.\n\n'
+        f'User said: "{user_message}"\n'
+        f'Jarvis responded: "{assistant_response}"\n\n'
+        f'Extract ONLY if clearly present:\n'
+        f'- emotion: what emotion the user showed (excited/stressed/tired/happy/frustrated/proud/worried/none)\n'
+        f'- intensity: low/medium/high\n'
+        f'- about: what topic triggered this emotion (one phrase)\n'
+        f'- note: one sentence capturing the emotional moment\n\n'
+        f'Return ONLY valid JSON like:\n'
+        f'{{"emotion": "excited", "intensity": "high", "about": "YC application", "note": "User was fired up about pitching Jarvis to YC"}}\n\n'
+        f'If no clear emotion, return: {{"emotion": "none"}}'
+    )
+
+    try:
+        raw = await jarvis_think(
+            user_message=prompt,
+            conversation_history=[],
+            system_override="Extract emotional signals. Return only valid JSON. No markdown.",
+        )
+        raw = raw.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
+        return json.loads(raw)
+    except Exception:
+        return {"emotion": "none"}
+
+
+# Expose the underlying client for direct adds (emotional memories)
+memory_client = _client
+
+
 async def get_all_memories(user_id: str) -> list:
     """Return every memory Mem0 has stored for this user. Used by the debug endpoint."""
     try:

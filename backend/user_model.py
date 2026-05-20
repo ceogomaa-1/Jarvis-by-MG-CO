@@ -225,7 +225,9 @@ async def update_user_model(user_id: str, user_message: str, jarvis_response: st
             f'- If user reveals fears or anxieties → add to thinking_patterns.biggest_fears\n'
             f'- If user demonstrates core values → add to thinking_patterns.core_values\n'
             f'- If user shares how they handle failure → update thinking_patterns.how_they_handle_setbacks\n'
-            f'- If user gets excited about something → update thinking_patterns.what_makes_them_light_up\n\n'
+            f'- If user gets excited about something → update thinking_patterns.what_makes_them_light_up AND add to emotional_patterns.motivation_triggers\n'
+            f'- If user shows strong stress or pressure → add to emotional_patterns.stress_indicators\n'
+            f'- If user expresses fear or anxiety → add to thinking_patterns.biggest_fears\n\n'
             f'If nothing meaningful to extract, return empty object: {{}}'
         )
 

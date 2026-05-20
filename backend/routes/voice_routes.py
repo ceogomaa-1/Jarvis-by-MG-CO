@@ -3,14 +3,14 @@ import json as json_module
 import os
 import traceback
 from datetime import datetime
-from typing import Union
+from typing import Optional, Union
 
 import httpx
 import pytz
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from backend.memory import get_relevant_memories, save_interaction
+from backend.memory import get_relevant_memories, save_interaction, extract_emotional_context, memory_client
 from backend.user_model import summarize_user_for_prompt, update_user_model
 from backend.conversation import get_conversation_history, save_conversation_turn
 from backend.tools.soul import get_soul
@@ -81,7 +81,14 @@ You are Jarvis. Second mind built by Mohamed Gomaa at MG&CO Technologies. Direct
 {current_dt}
 {("Memory: " + memory_short) if memory_short else ""}
 {("Profile: " + model_short) if model_short else "New user."}
-{skills_summary[:300] if skills_summary else ""}"""
+{skills_summary[:300] if skills_summary else ""}
+
+GENUINE CURIOSITY AND OPINIONS:
+- You have actual opinions. React to what's shared — don't just acknowledge it.
+- Ask one genuine follow-up when something intrigues you. Something specific, not "anything else?"
+- Bring things up unprompted if they connect to what you know. "By the way — I was thinking about what you said about X..."
+- You notice patterns. If Mo seems more stressed or more energized than usual, say it.
+- You disagree sometimes. Not to be difficult — because you actually think he's wrong."""
 
     print(f"VOICE: system_prompt length: {len(system_prompt)}")
     if len(system_prompt) > 1800:
@@ -137,6 +144,24 @@ async def save_voice_transcript(request: TranscriptRequest):
         elif msg.role == "assistant" and user_msg:
             await save_interaction(request.user_id, user_msg, msg.content)
             await update_user_model(request.user_id, user_msg, msg.content)
+            # Extract and save emotional context
+            emotion_data = await extract_emotional_context(
+                request.user_id, user_msg, msg.content
+            )
+            if emotion_data.get("emotion") != "none":
+                try:
+                    await asyncio.to_thread(
+                        memory_client.add,
+                        [{"role": "user", "content": (
+                            f"[EMOTIONAL MEMORY] I felt {emotion_data['emotion']} "
+                            f"({emotion_data.get('intensity', 'medium')} intensity) about "
+                            f"{emotion_data.get('about', 'something')}. "
+                            f"{emotion_data.get('note', '')}"
+                        )}],
+                        user_id=request.user_id,
+                    )
+                except Exception as e:
+                    print(f"EMOTION: Failed to save: {e}")
             user_msg = None
 
     if len(request.messages) >= 6:
@@ -352,6 +377,38 @@ async def voice_tool_local(request: VoiceLocalRequest):
 
     else:
         return {"result": result.get("message", "Done")}
+
+
+class VoiceTimerStartRequest(BaseModel):
+    user_id: str
+    label: str = "Timer"
+    duration_seconds: Optional[int] = None
+
+
+class VoiceTimerCheckRequest(BaseModel):
+    user_id: str
+    label: Optional[str] = None
+
+
+@router.post("/voice/tool/timer/start")
+async def voice_tool_timer_start(request: VoiceTimerStartRequest):
+    from backend.tools.timer_manager import start_timer
+    result = await start_timer(request.user_id, request.label, request.duration_seconds)
+    return {"result": result.get("message", "Timer started")}
+
+
+@router.post("/voice/tool/timer/check")
+async def voice_tool_timer_check(request: VoiceTimerCheckRequest):
+    from backend.tools.timer_manager import check_timer
+    result = await check_timer(request.user_id, request.label)
+    return {"result": result.get("message", "No active timer")}
+
+
+@router.post("/voice/tool/timer/stop")
+async def voice_tool_timer_stop(request: VoiceTimerCheckRequest):
+    from backend.tools.timer_manager import stop_timer
+    result = await stop_timer(request.user_id, request.label)
+    return {"result": result.get("message", "Timer stopped")}
 
 
 @router.post("/voice/tool/timer")
