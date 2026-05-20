@@ -1,7 +1,9 @@
 import asyncio
+import json as json_module
 import os
 import traceback
 from datetime import datetime
+from typing import Union
 
 import httpx
 import pytz
@@ -304,12 +306,21 @@ async def voice_tool_memory_search(request: VoiceMemorySearchRequest):
 class VoiceLocalRequest(BaseModel):
     user_id: str
     command: str
-    params: dict = {}
+    params: Union[dict, str, None] = {}
 
 
 @router.post("/voice/tool/local")
 async def voice_tool_local(request: VoiceLocalRequest):
-    result = await send_local_command(request.user_id, request.command, request.params)
+    params = request.params
+    if isinstance(params, str):
+        try:
+            params = json_module.loads(params)
+        except Exception:
+            params = {}
+    if params is None:
+        params = {}
+
+    result = await send_local_command(request.user_id, request.command, params)
     if not result.get("success"):
         return {"result": result.get("error", "Command failed")}
 
@@ -328,12 +339,16 @@ async def voice_tool_local(request: VoiceLocalRequest):
         results = result.get("results", [])
         if not results:
             return {"result": "No files found matching that search"}
-        found = [f"{r['name']} ({r['path']})" for r in results[:5]]
+        found = [f"{r['name']} at {r['path']}" for r in results[:5]]
         return {"result": "Found:\n" + "\n".join(found)}
 
     elif request.command == "read_file":
         content = result.get("content", "")
         return {"result": content[:1000] if content else "File is empty"}
+
+    elif request.command == "get_system_info":
+        info = result
+        return {"result": f"OS: {info.get('os')}, Desktop: {info.get('desktop')}, Documents: {info.get('documents')}"}
 
     else:
         return {"result": result.get("message", "Done")}
