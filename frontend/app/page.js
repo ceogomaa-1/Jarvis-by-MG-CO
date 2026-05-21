@@ -1240,7 +1240,10 @@ export default function Home() {
     if (!apiText || loading || isStreaming) return
     if (!override) setInput('')
 
-    const historyForApi = messages.slice(1).map(({ role, content }) => ({ role, content }))
+    const historyForApi = messages
+      .slice(1)
+      .filter(m => m.role !== 'artifact' && typeof m.content === 'string' && m.content.trim().length > 0)
+      .map(({ role, content }) => ({ role, content }))
     msgIdRef.current += 1
     const userMsgId = msgIdRef.current
     setMessages(prev => [...prev, { id: userMsgId, role: 'user', content: displayText }])
