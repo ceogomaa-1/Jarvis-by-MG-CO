@@ -225,15 +225,17 @@ async def generate_artifact(request: ChatRequest):
         return {"artifact": "", "error": "No API key"}
 
     user_prompt = (
-        f'Create a complete, beautiful, self-contained HTML page for this request:\n\n'
+        f'Create a complete self-contained HTML page for:\n\n'
         f'"{request.message}"\n\n'
-        f'Requirements:\n'
-        f'- Single HTML file, all CSS and JS embedded inline\n'
+        f'CRITICAL RULES:\n'
+        f'- Output MUST be under 3000 tokens total\n'
         f'- Dark theme: background #0a0a0a, text #f3ead9, accent #c84b31\n'
-        f'- Visually impressive, professional quality\n'
-        f'- Fully functional and interactive where appropriate\n'
-        f'- No external dependencies (no CDN links, no imports)\n'
-        f'- Make it genuinely impressive and complete'
+        f'- Single HTML file, ALL CSS embedded in <style> tag\n'
+        f'- NO external dependencies, NO CDN links\n'
+        f'- Keep it concise but visually impressive\n'
+        f'- The HTML MUST be complete with closing </html> tag\n'
+        f'- Prioritize clean design over quantity of content\n'
+        f'- Start with <!DOCTYPE html> end with </html>'
     )
 
     async with httpx.AsyncClient() as client:
@@ -246,11 +248,13 @@ async def generate_artifact(request: ChatRequest):
             },
             json={
                 "model": "claude-sonnet-4-20250514",
-                "max_tokens": 4096,
+                "max_tokens": 8096,
                 "system": (
-                    "You are an HTML generator. Output ONLY complete valid HTML starting with "
-                    "<!DOCTYPE html>. No explanation. No markdown. No code blocks. "
-                    "Just raw HTML that renders a beautiful dark-themed visual for the user's request."
+                    "You are an expert HTML/CSS developer. "
+                    "Output ONLY raw HTML. Start with <!DOCTYPE html> and end with </html>. "
+                    "Keep total output under 3000 tokens. "
+                    "No markdown, no explanation, no code fences. "
+                    "Complete, valid, self-contained HTML only."
                 ),
                 "messages": [{"role": "user", "content": user_prompt}],
             },
