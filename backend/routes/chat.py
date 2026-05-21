@@ -217,27 +217,34 @@ async def chat_stream(request: ChatRequest):
 
 @router.post("/chat/artifact")
 async def generate_artifact(request: ChatRequest):
-    memory_context, user_model_context, skills_summary = await _get_context(
-        request.user_id, request.message
-    )
-    if skills_summary:
-        user_model_context = f"{user_model_context}\n\n{skills_summary}" if user_model_context else skills_summary
+    prompt = f"""Create a complete, beautiful, self-contained HTML page for this request:
 
-    enhanced_message = f"""{request.message}
+"{request.message}"
 
-IMPORTANT: Respond with a complete, self-contained HTML artifact. Requirements:
-- Single HTML file with embedded CSS and JS
+Requirements:
+- Single HTML file, all CSS and JS embedded inline
 - Dark theme: background #0a0a0a, text #f3ead9, accent #c84b31
-- No external dependencies except Google Fonts if needed
-- Must be visually impressive and complete
-- No explanatory text outside the HTML
-- Start your response with <!DOCTYPE html>"""
+- Visually impressive, professional quality
+- Fully functional and interactive where appropriate
+- No external dependencies (no CDN links, no imports)
+- Start IMMEDIATELY with <!DOCTYPE html>
+- No explanation text, just the HTML
+
+Make it genuinely impressive."""
 
     response = await jarvis_think(
-        user_message=enhanced_message,
+        user_message=prompt,
         conversation_history=[],
-        memory_context=memory_context,
-        user_model_context=user_model_context,
         user_id=request.user_id,
+        system_override="You are an expert frontend developer. Output ONLY complete HTML. Start with <!DOCTYPE html>. No explanation. No markdown. Just HTML.",
     )
-    return {"artifact": response, "type": "html"}
+
+    html = response.strip()
+    if '<!DOCTYPE' in html:
+        html = html[html.index('<!DOCTYPE'):]
+    elif '<html' in html:
+        html = html[html.index('<html'):]
+    if '```' in html:
+        html = html.split('```')[0]
+
+    return {"artifact": html}

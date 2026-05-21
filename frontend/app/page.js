@@ -471,29 +471,56 @@ function BlinkCaret() {
   )
 }
 
-function Message({ msg, isLatest, onArtifactClick }) {
+function Message({ msg, isLatest }) {
   if (msg.role === 'artifact') {
+    const { html, title } = msg.content || {}
+    if (msg.loading || !html) {
+      return (
+        <div style={{
+          margin: '16px 0', border: '1px solid rgba(243,234,217,0.1)',
+          borderRadius: 12, height: 200,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: 'var(--ink-soft)', fontFamily: 'var(--sans)',
+          fontSize: '0.75rem', letterSpacing: '0.1em',
+        }}>
+          Jarvis is creating...
+        </div>
+      )
+    }
     return (
-      <div
-        onClick={() => onArtifactClick?.(msg.artifactData)}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          padding: '10px 14px',
-          background: 'rgba(200,75,49,0.08)',
-          border: '1px solid rgba(200,75,49,0.2)',
-          borderRadius: 8, cursor: 'pointer',
-          margin: '8px 0', maxWidth: 400,
-        }}
-      >
-        <span style={{ color: 'var(--accent)', fontSize: '0.7rem', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-          Jarvis created
-        </span>
-        <span style={{ color: 'var(--ink-soft)', fontSize: '0.8rem', fontFamily: 'var(--sans)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-          {msg.content}
-        </span>
-        <span style={{ marginLeft: 'auto', color: 'var(--accent)', fontSize: '0.7rem', flexShrink: 0 }}>
-          View
-        </span>
+      <div style={{ margin: '16px 0', width: '100%' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <span style={{ fontFamily: 'var(--sans)', fontSize: '0.6rem', letterSpacing: '0.15em', textTransform: 'uppercase', color: 'var(--accent)' }}>
+            Jarvis created
+          </span>
+          <button
+            onClick={() => {
+              const blob = new Blob([html], { type: 'text/html' })
+              const url = URL.createObjectURL(blob)
+              const a = document.createElement('a')
+              a.href = url
+              a.download = `${(title || 'jarvis-creation').slice(0, 30)}.html`
+              a.click()
+              URL.revokeObjectURL(url)
+            }}
+            style={{
+              background: 'none', border: '1px solid rgba(243,234,217,0.15)',
+              borderRadius: 4, padding: '4px 10px', color: 'var(--ink-soft)',
+              cursor: 'pointer', fontFamily: 'var(--sans)',
+              fontSize: '0.6rem', letterSpacing: '0.1em', textTransform: 'uppercase',
+            }}
+          >
+            Download
+          </button>
+        </div>
+        <div style={{ border: '1px solid rgba(243,234,217,0.1)', borderRadius: 12, overflow: 'hidden', height: 500, width: '100%' }}>
+          <iframe
+            srcDoc={html}
+            style={{ width: '100%', height: '100%', border: 'none', background: '#0a0a0a' }}
+            sandbox="allow-scripts allow-same-origin"
+            title={title}
+          />
+        </div>
       </div>
     )
   }
@@ -544,7 +571,7 @@ function ThinkingIndicator() {
   )
 }
 
-function Conversation({ messages, loading, onArtifactClick }) {
+function Conversation({ messages, loading }) {
   const scrollRef = useRef(null)
 
   useEffect(() => {
@@ -563,7 +590,7 @@ function Conversation({ messages, loading, onArtifactClick }) {
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
         {messages.map((m, i) => (
           <div key={m.id ?? i} className="msg-enter">
-            <Message msg={m} isLatest={i === messages.length - 1 && !loading} onArtifactClick={onArtifactClick} />
+            <Message msg={m} isLatest={i === messages.length - 1 && !loading} />
           </div>
         ))}
         {loading && <ThinkingIndicator />}
@@ -799,109 +826,18 @@ function GoogleConnectPrompt({ userId, onConnected }) {
   )
 }
 
-// ─── Artifact panel ───────────────────────────────────────────────────────────
+// ─── Artifact triggers ────────────────────────────────────────────────────────
 
-function ArtifactPanel({ artifact, onClose }) {
-  if (!artifact) return null
-  return (
-    <div style={{
-      position: 'fixed', top: 0, right: 0,
-      width: 'min(55vw, 800px)', height: '100vh',
-      background: '#0a0a0a',
-      borderLeft: '1px solid rgba(243,234,217,0.1)',
-      zIndex: 50, display: 'flex', flexDirection: 'column',
-    }}>
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '14px 20px', borderBottom: '1px solid rgba(243,234,217,0.1)', flexShrink: 0,
-      }}>
-        <span style={{ fontFamily: 'var(--sans)', fontSize: '0.6rem', letterSpacing: '0.15em', textTransform: 'uppercase', color: 'var(--accent)' }}>
-          Jarvis created · {artifact.title?.slice(0, 40)}
-        </span>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--ink-soft)', cursor: 'pointer', fontSize: '1.3rem', lineHeight: 1 }}>×</button>
-      </div>
-      <iframe
-        srcDoc={artifact.html}
-        style={{ flex: 1, border: 'none', background: '#0a0a0a' }}
-        sandbox="allow-scripts allow-same-origin"
-        title="Jarvis artifact"
-      />
-    </div>
-  )
-}
+const ARTIFACT_TRIGGERS = [
+  'create', 'make me', 'build me', 'generate me', 'design me', 'draft me',
+  'give me a visual', 'presentation', 'slide deck', 'comparison chart',
+  'dashboard', 'report', 'invoice', 'proposal', 'landing page', 'visual',
+  'diagram', 'chart', 'infographic', 'template', 'brief', 'table',
+]
 
-function CreatePanel({ onClose, userId, onArtifact }) {
-  const [input, setInput] = useState('')
-  const [loading, setLoading] = useState(false)
-
-  const handleCreate = async () => {
-    if (!input.trim() || loading) return
-    setLoading(true)
-    try {
-      const res = await fetch(`${BACKEND}/api/chat/artifact`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, message: input, conversation_history: [] }),
-      })
-      const data = await res.json()
-      if (data.artifact) {
-        onArtifact({ html: data.artifact, title: input })
-        onClose()
-      }
-    } catch (err) {
-      console.error('Create failed:', err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ background: '#0a0a0a', border: '1px solid rgba(243,234,217,0.15)', borderRadius: 12, padding: 32, width: 560, maxWidth: '90vw' }}>
-        <p style={{ fontFamily: 'var(--sans)', fontSize: '0.65rem', letterSpacing: '0.15em', textTransform: 'uppercase', color: 'var(--accent)', margin: '0 0 16px' }}>
-          Jarvis Creates
-        </p>
-        <p style={{ fontFamily: 'var(--serif)', fontSize: '1.1rem', color: 'var(--ink)', margin: '0 0 24px', lineHeight: 1.5 }}>
-          What do you want me to create?
-        </p>
-        <textarea
-          autoFocus
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleCreate() } }}
-          placeholder="A visual comparison of Jarvis vs competitors... a presentation about MG&CO... an invoice template..."
-          style={{
-            width: '100%', minHeight: 100,
-            background: 'rgba(243,234,217,0.05)', border: '1px solid rgba(243,234,217,0.1)',
-            borderRadius: 8, padding: 12, color: 'var(--ink)',
-            fontFamily: 'var(--sans)', fontSize: '0.9rem', resize: 'none', outline: 'none', boxSizing: 'border-box',
-          }}
-        />
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 16 }}>
-          <button onClick={onClose} style={{ background: 'none', border: '1px solid rgba(243,234,217,0.15)', borderRadius: 6, padding: '8px 20px', color: 'var(--ink-soft)', cursor: 'pointer', fontFamily: 'var(--sans)', fontSize: '0.8rem', letterSpacing: '0.05em' }}>
-            Cancel
-          </button>
-          <button onClick={handleCreate} disabled={loading || !input.trim()} style={{ background: loading ? 'rgba(200,75,49,0.3)' : 'var(--accent)', border: 'none', borderRadius: 6, padding: '8px 20px', color: '#fff', cursor: loading ? 'wait' : 'pointer', fontFamily: 'var(--sans)', fontSize: '0.8rem', letterSpacing: '0.05em' }}>
-            {loading ? 'Creating...' : 'Create →'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function shouldGenerateArtifact(message) {
-  const triggers = [
-    'create', 'make', 'build', 'generate', 'design', 'draft',
-    'write a', 'give me a', 'presentation', 'slide', 'chart',
-    'graph', 'table', 'dashboard', 'report', 'doc', 'landing page',
-    'website', 'template', 'comparison', 'visual', 'diagram',
-    'invoice', 'proposal', 'brief',
-  ]
+function isArtifactRequest(message) {
   const lower = message.toLowerCase()
-  return triggers.some(t => lower.includes(t))
+  return ARTIFACT_TRIGGERS.some(t => lower.includes(t))
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -935,8 +871,6 @@ export default function Home() {
   const reconnectAttemptsRef = useRef(0)
   const fileInputRef = useRef(null)
   const [uploadingFile, setUploadingFile] = useState(false)
-  const [activeArtifact, setActiveArtifact] = useState(null)
-  const [showCreatePanel, setShowCreatePanel] = useState(false)
   const MAX_RECONNECT = 5
 
   // Flush voice transcript every 30s so memory saves even on short sessions
@@ -1156,6 +1090,33 @@ export default function Home() {
             content: text,
             fromVoice: true,
           }])
+          // Fire artifact generation if user voice message is a creation request
+          if (role === 'user' && isArtifactRequest(text) && userId) {
+            msgIdRef.current += 1
+            const artifactMsgId = msgIdRef.current
+            setMessages(prev => [...prev, {
+              id: artifactMsgId,
+              role: 'artifact',
+              content: { html: null, title: text.slice(0, 50) },
+              loading: true,
+            }])
+            fetch(`${BACKEND}/api/chat/artifact`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ user_id: userId, message: text, conversation_history: [] }),
+            })
+              .then(r => r.json())
+              .then(data => {
+                if (data.artifact) {
+                  setMessages(prev => prev.map(m =>
+                    m.id === artifactMsgId
+                      ? { ...m, content: { html: data.artifact, title: text.slice(0, 50) }, loading: false }
+                      : m
+                  ))
+                }
+              })
+              .catch(console.error)
+          }
         },
         (error) => {
           if (error === 'reconnecting') {
@@ -1316,35 +1277,35 @@ export default function Home() {
           .catch(() => {})
       }
 
-      // Generate visual artifact for create/build/design requests
-      if (!override && shouldGenerateArtifact(displayText)) {
-        try {
-          const artifactRes = await fetch(`${BACKEND}/api/chat/artifact`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user_id: userId, message: displayText, conversation_history: [] }),
-          })
-          if (artifactRes.ok) {
-            const artifactData = await artifactRes.json()
-            if (artifactData.artifact) {
-              const artifactObj = {
-                html: artifactData.artifact,
-                title: displayText.slice(0, 50),
-                timestamp: new Date().toISOString(),
-              }
-              setActiveArtifact(artifactObj)
-              msgIdRef.current += 1
-              setMessages(prev => [...prev, {
-                id: msgIdRef.current,
-                role: 'artifact',
-                content: displayText.slice(0, 60),
-                artifactData: artifactObj,
-              }])
+      // Fire artifact generation in parallel for creation requests
+      if (!override && isArtifactRequest(displayText) && userId) {
+        msgIdRef.current += 1
+        const artifactMsgId = msgIdRef.current
+        setMessages(prev => [...prev, {
+          id: artifactMsgId,
+          role: 'artifact',
+          content: { html: null, title: displayText.slice(0, 50) },
+          loading: true,
+        }])
+        fetch(`${BACKEND}/api/chat/artifact`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: userId, message: displayText, conversation_history: [] }),
+        })
+          .then(r => r.json())
+          .then(data => {
+            if (data.artifact) {
+              setMessages(prev => prev.map(m =>
+                m.id === artifactMsgId
+                  ? { ...m, content: { html: data.artifact, title: displayText.slice(0, 50) }, loading: false }
+                  : m
+              ))
             }
-          }
-        } catch (err) {
-          console.error('Artifact generation failed:', err)
-        }
+          })
+          .catch(err => {
+            console.error('Artifact failed:', err)
+            setMessages(prev => prev.filter(m => m.id !== artifactMsgId))
+          })
       }
     } catch {
       setMessages(prev => {
@@ -1361,14 +1322,6 @@ export default function Home() {
     <>
       {showIntro && <IntroSplash onDone={() => setShowIntro(false)} />}
       {showPanel && userId && <KnowledgePanel userId={userId} onClose={() => setShowPanel(false)} />}
-      <ArtifactPanel artifact={activeArtifact} onClose={() => setActiveArtifact(null)} />
-      {showCreatePanel && (
-        <CreatePanel
-          onClose={() => setShowCreatePanel(false)}
-          userId={userId}
-          onArtifact={artifact => { setActiveArtifact(artifact); setShowCreatePanel(false) }}
-        />
-      )}
       {googleConnected === false && !showIntro && userId && (
         <GoogleConnectPrompt
           userId={userId}
@@ -1421,20 +1374,6 @@ export default function Home() {
             <PermissionChip icon="⌖" label="Cursor"   granted />
             <PermissionChip icon="✦" label="Calendar" granted />
             <PermissionChip icon="◍" label="Audio"    granted />
-            {userId && (
-              <button
-                onClick={() => activeArtifact ? setActiveArtifact(null) : setShowCreatePanel(true)}
-                title="Create artifact"
-                style={{
-                  background: 'none', border: '1px solid var(--line)', borderRadius: '6px',
-                  color: 'var(--accent)', fontSize: '0.65rem', padding: '0.35rem 0.6rem',
-                  cursor: 'pointer', opacity: activeArtifact ? 1 : 0.6, letterSpacing: '0.15em',
-                  transition: 'opacity 0.2s', fontFamily: 'var(--sans)', textTransform: 'uppercase',
-                }}
-                onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                onMouseLeave={e => e.currentTarget.style.opacity = activeArtifact ? '1' : '0.6'}
-              >{activeArtifact ? 'Close' : '+ Create'}</button>
-            )}
             {userId && (
               <button
                 onClick={() => setShowPanel(true)}
@@ -1534,7 +1473,7 @@ export default function Home() {
 
         {/* right: conversation */}
         <div style={{ gridArea: 'conv', display: 'flex', flexDirection: 'column', minHeight: 0, borderLeft: '1px solid var(--line)' }}>
-          <Conversation messages={messages} loading={loading} onArtifactClick={data => setActiveArtifact(data)} />
+          <Conversation messages={messages} loading={loading} />
         </div>
 
         {/* input */}
