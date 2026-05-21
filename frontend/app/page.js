@@ -834,6 +834,7 @@ function GoogleConnectPrompt({ userId, onConnected }) {
 
 // ─── Artifact triggers ────────────────────────────────────────────────────────
 
+// Broad triggers for text chat
 const ARTIFACT_TRIGGERS = [
   'create', 'make me', 'build me', 'generate me', 'design me', 'draft me',
   'give me a visual', 'presentation', 'slide deck', 'comparison chart',
@@ -841,9 +842,50 @@ const ARTIFACT_TRIGGERS = [
   'diagram', 'chart', 'infographic', 'template', 'brief', 'table',
 ]
 
+// Stricter triggers for voice — must be an explicit creation command
+const VOICE_ARTIFACT_TRIGGERS = [
+  'create me', 'make me', 'build me', 'generate me', 'design me',
+  'can you create', 'can you make', 'can you build',
+  'give me a visual', 'give me a chart', 'give me a presentation', 'give me a report',
+]
+
 function isArtifactRequest(message) {
   const lower = message.toLowerCase()
   return ARTIFACT_TRIGGERS.some(t => lower.includes(t))
+}
+
+function isExplicitCreate(message) {
+  const lower = message.toLowerCase()
+  return VOICE_ARTIFACT_TRIGGERS.some(t => lower.includes(t))
+}
+
+function fireArtifactFetch(backend, userId, message, artifactMsgId, setMessages) {
+  const timeout = setTimeout(() => {
+    setMessages(prev => prev.filter(m => m.id !== artifactMsgId))
+  }, 30000)
+
+  fetch(`${backend}/api/chat/artifact`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: userId, message, conversation_history: [] }),
+  })
+    .then(r => r.json())
+    .then(data => {
+      clearTimeout(timeout)
+      if (data.artifact && data.artifact.length > 100) {
+        setMessages(prev => prev.map(m =>
+          m.id === artifactMsgId
+            ? { ...m, content: { html: data.artifact, title: message.slice(0, 50) }, loading: false }
+            : m
+        ))
+      } else {
+        setMessages(prev => prev.filter(m => m.id !== artifactMsgId))
+      }
+    })
+    .catch(() => {
+      clearTimeout(timeout)
+      setMessages(prev => prev.filter(m => m.id !== artifactMsgId))
+    })
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -1096,8 +1138,8 @@ export default function Home() {
             content: text,
             fromVoice: true,
           }])
-          // Fire artifact generation if user voice message is a creation request
-          if (role === 'user' && isArtifactRequest(text) && userId) {
+          // Fire artifact generation — stricter trigger for voice
+          if (role === 'user' && isExplicitCreate(text) && userId) {
             msgIdRef.current += 1
             const artifactMsgId = msgIdRef.current
             setMessages(prev => [...prev, {
@@ -1106,22 +1148,7 @@ export default function Home() {
               content: { html: null, title: text.slice(0, 50) },
               loading: true,
             }])
-            fetch(`${BACKEND}/api/chat/artifact`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ user_id: userId, message: text, conversation_history: [] }),
-            })
-              .then(r => r.json())
-              .then(data => {
-                if (data.artifact) {
-                  setMessages(prev => prev.map(m =>
-                    m.id === artifactMsgId
-                      ? { ...m, content: { html: data.artifact, title: text.slice(0, 50) }, loading: false }
-                      : m
-                  ))
-                }
-              })
-              .catch(console.error)
+            fireArtifactFetch(BACKEND, userId, text, artifactMsgId, setMessages)
           }
         },
         (error) => {
@@ -1293,25 +1320,7 @@ export default function Home() {
           content: { html: null, title: displayText.slice(0, 50) },
           loading: true,
         }])
-        fetch(`${BACKEND}/api/chat/artifact`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user_id: userId, message: displayText, conversation_history: [] }),
-        })
-          .then(r => r.json())
-          .then(data => {
-            if (data.artifact) {
-              setMessages(prev => prev.map(m =>
-                m.id === artifactMsgId
-                  ? { ...m, content: { html: data.artifact, title: displayText.slice(0, 50) }, loading: false }
-                  : m
-              ))
-            }
-          })
-          .catch(err => {
-            console.error('Artifact failed:', err)
-            setMessages(prev => prev.filter(m => m.id !== artifactMsgId))
-          })
+        fireArtifactFetch(BACKEND, userId, displayText, artifactMsgId, setMessages)
       }
     } catch {
       setMessages(prev => {
