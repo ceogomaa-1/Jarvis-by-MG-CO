@@ -29,6 +29,8 @@ export class VoiceManager {
         console.log('AudioContext state after resume:', ctx.state)
       }
 
+      console.log('Starting session with userId:', userId)
+      console.log('dynamicVariables:', { user_id: userId })
       console.log('Calling Conversation.startSession()...')
       this.conversation = await Conversation.startSession({
         signedUrl: signedUrl,
