@@ -1008,20 +1008,23 @@ export default function Home() {
     }
     getSession()
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth event:', event)
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
-        if (session?.user) {
-          const newJarvisId = 'user_' + session.user.id.replace(/-/g, '')
-          // Only update state if user actually changed — prevents re-renders
-          // that would destroy the active ElevenLabs WebSocket during token refresh
-          setUser(prev => prev?.id === session.user.id ? prev : session.user)
-          setUserId(prev => prev === newJarvisId ? prev : newJarvisId)
-        }
-      } else if (event === 'SIGNED_OUT') {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
         setUser(null)
         setUserId(null)
         window.location.href = '/login'
+        return
+      }
+      if (session?.user) {
+        setUser(prev => {
+          if (prev?.id === session.user.id) return prev
+          return session.user
+        })
+        setUserId(prev => {
+          const newId = 'user_' + session.user.id.replace(/-/g, '')
+          if (prev === newId) return prev
+          return newId
+        })
       }
     })
     return () => subscription.unsubscribe()
