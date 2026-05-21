@@ -472,9 +472,12 @@ function BlinkCaret() {
 }
 
 function Message({ msg, isLatest }) {
+  // Artifact role — must be checked first; content is {html, title} object
   if (msg.role === 'artifact') {
-    const { html, title } = msg.content || {}
-    if (msg.loading || !html) {
+    const htmlContent = typeof msg.content === 'object' ? msg.content?.html : null
+    const titleContent = typeof msg.content === 'object' ? msg.content?.title : (msg.content || '')
+
+    if (msg.loading || !htmlContent) {
       return (
         <div style={{
           margin: '16px 0', border: '1px solid rgba(243,234,217,0.1)',
@@ -495,11 +498,11 @@ function Message({ msg, isLatest }) {
           </span>
           <button
             onClick={() => {
-              const blob = new Blob([html], { type: 'text/html' })
+              const blob = new Blob([htmlContent], { type: 'text/html' })
               const url = URL.createObjectURL(blob)
               const a = document.createElement('a')
               a.href = url
-              a.download = `${(title || 'jarvis-creation').slice(0, 30)}.html`
+              a.download = `${(titleContent || 'jarvis-creation').slice(0, 30)}.html`
               a.click()
               URL.revokeObjectURL(url)
             }}
@@ -515,15 +518,18 @@ function Message({ msg, isLatest }) {
         </div>
         <div style={{ border: '1px solid rgba(243,234,217,0.1)', borderRadius: 12, overflow: 'hidden', height: 500, width: '100%' }}>
           <iframe
-            srcDoc={html}
+            srcDoc={htmlContent}
             style={{ width: '100%', height: '100%', border: 'none', background: '#0a0a0a' }}
             sandbox="allow-scripts allow-same-origin"
-            title={title}
+            title={titleContent}
           />
         </div>
       </div>
     )
   }
+
+  // Safe string coercion for all other roles — prevents React error #31
+  const textContent = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
 
   if (msg.role === 'user') {
     return (
@@ -538,7 +544,7 @@ function Message({ msg, isLatest }) {
           backdropFilter: 'blur(8px)',
           fontFamily: 'var(--sans)',
         }}>
-          {msg.content}
+          {textContent}
         </div>
       </div>
     )
@@ -552,7 +558,7 @@ function Message({ msg, isLatest }) {
         </div>
       )}
       <div style={{ fontFamily: 'var(--serif)', fontSize: 22, lineHeight: 1.35, fontWeight: 400, color: 'var(--ink)', letterSpacing: 0.2 }}>
-        {msg.content}
+        {textContent}
         {msg.streaming && <BlinkCaret />}
       </div>
     </div>
