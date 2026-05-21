@@ -217,34 +217,61 @@ async def chat_stream(request: ChatRequest):
 
 @router.post("/chat/artifact")
 async def generate_artifact(request: ChatRequest):
-    prompt = f"""Create a complete, beautiful, self-contained HTML page for this request:
+    import os
+    import httpx
 
-"{request.message}"
+    api_key = os.getenv("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        return {"artifact": "", "error": "No API key"}
 
-Requirements:
-- Single HTML file, all CSS and JS embedded inline
-- Dark theme: background #0a0a0a, text #f3ead9, accent #c84b31
-- Visually impressive, professional quality
-- Fully functional and interactive where appropriate
-- No external dependencies (no CDN links, no imports)
-- Start IMMEDIATELY with <!DOCTYPE html>
-- No explanation text, just the HTML
-
-Make it genuinely impressive."""
-
-    response = await jarvis_think(
-        user_message=prompt,
-        conversation_history=[],
-        user_id=request.user_id,
-        system_override="You are an expert frontend developer. Output ONLY complete HTML. Start with <!DOCTYPE html>. No explanation. No markdown. Just HTML.",
+    user_prompt = (
+        f'Create a complete, beautiful, self-contained HTML page for this request:\n\n'
+        f'"{request.message}"\n\n'
+        f'Requirements:\n'
+        f'- Single HTML file, all CSS and JS embedded inline\n'
+        f'- Dark theme: background #0a0a0a, text #f3ead9, accent #c84b31\n'
+        f'- Visually impressive, professional quality\n'
+        f'- Fully functional and interactive where appropriate\n'
+        f'- No external dependencies (no CDN links, no imports)\n'
+        f'- Make it genuinely impressive and complete'
     )
 
-    html = response.strip()
-    if '<!DOCTYPE' in html:
-        html = html[html.index('<!DOCTYPE'):]
-    elif '<html' in html:
-        html = html[html.index('<html'):]
-    if '```' in html:
-        html = html.split('```')[0]
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": "claude-sonnet-4-20250514",
+                "max_tokens": 4096,
+                "system": (
+                    "You are an HTML generator. Output ONLY complete valid HTML starting with "
+                    "<!DOCTYPE html>. No explanation. No markdown. No code blocks. "
+                    "Just raw HTML that renders a beautiful dark-themed visual for the user's request."
+                ),
+                "messages": [{"role": "user", "content": user_prompt}],
+            },
+            timeout=60.0,
+        )
+
+    print(f"ARTIFACT: Anthropic status {resp.status_code}")
+    if resp.status_code != 200:
+        print(f"ARTIFACT: Error body: {resp.text[:300]}")
+        return {"artifact": "", "error": resp.text[:200]}
+
+    data = resp.json()
+    html = data.get("content", [{}])[0].get("text", "").strip()
+    print(f"ARTIFACT: Got {len(html)} chars")
+
+    # Strip any accidental markdown fences
+    if "<!DOCTYPE" in html:
+        html = html[html.index("<!DOCTYPE"):]
+    elif "<html" in html:
+        html = html[html.index("<html"):]
+    if "```" in html:
+        html = html.split("```")[0]
 
     return {"artifact": html}
