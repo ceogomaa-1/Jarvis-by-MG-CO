@@ -1,15 +1,29 @@
-from pydantic import BaseModel
+from typing import Any
+from pydantic import BaseModel, field_validator
 
 
 class Message(BaseModel):
-    role: str  # "user" or "assistant"
-    content: str
+    role: str
+    content: Any  # accept object content from frontend; coerced to str below
+
+    @field_validator("content", mode="before")
+    @classmethod
+    def coerce_content(cls, v):
+        if isinstance(v, str):
+            return v
+        if v is None:
+            return ""
+        import json
+        try:
+            return json.dumps(v)
+        except Exception:
+            return str(v)
 
 
 class ChatRequest(BaseModel):
     user_id: str
     message: str
-    conversation_history: list[Message]
+    conversation_history: list[Message] = []
 
 
 class ChatResponse(BaseModel):

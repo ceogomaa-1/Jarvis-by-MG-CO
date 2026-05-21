@@ -158,6 +158,11 @@ async def chat_stream(request: ChatRequest):
 
     # Use DB conversation history as source of truth
     history = await get_conversation_history(request.user_id, limit=20)
+    safe_history = [
+        {"role": m["role"], "content": m["content"]}
+        for m in history
+        if isinstance(m.get("content"), str) and m["content"].strip()
+    ]
     tools = AVAILABLE_TOOLS if not system_override else None
 
     async def event_generator():
@@ -169,7 +174,7 @@ async def chat_stream(request: ChatRequest):
         try:
             response_text = await jarvis_think(
                 user_message=request.message,
-                conversation_history=history,
+                conversation_history=safe_history,
                 memory_context=memory_context_with_dt,
                 user_model_context=user_model_context,
                 system_override=system_override,
