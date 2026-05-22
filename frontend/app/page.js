@@ -938,6 +938,15 @@ export default function Home() {
     if (params.get('calendar') === 'connected') {
       setGoogleConnected(true)
       window.history.replaceState({}, '', '/')
+      // Refresh session to ensure userId is current after OAuth redirect
+      if (supabase) {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (session?.user) {
+            const jarvisId = 'user_' + session.user.id.replace(/-/g, '')
+            setUserId(prev => prev === jarvisId ? prev : jarvisId)
+          }
+        }).catch(() => {})
+      }
     }
   }, [])
 
@@ -1107,7 +1116,11 @@ export default function Home() {
   }
 
   async function startVoice() {
-    if (!userId) return
+    if (!userId) {
+      console.error('Cannot start voice: userId not set')
+      setVoiceError('Please wait a moment and try again.')
+      return
+    }
     setVoiceConnecting(true)
     setVoiceError(null)
     try {
@@ -1126,7 +1139,7 @@ export default function Home() {
       }
       const data = await res.json()
       console.log('Got signed_url:', data.signed_url ? `yes (length: ${data.signed_url.length})` : 'no')
-      const { signed_url, system_prompt } = data
+      const { signed_url, system_prompt, user_id: verifiedUserId } = data
 
       const { VoiceManager } = await import('../lib/voiceManager')
       const vm = new VoiceManager(
@@ -1181,7 +1194,7 @@ export default function Home() {
         },
         () => flushVoiceTranscript()
       )
-      await vm.connect(signed_url, system_prompt, userId)
+      await vm.connect(signed_url, system_prompt, verifiedUserId || userId)
       voiceManagerRef.current = vm
       setVoiceMode(true)
     } catch (err) {
