@@ -24,9 +24,13 @@ async def get_access_token(refresh_token: str) -> str:
             timeout=10.0,
         )
     if resp.status_code != 200:
-        print(f"GCAL: Token refresh failed ({resp.status_code}): {resp.text[:200]}")
+        print(f"GCAL: Token refresh FAILED — status={resp.status_code} body={resp.text[:400]}")
         return ""
-    return resp.json().get("access_token", "")
+    data = resp.json()
+    token = data.get("access_token", "")
+    if not token:
+        print(f"GCAL: Token refresh returned 200 but no access_token — body={resp.text[:400]}")
+    return token
 
 
 async def get_user_refresh_token(user_id: str) -> str:
