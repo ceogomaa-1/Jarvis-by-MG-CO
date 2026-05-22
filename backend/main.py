@@ -17,6 +17,8 @@ from backend.routes.google_auth_routes import router as google_auth_router
 from backend.routes.files_routes import router as files_router
 from backend.cron.briefing import run_morning_briefings
 from backend.routes.local_agent_routes import router as local_agent_router
+from backend.routes.business.chat import router as business_chat_router
+from backend.routes.business.show_me_how import router as business_show_me_how_router
 
 if not ANTHROPIC_API_KEY:
     raise RuntimeError(
@@ -79,6 +81,8 @@ app.include_router(history_router, prefix="/api")
 app.include_router(google_auth_router, prefix="/api")
 app.include_router(files_router, prefix="/api")
 app.include_router(local_agent_router)  # no prefix — WebSocket at /ws/local-agent
+app.include_router(business_chat_router, prefix="/api")
+app.include_router(business_show_me_how_router, prefix="/api")
 
 
 @app.on_event("startup")
