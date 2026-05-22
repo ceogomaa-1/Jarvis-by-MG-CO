@@ -11,6 +11,7 @@ GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET") or os.getenv("GOOGLE_AU
 
 
 async def get_access_token(refresh_token: str) -> str:
+    """Exchange refresh token for access token. Returns "" on failure."""
     async with httpx.AsyncClient() as client:
         resp = await client.post(
             "https://oauth2.googleapis.com/token",
@@ -20,7 +21,11 @@ async def get_access_token(refresh_token: str) -> str:
                 "refresh_token": refresh_token,
                 "grant_type": "refresh_token",
             },
+            timeout=10.0,
         )
+    if resp.status_code != 200:
+        print(f"GCAL: Token refresh failed ({resp.status_code}): {resp.text[:200]}")
+        return ""
     return resp.json().get("access_token", "")
 
 
@@ -68,6 +73,9 @@ async def get_calendar_events(user_id: str, max_results: int = 5) -> str:
         return "No Google Calendar connected. User needs to connect their Google account."
 
     access_token = await get_access_token(refresh_token)
+    if not access_token:
+        return "Google Calendar auth expired. Please reconnect your Google account."
+
     eastern = pytz.timezone("America/Toronto")
     now = datetime.now(eastern).isoformat()
 
@@ -81,7 +89,14 @@ async def get_calendar_events(user_id: str, max_results: int = 5) -> str:
                 "singleEvents": True,
                 "orderBy": "startTime",
             },
+            timeout=10.0,
         )
+
+    if resp.status_code == 401:
+        return "Google Calendar access expired. Please reconnect your Google account."
+    if resp.status_code != 200:
+        print(f"GCAL: Events fetch failed ({resp.status_code})")
+        return "Could not fetch calendar right now."
 
     events = resp.json().get("items", [])
     if not events:
@@ -137,6 +152,8 @@ async def create_calendar_event(
         return "No Google Calendar connected. Ask the user to connect their Google account at /auth/google."
 
     access_token = await get_access_token(refresh_token)
+    if not access_token:
+        return "Google Calendar auth expired. Please reconnect your Google account."
 
     eastern = pytz.timezone("America/Toronto")
     try:
@@ -173,5 +190,8 @@ async def create_calendar_event(
         )
 
     if resp.status_code in (200, 201):
-        return f"Event created: '{title}' scheduled for {start_time}"
-    return f"Failed to create event: {resp.text}"
+        return f"Done. '{title}' is on the calendar."
+    if resp.status_code == 401:
+        return "Google Calendar access expired. Please reconnect your Google account."
+    print(f"GCAL: Create event failed ({resp.status_code}): {resp.text[:200]}")
+    return "Could not create the event. Try again in a moment."
