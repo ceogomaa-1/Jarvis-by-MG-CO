@@ -7,6 +7,7 @@ from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 
 from backend.lib.business.walkthrough_generator import generate_walkthrough
+from backend.lib.business.system_prompt_builder import get_industry_context_note
 
 router = APIRouter()
 
@@ -26,7 +27,9 @@ async def show_me_how(request: ShowMeHowRequest):
 
     async def generate():
         try:
-            walkthrough = await generate_walkthrough(request.query)
+            industry_note = get_industry_context_note(request.user_id)
+            enriched_query = f"{request.query}\n\n{industry_note}" if industry_note else request.query
+            walkthrough = await generate_walkthrough(enriched_query)
 
             yield f"data: {json.dumps({'type': 'title', 'value': walkthrough.get('title', '')})}\n\n"
             yield f"data: {json.dumps({'type': 'intro', 'value': walkthrough.get('intro', '')})}\n\n"

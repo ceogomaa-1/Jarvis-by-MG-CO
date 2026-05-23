@@ -6,21 +6,11 @@ from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from backend.lib.business.system_prompt_builder import build_system_prompt
+
 router = APIRouter()
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-
-_SYSTEM = """You are Jarvis for Business — an expert AI advisor for business owners and operators across all industries. You answer any question that helps someone run, grow, or operate their business — from software walkthroughs to trades knowledge to financial advice. You are direct, knowledgeable, and never refuse a legitimate business question.
-
-Industries you serve include (but are not limited to): contractors, trades, restaurants, retail, dental, medical, real estate, e-commerce, professional services, manufacturing, and any other business vertical.
-
-Physical tasks, materials, installation procedures, equipment — all valid if they relate to running or operating a business.
-
-Be direct, practical, and specific. Give concrete answers, not generic advice.
-
-FORMATTING: Use clean markdown — ## headers, bullet points, **bold** for key terms. Structure information clearly. Short paragraphs.
-
-When a user asks "show me how to...", "how do I...", or similar procedural questions — respond with a brief 1-2 sentence confirmation that you're creating a walkthrough. The walkthrough renders automatically."""
 
 
 class BusinessChatRequest(BaseModel):
@@ -31,6 +21,9 @@ class BusinessChatRequest(BaseModel):
 
 @router.post("/business/chat/stream")
 async def business_chat_stream(request: BusinessChatRequest):
+    # Build the industry-aware system prompt before entering the streaming closure
+    system_prompt = build_system_prompt(request.user_id, request.message)
+
     safe_history = [
         {"role": m.get("role", "user"), "content": str(m.get("content", ""))}
         for m in (request.conversation_history or [])
@@ -52,7 +45,7 @@ async def business_chat_stream(request: BusinessChatRequest):
                     json={
                         "model": "claude-sonnet-4-20250514",
                         "max_tokens": 2048,
-                        "system": _SYSTEM,
+                        "system": system_prompt,
                         "messages": messages,
                     },
                     timeout=60.0,
