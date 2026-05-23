@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import ReactMarkdown from 'react-markdown'
 import { supabase } from '../lib/supabase'
 import { getJarvisMode, setJarvisMode } from '../lib/userPreferences'
 import ModeToggle from '../components/shared/ModeToggle'
@@ -560,8 +561,8 @@ function Message({ msg, isLatest }) {
           {msg.proactive ? 'Proactive · just now' : 'Voice'}
         </div>
       )}
-      <div style={{ fontFamily: 'var(--serif)', fontSize: 22, lineHeight: 1.35, fontWeight: 400, color: 'var(--ink)', letterSpacing: 0.2 }}>
-        {textContent}
+      <div className="prose" style={{ fontFamily: 'var(--serif)', fontSize: 22, lineHeight: 1.35, fontWeight: 400, color: 'var(--ink)', letterSpacing: 0.2 }}>
+        <ReactMarkdown>{textContent}</ReactMarkdown>
         {msg.streaming && <BlinkCaret />}
       </div>
     </div>
