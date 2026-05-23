@@ -1,5 +1,6 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
+import ReactMarkdown from 'react-markdown'
 import { detectShowMeHow } from '../../lib/business/showMeHowDetector'
 import Walkthrough from './Walkthrough'
 import DownloadPDFButton from './DownloadPDFButton'
@@ -27,11 +28,12 @@ function AssistantBubble({ content, streaming }) {
   return (
     <div style={{ marginBottom: 18, maxWidth: '84%' }}>
       <div style={{
-        fontSize: 14, color: '#f3ead9', lineHeight: 1.65,
+        fontSize: 14, color: '#f3ead9', lineHeight: 1.7,
         fontFamily: 'system-ui, sans-serif',
-        whiteSpace: 'pre-wrap',
-      }}>
-        {content}
+      }}
+        className="biz-markdown"
+      >
+        <ReactMarkdown>{content || ''}</ReactMarkdown>
         {streaming && (
           <span style={{
             display: 'inline-block', width: 2, height: 14,
