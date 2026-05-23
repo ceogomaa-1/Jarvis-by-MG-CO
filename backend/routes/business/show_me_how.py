@@ -6,7 +6,6 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 
-from backend.lib.business.screenshot_fetcher import find_screenshot
 from backend.lib.business.walkthrough_generator import generate_walkthrough
 
 router = APIRouter()
@@ -23,7 +22,7 @@ class PDFRequest(BaseModel):
 
 @router.post("/business/show-me-how")
 async def show_me_how(request: ShowMeHowRequest):
-    """Stream a step-by-step walkthrough as SSE events."""
+    """Stream a step-by-step walkthrough with inline SVG illustrations."""
 
     async def generate():
         try:
@@ -33,47 +32,26 @@ async def show_me_how(request: ShowMeHowRequest):
             yield f"data: {json.dumps({'type': 'intro', 'value': walkthrough.get('intro', '')})}\n\n"
 
             for step in walkthrough.get("steps", []):
-                # Fetch screenshot (real or fallback SVG)
-                sq = step.get("screenshot_query") or request.query
-                screenshot_result = await find_screenshot(sq)
-
                 event = {
                     "type": "step",
                     "step_number": step.get("step_number"),
                     "instruction": step.get("instruction", ""),
                     "detail": step.get("detail", ""),
-                    "screenshot_url": screenshot_result.get("url"),
-                    "screenshot_fallback": screenshot_result.get("svg_data_url"),
-                    "is_fallback": screenshot_result.get("is_fallback", True),
-                    "annotations": step.get("annotations", []),
+                    "needs_visual": step.get("needs_visual", False),
+                    "visual": step.get("visual") if step.get("needs_visual") else None,
                 }
-
-                print(f"SHOW_ME_HOW: Step {event['step_number']} event:")
-                print(f"  instruction: {event['instruction'][:80]}")
-                print(f"  screenshot_url: {str(event['screenshot_url'])[:80]}")
-                print(f"  is_fallback: {event['is_fallback']}")
-                print(f"  annotations: {json.dumps(event['annotations'])[:120]}")
-
+                svg_len = len((event.get("visual") or {}).get("svg_content", ""))
+                print(f"SHOW_ME_HOW: Step {event['step_number']} needs_visual={event['needs_visual']} svg_len={svg_len}")
                 yield f"data: {json.dumps(event)}\n\n"
                 await asyncio.sleep(0.05)
 
-            complete_event = {
-                "type": "complete",
-                "walkthrough": {
-                    **walkthrough,
-                    "steps": [
-                        {**s, "screenshot_url": None, "screenshot_fallback": None}
-                        for s in walkthrough.get("steps", [])
-                    ],
-                },
-                "sources": walkthrough.get("sources", []),
-            }
-            yield f"data: {json.dumps(complete_event)}\n\n"
+            yield f"data: {json.dumps({'type': 'complete', 'walkthrough': walkthrough, 'sources': walkthrough.get('sources', [])})}\n\n"
             yield "data: [DONE]\n\n"
 
         except Exception as e:
+            import traceback
             print(f"SHOW_ME_HOW: Fatal error: {e}")
-            import traceback; traceback.print_exc()
+            traceback.print_exc()
             yield f"data: {json.dumps({'type': 'error', 'value': 'Could not generate walkthrough. Please try again.'})}\n\n"
             yield "data: [DONE]\n\n"
 
@@ -86,10 +64,7 @@ async def show_me_how(request: ShowMeHowRequest):
 
 @router.get("/business/proxy-image")
 async def proxy_image(url: str = Query(...)):
-    """
-    Proxy external images server-side to avoid CORS issues on the frontend.
-    Frontend calls /api/business/proxy-image?url=<encoded_url>.
-    """
+    """Proxy external images server-side to bypass CORS."""
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.get(
@@ -99,18 +74,16 @@ async def proxy_image(url: str = Query(...)):
                 follow_redirects=True,
             )
         if resp.status_code != 200:
-            raise HTTPException(status_code=404, detail="Image not found")
-        content_type = resp.headers.get("content-type", "image/jpeg")
+            raise HTTPException(status_code=404)
         return Response(
             content=resp.content,
-            media_type=content_type,
+            media_type=resp.headers.get("content-type", "image/jpeg"),
             headers={"Cache-Control": "public, max-age=3600"},
         )
     except HTTPException:
         raise
     except Exception as e:
-        print(f"PROXY_IMAGE: Error fetching {url[:80]}: {e}")
-        raise HTTPException(status_code=502, detail="Could not fetch image")
+        raise HTTPException(status_code=502, detail=str(e))
 
 
 @router.post("/business/show-me-how/pdf")
