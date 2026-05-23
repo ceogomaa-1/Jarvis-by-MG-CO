@@ -1279,12 +1279,10 @@ export default function Home() {
 
   function isPdfExportRequest(msg) {
     const lower = msg.toLowerCase()
-    return [
-      'export to pdf', 'save as pdf', 'download as pdf',
-      'export this', 'make a pdf', 'generate a pdf',
-      'export it to pdf', 'export as pdf', 'export as a pdf',
-      'export as document', 'save as document',
-    ].some(phrase => lower.includes(phrase))
+    const hasPdf = lower.includes('pdf')
+    const hasExportVerb = ['export', 'save', 'download', 'generate',
+      'make', 'create', 'turn into', 'convert'].some(v => lower.includes(v))
+    return hasPdf && hasExportVerb
   }
 
   async function handlePdfExport(userText) {
@@ -1354,6 +1352,7 @@ export default function Home() {
     if (!override) setInput('')
 
     // Intercept PDF export requests before hitting the chat API
+    console.log('PDF intent check:', JSON.stringify(apiText), '→', isPdfExportRequest(apiText))
     if (!override && isPdfExportRequest(apiText)) {
       await handlePdfExport(apiText)
       return
