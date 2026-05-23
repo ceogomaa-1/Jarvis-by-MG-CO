@@ -5,7 +5,6 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 
-from backend.lib.business.annotation_overlay import generate_annotation_svg
 from backend.lib.business.screenshot_fetcher import find_screenshot
 from backend.lib.business.walkthrough_generator import generate_walkthrough
 
@@ -23,7 +22,7 @@ class PDFRequest(BaseModel):
 
 @router.post("/business/show-me-how")
 async def show_me_how(request: ShowMeHowRequest):
-    """Stream a step-by-step walkthrough for the given query."""
+    """Stream a step-by-step walkthrough as SSE events."""
 
     async def generate():
         try:
@@ -33,35 +32,47 @@ async def show_me_how(request: ShowMeHowRequest):
             yield f"data: {json.dumps({'type': 'intro', 'value': walkthrough.get('intro', '')})}\n\n"
 
             for step in walkthrough.get("steps", []):
-                step_data = {
+                # Fetch screenshot (real or fallback SVG)
+                sq = step.get("screenshot_query") or request.query
+                screenshot_result = await find_screenshot(sq)
+
+                event = {
                     "type": "step",
                     "step_number": step.get("step_number"),
                     "instruction": step.get("instruction", ""),
                     "detail": step.get("detail", ""),
-                    "image_url": None,
-                    "annotation_svg": "",
+                    "screenshot_url": screenshot_result.get("url"),
+                    "screenshot_fallback": screenshot_result.get("svg_data_url"),
+                    "is_fallback": screenshot_result.get("is_fallback", True),
+                    "annotations": step.get("annotations", []),
                 }
 
-                # Try to find a real screenshot
-                sq = step.get("screenshot_query") or request.query
-                image_url = await find_screenshot(sq)
-                if image_url:
-                    step_data["image_url"] = image_url
+                print(f"SHOW_ME_HOW: Step {event['step_number']} event:")
+                print(f"  instruction: {event['instruction'][:80]}")
+                print(f"  screenshot_url: {str(event['screenshot_url'])[:80]}")
+                print(f"  is_fallback: {event['is_fallback']}")
+                print(f"  annotations: {json.dumps(event['annotations'])[:120]}")
 
-                # Generate SVG annotation overlay
-                annotation = step.get("annotation")
-                if annotation:
-                    step_data["annotation_svg"] = generate_annotation_svg(annotation)
-
-                yield f"data: {json.dumps(step_data)}\n\n"
+                yield f"data: {json.dumps(event)}\n\n"
                 await asyncio.sleep(0.05)
 
-            # Send full data for PDF generation
-            yield f"data: {json.dumps({'type': 'complete', 'walkthrough': walkthrough})}\n\n"
+            complete_event = {
+                "type": "complete",
+                "walkthrough": {
+                    **walkthrough,
+                    "steps": [
+                        {**s, "screenshot_url": None, "screenshot_fallback": None}
+                        for s in walkthrough.get("steps", [])
+                    ],
+                },
+                "sources": walkthrough.get("sources", []),
+            }
+            yield f"data: {json.dumps(complete_event)}\n\n"
             yield "data: [DONE]\n\n"
 
         except Exception as e:
-            print(f"SHOW_ME_HOW: Error: {e}")
+            print(f"SHOW_ME_HOW: Fatal error: {e}")
+            import traceback; traceback.print_exc()
             yield f"data: {json.dumps({'type': 'error', 'value': 'Could not generate walkthrough. Please try again.'})}\n\n"
             yield "data: [DONE]\n\n"
 
@@ -74,13 +85,12 @@ async def show_me_how(request: ShowMeHowRequest):
 
 @router.post("/business/show-me-how/pdf")
 async def show_me_how_pdf(request: PDFRequest):
-    """Generate a downloadable PDF for the given walkthrough."""
     try:
         from backend.lib.business.pdf_export import generate_pdf
         pdf_bytes = generate_pdf(request.walkthrough)
-        safe_title = request.walkthrough.get("title", "walkthrough")
-        safe_title = "".join(c if c.isalnum() or c in " -_" else "" for c in safe_title)[:40].strip()
-        filename = f"{safe_title or 'walkthrough'}.pdf"
+        raw_title = request.walkthrough.get("title", "walkthrough")
+        safe = "".join(c if c.isalnum() or c in " -_" else "" for c in raw_title)[:40].strip()
+        filename = f"{safe or 'walkthrough'}.pdf"
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",

@@ -46,12 +46,13 @@ function AssistantBubble({ content, streaming }) {
 
 function WalkthroughMessage({ msg }) {
   return (
-    <div style={{ marginBottom: 24, maxWidth: '92%' }}>
+    <div style={{ marginBottom: 24, maxWidth: '94%' }}>
       <Walkthrough
         title={msg.title}
         intro={msg.intro}
         steps={msg.steps || []}
         loading={msg.loading}
+        sources={msg.sources || []}
       />
       {msg.complete && msg.walkthroughData && (
         <DownloadPDFButton walkthrough={msg.walkthroughData} />
@@ -108,7 +109,8 @@ export default function ChatCanvas({ userId }) {
       const wId = msgIdRef.current
       setMessages(prev => [...prev, {
         id: wId, role: 'walkthrough',
-        title: '', intro: '', steps: [], loading: true, complete: false, walkthroughData: null,
+        title: '', intro: '', steps: [], loading: true, complete: false,
+        walkthroughData: null, sources: [],
       }])
 
       try {
@@ -139,7 +141,11 @@ export default function ChatCanvas({ userId }) {
                 if (ev.type === 'title') return { ...m, title: ev.value }
                 if (ev.type === 'intro') return { ...m, intro: ev.value }
                 if (ev.type === 'step') return { ...m, steps: [...m.steps, ev] }
-                if (ev.type === 'complete') return { ...m, loading: false, complete: true, walkthroughData: ev.walkthrough }
+                if (ev.type === 'complete') return {
+                  ...m, loading: false, complete: true,
+                  walkthroughData: ev.walkthrough,
+                  sources: ev.sources || [],
+                }
                 if (ev.type === 'error') return { ...m, loading: false, intro: ev.value }
                 return m
               }))
