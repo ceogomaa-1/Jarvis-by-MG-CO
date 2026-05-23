@@ -1,7 +1,10 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '../lib/supabase'
+import { getJarvisMode, setJarvisMode } from '../lib/userPreferences'
+import ModeToggle from '../components/shared/ModeToggle'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
@@ -898,6 +901,7 @@ function captionFor(s) {
 }
 
 export default function Home() {
+  const router = useRouter()
   const [showIntro, setShowIntro]         = useState(true)
   const [messages, setMessages]           = useState([])
   const [input, setInput]                 = useState('')
@@ -930,6 +934,29 @@ export default function Home() {
       }
     }, 30000)
     return () => clearInterval(interval)
+  }, [userId])
+
+  // ─── Onboard=personal param: save preference after Google OAuth ────────────
+  useEffect(() => {
+    if (!userId) return
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('onboard') === 'personal') {
+      setJarvisMode(userId, 'personal').catch(() => {})
+      window.history.replaceState({}, '', '/')
+    }
+  }, [userId])
+
+  // ─── Preference routing: redirect business users, send new users to /welcome ─
+  useEffect(() => {
+    if (!userId) return
+    getJarvisMode(userId).then(mode => {
+      if (mode === 'business') {
+        router.replace('/business/chat')
+      } else if (!mode) {
+        router.replace('/welcome')
+      }
+      // mode === 'personal' → stay here
+    }).catch(() => {})
   }, [userId])
 
   // Detect ?calendar=connected after Google OAuth redirect
@@ -999,18 +1026,18 @@ export default function Home() {
             setAuthLoading(false)
             return
           }
-          window.location.href = '/login'
+          router.replace('/welcome')
           return
         }
         if (session?.user) {
           setUser(session.user)
           setUserId('user_' + session.user.id.replace(/-/g, ''))
         } else {
-          window.location.href = '/login'
+          router.replace('/welcome')
         }
       } catch (err) {
         console.error('Auth error:', err)
-        window.location.href = '/login'
+        router.replace('/welcome')
       } finally {
         setAuthLoading(false)
       }
@@ -1021,7 +1048,7 @@ export default function Home() {
       if (event === 'SIGNED_OUT') {
         setUser(null)
         setUserId(null)
-        window.location.href = '/login'
+        router.replace('/welcome')
         return
       }
       if (session?.user) {
@@ -1423,6 +1450,11 @@ export default function Home() {
               >◉</button>
             )}
 
+            {/* Mode toggle */}
+            {userId && (
+              <ModeToggle userId={userId} currentMode="personal" />
+            )}
+
             {/* Avatar + sign out */}
             {user && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 4 }}>
@@ -1437,7 +1469,7 @@ export default function Home() {
                 <button
                   onClick={async () => {
                     await supabase.auth.signOut()
-                    window.location.href = '/login'
+                    router.replace('/welcome')
                   }}
                   style={{
                     background: 'none', border: 'none', padding: 0, cursor: 'pointer',

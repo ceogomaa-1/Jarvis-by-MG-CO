@@ -19,6 +19,7 @@ from backend.cron.briefing import run_morning_briefings
 from backend.routes.local_agent_routes import router as local_agent_router
 from backend.routes.business.chat import router as business_chat_router
 from backend.routes.business.show_me_how import router as business_show_me_how_router
+from backend.routes.user_preferences import router as user_preferences_router
 
 if not ANTHROPIC_API_KEY:
     raise RuntimeError(
@@ -83,6 +84,7 @@ app.include_router(files_router, prefix="/api")
 app.include_router(local_agent_router)  # no prefix — WebSocket at /ws/local-agent
 app.include_router(business_chat_router, prefix="/api")
 app.include_router(business_show_me_how_router, prefix="/api")
+app.include_router(user_preferences_router, prefix="/api")
 
 
 @app.on_event("startup")

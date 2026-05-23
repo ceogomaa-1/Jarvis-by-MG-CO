@@ -2,6 +2,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../../lib/supabase'
 import ChatCanvas from '../../../components/business/ChatCanvas'
+import ModeToggle from '../../../components/shared/ModeToggle'
+import { setJarvisMode, createBusinessUser } from '../../../lib/userPreferences'
 
 export default function BusinessChatPage() {
   const [userId, setUserId] = useState(null)
@@ -9,9 +11,31 @@ export default function BusinessChatPage() {
 
   useEffect(() => {
     if (!supabase) { setLoading(false); return }
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
-        setUserId('user_' + session.user.id.replace(/-/g, ''))
+        const uid = 'user_' + session.user.id.replace(/-/g, '')
+        setUserId(uid)
+
+        // Complete business onboarding if we just came from the modal
+        const params = new URLSearchParams(window.location.search)
+        if (params.get('onboard') === 'business') {
+          const saved = sessionStorage.getItem('jarvis_biz_onboard')
+          if (saved) {
+            try {
+              const form = JSON.parse(saved)
+              await createBusinessUser({
+                userId: uid,
+                email: session.user.email,
+                companyName: form.companyName,
+                industry: form.industry,
+                role: form.role,
+              })
+            } catch {}
+            sessionStorage.removeItem('jarvis_biz_onboard')
+          }
+          await setJarvisMode(uid, 'business').catch(() => {})
+          window.history.replaceState({}, '', '/business/chat')
+        }
       }
       setLoading(false)
     }).catch(() => setLoading(false))
@@ -85,16 +109,7 @@ export default function BusinessChatPage() {
               Signed in
             </div>
           )}
-          <a
-            href="/"
-            style={{
-              fontSize: 11, color: 'rgba(243,234,217,0.3)',
-              fontFamily: 'system-ui, sans-serif', textDecoration: 'none',
-              letterSpacing: '0.08em',
-            }}
-          >
-            Personal Jarvis
-          </a>
+          <ModeToggle userId={userId} currentMode="business" />
         </div>
       </div>
 
