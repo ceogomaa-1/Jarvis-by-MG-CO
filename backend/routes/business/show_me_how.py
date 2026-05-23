@@ -1,7 +1,8 @@
 import asyncio
 import json
 
-from fastapi import APIRouter, HTTPException
+import httpx
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 
@@ -81,6 +82,35 @@ async def show_me_how(request: ShowMeHowRequest):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
     )
+
+
+@router.get("/business/proxy-image")
+async def proxy_image(url: str = Query(...)):
+    """
+    Proxy external images server-side to avoid CORS issues on the frontend.
+    Frontend calls /api/business/proxy-image?url=<encoded_url>.
+    """
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                url,
+                headers={"User-Agent": "Mozilla/5.0 (compatible; Jarvis/1.0)"},
+                timeout=10.0,
+                follow_redirects=True,
+            )
+        if resp.status_code != 200:
+            raise HTTPException(status_code=404, detail="Image not found")
+        content_type = resp.headers.get("content-type", "image/jpeg")
+        return Response(
+            content=resp.content,
+            media_type=content_type,
+            headers={"Cache-Control": "public, max-age=3600"},
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"PROXY_IMAGE: Error fetching {url[:80]}: {e}")
+        raise HTTPException(status_code=502, detail="Could not fetch image")
 
 
 @router.post("/business/show-me-how/pdf")

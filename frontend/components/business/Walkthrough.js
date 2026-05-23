@@ -2,9 +2,15 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 
-// Canvas dimensions matching backend's coordinate system
+const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 const CANVAS_W = 600
 const CANVAS_H = 380
+
+// Route external images through the backend proxy to avoid CORS
+function proxied(url) {
+  if (!url || url.startsWith('data:')) return url
+  return `${BACKEND}/api/business/proxy-image?url=${encodeURIComponent(url)}`
+}
 
 // ─── Typewriter ───────────────────────────────────────────────────────────────
 
@@ -157,7 +163,7 @@ function WalkthroughStep({ step, stepIndex }) {
     }
   }, [textDone])
 
-  const imgSrc = step.screenshot_url || step.screenshot_fallback
+  const imgSrc = proxied(step.screenshot_url) || step.screenshot_fallback
 
   return (
     <motion.div
