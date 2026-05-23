@@ -1277,12 +1277,87 @@ export default function Home() {
     isStreaming                  ? 'speaking' :
     'idle'
 
+  function isPdfExportRequest(msg) {
+    const lower = msg.toLowerCase()
+    return [
+      'export to pdf', 'save as pdf', 'download as pdf',
+      'export this', 'make a pdf', 'generate a pdf',
+      'export it to pdf', 'export as pdf', 'export as a pdf',
+      'export as document', 'save as document',
+    ].some(phrase => lower.includes(phrase))
+  }
+
+  async function handlePdfExport(userText) {
+    // Find last substantial assistant message to export
+    const lastAssistant = [...messages].reverse().find(
+      m => m.role === 'assistant' && typeof m.content === 'string' && m.content.trim().length > 80
+    )
+    const content = lastAssistant?.content ?? messages
+      .filter(m => m.role === 'assistant' && typeof m.content === 'string')
+      .map(m => m.content).join('\n\n')
+
+    if (!content.trim()) {
+      msgIdRef.current += 1
+      setMessages(prev => [...prev, {
+        id: msgIdRef.current, role: 'assistant',
+        content: "There's nothing to export yet — ask me something first.",
+      }])
+      return
+    }
+
+    // Show user message + loading state
+    msgIdRef.current += 1
+    const userMsgId = msgIdRef.current
+    setMessages(prev => [...prev, { id: userMsgId, role: 'user', content: userText }])
+    setLoading(true)
+
+    try {
+      const res = await fetch(`${BACKEND}/api/export/pdf`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content, title: '', user_id: userId ?? '' }),
+      })
+      if (!res.ok) throw new Error(`PDF export failed: ${res.status}`)
+
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'jarvis-export.pdf'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      setTimeout(() => URL.revokeObjectURL(url), 10000)
+
+      msgIdRef.current += 1
+      setMessages(prev => [...prev, {
+        id: msgIdRef.current, role: 'assistant',
+        content: 'Done. Your PDF is downloading now.',
+      }])
+    } catch (err) {
+      console.error('PDF export error:', err)
+      msgIdRef.current += 1
+      setMessages(prev => [...prev, {
+        id: msgIdRef.current, role: 'assistant',
+        content: "Sorry — couldn't generate the PDF. Try again in a moment.",
+      }])
+    } finally {
+      setLoading(false)
+    }
+  }
+
   async function sendMessage(override = null) {
     const apiText = (override?.apiText ?? input).trim()
     const displayText = (override?.displayText ?? apiText)
     console.log('sendMessage called with:', apiText.slice(0, 80))
     if (!apiText || loading || isStreaming) return
     if (!override) setInput('')
+
+    // Intercept PDF export requests before hitting the chat API
+    if (!override && isPdfExportRequest(apiText)) {
+      await handlePdfExport(apiText)
+      return
+    }
 
     const historyForApi = messages
       .slice(1)
