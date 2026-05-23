@@ -105,9 +105,25 @@ def _esc(s: str) -> str:
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
 
 
+def _detect_app_name(q: str) -> str:
+    """Extract a known app name from the query string."""
+    apps = [
+        "QuickBooks", "Stripe", "Shopify", "Xero", "Salesforce", "HubSpot",
+        "Slack", "Notion", "Figma", "GitHub", "Jira", "Excel", "Sheets",
+        "Word", "PowerPoint", "Outlook", "Zoom", "Teams", "Gmail", "Drive",
+        "Dropbox", "AWS", "Square", "FreshBooks", "Wave", "Asana", "Trello",
+        "Zendesk", "Intercom", "Mailchimp", "Klaviyo", "Webflow", "WordPress",
+    ]
+    for app in apps:
+        if app.lower() in q:
+            return app
+    return "App"
+
+
 def _saas_svg(query: str) -> str:
     label = _esc(query[:55] + ("…" if len(query) > 55 else ""))
     q = query.lower()
+    app_name = _detect_app_name(q)
 
     # Pick app-specific sidebar items
     if "quickbooks" in q:
@@ -146,7 +162,7 @@ def _saas_svg(query: str) -> str:
     svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="{CANVAS_W}" height="{CANVAS_H}" viewBox="0 0 {CANVAS_W} {CANVAS_H}">
   <rect width="{CANVAS_W}" height="{CANVAS_H}" fill="#13110f"/>
   <rect width="{CANVAS_W}" height="44" fill="#0d0b09"/>
-  <text x="16" y="27" font-size="13" fill="#c84b31" font-weight="700" font-family="system-ui,sans-serif" letter-spacing="1">APP</text>
+  <text x="16" y="27" font-size="12" fill="#c84b31" font-weight="700" font-family="system-ui,sans-serif" letter-spacing="1">{_esc(app_name.upper())}</text>
   <rect x="{CANVAS_W-200}" y="10" width="185" height="24" rx="4" fill="#1c1914"/>
   <text x="{CANVAS_W-190}" y="26" font-size="10" fill="#555" font-family="system-ui,sans-serif">Search…</text>
   <rect x="0" y="44" width="180" height="{CANVAS_H-44}" fill="#0d0b09"/>
