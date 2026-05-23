@@ -56,6 +56,12 @@ export default function BusinessOnboardingModal({ onClose }) {
 
   return (
     <div style={overlay} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <style>{`
+        select option {
+          background-color: #1a1a1a;
+          color: #e5e5e5;
+        }
+      `}</style>
       <AnimatePresence mode="wait">
         <motion.div
           key={step}
@@ -112,7 +118,16 @@ export default function BusinessOnboardingModal({ onClose }) {
               <select
                 value={form.industry}
                 onChange={e => setForm(f => ({ ...f, industry: e.target.value }))}
-                style={{ ...inputStyle, cursor: 'pointer', appearance: 'none' }}
+                style={{
+                  ...inputStyle,
+                  cursor: 'pointer',
+                  appearance: 'none',
+                  background: '#1a1a1a',
+                  color: '#e5e5e5',
+                  border: '1px solid #333',
+                }}
+                onFocus={e => { e.currentTarget.style.borderColor = '#f59e0b' }}
+                onBlur={e => { e.currentTarget.style.borderColor = '#333' }}
               >
                 <option value="">Select your industry</option>
                 {INDUSTRIES.map(i => (
