@@ -1,11 +1,60 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 
-export default function SignOutDrawer({ isOpen, onClose, user }) {
+const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
+
+function safeItemText(item) {
+  if (typeof item === 'string') {
+    try {
+      const parsed = JSON.parse(item)
+      if (parsed && typeof parsed === 'object') {
+        const parts = [parsed.name, parsed.label, parsed.details].filter(Boolean)
+        return parts.length > 0 ? parts.join(' — ') : JSON.stringify(parsed)
+      }
+    } catch (_) {}
+    return item
+  }
+  if (typeof item === 'object' && item !== null) {
+    const parts = [item.name, item.label, item.details].filter(Boolean)
+    return parts.length > 0 ? parts.join(' — ') : JSON.stringify(item)
+  }
+  return String(item)
+}
+
+function KnowsSection({ title, items }) {
+  if (!items || items.length === 0) return null
+  const seen = new Set()
+  const texts = items.map(safeItemText).filter(t => {
+    if (seen.has(t)) return false
+    seen.add(t)
+    return true
+  })
+  if (texts.length === 0) return null
+  return (
+    <div style={{ marginBottom: '1.1rem' }}>
+      <p style={{
+        fontFamily: 'var(--sans)', color: 'var(--accent)',
+        fontSize: '0.55rem', letterSpacing: '0.15em', textTransform: 'uppercase',
+        opacity: 0.6, margin: '0 0 0.4rem',
+      }}>{title}</p>
+      {texts.map((text, i) => (
+        <p key={i} style={{
+          fontFamily: 'var(--sans)', color: 'var(--ink)',
+          fontSize: '0.78rem', lineHeight: 1.55, margin: '0.2rem 0', opacity: 0.85,
+        }}>
+          <span style={{ color: 'var(--accent)', marginRight: '0.35rem' }}>●</span>{text}
+        </p>
+      ))}
+    </div>
+  )
+}
+
+export default function SignOutDrawer({ isOpen, onClose, user, userId }) {
   const router = useRouter()
+  const [model, setModel] = useState(null)
 
   // Close on Escape
   useEffect(() => {
@@ -22,6 +71,16 @@ export default function SignOutDrawer({ isOpen, onClose, user }) {
     return () => { document.body.style.overflow = '' }
   }, [isOpen])
 
+  // Fetch Jarvis model when drawer opens
+  useEffect(() => {
+    if (!isOpen || !userId) return
+    setModel(null)
+    fetch(`${BACKEND}/api/user/model/${userId}`)
+      .then(r => r.json())
+      .then(setModel)
+      .catch(() => setModel({}))
+  }, [isOpen, userId])
+
   const handleSignOut = async () => {
     if (supabase) await supabase.auth.signOut()
     onClose()
@@ -33,6 +92,22 @@ export default function SignOutDrawer({ isOpen, onClose, user }) {
   const displayName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'User'
   const avatarUrl = user.user_metadata?.avatar_url
   const initial = displayName.charAt(0).toUpperCase()
+
+  const id = model?.identity || {}
+  const focus = model?.current_focus || {}
+  const relationship = model?.jarvis_relationship || {}
+  const work = model?.work_context || {}
+
+  const identityItems = [
+    id.name && typeof id.name === 'string' && `Name: ${id.name}`,
+    id.role && typeof id.role === 'string' && `Role: ${id.role}`,
+    id.company && typeof id.company === 'string' && `Company: ${id.company}`,
+    id.location && typeof id.location === 'string' && `Based in: ${id.location}`,
+  ].filter(Boolean)
+
+  const trustLabel = relationship.trust_level
+    ? `${relationship.trust_level} (${relationship.interaction_count || 0} interactions)`
+    : null
 
   return (
     <>
@@ -63,7 +138,7 @@ export default function SignOutDrawer({ isOpen, onClose, user }) {
         {/* Header row */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '0 20px', height: 56,
+          padding: '0 20px', height: 56, flexShrink: 0,
           borderBottom: '1px solid rgba(243,234,217,0.07)',
         }}>
           <span style={{ fontFamily: 'var(--sans)', fontSize: 10, letterSpacing: '0.3em', textTransform: 'uppercase', color: 'var(--ink-mute)' }}>
@@ -79,7 +154,6 @@ export default function SignOutDrawer({ isOpen, onClose, user }) {
               color: 'var(--ink-soft)',
             }}
           >
-            {/* X icon */}
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
@@ -88,36 +162,66 @@ export default function SignOutDrawer({ isOpen, onClose, user }) {
         </div>
 
         {/* User info */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '32px 24px 24px', textAlign: 'center' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 24px 20px', textAlign: 'center', flexShrink: 0 }}>
           {avatarUrl ? (
             <img
               src={avatarUrl}
               alt={displayName}
               referrerPolicy="no-referrer"
-              style={{ width: 64, height: 64, borderRadius: '50%', border: '1px solid rgba(243,234,217,0.1)', marginBottom: 16, objectFit: 'cover' }}
+              style={{ width: 56, height: 56, borderRadius: '50%', border: '1px solid rgba(243,234,217,0.1)', marginBottom: 12, objectFit: 'cover' }}
             />
           ) : (
             <div style={{
-              width: 64, height: 64, borderRadius: '50%', marginBottom: 16,
+              width: 56, height: 56, borderRadius: '50%', marginBottom: 12,
               background: 'rgba(255,144,114,0.08)', border: '1px solid rgba(255,144,114,0.2)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
-              <span style={{ fontFamily: 'var(--display)', fontSize: 24, color: 'var(--ink-soft)', fontWeight: 400 }}>{initial}</span>
+              <span style={{ fontFamily: 'var(--display)', fontSize: 22, color: 'var(--ink-soft)', fontWeight: 400 }}>{initial}</span>
             </div>
           )}
-          <div style={{ fontFamily: 'var(--sans)', fontSize: 15, color: 'var(--ink)', fontWeight: 300, letterSpacing: 0.2 }}>
+          <div style={{ fontFamily: 'var(--sans)', fontSize: 14, color: 'var(--ink)', fontWeight: 300, letterSpacing: 0.2 }}>
             {displayName}
           </div>
-          <div style={{ fontFamily: 'var(--sans)', fontSize: 12, color: 'var(--ink-mute)', marginTop: 4 }}>
+          <div style={{ fontFamily: 'var(--sans)', fontSize: 11, color: 'var(--ink-mute)', marginTop: 3 }}>
             {user.email}
           </div>
         </div>
 
         {/* Divider */}
-        <div style={{ marginLeft: 20, marginRight: 20, borderTop: '1px solid rgba(243,234,217,0.05)' }} />
+        <div style={{ marginLeft: 20, marginRight: 20, borderTop: '1px solid rgba(243,234,217,0.05)', flexShrink: 0 }} />
+
+        {/* Jarvis Knows — scrollable middle section */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 20px 8px' }}>
+          <p style={{
+            fontFamily: 'var(--sans)', color: 'var(--accent)',
+            fontSize: '0.6rem', letterSpacing: '0.2em', textTransform: 'uppercase',
+            opacity: 0.5, margin: '0 0 1rem',
+          }}>Jarvis Knows</p>
+
+          {!model ? (
+            <p style={{ fontFamily: 'var(--sans)', color: 'var(--ink-mute)', fontSize: '0.75rem' }}>Loading...</p>
+          ) : (
+            <>
+              <KnowsSection title="Identity" items={identityItems} />
+              <KnowsSection title="Current Focus" items={focus.top_goals} />
+              <KnowsSection title="Active Projects" items={focus.active_projects} />
+              <KnowsSection title="Key People" items={work.key_people} />
+              <KnowsSection title="Never Forget" items={relationship.things_jarvis_should_never_forget} />
+              {trustLabel && (
+                <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(243,234,217,0.05)' }}>
+                  <p style={{ fontFamily: 'var(--sans)', color: 'var(--ink-mute)', fontSize: '0.55rem', letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 0.25rem' }}>Trust Level</p>
+                  <p style={{ fontFamily: 'var(--sans)', color: 'var(--ink)', fontSize: '0.75rem', opacity: 0.7, margin: 0 }}>{trustLabel}</p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Divider */}
+        <div style={{ marginLeft: 20, marginRight: 20, borderTop: '1px solid rgba(243,234,217,0.05)', flexShrink: 0 }} />
 
         {/* Sign Out */}
-        <div style={{ padding: 20 }}>
+        <div style={{ padding: 20, flexShrink: 0 }}>
           <button
             onClick={handleSignOut}
             style={{
@@ -131,7 +235,6 @@ export default function SignOutDrawer({ isOpen, onClose, user }) {
             onMouseEnter={e => e.currentTarget.style.background = 'rgba(127,0,0,0.28)'}
             onMouseLeave={e => e.currentTarget.style.background = 'rgba(127,0,0,0.15)'}
           >
-            {/* LogOut icon */}
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
               <polyline points="16 17 21 12 16 7" />
