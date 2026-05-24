@@ -6,6 +6,7 @@ import ReactMarkdown from 'react-markdown'
 import { supabase } from '../lib/supabase'
 import { getJarvisMode, setJarvisMode } from '../lib/userPreferences'
 import ModeToggle from '../components/shared/ModeToggle'
+import SignOutDrawer from '../components/shared/SignOutDrawer'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
@@ -947,6 +948,7 @@ export default function Home() {
   const fileInputRef = useRef(null)
   const [uploadingFile, setUploadingFile] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const mobileScrollRef = useRef(null)
   const MAX_RECONNECT = 5
 
@@ -1495,6 +1497,7 @@ export default function Home() {
     <>
       {showIntro && <IntroSplash onDone={() => setShowIntro(false)} />}
       {showPanel && userId && <KnowledgePanel userId={userId} onClose={() => setShowPanel(false)} />}
+      <SignOutDrawer isOpen={drawerOpen} onClose={() => setDrawerOpen(false)} user={user} />
       {googleConnected === false && !showIntro && userId && (
         <GoogleConnectPrompt
           userId={userId}
@@ -1532,13 +1535,13 @@ export default function Home() {
           <div
             style={{
               position: 'fixed', left: '50%', transform: 'translateX(-50%)',
-              top: '25vh', zIndex: 0,
-              opacity: 0.85, pointerEvents: 'none',
+              top: '15vh', zIndex: 0,
+              opacity: 0.5, pointerEvents: 'none',
               animation: 'softFloat 6s ease-in-out infinite', borderRadius: '50%',
             }}
             className={jarvisSpeaking ? 'orb-speaking' : voiceMode ? 'orb-listening' : ''}
           >
-            <Orb state={orbState} orbStyle="aurora" accent="#ff9072" size={180} />
+            <Orb state={orbState} orbStyle="aurora" accent="#ff9072" size={200} />
           </div>
 
           {/* Header — fixed at top, z:20 */}
@@ -1549,7 +1552,7 @@ export default function Home() {
             background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(12px)',
           }}>
             <button
-              onClick={() => setShowPanel(true)}
+              onClick={() => setDrawerOpen(true)}
               aria-label="menu"
               style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, display: 'flex', flexDirection: 'column', gap: 4.5, alignItems: 'center' }}
             >
@@ -1596,7 +1599,7 @@ export default function Home() {
 
             {/* Idle state — caption + memory text float below the orb */}
             {messages.length === 0 && !loading && (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 'calc(25vh + 130px)', gap: 12, paddingLeft: 24, paddingRight: 24, paddingBottom: 32 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 'calc(15vh + 240px)', gap: 12, paddingLeft: 24, paddingRight: 24, paddingBottom: 32 }}>
                 {!voiceMode && (
                   <div style={{ fontFamily: 'var(--serif)', fontStyle: 'italic', fontSize: 14, color: 'var(--ink-soft)', fontWeight: 300, textAlign: 'center', lineHeight: 1.45, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                     {captionFor(orbState)}
@@ -1629,7 +1632,7 @@ export default function Home() {
               <div
                 className="mobile-chat-messages"
                 style={{
-                  paddingTop: 'calc(25vh + 130px)',
+                  paddingTop: 'calc(15vh + 240px)',
                   paddingLeft: 20, paddingRight: 20, paddingBottom: 16,
                   wordBreak: 'break-word', overflowWrap: 'anywhere',
                 }}
