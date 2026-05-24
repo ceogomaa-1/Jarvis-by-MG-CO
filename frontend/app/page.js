@@ -393,11 +393,32 @@ function KnowledgePanel({ userId, onClose }) {
       .catch(() => setModel({}))
   }, [userId])
 
+  const safeItemText = (item) => {
+    if (typeof item === 'string') {
+      try {
+        const parsed = JSON.parse(item)
+        if (parsed && typeof parsed === 'object') {
+          const parts = [parsed.name, parsed.label, parsed.details].filter(Boolean)
+          return parts.length > 0 ? parts.join(' — ') : JSON.stringify(parsed)
+        }
+      } catch (_) {}
+      return item
+    }
+    if (typeof item === 'object' && item !== null) {
+      const parts = [item.name, item.label, item.details].filter(Boolean)
+      return parts.length > 0 ? parts.join(' — ') : JSON.stringify(item)
+    }
+    return String(item)
+  }
+
   const Section = ({ title, items }) => {
     if (!items || items.length === 0) return null
-    const safeItems = items.map(item =>
-      typeof item === 'object' ? JSON.stringify(item) : String(item)
-    )
+    const seen = new Set()
+    const safeItems = items.map(safeItemText).filter(t => {
+      if (seen.has(t)) return false
+      seen.add(t)
+      return true
+    })
     return (
       <div style={{ marginBottom: '1.25rem' }}>
         <p style={{ fontFamily: 'var(--sans)', color: 'var(--accent)', fontSize: '0.6rem', letterSpacing: '0.15em', textTransform: 'uppercase', opacity: 0.6, margin: '0 0 0.5rem' }}>{title}</p>
@@ -625,10 +646,18 @@ function InputBar({ orbState, input, setInput, onSend, onMicClick, voiceMode, vo
     }
   }, [input])
 
+  const triggerSend = () => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+      textareaRef.current.style.overflowY = 'hidden'
+    }
+    onSend()
+  }
+
   const handleKey = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      onSend()
+      triggerSend()
     }
     // Shift+Enter inserts newline naturally via textarea
   }
@@ -731,7 +760,7 @@ function InputBar({ orbState, input, setInput, onSend, onMicClick, voiceMode, vo
           }}
         />
         <button
-          onClick={onSend}
+          onClick={triggerSend}
           disabled={!input.trim() || loading || disabled}
           aria-label="send"
           style={{
@@ -1497,7 +1526,7 @@ export default function Home() {
     <>
       {showIntro && <IntroSplash onDone={() => setShowIntro(false)} />}
       {showPanel && userId && <KnowledgePanel userId={userId} onClose={() => setShowPanel(false)} />}
-      <SignOutDrawer isOpen={drawerOpen} onClose={() => setDrawerOpen(false)} user={user} />
+      <SignOutDrawer isOpen={drawerOpen} onClose={() => setDrawerOpen(false)} user={user} userId={userId} />
       {googleConnected === false && !showIntro && userId && (
         <GoogleConnectPrompt
           userId={userId}
@@ -1531,17 +1560,20 @@ export default function Home() {
         /* ── MOBILE LAYOUT ─────────────────────────────────────────────── */
         <div style={{ position: 'relative', height: '100dvh', zIndex: 2, overflowX: 'hidden', background: '#000' }}>
 
-          {/* Orb — fixed, sits behind scrolling content */}
+          {/* Orb — fixed behind scrolling content; two divs to avoid transform/animation conflict */}
           <div
             style={{
-              position: 'fixed', left: '50%', transform: 'translateX(-50%)',
-              top: '15vh', zIndex: 0,
-              opacity: 0.5, pointerEvents: 'none',
-              animation: 'softFloat 6s ease-in-out infinite', borderRadius: '50%',
+              position: 'fixed', left: 'calc(50% - 100px)', top: '22vh',
+              width: 200, height: 200,
+              zIndex: 1, opacity: 0.45, pointerEvents: 'none',
             }}
-            className={jarvisSpeaking ? 'orb-speaking' : voiceMode ? 'orb-listening' : ''}
           >
-            <Orb state={orbState} orbStyle="aurora" accent="#ff9072" size={200} />
+            <div
+              style={{ animation: 'softFloat 6s ease-in-out infinite', width: '100%', height: '100%', borderRadius: '50%' }}
+              className={jarvisSpeaking ? 'orb-speaking' : voiceMode ? 'orb-listening' : ''}
+            >
+              <Orb state={orbState} orbStyle="aurora" accent="#ff9072" size={200} />
+            </div>
           </div>
 
           {/* Header — fixed at top, z:20 */}
@@ -1599,7 +1631,7 @@ export default function Home() {
 
             {/* Idle state — caption + memory text float below the orb */}
             {messages.length === 0 && !loading && (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 'calc(15vh + 240px)', gap: 12, paddingLeft: 24, paddingRight: 24, paddingBottom: 32 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 'calc(22vh + 240px)', gap: 12, paddingLeft: 24, paddingRight: 24, paddingBottom: 32 }}>
                 {!voiceMode && (
                   <div style={{ fontFamily: 'var(--serif)', fontStyle: 'italic', fontSize: 14, color: 'var(--ink-soft)', fontWeight: 300, textAlign: 'center', lineHeight: 1.45, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                     {captionFor(orbState)}
@@ -1632,7 +1664,7 @@ export default function Home() {
               <div
                 className="mobile-chat-messages"
                 style={{
-                  paddingTop: 'calc(15vh + 240px)',
+                  paddingTop: 'calc(22vh + 240px)',
                   paddingLeft: 20, paddingRight: 20, paddingBottom: 16,
                   wordBreak: 'break-word', overflowWrap: 'anywhere',
                 }}
