@@ -611,7 +611,7 @@ function Conversation({ messages, loading }) {
 
 // ─── Input bar ────────────────────────────────────────────────────────────────
 
-function InputBar({ orbState, input, setInput, onSend, onMicClick, voiceMode, voiceConnecting, loading, disabled, fileInputRef, uploadingFile, onFileUpload }) {
+function InputBar({ orbState, input, setInput, onSend, onMicClick, voiceMode, voiceConnecting, loading, disabled, fileInputRef, uploadingFile, onFileUpload, mobile }) {
   const isVoiceActive = voiceMode
   const isListening = orbState === 'listening'
 
@@ -636,7 +636,7 @@ function InputBar({ orbState, input, setInput, onSend, onMicClick, voiceMode, vo
   else if (isListening) placeholder = 'Listening...'
 
   return (
-    <div style={{ padding: '20px 40px 32px', display: 'flex', justifyContent: 'center', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+    <div style={{ padding: mobile ? '12px 16px 20px' : '20px 40px 32px', display: 'flex', justifyContent: 'center', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
       <div style={{
         width: '100%', maxWidth: 720,
         display: 'flex', alignItems: 'center', gap: 14,
@@ -924,6 +924,8 @@ export default function Home() {
   const reconnectAttemptsRef = useRef(0)
   const fileInputRef = useRef(null)
   const [uploadingFile, setUploadingFile] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
+  const mobileScrollRef = useRef(null)
   const MAX_RECONNECT = 5
 
   // Flush voice transcript every 30s so memory saves even on short sessions
@@ -936,6 +938,19 @@ export default function Home() {
     }, 30000)
     return () => clearInterval(interval)
   }, [userId])
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+
+  useEffect(() => {
+    if (isMobile && mobileScrollRef.current) {
+      mobileScrollRef.current.scrollTo({ top: mobileScrollRef.current.scrollHeight, behavior: 'smooth' })
+    }
+  }, [messages, loading, isMobile])
 
   // ─── Onboard=personal param: save preference after Google OAuth ────────────
   useEffect(() => {
@@ -1485,156 +1500,289 @@ export default function Home() {
         background: 'radial-gradient(ellipse 90% 85% at 50% 45%, transparent 35%, rgba(8,6,4,0.72) 100%)',
       }} />
 
-      {/* Layout */}
-      <div style={{
-        position: 'relative', height: '100vh', zIndex: 2,
-        display: 'grid',
-        gridTemplateColumns: '420px 1fr',
-        gridTemplateRows: '64px 1fr auto',
-        gridTemplateAreas: `
-          "topL topR"
-          "orb  conv"
-          "orb  input"
-        `,
-      }}>
-        {/* top-left: wordmark */}
-        <div style={{ gridArea: 'topL', padding: '20px 40px', display: 'flex', alignItems: 'center' }}>
-          <Wordmark />
-        </div>
+      {/* Layout — mobile / desktop */}
+      {isMobile ? (
 
-        {/* top-right: status + chips */}
-        <div style={{ gridArea: 'topR', padding: '20px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <StatusPill state={orbState} />
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
-            <PermissionChip icon="◉" label="Screen"   granted />
-            <PermissionChip icon="⌖" label="Cursor"   granted />
-            <PermissionChip icon="✦" label="Calendar" granted />
-            <PermissionChip icon="◍" label="Audio"    granted />
-            {userId && (
-              <button
-                onClick={() => setShowPanel(true)}
-                title="What Jarvis knows"
-                style={{
-                  background: 'none', border: '1px solid var(--line)', borderRadius: '6px',
-                  color: 'var(--accent)', fontSize: '0.8rem', padding: '0.35rem 0.55rem',
-                  cursor: 'pointer', opacity: 0.6, letterSpacing: '0.05em',
-                  transition: 'opacity 0.2s', fontFamily: 'var(--sans)',
-                }}
-                onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                onMouseLeave={e => e.currentTarget.style.opacity = '0.6'}
-              >◉</button>
+        /* ── MOBILE LAYOUT ─────────────────────────────────────────────── */
+        <div style={{
+          position: 'relative', height: '100dvh', zIndex: 2,
+          display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        }}>
+
+          {/* Mobile header: hamburger | wordmark | status pill */}
+          <div style={{
+            flexShrink: 0, display: 'flex', alignItems: 'center',
+            justifyContent: 'space-between', padding: '0 20px', height: 56,
+            borderBottom: '1px solid var(--line)',
+          }}>
+            <button
+              onClick={() => setShowPanel(true)}
+              aria-label="menu"
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                padding: 6, display: 'flex', flexDirection: 'column',
+                gap: 4.5, alignItems: 'center',
+              }}
+            >
+              <span style={{ display: 'block', width: 18, height: 1.5, background: 'var(--ink-soft)', borderRadius: 1 }} />
+              <span style={{ display: 'block', width: 18, height: 1.5, background: 'var(--ink-soft)', borderRadius: 1 }} />
+              <span style={{ display: 'block', width: 18, height: 1.5, background: 'var(--ink-soft)', borderRadius: 1 }} />
+            </button>
+            <Wordmark />
+            <StatusPill state={orbState} />
+          </div>
+
+          {/* Scrollable content area */}
+          <div ref={mobileScrollRef} style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+
+            {/* Proactive banner — inline block, not absolute */}
+            {proactiveHint && (
+              <div style={{
+                margin: '12px 16px 0',
+                padding: '14px 16px 14px 18px',
+                background: 'rgba(15,12,10,0.85)',
+                border: '1px solid rgba(255,144,114,0.22)',
+                borderLeft: '2px solid var(--accent)',
+                borderRadius: 8, animation: 'fadeUp 500ms ease both',
+                fontFamily: 'var(--sans)',
+              }}>
+                <div style={{ fontSize: 9, letterSpacing: '0.35em', textTransform: 'uppercase', color: 'var(--accent)', marginBottom: 8, fontWeight: 500 }}>
+                  Proactive · just now
+                </div>
+                <div style={{ fontSize: 14, color: 'var(--ink)', lineHeight: 1.5, fontWeight: 300, marginBottom: 12 }}>
+                  {proactiveHint}
+                </div>
+                <div style={{ display: 'flex', gap: 14 }}>
+                  <button onClick={() => setProactiveHint(null)} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: 'var(--sans)', fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--accent)', fontWeight: 500 }}>Handle it</button>
+                  <button onClick={() => setProactiveHint(null)} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: 'var(--sans)', fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--ink-mute)', fontWeight: 500 }}>Dismiss</button>
+                </div>
+              </div>
             )}
 
-            {/* Mode toggle */}
-            {userId && (
-              <ModeToggle userId={userId} currentMode="personal" />
-            )}
+            {/* Orb + caption */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '32px 0 20px', gap: 18, flexShrink: 0 }}>
+              <div
+                style={{ animation: 'softFloat 6s ease-in-out infinite', borderRadius: '50%' }}
+                className={jarvisSpeaking ? 'orb-speaking' : voiceMode ? 'orb-listening' : ''}
+              >
+                <Orb state={orbState} orbStyle="aurora" accent="#ff9072" size={220} />
+              </div>
+              {!voiceMode && (
+                <div style={{
+                  fontFamily: 'var(--serif)', fontStyle: 'italic', fontSize: 15,
+                  color: 'var(--ink-soft)', fontWeight: 300, textAlign: 'center',
+                  maxWidth: 260, lineHeight: 1.45, padding: '0 24px',
+                }}>
+                  {captionFor(orbState)}
+                </div>
+              )}
+              <div style={{ fontFamily: 'var(--sans)', fontSize: 9, letterSpacing: '0.38em', textTransform: 'uppercase', color: 'var(--ink-mute)' }}>
+                {voiceMode ? (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', animation: 'inkPulse 1.4s ease-in-out infinite', display: 'inline-block' }} />
+                    <span style={{ color: 'var(--accent)', letterSpacing: '0.2em' }}>{jarvisSpeaking ? 'Speaking' : 'Listening'}</span>
+                  </span>
+                ) : 'memory · present'}
+              </div>
+              {voiceError && (
+                <div style={{ fontFamily: 'var(--sans)', fontSize: 9, color: '#ef4444', textAlign: 'center', maxWidth: 260, letterSpacing: '0.05em', padding: '0 24px' }}>
+                  {voiceError}
+                </div>
+              )}
+              {onboardingComplete === false && !voiceMode && (
+                <div className="onboarding-pulse" style={{ fontFamily: 'var(--sans)', fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--accent)', opacity: 0.6 }}>
+                  Getting to know you…
+                </div>
+              )}
+            </div>
 
-            {/* Avatar + sign out */}
-            {user && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 4 }}>
-                {user.user_metadata?.avatar_url && (
-                  <img
-                    src={user.user_metadata.avatar_url}
-                    alt="avatar"
-                    referrerPolicy="no-referrer"
-                    style={{ width: 24, height: 24, borderRadius: '50%', opacity: 0.8, border: '1px solid var(--line)' }}
-                  />
-                )}
-                <button
-                  onClick={async () => {
-                    await supabase.auth.signOut()
-                    router.replace('/welcome')
-                  }}
-                  style={{
-                    background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-                    fontFamily: 'var(--sans)', fontSize: '0.65rem', letterSpacing: '0.1em',
-                    color: 'var(--ink-mute)', textTransform: 'uppercase', opacity: 0.55,
-                    transition: 'opacity 0.2s',
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                  onMouseLeave={e => e.currentTarget.style.opacity = '0.55'}
-                >
-                  Sign out
-                </button>
+            {/* Conversation messages */}
+            {(messages.length > 0 || loading) && (
+              <div style={{ padding: '0 20px 16px' }}>
+                {messages.map((m, i) => (
+                  <div key={m.id ?? i} className="msg-enter">
+                    <Message msg={m} isLatest={i === messages.length - 1 && !loading} />
+                  </div>
+                ))}
+                {loading && <ThinkingIndicator />}
               </div>
             )}
           </div>
+
+          {/* Input bar */}
+          <div style={{ flexShrink: 0, borderTop: '1px solid var(--line)' }}>
+            <InputBar
+              orbState={orbState}
+              input={input}
+              setInput={setInput}
+              onSend={sendMessage}
+              onMicClick={voiceMode ? stopVoice : startVoice}
+              voiceMode={voiceMode}
+              voiceConnecting={voiceConnecting}
+              loading={loading || isStreaming}
+              disabled={!userId}
+              fileInputRef={fileInputRef}
+              uploadingFile={uploadingFile}
+              onFileUpload={handleFileUpload}
+              mobile
+            />
+          </div>
         </div>
 
-        {/* left: orb panel */}
+      ) : (
+
+        /* ── DESKTOP LAYOUT (unchanged) ────────────────────────────────── */
         <div style={{
-          gridArea: 'orb', position: 'relative',
-          display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center',
-          gap: 28, padding: '0 20px 40px',
+          position: 'relative', height: '100vh', zIndex: 2,
+          display: 'grid',
+          gridTemplateColumns: '420px 1fr',
+          gridTemplateRows: '64px 1fr auto',
+          gridTemplateAreas: `
+            "topL topR"
+            "orb  conv"
+            "orb  input"
+          `,
         }}>
-          <div
-            style={{ animation: 'softFloat 6s ease-in-out infinite', borderRadius: '50%' }}
-            className={jarvisSpeaking ? 'orb-speaking' : voiceMode ? 'orb-listening' : ''}
-          >
-            <Orb state={orbState} orbStyle="aurora" accent="#ff9072" size={340} />
+          {/* top-left: wordmark */}
+          <div style={{ gridArea: 'topL', padding: '20px 40px', display: 'flex', alignItems: 'center' }}>
+            <Wordmark />
           </div>
+
+          {/* top-right: status + chips */}
+          <div style={{ gridArea: 'topR', padding: '20px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <StatusPill state={orbState} />
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
+              <PermissionChip icon="◉" label="Screen"   granted />
+              <PermissionChip icon="⌖" label="Cursor"   granted />
+              <PermissionChip icon="✦" label="Calendar" granted />
+              <PermissionChip icon="◍" label="Audio"    granted />
+              {userId && (
+                <button
+                  onClick={() => setShowPanel(true)}
+                  title="What Jarvis knows"
+                  style={{
+                    background: 'none', border: '1px solid var(--line)', borderRadius: '6px',
+                    color: 'var(--accent)', fontSize: '0.8rem', padding: '0.35rem 0.55rem',
+                    cursor: 'pointer', opacity: 0.6, letterSpacing: '0.05em',
+                    transition: 'opacity 0.2s', fontFamily: 'var(--sans)',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                  onMouseLeave={e => e.currentTarget.style.opacity = '0.6'}
+                >◉</button>
+              )}
+
+              {/* Mode toggle */}
+              {userId && (
+                <ModeToggle userId={userId} currentMode="personal" />
+              )}
+
+              {/* Avatar + sign out */}
+              {user && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 4 }}>
+                  {user.user_metadata?.avatar_url && (
+                    <img
+                      src={user.user_metadata.avatar_url}
+                      alt="avatar"
+                      referrerPolicy="no-referrer"
+                      style={{ width: 24, height: 24, borderRadius: '50%', opacity: 0.8, border: '1px solid var(--line)' }}
+                    />
+                  )}
+                  <button
+                    onClick={async () => {
+                      await supabase.auth.signOut()
+                      router.replace('/welcome')
+                    }}
+                    style={{
+                      background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                      fontFamily: 'var(--sans)', fontSize: '0.65rem', letterSpacing: '0.1em',
+                      color: 'var(--ink-mute)', textTransform: 'uppercase', opacity: 0.55,
+                      transition: 'opacity 0.2s',
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                    onMouseLeave={e => e.currentTarget.style.opacity = '0.55'}
+                  >
+                    Sign out
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* left: orb panel */}
           <div style={{
-            fontFamily: 'var(--serif)', fontStyle: 'italic', fontSize: 17,
-            color: 'var(--ink-soft)', fontWeight: 300, textAlign: 'center',
-            maxWidth: 320, lineHeight: 1.45, minHeight: 48,
+            gridArea: 'orb', position: 'relative',
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            gap: 28, padding: '0 20px 40px',
           }}>
-            {voiceMode ? '' : captionFor(orbState)}
-          </div>
-          <div style={{ fontFamily: 'var(--sans)', fontSize: 9, letterSpacing: '0.38em', textTransform: 'uppercase', color: 'var(--ink-mute)' }}>
-            {voiceMode ? (
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{
-                  width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)',
-                  animation: 'inkPulse 1.4s ease-in-out infinite', display: 'inline-block',
-                }} />
-                <span style={{ color: 'var(--accent)', letterSpacing: '0.2em' }}>
-                  {jarvisSpeaking ? 'Speaking' : 'Listening'}
+            <div
+              style={{ animation: 'softFloat 6s ease-in-out infinite', borderRadius: '50%' }}
+              className={jarvisSpeaking ? 'orb-speaking' : voiceMode ? 'orb-listening' : ''}
+            >
+              <Orb state={orbState} orbStyle="aurora" accent="#ff9072" size={340} />
+            </div>
+            <div style={{
+              fontFamily: 'var(--serif)', fontStyle: 'italic', fontSize: 17,
+              color: 'var(--ink-soft)', fontWeight: 300, textAlign: 'center',
+              maxWidth: 320, lineHeight: 1.45, minHeight: 48,
+            }}>
+              {voiceMode ? '' : captionFor(orbState)}
+            </div>
+            <div style={{ fontFamily: 'var(--sans)', fontSize: 9, letterSpacing: '0.38em', textTransform: 'uppercase', color: 'var(--ink-mute)' }}>
+              {voiceMode ? (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{
+                    width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)',
+                    animation: 'inkPulse 1.4s ease-in-out infinite', display: 'inline-block',
+                  }} />
+                  <span style={{ color: 'var(--accent)', letterSpacing: '0.2em' }}>
+                    {jarvisSpeaking ? 'Speaking' : 'Listening'}
+                  </span>
                 </span>
-              </span>
-            ) : 'memory · present'}
+              ) : 'memory · present'}
+            </div>
+            {voiceError && (
+              <div style={{ fontFamily: 'var(--sans)', fontSize: 9, color: '#ef4444', textAlign: 'center', maxWidth: 280, letterSpacing: '0.05em' }}>
+                {voiceError}
+              </div>
+            )}
+            {onboardingComplete === false && !voiceMode && (
+              <div className="onboarding-pulse" style={{ fontFamily: 'var(--sans)', fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--accent)', opacity: 0.6 }}>
+                Getting to know you…
+              </div>
+            )}
+            <ProactiveBanner
+              hint={proactiveHint}
+              onAct={() => setProactiveHint(null)}
+              onDismiss={() => setProactiveHint(null)}
+            />
           </div>
-          {voiceError && (
-            <div style={{ fontFamily: 'var(--sans)', fontSize: 9, color: '#ef4444', textAlign: 'center', maxWidth: 280, letterSpacing: '0.05em' }}>
-              {voiceError}
-            </div>
-          )}
-          {onboardingComplete === false && !voiceMode && (
-            <div className="onboarding-pulse" style={{ fontFamily: 'var(--sans)', fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--accent)', opacity: 0.6 }}>
-              Getting to know you…
-            </div>
-          )}
-          <ProactiveBanner
-            hint={proactiveHint}
-            onAct={() => setProactiveHint(null)}
-            onDismiss={() => setProactiveHint(null)}
-          />
+
+          {/* right: conversation */}
+          <div style={{ gridArea: 'conv', display: 'flex', flexDirection: 'column', minHeight: 0, borderLeft: '1px solid var(--line)' }}>
+            <Conversation messages={messages} loading={loading} />
+          </div>
+
+          {/* input */}
+          <div style={{ gridArea: 'input', borderLeft: '1px solid var(--line)', borderTop: '1px solid var(--line)' }}>
+            <InputBar
+              orbState={orbState}
+              input={input}
+              setInput={setInput}
+              onSend={sendMessage}
+              onMicClick={voiceMode ? stopVoice : startVoice}
+              voiceMode={voiceMode}
+              voiceConnecting={voiceConnecting}
+              loading={loading || isStreaming}
+              disabled={!userId}
+              fileInputRef={fileInputRef}
+              uploadingFile={uploadingFile}
+              onFileUpload={handleFileUpload}
+            />
+          </div>
         </div>
 
-        {/* right: conversation */}
-        <div style={{ gridArea: 'conv', display: 'flex', flexDirection: 'column', minHeight: 0, borderLeft: '1px solid var(--line)' }}>
-          <Conversation messages={messages} loading={loading} />
-        </div>
-
-        {/* input */}
-        <div style={{ gridArea: 'input', borderLeft: '1px solid var(--line)', borderTop: '1px solid var(--line)' }}>
-          <InputBar
-            orbState={orbState}
-            input={input}
-            setInput={setInput}
-            onSend={sendMessage}
-            onMicClick={voiceMode ? stopVoice : startVoice}
-            voiceMode={voiceMode}
-            voiceConnecting={voiceConnecting}
-            loading={loading || isStreaming}
-            disabled={!userId}
-            fileInputRef={fileInputRef}
-            uploadingFile={uploadingFile}
-            onFileUpload={handleFileUpload}
-          />
-        </div>
-      </div>
+      )}
     </>
   )
 }
