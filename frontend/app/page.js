@@ -300,10 +300,10 @@ function Orb({ state = 'idle', orbStyle = 'aurora', accent = '#ff9072', size = 3
 function Wordmark() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, userSelect: 'none' }}>
-      <div style={{ fontFamily: 'var(--display)', fontSize: 22, letterSpacing: '0.55em', paddingLeft: '0.55em', color: 'var(--ink)', fontWeight: 400 }}>
+      <div className="wordmark-main" style={{ fontFamily: 'var(--display)', fontSize: 22, letterSpacing: '0.55em', paddingLeft: '0.55em', color: 'var(--ink)', fontWeight: 400 }}>
         JARVIS
       </div>
-      <div style={{ fontFamily: 'var(--sans)', fontSize: 9, letterSpacing: '0.4em', paddingLeft: '0.4em', color: 'var(--ink-mute)', textTransform: 'uppercase', fontWeight: 400 }}>
+      <div className="wordmark-sub" style={{ fontFamily: 'var(--sans)', fontSize: 9, letterSpacing: '0.4em', paddingLeft: '0.4em', color: 'var(--ink-mute)', textTransform: 'uppercase', fontWeight: 400 }}>
         by MG &amp; Co
       </div>
     </div>
@@ -614,12 +614,22 @@ function Conversation({ messages, loading }) {
 function InputBar({ orbState, input, setInput, onSend, onMicClick, voiceMode, voiceConnecting, loading, disabled, fileInputRef, uploadingFile, onFileUpload, mobile }) {
   const isVoiceActive = voiceMode
   const isListening = orbState === 'listening'
+  const textareaRef = useRef(null)
+
+  // Reset height when message is sent (input cleared externally)
+  useEffect(() => {
+    if (input === '' && textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+      textareaRef.current.style.overflowY = 'hidden'
+    }
+  }, [input])
 
   const handleKey = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       onSend()
     }
+    // Shift+Enter inserts newline naturally via textarea
   }
 
   const micBg = voiceConnecting
@@ -639,7 +649,7 @@ function InputBar({ orbState, input, setInput, onSend, onMicClick, voiceMode, vo
     <div style={{ padding: mobile ? '12px 16px 20px' : '20px 40px 32px', display: 'flex', justifyContent: 'center', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
       <div style={{
         width: '100%', maxWidth: 720,
-        display: 'flex', alignItems: 'center', gap: 14,
+        display: 'flex', alignItems: 'flex-end', gap: 14,
         padding: '14px 18px',
         background: isVoiceActive ? 'rgba(255,144,114,0.06)' : 'rgba(243,234,217,0.035)',
         border: `1px solid ${isVoiceActive ? 'rgba(255,144,114,0.45)' : 'var(--line)'}`,
@@ -695,16 +705,28 @@ function InputBar({ orbState, input, setInput, onSend, onMicClick, voiceMode, vo
           )}
         </button>
         <input ref={fileInputRef} type="file" style={{ display: 'none' }} accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.txt,.md,.csv" onChange={onFileUpload} />
-        <input
+        <textarea
+          ref={textareaRef}
           value={input}
-          onChange={e => setInput(e.target.value)}
+          onChange={e => {
+            setInput(e.target.value)
+            const ta = e.target
+            ta.style.height = 'auto'
+            ta.style.height = Math.min(ta.scrollHeight, 144) + 'px'
+            ta.style.overflowY = ta.scrollHeight > 144 ? 'auto' : 'hidden'
+          }}
           onKeyDown={handleKey}
           placeholder={placeholder}
           disabled={disabled || loading}
+          rows={1}
           style={{
             flex: 1, background: 'transparent', border: 0, outline: 'none',
             color: 'var(--ink)', fontFamily: 'var(--serif)', fontSize: 18,
             fontWeight: 300, letterSpacing: 0.2,
+            resize: 'none', lineHeight: '24px',
+            minHeight: 24, maxHeight: 144,
+            overflowY: 'hidden', display: 'block',
+            padding: '4px 0', margin: '0',
           }}
         />
         <button
@@ -1504,25 +1526,32 @@ export default function Home() {
       {isMobile ? (
 
         /* ── MOBILE LAYOUT ─────────────────────────────────────────────── */
-        <div style={{
-          position: 'relative', height: '100dvh', zIndex: 2,
-          display: 'flex', flexDirection: 'column', overflow: 'hidden',
-        }}>
+        <div style={{ position: 'relative', height: '100dvh', zIndex: 2, overflowX: 'hidden', background: '#000' }}>
 
-          {/* Mobile header: hamburger | wordmark | status pill */}
+          {/* Orb — fixed, sits behind scrolling content */}
+          <div
+            style={{
+              position: 'fixed', left: '50%', transform: 'translateX(-50%)',
+              top: '25vh', zIndex: 0,
+              opacity: 0.85, pointerEvents: 'none',
+              animation: 'softFloat 6s ease-in-out infinite', borderRadius: '50%',
+            }}
+            className={jarvisSpeaking ? 'orb-speaking' : voiceMode ? 'orb-listening' : ''}
+          >
+            <Orb state={orbState} orbStyle="aurora" accent="#ff9072" size={180} />
+          </div>
+
+          {/* Header — fixed at top, z:20 */}
           <div style={{
-            flexShrink: 0, display: 'flex', alignItems: 'center',
-            justifyContent: 'space-between', padding: '0 20px', height: 56,
-            borderBottom: '1px solid var(--line)',
+            position: 'fixed', top: 0, left: 0, right: 0, zIndex: 20,
+            height: 56, display: 'flex', alignItems: 'center',
+            justifyContent: 'space-between', padding: '0 20px',
+            background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(12px)',
           }}>
             <button
               onClick={() => setShowPanel(true)}
               aria-label="menu"
-              style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                padding: 6, display: 'flex', flexDirection: 'column',
-                gap: 4.5, alignItems: 'center',
-              }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, display: 'flex', flexDirection: 'column', gap: 4.5, alignItems: 'center' }}
             >
               <span style={{ display: 'block', width: 18, height: 1.5, background: 'var(--ink-soft)', borderRadius: 1 }} />
               <span style={{ display: 'block', width: 18, height: 1.5, background: 'var(--ink-soft)', borderRadius: 1 }} />
@@ -1532,73 +1561,79 @@ export default function Home() {
             <StatusPill state={orbState} />
           </div>
 
-          {/* Scrollable content area */}
-          <div ref={mobileScrollRef} style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-
-            {/* Proactive banner — inline block, not absolute */}
+          {/* Scrollable content — scrolls over the fixed orb, z:10 */}
+          <div
+            ref={mobileScrollRef}
+            style={{
+              position: 'absolute', inset: 0,
+              overflowY: 'auto', overflowX: 'hidden',
+              paddingTop: 56, paddingBottom: 110,
+              zIndex: 10,
+            }}
+          >
+            {/* Proactive banner */}
             {proactiveHint && (
               <div style={{
                 margin: '12px 16px 0',
                 padding: '14px 16px 14px 18px',
-                background: 'rgba(15,12,10,0.85)',
-                border: '1px solid rgba(255,144,114,0.22)',
-                borderLeft: '2px solid var(--accent)',
-                borderRadius: 8, animation: 'fadeUp 500ms ease both',
-                fontFamily: 'var(--sans)',
+                background: 'rgba(90,0,0,0.2)',
+                border: '1px solid rgba(239,68,68,0.35)',
+                borderRadius: 16, animation: 'fadeUp 500ms ease both',
+                backdropFilter: 'blur(8px)', fontFamily: 'var(--sans)',
               }}>
-                <div style={{ fontSize: 9, letterSpacing: '0.35em', textTransform: 'uppercase', color: 'var(--accent)', marginBottom: 8, fontWeight: 500 }}>
+                <div style={{ fontSize: 9, letterSpacing: '0.25em', textTransform: 'uppercase', color: '#f87171', marginBottom: 8, fontWeight: 500 }}>
                   Proactive · just now
                 </div>
-                <div style={{ fontSize: 14, color: 'var(--ink)', lineHeight: 1.5, fontWeight: 300, marginBottom: 12 }}>
+                <div style={{ fontSize: 14, color: 'rgba(243,234,217,0.9)', lineHeight: 1.5, fontWeight: 300, marginBottom: 12, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                   {proactiveHint}
                 </div>
                 <div style={{ display: 'flex', gap: 14 }}>
-                  <button onClick={() => setProactiveHint(null)} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: 'var(--sans)', fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--accent)', fontWeight: 500 }}>Handle it</button>
-                  <button onClick={() => setProactiveHint(null)} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: 'var(--sans)', fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--ink-mute)', fontWeight: 500 }}>Dismiss</button>
+                  <button onClick={() => setProactiveHint(null)} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: 'var(--sans)', fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#f87171', fontWeight: 500 }}>Handle it</button>
+                  <button onClick={() => setProactiveHint(null)} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: 'var(--sans)', fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--ink-mute)', fontWeight: 500 }}>Dismiss</button>
                 </div>
               </div>
             )}
 
-            {/* Orb + caption */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '32px 0 20px', gap: 18, flexShrink: 0 }}>
-              <div
-                style={{ animation: 'softFloat 6s ease-in-out infinite', borderRadius: '50%' }}
-                className={jarvisSpeaking ? 'orb-speaking' : voiceMode ? 'orb-listening' : ''}
-              >
-                <Orb state={orbState} orbStyle="aurora" accent="#ff9072" size={220} />
-              </div>
-              {!voiceMode && (
-                <div style={{
-                  fontFamily: 'var(--serif)', fontStyle: 'italic', fontSize: 15,
-                  color: 'var(--ink-soft)', fontWeight: 300, textAlign: 'center',
-                  maxWidth: 260, lineHeight: 1.45, padding: '0 24px',
-                }}>
-                  {captionFor(orbState)}
-                </div>
-              )}
-              <div style={{ fontFamily: 'var(--sans)', fontSize: 9, letterSpacing: '0.38em', textTransform: 'uppercase', color: 'var(--ink-mute)' }}>
-                {voiceMode ? (
+            {/* Idle state — caption + memory text float below the orb */}
+            {messages.length === 0 && !loading && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 'calc(25vh + 130px)', gap: 12, paddingLeft: 24, paddingRight: 24, paddingBottom: 32 }}>
+                {!voiceMode && (
+                  <div style={{ fontFamily: 'var(--serif)', fontStyle: 'italic', fontSize: 14, color: 'var(--ink-soft)', fontWeight: 300, textAlign: 'center', lineHeight: 1.45, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                    {captionFor(orbState)}
+                  </div>
+                )}
+                {voiceMode && (
                   <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', animation: 'inkPulse 1.4s ease-in-out infinite', display: 'inline-block' }} />
-                    <span style={{ color: 'var(--accent)', letterSpacing: '0.2em' }}>{jarvisSpeaking ? 'Speaking' : 'Listening'}</span>
+                    <span style={{ fontFamily: 'var(--sans)', fontSize: 10, color: 'var(--accent)', letterSpacing: '0.2em', textTransform: 'uppercase' }}>{jarvisSpeaking ? 'Speaking' : 'Listening'}</span>
                   </span>
-                ) : 'memory · present'}
+                )}
+                <div style={{ fontFamily: 'var(--sans)', fontSize: 10, letterSpacing: '0.25em', textTransform: 'uppercase', color: 'var(--ink-mute)' }}>
+                  memory · present
+                </div>
+                {voiceError && (
+                  <div style={{ fontFamily: 'var(--sans)', fontSize: 9, color: '#ef4444', textAlign: 'center', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                    {voiceError}
+                  </div>
+                )}
+                {onboardingComplete === false && (
+                  <div className="onboarding-pulse" style={{ fontFamily: 'var(--sans)', fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--accent)', opacity: 0.6 }}>
+                    Getting to know you…
+                  </div>
+                )}
               </div>
-              {voiceError && (
-                <div style={{ fontFamily: 'var(--sans)', fontSize: 9, color: '#ef4444', textAlign: 'center', maxWidth: 260, letterSpacing: '0.05em', padding: '0 24px' }}>
-                  {voiceError}
-                </div>
-              )}
-              {onboardingComplete === false && !voiceMode && (
-                <div className="onboarding-pulse" style={{ fontFamily: 'var(--sans)', fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--accent)', opacity: 0.6 }}>
-                  Getting to know you…
-                </div>
-              )}
-            </div>
+            )}
 
-            {/* Conversation messages */}
+            {/* Conversation messages — start below the orb area */}
             {(messages.length > 0 || loading) && (
-              <div style={{ padding: '0 20px 16px' }}>
+              <div
+                className="mobile-chat-messages"
+                style={{
+                  paddingTop: 'calc(25vh + 130px)',
+                  paddingLeft: 20, paddingRight: 20, paddingBottom: 16,
+                  wordBreak: 'break-word', overflowWrap: 'anywhere',
+                }}
+              >
                 {messages.map((m, i) => (
                   <div key={m.id ?? i} className="msg-enter">
                     <Message msg={m} isLatest={i === messages.length - 1 && !loading} />
@@ -1609,8 +1644,11 @@ export default function Home() {
             )}
           </div>
 
-          {/* Input bar */}
-          <div style={{ flexShrink: 0, borderTop: '1px solid var(--line)' }}>
+          {/* Input bar — fixed at bottom with gradient, z:20 */}
+          <div style={{
+            position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 20,
+            background: 'linear-gradient(to top, #000000 55%, rgba(0,0,0,0.9) 80%, transparent 100%)',
+          }}>
             <InputBar
               orbState={orbState}
               input={input}
