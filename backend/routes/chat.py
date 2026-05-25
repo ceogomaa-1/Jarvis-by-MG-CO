@@ -1,6 +1,9 @@
 import asyncio
 import json
-from datetime import datetime
+import logging
+import traceback
+from collections import deque
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks
@@ -17,10 +20,31 @@ from backend.lib.sessions import format_session_context
 from backend.routes.documents import search_user_documents
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 _INTERACTION_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "last_interaction"
 _FALLBACK_LLM_ERROR = "Hit a snag on my end. Try that again?"
 _FALLBACK_EMPTY    = "Caught me thinking. Say that again?"
+_error_buffer: deque = deque(maxlen=20)
+
+
+def _log_fallback(fallback_type: str, user_msg: str, exc: Exception | None = None) -> str:
+    ts = datetime.now(timezone.utc).isoformat()
+    exc_summary = f"{type(exc).__name__}: {exc}" if exc else ""
+    debug_str = f"{fallback_type}: {exc_summary}" if exc_summary else fallback_type
+    entry = {
+        "timestamp": ts,
+        "user_msg": user_msg[:200],
+        "fallback_type": fallback_type,
+        "traceback": traceback.format_exc() if exc else None,
+        "debug": debug_str,
+    }
+    _error_buffer.append(entry)
+    if exc:
+        logger.exception(f"{fallback_type} user_msg={user_msg[:200]!r}")
+    else:
+        logger.error(f"{fallback_type} user_msg={user_msg[:200]!r}")
+    return debug_str
 
 # ─── Emotional tone ───────────────────────────────────────────────────────────
 
@@ -139,6 +163,7 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
     tools = AVAILABLE_TOOLS if not system_override else None
 
     # Call LLM — catch failures and return a graceful fallback so user message isn't orphaned
+    debug_str = None
     try:
         response_text = await jarvis_think(
             user_message=user_content,
@@ -152,16 +177,16 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
             live_context=live_context,
         )
     except Exception as e:
-        print(f"CHAT: LLM failed for {request.user_id}: {e}")
+        debug_str = _log_fallback("LLM_EXCEPTION", request.message, exc=e)
         response_text = _FALLBACK_LLM_ERROR
 
     # Handle empty / soft-refusal responses
     if not response_text or not response_text.strip():
-        print(f"CHAT: Empty response for {request.user_id}, using fallback")
+        debug_str = _log_fallback("EMPTY_RESPONSE", request.message)
         response_text = _FALLBACK_EMPTY
 
     _record_interaction(request.user_id)
-    print(f"CHAT: Running post-response tasks for user {request.user_id}")
+    logger.info(f"CHAT: post-response tasks for user {request.user_id}")
     await asyncio.gather(
         save_interaction(request.user_id, request.message, response_text),
         update_user_model(request.user_id, request.message, response_text),
@@ -170,7 +195,7 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
     background_tasks.add_task(
         analyze_conversation_for_insight, request.user_id, request.message, response_text
     )
-    return ChatResponse(response=response_text, user_id=request.user_id)
+    return ChatResponse(response=response_text, user_id=request.user_id, _debug=debug_str)
 
 
 # ─── Streaming endpoint ───────────────────────────────────────────────────────
@@ -224,6 +249,7 @@ async def chat_stream(request: ChatRequest):
 
     async def event_generator():
         response_text = _FALLBACK_LLM_ERROR
+        debug_str = None
         try:
             response_text = await jarvis_think(
                 user_message=user_content,
@@ -238,10 +264,10 @@ async def chat_stream(request: ChatRequest):
             )
             # Handle empty / soft-refusal responses
             if not response_text or not response_text.strip():
-                print(f"CHAT STREAM: Empty response for {request.user_id}, using fallback")
+                debug_str = _log_fallback("EMPTY_RESPONSE", request.message)
                 response_text = _FALLBACK_EMPTY
         except Exception as e:
-            print(f"CHAT STREAM: LLM failed for {request.user_id}: {e}")
+            debug_str = _log_fallback("LLM_EXCEPTION", request.message, exc=e)
             response_text = _FALLBACK_LLM_ERROR
 
         for char in response_text:
@@ -259,6 +285,8 @@ async def chat_stream(request: ChatRequest):
         asyncio.create_task(
             analyze_conversation_for_insight(request.user_id, request.message, response_text)
         )
+        if debug_str:
+            yield f"data: [DEBUG:{debug_str}]\n\n"
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(
@@ -338,3 +366,10 @@ async def generate_artifact(request: ChatRequest):
         html = html.split("```")[0]
 
     return {"artifact": html}
+
+
+# ─── Debug endpoint ───────────────────────────────────────────────────────────
+
+@router.get("/debug/last-error")
+async def debug_last_error():
+    return list(_error_buffer)
