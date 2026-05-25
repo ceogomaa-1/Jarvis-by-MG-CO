@@ -952,19 +952,18 @@ export default function Home() {
     }
   }, [messages, loading, isMobile])
 
-  // ─── Onboard=personal param: save preference after Google OAuth ────────────
+  // ─── Onboard detection + preference routing ───────────────────────────────
+  // Merged into ONE effect so the mode-write never races the mode-read.
+  // When ?onboard=personal is in the URL we already know the choice — set mode
+  // and return before running getJarvisMode (which would see null and redirect).
   useEffect(() => {
     if (!userId) return
     const params = new URLSearchParams(window.location.search)
     if (params.get('onboard') === 'personal') {
       setJarvisMode(userId, 'personal').catch(() => {})
       window.history.replaceState({}, '', '/')
+      return  // stay at / — skip mode-check
     }
-  }, [userId])
-
-  // ─── Preference routing: redirect business users, send new users to /welcome ─
-  useEffect(() => {
-    if (!userId) return
     getJarvisMode(userId).then(mode => {
       if (mode === 'business') {
         router.replace('/business/chat')
