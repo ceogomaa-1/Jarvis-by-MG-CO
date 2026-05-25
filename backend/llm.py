@@ -171,7 +171,7 @@ def _extract_text(content) -> str:
 
 
 async def jarvis_think(
-    user_message: str,
+    user_message,  # str | list — list for multimodal (image + text) turns
     conversation_history: list,
     memory_context: str = "",
     user_model_context: str = "",

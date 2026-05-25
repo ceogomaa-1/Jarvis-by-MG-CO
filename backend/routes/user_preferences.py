@@ -22,6 +22,7 @@ class PreferenceUpdate(BaseModel):
 class TimezoneUpdate(BaseModel):
     user_id: str
     timezone: str
+    timezone_confirmed: bool = True
 
 
 class BusinessUserCreate(BaseModel):
@@ -36,12 +37,12 @@ class BusinessUserCreate(BaseModel):
 async def get_preference(user_id: str):
     try:
         sb = _client()
-        res = sb.table("user_preferences").select("jarvis_mode").eq("user_id", user_id).maybe_single().execute()
+        res = sb.table("user_preferences").select("jarvis_mode,timezone,timezone_confirmed").eq("user_id", user_id).maybe_single().execute()
         if res.data:
-            return {"jarvis_mode": res.data["jarvis_mode"]}
-        return {"jarvis_mode": None}
+            return res.data
+        return {"jarvis_mode": None, "timezone": None, "timezone_confirmed": False}
     except Exception as e:
-        return {"jarvis_mode": None, "error": str(e)}
+        return {"jarvis_mode": None, "timezone": None, "timezone_confirmed": False, "error": str(e)}
 
 
 @router.post("/user-preferences")
@@ -65,6 +66,7 @@ async def set_timezone(body: TimezoneUpdate):
         sb.table("user_preferences").upsert({
             "user_id": body.user_id,
             "timezone": body.timezone,
+            "timezone_confirmed": body.timezone_confirmed,
         }).execute()
         return {"ok": True}
     except Exception as e:

@@ -24,6 +24,8 @@ class ChatRequest(BaseModel):
     user_id: str
     message: str
     conversation_history: list[Message] = []
+    image_base64: str | None = None
+    image_type: str | None = None
 
 
 class ChatResponse(BaseModel):

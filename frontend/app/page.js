@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase'
 import { getJarvisMode, setJarvisMode } from '../lib/userPreferences'
 import ModeToggle from '../components/shared/ModeToggle'
 import SignOutDrawer from '../components/shared/SignOutDrawer'
+import TimezoneStep from '../components/onboarding/TimezoneStep'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
@@ -497,6 +498,53 @@ function BlinkCaret() {
   )
 }
 
+function formatFileSize(bytes) {
+  if (!bytes) return ''
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function AttachmentCard({ attachment }) {
+  const isPdf = attachment.type === 'application/pdf' || attachment.name?.toLowerCase().endsWith('.pdf')
+  const isImage = attachment.type?.startsWith('image/')
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 12,
+      background: 'rgba(255,255,255,0.05)',
+      border: '1px solid rgba(255,255,255,0.1)',
+      borderRadius: 12, padding: '10px 14px', marginBottom: 6,
+    }}>
+      <div style={{
+        width: 36, height: 36, borderRadius: 8,
+        background: 'rgba(255,255,255,0.08)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+      }}>
+        <span style={{
+          fontSize: 10, fontWeight: 700, fontFamily: 'system-ui, sans-serif',
+          color: isPdf ? '#f87171' : isImage ? '#60a5fa' : 'rgba(243,234,217,0.55)',
+        }}>
+          {isPdf ? 'PDF' : isImage ? 'IMG' : 'DOC'}
+        </span>
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          color: 'rgba(243,234,217,0.9)', fontSize: 13,
+          fontFamily: 'system-ui, sans-serif',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {attachment.name}
+        </div>
+        {attachment.size > 0 && (
+          <div style={{ color: 'rgba(243,234,217,0.4)', fontSize: 11, fontFamily: 'system-ui, sans-serif' }}>
+            {formatFileSize(attachment.size)}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function Message({ msg, isLatest }) {
   // Artifact role — must be checked first; content is {html, title} object
   if (msg.role === 'artifact') {
@@ -560,17 +608,29 @@ function Message({ msg, isLatest }) {
   if (msg.role === 'user') {
     return (
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14, opacity: isLatest ? 1 : 0.78, transition: 'opacity 600ms ease' }}>
-        <div style={{
-          maxWidth: '72%', padding: '12px 18px',
-          borderRadius: '20px 20px 4px 20px',
-          background: 'var(--user-bubble)',
-          border: '1px solid rgba(255,144,114,0.18)',
-          color: 'rgba(243,234,217,0.92)',
-          fontSize: 15.5, lineHeight: 1.5, fontWeight: 300, letterSpacing: 0.1,
-          backdropFilter: 'blur(8px)',
-          fontFamily: 'var(--sans)',
-        }}>
-          {textContent}
+        <div style={{ maxWidth: '72%', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+          {msg.attachment && <AttachmentCard attachment={msg.attachment} />}
+          {msg.imagePreview && (
+            <img
+              src={msg.imagePreview}
+              alt="Pasted"
+              style={{ maxHeight: 220, maxWidth: 280, borderRadius: 12, marginBottom: 6, objectFit: 'cover', border: '1px solid rgba(255,255,255,0.1)' }}
+            />
+          )}
+          {textContent && (
+            <div style={{
+              padding: '12px 18px',
+              borderRadius: '20px 20px 4px 20px',
+              background: 'var(--user-bubble)',
+              border: '1px solid rgba(255,144,114,0.18)',
+              color: 'rgba(243,234,217,0.92)',
+              fontSize: 15.5, lineHeight: 1.5, fontWeight: 300, letterSpacing: 0.1,
+              backdropFilter: 'blur(8px)',
+              fontFamily: 'var(--sans)',
+            }}>
+              {textContent}
+            </div>
+          )}
         </div>
       </div>
     )
@@ -633,10 +693,11 @@ function Conversation({ messages, loading }) {
 
 // ─── Input bar ────────────────────────────────────────────────────────────────
 
-function InputBar({ orbState, input, setInput, onSend, onMicClick, voiceMode, voiceConnecting, loading, disabled, fileInputRef, uploadingFile, onFileUpload, mobile }) {
+function InputBar({ orbState, input, setInput, onSend, onMicClick, voiceMode, voiceConnecting, loading, disabled, fileInputRef, uploadingFile, onFileUpload, mobile, pastedImage, onPastedImageChange }) {
   const isVoiceActive = voiceMode
   const isListening = orbState === 'listening'
   const textareaRef = useRef(null)
+  const hasContent = input.trim() || !!pastedImage
 
   // Reset height when message is sent (input cleared externally)
   useEffect(() => {
@@ -662,6 +723,29 @@ function InputBar({ orbState, input, setInput, onSend, onMicClick, voiceMode, vo
     // Shift+Enter inserts newline naturally via textarea
   }
 
+  // Paste handler — capture images from clipboard
+  useEffect(() => {
+    const handlePaste = (e) => {
+      const items = e.clipboardData?.items
+      if (!items) return
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault()
+          const file = item.getAsFile()
+          if (!file) continue
+          const reader = new FileReader()
+          reader.onload = (ev) => {
+            onPastedImageChange({ preview: ev.target.result, type: file.type, name: `pasted-${Date.now()}.png` })
+          }
+          reader.readAsDataURL(file)
+          break
+        }
+      }
+    }
+    window.addEventListener('paste', handlePaste)
+    return () => window.removeEventListener('paste', handlePaste)
+  }, [onPastedImageChange])
+
   const micBg = voiceConnecting
     ? 'rgba(255,144,114,0.3)'
     : isVoiceActive
@@ -677,6 +761,31 @@ function InputBar({ orbState, input, setInput, onSend, onMicClick, voiceMode, vo
 
   return (
     <div style={{ padding: mobile ? '12px 16px 20px' : '20px 40px 32px', display: 'flex', justifyContent: 'center', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+      {pastedImage && (
+        <div style={{ width: '100%', maxWidth: 720, display: 'flex', alignItems: 'flex-start' }}>
+          <div style={{ position: 'relative', display: 'inline-block' }}>
+            <img
+              src={pastedImage.preview}
+              alt="Paste preview"
+              style={{ maxHeight: 100, maxWidth: 160, borderRadius: 10, objectFit: 'cover', border: '1px solid rgba(255,255,255,0.15)', display: 'block' }}
+            />
+            <button
+              onClick={() => onPastedImageChange(null)}
+              style={{
+                position: 'absolute', top: -7, right: -7,
+                width: 20, height: 20, borderRadius: '50%',
+                background: '#1a0e08', border: '1px solid rgba(255,255,255,0.25)',
+                color: 'rgba(243,234,217,0.8)', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 13, lineHeight: 1, padding: 0,
+              }}
+              aria-label="remove image"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
       <div style={{
         width: '100%', maxWidth: 720,
         display: 'flex', alignItems: 'flex-end', gap: 14,
@@ -761,14 +870,14 @@ function InputBar({ orbState, input, setInput, onSend, onMicClick, voiceMode, vo
         />
         <button
           onClick={triggerSend}
-          disabled={!input.trim() || loading || disabled}
+          disabled={!hasContent || loading || disabled}
           aria-label="send"
           style={{
             width: 36, height: 36, borderRadius: 999, flexShrink: 0,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: input.trim() && !loading ? 'var(--accent)' : 'rgba(243,234,217,0.07)',
-            border: 0, color: input.trim() && !loading ? '#1a0e08' : 'var(--ink-mute)',
-            cursor: input.trim() && !loading ? 'pointer' : 'default',
+            background: hasContent && !loading ? 'var(--accent)' : 'rgba(243,234,217,0.07)',
+            border: 0, color: hasContent && !loading ? '#1a0e08' : 'var(--ink-mute)',
+            cursor: hasContent && !loading ? 'pointer' : 'default',
             transition: 'all 200ms ease',
           }}
         >
@@ -976,6 +1085,8 @@ export default function Home() {
   const reconnectAttemptsRef = useRef(0)
   const fileInputRef = useRef(null)
   const [uploadingFile, setUploadingFile] = useState(false)
+  const [pastedImage, setPastedImage] = useState(null)
+  const [timezoneConfirmed, setTimezoneConfirmed] = useState(null)
   const [isMobile, setIsMobile] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const mobileScrollRef = useRef(null)
@@ -1064,6 +1175,15 @@ export default function Home() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user_id: userId, timezone: tz }),
     }).catch(() => {})
+  }, [userId])
+
+  // Check timezone confirmation once userId is known
+  useEffect(() => {
+    if (!userId) return
+    fetch(`${BACKEND}/api/user-preferences/${userId}`)
+      .then(r => r.json())
+      .then(data => setTimezoneConfirmed(data.timezone_confirmed ?? false))
+      .catch(() => setTimezoneConfirmed(true))
   }, [userId])
 
   // Fetch unread proactive messages (morning briefings) on login
@@ -1206,6 +1326,23 @@ export default function Home() {
     )
   }
 
+  if (userId && timezoneConfirmed === false) {
+    return (
+      <TimezoneStep
+        onConfirm={async (tz) => {
+          try {
+            await fetch(`${BACKEND}/api/user-preferences/timezone`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ user_id: userId, timezone: tz }),
+            })
+          } catch {}
+          setTimezoneConfirmed(true)
+        }}
+      />
+    )
+  }
+
   // ─── Voice ──────────────────────────────────────────────────────────────────
   async function flushVoiceTranscript() {
     const buffer = conversationBufferRef.current
@@ -1330,15 +1467,17 @@ export default function Home() {
       const formData = new FormData()
       formData.append('file', file)
       formData.append('user_id', userId)
-      const res = await fetch(`${BACKEND}/api/files/upload`, {
+      const res = await fetch(`${BACKEND}/api/documents/upload`, {
         method: 'POST',
         body: formData,
       })
       if (!res.ok) throw new Error(`Upload failed: ${res.status}`)
       const data = await res.json()
+      const attachment = { name: data.filename, type: file.type, size: data.file_size }
       await sendMessage({
-        displayText: `[File: ${data.filename}]`,
-        apiText: `[File: ${data.filename}]\n\nContent:\n${data.content}`,
+        displayText: `Attached: ${data.filename}`,
+        apiText: `[Attached file: ${data.filename} — ${data.chunk_count} sections indexed. Ask me about it.]`,
+        attachment,
       })
     } catch (err) {
       console.error('File upload error:', err)
@@ -1426,13 +1565,21 @@ export default function Home() {
   async function sendMessage(override = null) {
     const apiText = (override?.apiText ?? input).trim()
     const displayText = (override?.displayText ?? apiText)
+    const attachment = override?.attachment ?? null
+    const imageB64 = override?.imageBase64 ?? (pastedImage ? pastedImage.preview : null)
+    const imageType = override?.imageType ?? (pastedImage ? pastedImage.type : null)
+    const imagePreview = pastedImage?.preview ?? null
+
     console.log('sendMessage called with:', apiText.slice(0, 80))
-    if (!apiText || loading || isStreaming) return
-    if (!override) setInput('')
+    if ((!apiText && !imageB64) || loading || isStreaming) return
+    if (!override) {
+      setInput('')
+      setPastedImage(null)
+    }
 
     // Intercept PDF export requests before hitting the chat API
     console.log('PDF intent check:', JSON.stringify(apiText), '→', isPdfExportRequest(apiText))
-    if (!override && isPdfExportRequest(apiText)) {
+    if (!override && apiText && isPdfExportRequest(apiText)) {
       await handlePdfExport(apiText)
       return
     }
@@ -1443,15 +1590,21 @@ export default function Home() {
       .map(({ role, content }) => ({ role, content }))
     msgIdRef.current += 1
     const userMsgId = msgIdRef.current
-    setMessages(prev => [...prev, { id: userMsgId, role: 'user', content: displayText }])
+    setMessages(prev => [...prev, { id: userMsgId, role: 'user', content: displayText, attachment, imagePreview }])
     setLoading(true)
+
+    const bodyPayload = { user_id: userId, message: apiText || '', conversation_history: historyForApi }
+    if (imageB64) {
+      bodyPayload.image_base64 = imageB64
+      bodyPayload.image_type = imageType || 'image/png'
+    }
 
     let streamMsgId = null
     try {
       const res = await fetch(`${BACKEND}/api/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, message: apiText, conversation_history: historyForApi }),
+        body: JSON.stringify(bodyPayload),
       })
       if (!res.ok) throw new Error(`${res.status}`)
 
@@ -1708,6 +1861,8 @@ export default function Home() {
               fileInputRef={fileInputRef}
               uploadingFile={uploadingFile}
               onFileUpload={handleFileUpload}
+              pastedImage={pastedImage}
+              onPastedImageChange={setPastedImage}
               mobile
             />
           </div>
@@ -1862,6 +2017,8 @@ export default function Home() {
               fileInputRef={fileInputRef}
               uploadingFile={uploadingFile}
               onFileUpload={handleFileUpload}
+              pastedImage={pastedImage}
+              onPastedImageChange={setPastedImage}
             />
           </div>
         </div>
