@@ -21,6 +21,7 @@ from backend.routes.business.chat import router as business_chat_router
 from backend.routes.business.show_me_how import router as business_show_me_how_router
 from backend.routes.user_preferences import router as user_preferences_router
 from backend.routes.export import router as export_router
+from backend.routes.documents import router as documents_router
 
 if not ANTHROPIC_API_KEY:
     raise RuntimeError(
@@ -63,7 +64,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=False,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -87,6 +88,7 @@ app.include_router(business_chat_router, prefix="/api")
 app.include_router(business_show_me_how_router, prefix="/api")
 app.include_router(user_preferences_router, prefix="/api")
 app.include_router(export_router, prefix="/api")
+app.include_router(documents_router, prefix="/api")
 
 
 @app.on_event("startup")

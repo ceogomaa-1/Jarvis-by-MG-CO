@@ -14,6 +14,7 @@ from backend.triggers import analyze_conversation_for_insight
 from backend.conversation import get_conversation_history, save_conversation_turn
 from backend.utils.user_context import format_user_time_context
 from backend.lib.sessions import format_session_context
+from backend.routes.documents import search_user_documents
 
 router = APIRouter()
 
@@ -95,12 +96,15 @@ async def _get_context(user_id: str, message: str):
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
-    (memory_context, user_model_context, skills_summary), time_ctx, session_ctx = await asyncio.gather(
+    (memory_context, user_model_context, skills_summary), time_ctx, session_ctx, doc_ctx = await asyncio.gather(
         _get_context(request.user_id, request.message),
         format_user_time_context(request.user_id),
         format_session_context(request.user_id),
+        search_user_documents(request.user_id, request.message),
     )
     live_context = f"{time_ctx}\n{session_ctx}"
+    if doc_ctx:
+        memory_context += f"\n\n--- RELEVANT DOCUMENT CONTENT ---\n{doc_ctx}\n--- END ---"
     if skills_summary:
         user_model_context = f"{user_model_context}\n\n{skills_summary}" if user_model_context else skills_summary
 
@@ -112,12 +116,22 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
     tone = detect_emotional_tone(request.message)
     tone_context = TONE_INSTRUCTIONS.get(tone, "")
 
+    # Build user content — multimodal when image attached
+    if request.image_base64:
+        raw_b64 = request.image_base64.split(",")[1] if "," in request.image_base64 else request.image_base64
+        user_content = [
+            {"type": "image", "source": {"type": "base64", "media_type": request.image_type or "image/png", "data": raw_b64}},
+            {"type": "text", "text": request.message or "What do you see in this image?"},
+        ]
+    else:
+        user_content = request.message
+
     # Use DB conversation history as source of truth
     history = await get_conversation_history(request.user_id, limit=20)
     tools = AVAILABLE_TOOLS if not system_override else None
 
     response_text = await jarvis_think(
-        user_message=request.message,
+        user_message=user_content,
         conversation_history=history,
         memory_context=memory_context,
         user_model_context=user_model_context,
@@ -146,12 +160,15 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
 
 @router.post("/chat/stream")
 async def chat_stream(request: ChatRequest):
-    (memory_context, user_model_context, skills_summary), time_ctx, session_ctx = await asyncio.gather(
+    (memory_context, user_model_context, skills_summary), time_ctx, session_ctx, doc_ctx = await asyncio.gather(
         _get_context(request.user_id, request.message),
         format_user_time_context(request.user_id),
         format_session_context(request.user_id),
+        search_user_documents(request.user_id, request.message),
     )
     live_context = f"{time_ctx}\n{session_ctx}"
+    if doc_ctx:
+        memory_context += f"\n\n--- RELEVANT DOCUMENT CONTENT ---\n{doc_ctx}\n--- END ---"
     if skills_summary:
         user_model_context = f"{user_model_context}\n\n{skills_summary}" if user_model_context else skills_summary
 
@@ -162,6 +179,16 @@ async def chat_stream(request: ChatRequest):
 
     tone = detect_emotional_tone(request.message)
     tone_context = TONE_INSTRUCTIONS.get(tone, "")
+
+    # Build user content — multimodal when image attached
+    if request.image_base64:
+        raw_b64 = request.image_base64.split(",")[1] if "," in request.image_base64 else request.image_base64
+        user_content = [
+            {"type": "image", "source": {"type": "base64", "media_type": request.image_type or "image/png", "data": raw_b64}},
+            {"type": "text", "text": request.message or "What do you see in this image?"},
+        ]
+    else:
+        user_content = request.message
 
     # Use DB conversation history as source of truth
     history = await get_conversation_history(request.user_id, limit=20)
@@ -175,7 +202,7 @@ async def chat_stream(request: ChatRequest):
     async def event_generator():
         try:
             response_text = await jarvis_think(
-                user_message=request.message,
+                user_message=user_content,
                 conversation_history=safe_history,
                 memory_context=memory_context,
                 user_model_context=user_model_context,
