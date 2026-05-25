@@ -2,11 +2,9 @@ import asyncio
 import json as json_module
 import os
 import traceback
-from datetime import datetime
 from typing import Optional, Union
 
 import httpx
-import pytz
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -18,6 +16,7 @@ from backend.tools.google_calendar import get_calendar_events, create_calendar_e
 from backend.tools.gmail import get_emails, send_email
 from backend.tools.web_search import web_search
 from backend.routes.local_agent_routes import send_local_command
+from backend.utils.user_context import format_user_time_context
 
 router = APIRouter()
 
@@ -49,16 +48,15 @@ async def _get_voice_session(request: VoiceSessionRequest):
         print("VOICE: missing credentials — ELEVENLABS_API_KEY or ELEVENLABS_AGENT_ID not set")
         raise HTTPException(status_code=503, detail="ElevenLabs credentials not configured")
 
-    eastern = pytz.timezone("America/Toronto")
-
     from backend.skills.skills_manager import get_skills_summary
 
-    memory_context, user_model_summary, recent_turns, elevenlabs_resp, skills_summary = await asyncio.gather(
+    memory_context, user_model_summary, recent_turns, elevenlabs_resp, skills_summary, current_dt = await asyncio.gather(
         get_relevant_memories(request.user_id, "general context and who the user is"),
         summarize_user_for_prompt(request.user_id),
         get_conversation_history(request.user_id, limit=10),
         _fetch_signed_url(api_key, agent_id),
         get_skills_summary(request.user_id),
+        format_user_time_context(request.user_id),
     )
 
     signed_url, elevenlabs_error = elevenlabs_resp
@@ -66,10 +64,6 @@ async def _get_voice_session(request: VoiceSessionRequest):
         raise HTTPException(status_code=elevenlabs_error[0], detail=elevenlabs_error[1])
     if not signed_url:
         raise HTTPException(status_code=502, detail="No signed_url in ElevenLabs response")
-
-    current_dt = datetime.now(eastern).strftime(
-        "Today is %A, %B %d, %Y. Current time is %I:%M %p EST."
-    )
 
     memory_short = (memory_context or "")[:200]
     model_short = (user_model_summary or "")[:150]

@@ -56,7 +56,10 @@ def _write_timestamp(path: Path, dt: datetime):
 def _hours_since(ts: datetime | None) -> float:
     if ts is None:
         return float("inf")
-    return (datetime.now() - ts).total_seconds() / 3600
+    now = datetime.now(timezone.utc)
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+    return (now - ts).total_seconds() / 3600
 
 
 # ─── Trigger detection ────────────────────────────────────────────────────────
@@ -86,7 +89,7 @@ async def check_triggers(user_id: str) -> dict | None:
         return {
             "trigger_type": "insight",
             "user_id": user_id,
-            "fired_at": datetime.now().isoformat(),
+            "fired_at": datetime.now(timezone.utc).isoformat(),
         }
 
     except Exception as e:
@@ -208,7 +211,7 @@ async def store_proactive_message(user_id: str, message: str, trigger_type: str)
         (_PROACTIVE_DIR / f"{user_id}_pending.json").write_text(
             json.dumps(data, indent=2), encoding="utf-8"
         )
-        _write_timestamp(_PROACTIVE_DIR / f"{user_id}_last_sent.txt", datetime.now())
+        _write_timestamp(_PROACTIVE_DIR / f"{user_id}_last_sent.txt", datetime.now(timezone.utc))
     except Exception as e:
         print(f"TRIGGERS: store_proactive_message failed for {user_id}: {e}")
         traceback.print_exc()

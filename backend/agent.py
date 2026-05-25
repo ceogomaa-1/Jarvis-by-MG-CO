@@ -2,7 +2,7 @@ import json
 import re
 import traceback
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import httpx
@@ -63,7 +63,7 @@ ANTHROPIC_TOOLS = [
 def _parse_remind_at(text: str) -> str | None:
     """Convert natural language time expressions to ISO datetime string."""
     text = text.strip().lower()
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
 
     m = re.match(r"in (\d+) minutes?", text)
     if m:
@@ -131,7 +131,7 @@ async def web_search(query: str) -> str:
 
 
 async def get_current_datetime() -> str:
-    return datetime.now().strftime("%A, %B %d %Y — %I:%M %p")
+    return datetime.now(timezone.utc).strftime("%A, %B %d %Y — %I:%M %p")
 
 
 def _load_notes(user_id: str) -> list:
@@ -157,7 +157,7 @@ async def save_note(user_id: str, note: str, remind_at_iso: str | None = None) -
         entry = {
             "id": uuid.uuid4().hex[:8],
             "note": note,
-            "created_at": datetime.now().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
             "remind_at": remind_at_iso,
             "done": False,
         }

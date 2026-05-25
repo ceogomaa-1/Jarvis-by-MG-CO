@@ -2,7 +2,6 @@ import asyncio
 import json
 from datetime import datetime
 from pathlib import Path
-import pytz
 
 from fastapi import APIRouter, BackgroundTasks
 from fastapi.responses import StreamingResponse
@@ -13,6 +12,8 @@ from backend.user_model import get_user_model, summarize_user_for_prompt, update
 from backend.agent import ANTHROPIC_TOOLS as AVAILABLE_TOOLS
 from backend.triggers import analyze_conversation_for_insight
 from backend.conversation import get_conversation_history, save_conversation_turn
+from backend.utils.user_context import format_user_time_context
+from backend.lib.sessions import format_session_context
 
 router = APIRouter()
 
@@ -94,12 +95,12 @@ async def _get_context(user_id: str, message: str):
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
-    from datetime import datetime
-    import pytz
-    eastern = pytz.timezone('America/Toronto')
-    current_dt = datetime.now(eastern).strftime("Today is %A, %B %d, %Y. Current time is %I:%M %p EST.")
-    memory_context, user_model_context, skills_summary = await _get_context(request.user_id, request.message)
-    memory_context = f"{current_dt}\n\n{memory_context}"
+    (memory_context, user_model_context, skills_summary), time_ctx, session_ctx = await asyncio.gather(
+        _get_context(request.user_id, request.message),
+        format_user_time_context(request.user_id),
+        format_session_context(request.user_id),
+    )
+    live_context = f"{time_ctx}\n{session_ctx}"
     if skills_summary:
         user_model_context = f"{user_model_context}\n\n{skills_summary}" if user_model_context else skills_summary
 
@@ -124,6 +125,7 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
         available_tools=tools,
         tone_context=tone_context,
         user_id=request.user_id,
+        live_context=live_context,
     )
 
     _record_interaction(request.user_id)
@@ -144,7 +146,12 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
 
 @router.post("/chat/stream")
 async def chat_stream(request: ChatRequest):
-    memory_context, user_model_context, skills_summary = await _get_context(request.user_id, request.message)
+    (memory_context, user_model_context, skills_summary), time_ctx, session_ctx = await asyncio.gather(
+        _get_context(request.user_id, request.message),
+        format_user_time_context(request.user_id),
+        format_session_context(request.user_id),
+    )
+    live_context = f"{time_ctx}\n{session_ctx}"
     if skills_summary:
         user_model_context = f"{user_model_context}\n\n{skills_summary}" if user_model_context else skills_summary
 
@@ -166,21 +173,17 @@ async def chat_stream(request: ChatRequest):
     tools = AVAILABLE_TOOLS if not system_override else None
 
     async def event_generator():
-        from datetime import datetime
-        import pytz
-        eastern = pytz.timezone('America/Toronto')
-        current_dt = datetime.now(eastern).strftime("Today is %A, %B %d, %Y. Current time is %I:%M %p EST.")
-        memory_context_with_dt = f"{current_dt}\n\n{memory_context}"
         try:
             response_text = await jarvis_think(
                 user_message=request.message,
                 conversation_history=safe_history,
-                memory_context=memory_context_with_dt,
+                memory_context=memory_context,
                 user_model_context=user_model_context,
                 system_override=system_override,
                 available_tools=tools,
                 tone_context=tone_context,
                 user_id=request.user_id,
+                live_context=live_context,
             )
 
             for char in response_text:
