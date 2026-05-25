@@ -1,6 +1,7 @@
 # SWAP ZONE: To replace Claude with a local Llama model, only edit the jarvis_think() function below. Nothing else in the codebase needs to change.
 
 import asyncio
+import inspect
 import anthropic
 from backend.utils.env import ANTHROPIC_API_KEY
 from backend.tools.soul import get_soul
@@ -225,9 +226,10 @@ async def jarvis_think(
                 # Registry takes priority; fall back to legacy execute_tool
                 if block.name in TOOL_REGISTRY:
                     tool_fn = TOOL_REGISTRY[block.name]["execute"]
-                    # Strip any user_id Claude might pass; always inject server's value
+                    # Strip any user_id Claude might pass; inject server's value only if the
+                    # tool function actually accepts user_id (prevents TypeError on tools that don't)
                     call_kwargs = {k: v for k, v in block.input.items() if k != "user_id"}
-                    if user_id:
+                    if user_id and "user_id" in inspect.signature(tool_fn).parameters:
                         call_kwargs["user_id"] = user_id
                     tool_result = await tool_fn(**call_kwargs)
                 else:
