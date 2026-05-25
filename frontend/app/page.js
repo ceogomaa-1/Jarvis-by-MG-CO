@@ -545,7 +545,7 @@ function AttachmentCard({ attachment }) {
   )
 }
 
-function Message({ msg, isLatest }) {
+function Message({ msg, isLatest, onRetry }) {
   // Artifact role — must be checked first; content is {html, title} object
   if (msg.role === 'artifact') {
     const htmlContent = typeof msg.content === 'object' ? msg.content?.html : null
@@ -606,8 +606,9 @@ function Message({ msg, isLatest }) {
   const textContent = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
 
   if (msg.role === 'user') {
+    const dimmed = msg.pending || msg.failed || msg.orphaned
     return (
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14, opacity: isLatest ? 1 : 0.78, transition: 'opacity 600ms ease' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14, opacity: dimmed ? 0.55 : (isLatest ? 1 : 0.78), transition: 'opacity 600ms ease' }}>
         <div style={{ maxWidth: '72%', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
           {msg.attachment && <AttachmentCard attachment={msg.attachment} />}
           {msg.imagePreview && (
@@ -622,7 +623,7 @@ function Message({ msg, isLatest }) {
               padding: '12px 18px',
               borderRadius: '20px 20px 4px 20px',
               background: 'var(--user-bubble)',
-              border: '1px solid rgba(255,144,114,0.18)',
+              border: `1px solid ${msg.failed || msg.orphaned ? 'rgba(239,68,68,0.35)' : 'rgba(255,144,114,0.18)'}`,
               color: 'rgba(243,234,217,0.92)',
               fontSize: 15.5, lineHeight: 1.5, fontWeight: 300, letterSpacing: 0.1,
               backdropFilter: 'blur(8px)',
@@ -630,6 +631,22 @@ function Message({ msg, isLatest }) {
             }}>
               {textContent}
             </div>
+          )}
+          {msg.pending && (
+            <div style={{ fontSize: 11, color: 'rgba(243,234,217,0.3)', marginTop: 5, fontFamily: 'system-ui, sans-serif' }}>
+              Sending...
+            </div>
+          )}
+          {(msg.failed || msg.orphaned) && onRetry && (
+            <button
+              onClick={() => onRetry(msg)}
+              style={{
+                marginTop: 5, background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                fontFamily: 'system-ui, sans-serif', fontSize: 11, color: 'rgba(239,68,68,0.75)',
+              }}
+            >
+              {msg.failed ? 'Failed — tap to retry' : 'No response — tap to retry'}
+            </button>
           )}
         </div>
       </div>
@@ -663,7 +680,29 @@ function ThinkingIndicator() {
   )
 }
 
-function Conversation({ messages, loading }) {
+function Toast({ message, onTap, onClose }) {
+  useEffect(() => {
+    const t = setTimeout(onClose, 6000)
+    return () => clearTimeout(t)
+  }, [onClose])
+  return (
+    <div
+      onClick={onTap ?? undefined}
+      style={{
+        position: 'fixed', bottom: 100, left: '50%', transform: 'translateX(-50%)',
+        padding: '12px 20px', borderRadius: 16, zIndex: 9999,
+        background: 'rgba(30,8,8,0.92)', border: '1px solid rgba(239,68,68,0.4)',
+        color: '#fca5a5', fontFamily: 'system-ui, sans-serif', fontSize: 13,
+        cursor: onTap ? 'pointer' : 'default', whiteSpace: 'nowrap',
+        backdropFilter: 'blur(12px)',
+      }}
+    >
+      {message}
+    </div>
+  )
+}
+
+function Conversation({ messages, loading, onRetry }) {
   const scrollRef = useRef(null)
 
   useEffect(() => {
@@ -682,7 +721,7 @@ function Conversation({ messages, loading }) {
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
         {messages.map((m, i) => (
           <div key={m.id ?? i} className="msg-enter">
-            <Message msg={m} isLatest={i === messages.length - 1 && !loading} />
+            <Message msg={m} isLatest={i === messages.length - 1 && !loading} onRetry={onRetry} />
           </div>
         ))}
         {loading && <ThinkingIndicator />}
@@ -1087,6 +1126,7 @@ export default function Home() {
   const [uploadingFile, setUploadingFile] = useState(false)
   const [pastedImage, setPastedImage] = useState(null)
   const [timezoneConfirmed, setTimezoneConfirmed] = useState(null)
+  const [toast, setToast] = useState(null)
   const [isMobile, setIsMobile] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const mobileScrollRef = useRef(null)
@@ -1276,11 +1316,13 @@ export default function Home() {
       const history = historyData.messages || []
       if (history.length > 0) {
         msgIdRef.current = history.length + 1
-        setMessages(history.map((m, i) => ({
-          id: i + 1,
-          role: m.role,
-          content: m.content,
-        })))
+        const mapped = history.map((m, i) => ({ id: i + 1, role: m.role, content: m.content }))
+        // Mark orphaned: last message is user with no assistant response following
+        const last = mapped[mapped.length - 1]
+        if (last?.role === 'user') {
+          mapped[mapped.length - 1] = { ...last, orphaned: true }
+        }
+        setMessages(mapped)
       } else if (!onboardingData.onboarding_complete) {
         setMessages([OPENING_MESSAGE])
       }
@@ -1590,7 +1632,7 @@ export default function Home() {
       .map(({ role, content }) => ({ role, content }))
     msgIdRef.current += 1
     const userMsgId = msgIdRef.current
-    setMessages(prev => [...prev, { id: userMsgId, role: 'user', content: displayText, attachment, imagePreview }])
+    setMessages(prev => [...prev, { id: userMsgId, role: 'user', content: displayText, attachment, imagePreview, pending: true }])
     setLoading(true)
 
     const bodyPayload = { user_id: userId, message: apiText || '', conversation_history: historyForApi }
@@ -1599,90 +1641,128 @@ export default function Home() {
       bodyPayload.image_type = imageType || 'image/png'
     }
 
+    const MAX_RETRIES = 2
     let streamMsgId = null
-    try {
-      const res = await fetch(`${BACKEND}/api/chat/stream`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(bodyPayload),
-      })
-      if (!res.ok) throw new Error(`${res.status}`)
 
-      msgIdRef.current += 1
-      streamMsgId = msgIdRef.current
-      setMessages(prev => [...prev, { id: streamMsgId, role: 'assistant', content: '', streaming: true }])
-      setLoading(false)
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 60_000)
 
-      const reader = res.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-      let accumulated = ''
-      let done = false
+        const res = await fetch(`${BACKEND}/api/chat/stream`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(bodyPayload),
+          signal: controller.signal,
+        })
+        clearTimeout(timeoutId)
 
-      while (!done) {
-        const { done: readerDone, value } = await reader.read()
-        if (readerDone) break
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() ?? ''
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue
-          const raw = line.slice(6)
-          if (raw === '[DONE]') {
-            setMessages(prev => {
-              const updated = [...prev]
-              const idx = updated.findIndex(m => m.id === streamMsgId)
-              if (idx !== -1) updated[idx] = { id: streamMsgId, role: 'assistant', content: accumulated }
-              return updated
-            })
-            done = true
-            break
+        if (!res.ok) throw new Error(`${res.status}`)
+
+        // Fetch succeeded — mark user message confirmed (no longer pending)
+        setMessages(prev => prev.map(m => m.id === userMsgId ? { ...m, pending: false } : m))
+
+        msgIdRef.current += 1
+        streamMsgId = msgIdRef.current
+        setMessages(prev => [...prev, { id: streamMsgId, role: 'assistant', content: '', streaming: true }])
+        setLoading(false)
+
+        const reader = res.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+        let accumulated = ''
+        let done = false
+
+        while (!done) {
+          const { done: readerDone, value } = await reader.read()
+          if (readerDone) break
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split('\n')
+          buffer = lines.pop() ?? ''
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue
+            const raw = line.slice(6)
+            if (raw === '[DONE]') {
+              setMessages(prev => {
+                const updated = [...prev]
+                const idx = updated.findIndex(m => m.id === streamMsgId)
+                if (idx !== -1) updated[idx] = { id: streamMsgId, role: 'assistant', content: accumulated }
+                return updated
+              })
+              done = true
+              break
+            }
+            if (raw === '[ERROR]') {
+              setMessages(prev => prev.filter(m => m.id !== streamMsgId))
+              done = true
+              break
+            }
+            try {
+              const chunk = JSON.parse(raw)
+              accumulated += chunk
+              setMessages(prev => {
+                const updated = [...prev]
+                const idx = updated.findIndex(m => m.id === streamMsgId)
+                if (idx !== -1) updated[idx] = { ...updated[idx], content: accumulated }
+                return updated
+              })
+            } catch {}
           }
-          if (raw === '[ERROR]') {
-            setMessages(prev => prev.filter(m => m.id !== streamMsgId))
-            done = true
-            break
-          }
-          try {
-            const chunk = JSON.parse(raw)
-            accumulated += chunk
-            setMessages(prev => {
-              const updated = [...prev]
-              const idx = updated.findIndex(m => m.id === streamMsgId)
-              if (idx !== -1) updated[idx] = { ...updated[idx], content: accumulated }
-              return updated
-            })
-          } catch {}
+        }
+
+        if (!onboardingComplete) {
+          fetch(`${BACKEND}/api/user/onboarding-status/${userId}`)
+            .then(r => r.json())
+            .then(d => setOnboarding(d.onboarding_complete))
+            .catch(() => {})
+        }
+
+        if (!override && isArtifactRequest(displayText) && userId) {
+          msgIdRef.current += 1
+          const artifactMsgId = msgIdRef.current
+          setMessages(prev => [...prev, {
+            id: artifactMsgId,
+            role: 'artifact',
+            content: { html: null, title: displayText.slice(0, 50) },
+            loading: true,
+          }])
+          fireArtifactFetch(BACKEND, userId, displayText, artifactMsgId, setMessages)
+        }
+
+        setLoading(false)
+        return // success — exit retry loop
+
+      } catch (err) {
+        console.error(`sendMessage attempt ${attempt + 1} failed:`, err)
+        if (streamMsgId) {
+          setMessages(prev => prev.filter(m => m.id !== streamMsgId))
+          streamMsgId = null
+        }
+        setLoading(false)
+        if (attempt < MAX_RETRIES) {
+          await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)))
         }
       }
+    }
 
-      if (!onboardingComplete) {
-        fetch(`${BACKEND}/api/user/onboarding-status/${userId}`)
-          .then(r => r.json())
-          .then(d => setOnboarding(d.onboarding_complete))
-          .catch(() => {})
-      }
+    // All retries exhausted — mark message as failed
+    setMessages(prev => prev.map(m => m.id === userMsgId ? { ...m, pending: false, failed: true } : m))
+    setToast({ message: 'Message failed — tap to retry', retryMsgId: userMsgId })
+    setLoading(false)
+  }
 
-      // Fire artifact generation in parallel for creation requests
-      if (!override && isArtifactRequest(displayText) && userId) {
-        msgIdRef.current += 1
-        const artifactMsgId = msgIdRef.current
-        setMessages(prev => [...prev, {
-          id: artifactMsgId,
-          role: 'artifact',
-          content: { html: null, title: displayText.slice(0, 50) },
-          loading: true,
-        }])
-        fireArtifactFetch(BACKEND, userId, displayText, artifactMsgId, setMessages)
-      }
-    } catch {
-      setMessages(prev => {
-        let msgs = prev.filter(m => m.id !== userMsgId)
-        if (streamMsgId) msgs = msgs.filter(m => m.id !== streamMsgId)
-        return msgs
-      })
-    } finally {
-      setLoading(false)
+  function handleRetry(msgOrId) {
+    const targetId = typeof msgOrId === 'object' ? msgOrId.id : msgOrId
+    setMessages(prev => {
+      const msg = prev.find(m => m.id === targetId)
+      if (!msg) return prev
+      // Remove failed/orphaned message — sendMessage will add a fresh pending one
+      return prev.filter(m => m.id !== targetId)
+    })
+    setToast(null)
+    const msg = messages.find(m => m.id === targetId)
+    if (msg) {
+      sendMessage({ apiText: msg.content, displayText: msg.content, attachment: msg.attachment ?? null })
     }
   }
 
@@ -1691,6 +1771,13 @@ export default function Home() {
       {showIntro && <IntroSplash onDone={() => setShowIntro(false)} />}
       {showPanel && userId && <KnowledgePanel userId={userId} onClose={() => setShowPanel(false)} />}
       <SignOutDrawer isOpen={drawerOpen} onClose={() => setDrawerOpen(false)} user={user} userId={userId} />
+      {toast && (
+        <Toast
+          message={toast.message}
+          onTap={toast.retryMsgId ? () => handleRetry(toast.retryMsgId) : null}
+          onClose={() => setToast(null)}
+        />
+      )}
       {googleConnected === false && !showIntro && userId && (
         <GoogleConnectPrompt
           userId={userId}
@@ -1835,7 +1922,7 @@ export default function Home() {
               >
                 {messages.map((m, i) => (
                   <div key={m.id ?? i} className="msg-enter">
-                    <Message msg={m} isLatest={i === messages.length - 1 && !loading} />
+                    <Message msg={m} isLatest={i === messages.length - 1 && !loading} onRetry={handleRetry} />
                   </div>
                 ))}
                 {loading && <ThinkingIndicator />}
@@ -1999,7 +2086,7 @@ export default function Home() {
 
           {/* right: conversation */}
           <div style={{ gridArea: 'conv', display: 'flex', flexDirection: 'column', minHeight: 0, borderLeft: '1px solid var(--line)' }}>
-            <Conversation messages={messages} loading={loading} />
+            <Conversation messages={messages} loading={loading} onRetry={handleRetry} />
           </div>
 
           {/* input */}

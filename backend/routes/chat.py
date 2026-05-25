@@ -19,6 +19,8 @@ from backend.routes.documents import search_user_documents
 router = APIRouter()
 
 _INTERACTION_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "last_interaction"
+_FALLBACK_LLM_ERROR = "Hit a snag on my end. Try that again?"
+_FALLBACK_EMPTY    = "Caught me thinking. Say that again?"
 
 # ─── Emotional tone ───────────────────────────────────────────────────────────
 
@@ -96,17 +98,25 @@ async def _get_context(user_id: str, message: str):
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
-    (memory_context, user_model_context, skills_summary), time_ctx, session_ctx, doc_ctx = await asyncio.gather(
+    # Gather context + history snapshot BEFORE saving user message to avoid duplication
+    (
+        (memory_context, user_model_context, skills_summary),
+        time_ctx, session_ctx, doc_ctx, history,
+    ) = await asyncio.gather(
         _get_context(request.user_id, request.message),
         format_user_time_context(request.user_id),
         format_session_context(request.user_id),
         search_user_documents(request.user_id, request.message),
+        get_conversation_history(request.user_id, limit=20),
     )
     live_context = f"{time_ctx}\n{session_ctx}"
     if doc_ctx:
         memory_context += f"\n\n--- RELEVANT DOCUMENT CONTENT ---\n{doc_ctx}\n--- END ---"
     if skills_summary:
         user_model_context = f"{user_model_context}\n\n{skills_summary}" if user_model_context else skills_summary
+
+    # Persist user message BEFORE the LLM call so it survives any failure
+    await save_conversation_turn(request.user_id, "user", request.message)
 
     user_model = await get_user_model(request.user_id)
     system_override = None
@@ -126,28 +136,35 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
     else:
         user_content = request.message
 
-    # Use DB conversation history as source of truth
-    history = await get_conversation_history(request.user_id, limit=20)
     tools = AVAILABLE_TOOLS if not system_override else None
 
-    response_text = await jarvis_think(
-        user_message=user_content,
-        conversation_history=history,
-        memory_context=memory_context,
-        user_model_context=user_model_context,
-        system_override=system_override,
-        available_tools=tools,
-        tone_context=tone_context,
-        user_id=request.user_id,
-        live_context=live_context,
-    )
+    # Call LLM — catch failures and return a graceful fallback so user message isn't orphaned
+    try:
+        response_text = await jarvis_think(
+            user_message=user_content,
+            conversation_history=history,
+            memory_context=memory_context,
+            user_model_context=user_model_context,
+            system_override=system_override,
+            available_tools=tools,
+            tone_context=tone_context,
+            user_id=request.user_id,
+            live_context=live_context,
+        )
+    except Exception as e:
+        print(f"CHAT: LLM failed for {request.user_id}: {e}")
+        response_text = _FALLBACK_LLM_ERROR
+
+    # Handle empty / soft-refusal responses
+    if not response_text or not response_text.strip():
+        print(f"CHAT: Empty response for {request.user_id}, using fallback")
+        response_text = _FALLBACK_EMPTY
 
     _record_interaction(request.user_id)
     print(f"CHAT: Running post-response tasks for user {request.user_id}")
     await asyncio.gather(
         save_interaction(request.user_id, request.message, response_text),
         update_user_model(request.user_id, request.message, response_text),
-        save_conversation_turn(request.user_id, "user", request.message),
         save_conversation_turn(request.user_id, "assistant", response_text),
     )
     background_tasks.add_task(
@@ -160,17 +177,25 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
 
 @router.post("/chat/stream")
 async def chat_stream(request: ChatRequest):
-    (memory_context, user_model_context, skills_summary), time_ctx, session_ctx, doc_ctx = await asyncio.gather(
+    # Gather context + history snapshot BEFORE saving user message
+    (
+        (memory_context, user_model_context, skills_summary),
+        time_ctx, session_ctx, doc_ctx, history,
+    ) = await asyncio.gather(
         _get_context(request.user_id, request.message),
         format_user_time_context(request.user_id),
         format_session_context(request.user_id),
         search_user_documents(request.user_id, request.message),
+        get_conversation_history(request.user_id, limit=20),
     )
     live_context = f"{time_ctx}\n{session_ctx}"
     if doc_ctx:
         memory_context += f"\n\n--- RELEVANT DOCUMENT CONTENT ---\n{doc_ctx}\n--- END ---"
     if skills_summary:
         user_model_context = f"{user_model_context}\n\n{skills_summary}" if user_model_context else skills_summary
+
+    # Persist user message BEFORE streaming starts
+    await save_conversation_turn(request.user_id, "user", request.message)
 
     user_model = await get_user_model(request.user_id)
     system_override = None
@@ -190,8 +215,6 @@ async def chat_stream(request: ChatRequest):
     else:
         user_content = request.message
 
-    # Use DB conversation history as source of truth
-    history = await get_conversation_history(request.user_id, limit=20)
     safe_history = [
         {"role": m["role"], "content": m["content"]}
         for m in history
@@ -200,6 +223,7 @@ async def chat_stream(request: ChatRequest):
     tools = AVAILABLE_TOOLS if not system_override else None
 
     async def event_generator():
+        response_text = _FALLBACK_LLM_ERROR
         try:
             response_text = await jarvis_think(
                 user_message=user_content,
@@ -212,23 +236,23 @@ async def chat_stream(request: ChatRequest):
                 user_id=request.user_id,
                 live_context=live_context,
             )
-
-            for char in response_text:
-                yield f"data: {json.dumps(char)}\n\n"
-                await asyncio.sleep(0.01)
-
+            # Handle empty / soft-refusal responses
+            if not response_text or not response_text.strip():
+                print(f"CHAT STREAM: Empty response for {request.user_id}, using fallback")
+                response_text = _FALLBACK_EMPTY
         except Exception as e:
-            print(f"CHAT STREAM: Error for {request.user_id}: {e}")
-            yield "data: [ERROR]\n\n"
-            yield "data: [DONE]\n\n"
-            return
+            print(f"CHAT STREAM: LLM failed for {request.user_id}: {e}")
+            response_text = _FALLBACK_LLM_ERROR
+
+        for char in response_text:
+            yield f"data: {json.dumps(char)}\n\n"
+            await asyncio.sleep(0.01)
 
         _record_interaction(request.user_id)
         async def _run_post_tasks():
             await asyncio.gather(
                 save_interaction(request.user_id, request.message, response_text),
                 update_user_model(request.user_id, request.message, response_text),
-                save_conversation_turn(request.user_id, "user", request.message),
                 save_conversation_turn(request.user_id, "assistant", response_text),
             )
         asyncio.create_task(_run_post_tasks())
