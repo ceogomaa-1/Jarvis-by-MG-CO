@@ -1054,6 +1054,18 @@ export default function Home() {
       .catch(() => setGoogleConnected(false))
   }, [userId])
 
+  // Silently capture browser timezone on auth so Jarvis uses user's local time
+  useEffect(() => {
+    if (!userId) return
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+    if (!tz) return
+    fetch(`${BACKEND}/api/user-preferences/timezone`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, timezone: tz }),
+    }).catch(() => {})
+  }, [userId])
+
   // Fetch unread proactive messages (morning briefings) on login
   useEffect(() => {
     if (!userId) return

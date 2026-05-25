@@ -112,7 +112,26 @@ FORMATTING RULES:
 - Code, file paths, and technical terms go in `backticks`
 - For comparisons, use tables when appropriate
 - For step-by-step instructions, use numbered lists
-- Keep conversational replies short and natural — formatting rules apply to STRUCTURED content (summaries, explanations, lists), not casual chat"""
+- Keep conversational replies short and natural — formatting rules apply to STRUCTURED content (summaries, explanations, lists), not casual chat
+
+TOOL CAPABILITIES:
+You can create calendar events and send emails on the user's behalf using your built-in tools.
+
+WHEN CREATING CALENDAR EVENTS:
+— Confirm title, date, time, and duration with the user before calling create_calendar_event unless all of that was explicitly provided in the request
+— After creating, tell them it's done in your own voice — don't dump raw JSON or event metadata
+
+WHEN SENDING EMAILS:
+— ALWAYS read back the recipient, subject, and full body to the user before calling send_email
+— Wait for explicit confirmation ("yes send it", "go ahead", "send it", etc.) — never send without it in the same conversation turn
+— If the user asks you to "draft" or "write" an email, just write it as a chat response — do NOT call send_email unless they explicitly say to send/fire/ship it
+— After sending, confirm in your own voice
+
+TIME & SESSION AWARENESS:
+— The LIVE CONTEXT block in your prompt tells you the user's current local time and session duration.
+— If the user just returned after being away >15 minutes, acknowledge it naturally if relevant — "Been a bit, what's going on?" — don't force it every time.
+— When referring to times ("tonight", "this afternoon"), use the user's local timezone from LIVE CONTEXT — not Toronto's, not UTC.
+— Don't volunteer time or session info unprompted unless it's contextually relevant."""
 
 
 def _build_system_prompt(
@@ -120,6 +139,7 @@ def _build_system_prompt(
     user_model_context: str,
     system_override: str | None,
     tone_context: str,
+    live_context: str = "",
 ) -> str:
     _absolute_rules = _BASE_SYSTEM_PROMPT.split("---\n\n")[0]
 
@@ -138,6 +158,8 @@ def _build_system_prompt(
         system_prompt += f"\n\nYour current profile: {user_model_context}"
     if tone_context:
         system_prompt += f"\n\n{tone_context}"
+    if live_context:
+        system_prompt += f"\n\n--- LIVE CONTEXT ---\n{live_context}\n--- END CONTEXT ---"
     return system_prompt
 
 
@@ -157,6 +179,7 @@ async def jarvis_think(
     available_tools: list | None = None,
     tone_context: str = "",
     user_id: str = "",
+    live_context: str = "",
 ) -> str:
     # Local imports to avoid circular deps at module load time
     from backend.agent import execute_tool, ANTHROPIC_TOOLS
@@ -169,7 +192,7 @@ async def jarvis_think(
         + get_tools_for_claude()
     )
 
-    system_prompt = _build_system_prompt(memory_context, user_model_context, system_override, tone_context)
+    system_prompt = _build_system_prompt(memory_context, user_model_context, system_override, tone_context, live_context)
     messages = [{"role": m["role"], "content": m["content"]} for m in conversation_history]
     messages.append({"role": "user", "content": user_message})
 
@@ -195,7 +218,11 @@ async def jarvis_think(
                 # Registry takes priority; fall back to legacy execute_tool
                 if block.name in TOOL_REGISTRY:
                     tool_fn = TOOL_REGISTRY[block.name]["execute"]
-                    tool_result = await tool_fn(**block.input)
+                    # Strip any user_id Claude might pass; always inject server's value
+                    call_kwargs = {k: v for k, v in block.input.items() if k != "user_id"}
+                    if user_id:
+                        call_kwargs["user_id"] = user_id
+                    tool_result = await tool_fn(**call_kwargs)
                 else:
                     tool_result = await execute_tool(user_id, block.name, block.input)
                 print(f"LLM: Tool {block.name} → {str(tool_result)[:80]}")
@@ -234,6 +261,7 @@ async def jarvis_think_stream(
     available_tools: list | None = None,
     tone_context: str = "",
     user_id: str = "",
+    live_context: str = "",
 ):
     """Calls jarvis_think() (which handles tool use) then fake-streams the result char by char."""
     result = await jarvis_think(
@@ -245,6 +273,7 @@ async def jarvis_think_stream(
         available_tools=available_tools,
         tone_context=tone_context,
         user_id=user_id,
+        live_context=live_context,
     )
     for char in result:
         yield char

@@ -19,6 +19,11 @@ class PreferenceUpdate(BaseModel):
     jarvis_mode: str  # 'personal' | 'business'
 
 
+class TimezoneUpdate(BaseModel):
+    user_id: str
+    timezone: str
+
+
 class BusinessUserCreate(BaseModel):
     user_id: str
     email: Optional[str] = None
@@ -47,6 +52,19 @@ async def set_preference(body: PreferenceUpdate):
             "user_id": body.user_id,
             "jarvis_mode": body.jarvis_mode,
             "updated_at": "now()",
+        }).execute()
+        return {"ok": True}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@router.patch("/user-preferences/timezone")
+async def set_timezone(body: TimezoneUpdate):
+    try:
+        sb = _client()
+        sb.table("user_preferences").upsert({
+            "user_id": body.user_id,
+            "timezone": body.timezone,
         }).execute()
         return {"ok": True}
     except Exception as e:

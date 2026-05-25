@@ -1,6 +1,6 @@
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
@@ -66,13 +66,16 @@ async def _check_due_reminders(user_id: str) -> dict | None:
     except Exception:
         return None
 
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
     due_note = None
     for note in notes:
         if note.get("done") or not note.get("remind_at"):
             continue
         try:
-            if now >= datetime.fromisoformat(note["remind_at"]):
+            remind_dt = datetime.fromisoformat(note["remind_at"])
+            if remind_dt.tzinfo is None:
+                remind_dt = remind_dt.replace(tzinfo=timezone.utc)
+            if now >= remind_dt:
                 due_note = note
                 break
         except (ValueError, TypeError):

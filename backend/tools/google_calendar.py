@@ -5,6 +5,7 @@ import httpx
 import pytz
 
 from backend.tools.registry import register_tool
+from backend.utils.user_context import get_user_timezone
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID") or os.getenv("GOOGLE_AUTH_ID", "")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET") or os.getenv("GOOGLE_AUTH_SECRET", "")
@@ -54,7 +55,7 @@ async def get_user_refresh_token(user_id: str) -> str:
 
 @register_tool(
     name="get_calendar_events",
-    description="Get upcoming calendar events for the user. Use when asked about schedule, what's coming up, or upcoming meetings.",
+    description="Get upcoming calendar events from the user's Google Calendar. Use when asked about schedule, what's coming up, upcoming meetings, or what's on the calendar.",
     parameters={
         "type": "object",
         "properties": {
@@ -80,7 +81,8 @@ async def get_calendar_events(user_id: str, max_results: int = 5) -> str:
     if not access_token:
         return "Google Calendar auth expired. Please reconnect your Google account."
 
-    eastern = pytz.timezone("America/Toronto")
+    tz_name = await get_user_timezone(user_id)
+    eastern = pytz.timezone(tz_name)
     now = datetime.now(eastern).isoformat()
 
     async with httpx.AsyncClient() as client:
@@ -118,7 +120,7 @@ async def get_calendar_events(user_id: str, max_results: int = 5) -> str:
 
 @register_tool(
     name="create_calendar_event",
-    description="Create a calendar event or reminder. Use when user asks to schedule something, set a reminder, or block time.",
+    description="Create a calendar event on the user's Google Calendar. IMPORTANT: Before calling this, confirm the event title, date, time, and duration with the user — unless all of those were explicitly stated in their request. Only call this tool after confirming details.",
     parameters={
         "type": "object",
         "properties": {
@@ -159,7 +161,8 @@ async def create_calendar_event(
     if not access_token:
         return "Google Calendar auth expired. Please reconnect your Google account."
 
-    eastern = pytz.timezone("America/Toronto")
+    tz_name = await get_user_timezone(user_id)
+    eastern = pytz.timezone(tz_name)
     try:
         start_dt = datetime.fromisoformat(start_time)
         if start_dt.tzinfo is None:
@@ -179,8 +182,8 @@ async def create_calendar_event(
     event = {
         "summary": title,
         "description": description,
-        "start": {"dateTime": start_time, "timeZone": "America/Toronto"},
-        "end": {"dateTime": end_time, "timeZone": "America/Toronto"},
+        "start": {"dateTime": start_time, "timeZone": tz_name},
+        "end": {"dateTime": end_time, "timeZone": tz_name},
     }
 
     async with httpx.AsyncClient() as client:

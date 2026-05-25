@@ -103,7 +103,7 @@ async def get_emails(user_id: str, max_results: int = 5, query: str = "") -> str
 
 @register_tool(
     name="send_email",
-    description="Send an email on behalf of the user. Use when asked to send, reply, or draft and send an email.",
+    description="Send an email on behalf of the user. IMPORTANT: Before calling this, read back the recipient, subject, and full body to the user and wait for explicit confirmation ('yes send it', 'go ahead', etc). Never send without confirmation. If asked to 'draft' or 'write' an email, do NOT call this — just write it as a chat response.",
     parameters={
         "type": "object",
         "properties": {
