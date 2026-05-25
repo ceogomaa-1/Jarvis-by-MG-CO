@@ -10,6 +10,7 @@ import SignOutDrawer from '../components/shared/SignOutDrawer'
 import TimezoneStep from '../components/onboarding/TimezoneStep'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
+const DEV_MODE = true
 
 const OPENING_MESSAGE = {
   id: 0,
@@ -680,11 +681,11 @@ function ThinkingIndicator() {
   )
 }
 
-function Toast({ message, onTap, onClose }) {
+function Toast({ message, onTap, onClose, duration = 6000 }) {
   useEffect(() => {
-    const t = setTimeout(onClose, 6000)
+    const t = setTimeout(onClose, duration)
     return () => clearTimeout(t)
-  }, [onClose])
+  }, [onClose, duration])
   return (
     <div
       onClick={onTap ?? undefined}
@@ -1697,6 +1698,13 @@ export default function Home() {
               done = true
               break
             }
+            if (raw.startsWith('[DEBUG:') && raw.endsWith(']')) {
+              if (DEV_MODE) {
+                const debugText = raw.slice(7, -1)
+                setToast({ message: `🐛 ${debugText}`, retryMsgId: null, duration: 8000 })
+              }
+              continue
+            }
             try {
               const chunk = JSON.parse(raw)
               accumulated += chunk
@@ -1776,6 +1784,7 @@ export default function Home() {
           message={toast.message}
           onTap={toast.retryMsgId ? () => handleRetry(toast.retryMsgId) : null}
           onClose={() => setToast(null)}
+          duration={toast.duration ?? 6000}
         />
       )}
       {googleConnected === false && !showIntro && userId && (
