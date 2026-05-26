@@ -9,19 +9,20 @@ BRAVE_API_KEY = os.getenv("BRAVE_SEARCH_API_KEY", "")
 
 @register_tool(
     name="web_search",
-    description="Search the web for current information, news, facts, prices, or anything requiring real-time data.",
+    description="Search the web for current information. Use when the user asks about recent events, current facts, news, prices, weather, or anything that requires real-time information beyond your training data. Do NOT use for things you already know.",
     parameters={
         "type": "object",
         "properties": {
             "query": {
                 "type": "string",
-                "description": "The search query",
+                "description": "The search query. Keep it short and specific, 2-6 words.",
             }
         },
         "required": ["query"],
     },
 )
 async def web_search(query: str) -> str:
+    print(f"WEB_SEARCH: query={query!r}")
     # Brave Search (best results)
     if BRAVE_API_KEY:
         try:
