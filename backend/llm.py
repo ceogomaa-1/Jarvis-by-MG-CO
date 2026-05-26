@@ -202,7 +202,7 @@ async def jarvis_think(
         + get_tools_for_claude()
     )
 
-    logger.info(f"LLM_ONBOARDING_GATE: system_override={'SET' if system_override else 'NONE'}, tools={'suppressed' if system_override else 'active'}")
+    print(f"LLM_ONBOARDING_GATE: system_override={'SET' if system_override else 'NONE'}, tools={'suppressed' if system_override else 'active'}")
 
     system_prompt = _build_system_prompt(memory_context, user_model_context, system_override, tone_context, live_context)
     if not system_override:
@@ -221,10 +221,10 @@ async def jarvis_think(
         kwargs["tools"] = all_tools
 
     tools_offered = [t["name"] for t in all_tools] if available_tools else []
-    logger.info(f"LLM_TOOLS_OFFERED: {tools_offered if tools_offered else 'NONE'}")
+    print(f"LLM_TOOLS_OFFERED: {tools_offered if tools_offered else 'NONE'}")
 
     result = await _client.messages.create(**kwargs)
-    logger.info(f"LLM_RESPONSE_TYPES: {[block.type for block in result.content]}")
+    print(f"LLM_RESPONSE_TYPES: {[block.type for block in result.content]}")
 
     # Native tool use loop
     if result.stop_reason == "tool_use":
@@ -242,12 +242,12 @@ async def jarvis_think(
                     call_kwargs = {k: v for k, v in block.input.items() if k != "user_id"}
                     if user_id and "user_id" in inspect.signature(tool_fn).parameters:
                         call_kwargs["user_id"] = user_id
-                    logger.info(f"TOOL_CALL: {block.name}({call_kwargs})")
+                    print(f"TOOL_CALL: {block.name}({call_kwargs})")
                     tool_result = await tool_fn(**call_kwargs)
                 else:
-                    logger.info(f"TOOL_CALL (legacy): {block.name}({block.input})")
+                    print(f"TOOL_CALL (legacy): {block.name}({block.input})")
                     tool_result = await execute_tool(user_id, block.name, block.input)
-                logger.info(f"TOOL_RESULT: {block.name} → {str(tool_result)[:200]}")
+                print(f"TOOL_RESULT: {block.name} → {str(tool_result)[:200]}")
                 assistant_content.append({
                     "type": "tool_use",
                     "id": block.id,
