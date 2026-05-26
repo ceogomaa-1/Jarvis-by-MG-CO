@@ -12,3 +12,4 @@ python-multipart
 APScheduler>=3.10.0
 reportlab>=4.0.0
 supabase>=2.0.0
+fal-client>=0.9.0

@@ -210,6 +210,16 @@ async def get_current_moment_block(user_id: str) -> str:
     )
 
 
+_VOICE_MODE_BLOCK = """VOICE MODE — you are being spoken aloud, not read:
+- Write the way you'd actually talk. Short sentences. Natural pauses (commas, em-dashes).
+- No markdown, no bullet points, no headers. Plain spoken language only.
+- Contractions always ("you're" not "you are", "I'd" not "I would").
+- If you'd normally write a list, speak it conversationally ("a couple things — first X, and second Y").
+- Keep responses tight — 2–4 sentences for most replies. Longer only when genuinely warranted.
+- Skip filler openers mid-conversation. No "Hi there!" or "Great question!" — just answer.
+- Match the user's energy, lean a little warmer — there's intimacy in being heard."""
+
+
 def _build_system_prompt(
     memory_context: str,
     user_model_context: str,
@@ -217,6 +227,7 @@ def _build_system_prompt(
     tone_context: str,
     live_context: str = "",
     moment_block: str = "",
+    voice_mode: bool = False,
 ) -> str:
     _absolute_rules = _BASE_SYSTEM_PROMPT.split("---\n\n")[0]
 
@@ -237,6 +248,9 @@ def _build_system_prompt(
         system_prompt += f"\n\n{tone_context}"
     if live_context:
         system_prompt += f"\n\n--- LIVE CONTEXT ---\n{live_context}\n--- END CONTEXT ---"
+
+    if voice_mode:
+        system_prompt += f"\n\n{_VOICE_MODE_BLOCK}"
 
     # Moment block goes at the very top so it's the first thing the model reads
     if moment_block:
@@ -262,6 +276,7 @@ async def jarvis_think(
     tone_context: str = "",
     user_id: str = "",
     live_context: str = "",
+    voice_mode: bool = False,
 ) -> str:
     # Local imports to avoid circular deps at module load time
     from backend.agent import execute_tool, ANTHROPIC_TOOLS
@@ -277,7 +292,7 @@ async def jarvis_think(
     print(f"LLM_ONBOARDING_GATE: system_override={'SET' if system_override else 'NONE'}, tools={'suppressed' if system_override else 'active'}")
 
     moment_block = await get_current_moment_block(user_id)
-    system_prompt = _build_system_prompt(memory_context, user_model_context, system_override, tone_context, live_context, moment_block=moment_block)
+    system_prompt = _build_system_prompt(memory_context, user_model_context, system_override, tone_context, live_context, moment_block=moment_block, voice_mode=voice_mode)
     if not system_override:
         system_prompt = "YOU ARE NOT IN ONBOARDING MODE. ALL TOOLS ARE ACTIVE. CALL THEM WITHOUT HESITATION.\n\n" + system_prompt
 

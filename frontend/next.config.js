@@ -3,6 +3,13 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_BACKEND_URL: process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000',
   },
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.resolve.fallback = { ...config.resolve.fallback, fs: false }
+    }
+    config.experiments = { ...config.experiments, asyncWebAssembly: true }
+    return config
+  },
 }
 
 module.exports = nextConfig

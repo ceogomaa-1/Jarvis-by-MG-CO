@@ -8,6 +8,7 @@ import { getJarvisMode, setJarvisMode } from '../lib/userPreferences'
 import ModeToggle from '../components/shared/ModeToggle'
 import SignOutDrawer from '../components/shared/SignOutDrawer'
 import TimezoneStep from '../components/onboarding/TimezoneStep'
+import { JarvisVoice } from '../lib/jarvisVoice'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 const DEV_MODE = true
@@ -733,8 +734,7 @@ function Conversation({ messages, loading, onRetry }) {
 
 // ─── Input bar ────────────────────────────────────────────────────────────────
 
-function InputBar({ orbState, input, setInput, onSend, onMicClick, voiceMode, voiceConnecting, loading, disabled, fileInputRef, uploadingFile, onFileSelect, pendingFiles, onRemoveFile, mobile, pastedImage, onPastedImageChange }) {
-  const isVoiceActive = voiceMode
+function InputBar({ orbState, input, setInput, onSend, onMicDown, onMicUp, onMicLeave, holdToTalkActive, voiceMode, voiceConnecting, loading, disabled, fileInputRef, uploadingFile, onFileSelect, pendingFiles, onRemoveFile, mobile, pastedImage, onPastedImageChange }) {
   const isListening = orbState === 'listening'
   const textareaRef = useRef(null)
   const hasContent = input.trim() || !!pastedImage || (pendingFiles || []).some(f => f.status === 'ready')
@@ -786,18 +786,17 @@ function InputBar({ orbState, input, setInput, onSend, onMicClick, voiceMode, vo
     return () => window.removeEventListener('paste', handlePaste)
   }, [onPastedImageChange])
 
-  const micBg = voiceConnecting
-    ? 'rgba(255,144,114,0.3)'
-    : isVoiceActive
+  const micBg = holdToTalkActive
     ? 'var(--accent)'
     : 'rgba(243,234,217,0.07)'
 
-  const micColor = voiceConnecting || isVoiceActive ? '#1a0e08' : 'var(--ink-soft)'
-  const micShadow = isVoiceActive ? '0 0 24px rgba(255,144,114,0.6)' : 'none'
+  const micColor = holdToTalkActive ? '#1a0e08' : 'var(--ink-soft)'
+  const micShadow = holdToTalkActive ? '0 0 24px rgba(255,144,114,0.6)' : 'none'
 
   let placeholder = 'Say something to Jarvis'
-  if (isVoiceActive) placeholder = 'Voice active — or type here'
+  if (holdToTalkActive) placeholder = 'Listening...'
   else if (isListening) placeholder = 'Listening...'
+  else if (voiceMode) placeholder = 'Hands-free active — or type here'
 
   return (
     <div style={{ padding: mobile ? '12px 16px 20px' : '20px 40px 32px', display: 'flex', justifyContent: 'center', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
@@ -892,26 +891,26 @@ function InputBar({ orbState, input, setInput, onSend, onMicClick, voiceMode, vo
         transition: 'border-color 300ms ease, background 300ms ease',
       }}>
         <button
-          onClick={onMicClick}
+          onMouseDown={onMicDown}
+          onMouseUp={onMicUp}
+          onMouseLeave={onMicLeave}
+          onTouchStart={(e) => { e.preventDefault(); onMicDown?.() }}
+          onTouchEnd={(e) => { e.preventDefault(); onMicUp?.() }}
+          onTouchCancel={(e) => { e.preventDefault(); onMicLeave?.() }}
           disabled={voiceConnecting}
-          aria-label={isVoiceActive ? 'stop voice' : 'start voice'}
+          aria-label="hold to talk"
           style={{
             width: 36, height: 36, borderRadius: 999, flexShrink: 0,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             background: micBg, border: '1px solid rgba(243,234,217,0.12)',
             color: micColor, cursor: voiceConnecting ? 'default' : 'pointer',
             transition: 'all 250ms ease', boxShadow: micShadow,
+            userSelect: 'none', WebkitUserSelect: 'none',
           }}
         >
-          {voiceConnecting ? (
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', animation: 'inkPulse 0.8s ease-in-out infinite', display: 'inline-block' }} />
-          ) : isVoiceActive ? (
-            // Stop icon
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-              <rect x="4" y="4" width="16" height="16" rx="2" />
-            </svg>
+          {holdToTalkActive ? (
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#1a0e08', animation: 'inkPulse 0.8s ease-in-out infinite', display: 'inline-block' }} />
           ) : (
-            // Mic icon
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <rect x="9" y="3" width="6" height="12" rx="3" />
               <path d="M5 11a7 7 0 0 0 14 0" />
@@ -1195,7 +1194,10 @@ export default function Home() {
   const [toast, setToast] = useState(null)
   const [isMobile, setIsMobile] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [holdToTalkActive, setHoldToTalkActive] = useState(false)
   const mobileScrollRef = useRef(null)
+  const isVoiceEnabledRef = useRef(false)
+  const voiceInputPendingRef = useRef(false)
   const MAX_RECONNECT = 5
 
   // Flush voice transcript every 30s so memory saves even on short sessions
@@ -1421,8 +1423,11 @@ export default function Home() {
     return () => window.removeEventListener('focus', onFocus)
   }, [])
 
+  // Keep voice enabled ref in sync for streaming closures
+  useEffect(() => { isVoiceEnabledRef.current = voiceMode }, [voiceMode])
+
   // Voice cleanup on unmount — must be before any conditional return
-  useEffect(() => () => voiceManagerRef.current?.disconnect(), [])
+  useEffect(() => () => voiceManagerRef.current?.destroy(), [])
 
   if (authLoading) {
     return (
@@ -1472,101 +1477,66 @@ export default function Home() {
     }
   }
 
-  async function startVoice() {
-    if (!userId) {
-      console.error('Cannot start voice: userId not set')
-      setVoiceError('Please wait a moment and try again.')
-      return
+  function _getOrCreateJarvisVoice() {
+    if (!voiceManagerRef.current) {
+      voiceManagerRef.current = new JarvisVoice({
+        userId,
+        onTranscript: () => {},
+        onSpeakingStart: () => setJarvisSpeaking(true),
+        onSpeakingEnd: () => setJarvisSpeaking(false),
+        onError: (msg) => setVoiceError(msg),
+        onRecordingStart: () => {},
+        onRecordingStop: () => {},
+      })
     }
+    return voiceManagerRef.current
+  }
+
+  async function sendViaVoice(text) {
+    voiceInputPendingRef.current = true
+    await sendMessage({ apiText: text, displayText: text })
+  }
+
+  // ── Hold-to-talk ─────────────────────────────────────────────────────────────
+
+  async function startHoldToTalk() {
+    if (!userId) return
+    setHoldToTalkActive(true)
+    setVoiceError(null)
+    await _getOrCreateJarvisVoice().startHoldToTalk()
+  }
+
+  async function stopHoldToTalk() {
+    if (!holdToTalkActive) return
+    setHoldToTalkActive(false)
+    await voiceManagerRef.current?.stopHoldToTalk(sendViaVoice)
+  }
+
+  function cancelHoldToTalk() {
+    if (!holdToTalkActive) return
+    setHoldToTalkActive(false)
+    voiceManagerRef.current?.cancelHoldToTalk()
+  }
+
+  // ── Hands-free toggle ─────────────────────────────────────────────────────────
+
+  async function startVoice() {
+    if (!userId) return
     setVoiceConnecting(true)
     setVoiceError(null)
     try {
-      await navigator.mediaDevices.getUserMedia({ audio: true })
-
-      const res = await fetch(`${BACKEND}/api/voice/session`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId }),
-      })
-      console.log('Voice session response status:', res.status)
-      if (!res.ok) {
-        const errorText = await res.text()
-        console.error('Backend voice error:', errorText)
-        throw new Error(`Backend returned ${res.status}: ${errorText}`)
-      }
-      const data = await res.json()
-      console.log('Got signed_url:', data.signed_url ? `yes (length: ${data.signed_url.length})` : 'no')
-      const { signed_url, system_prompt, user_id: verifiedUserId } = data
-
-      const { VoiceManager } = await import('../lib/voiceManager')
-      const vm = new VoiceManager(
-        () => setJarvisSpeaking(true),
-        () => setJarvisSpeaking(false),
-        (role, text) => {
-          if (!text?.trim()) return
-          msgIdRef.current += 1
-          setMessages(prev => [...prev, {
-            id: msgIdRef.current,
-            role: role === 'jarvis' ? 'assistant' : 'user',
-            content: text,
-            fromVoice: true,
-          }])
-          // Fire artifact generation — stricter trigger for voice
-          if (role === 'user' && isExplicitCreate(text) && userId) {
-            msgIdRef.current += 1
-            const artifactMsgId = msgIdRef.current
-            setMessages(prev => [...prev, {
-              id: artifactMsgId,
-              role: 'artifact',
-              content: { html: null, title: text.slice(0, 50) },
-              loading: true,
-            }])
-            fireArtifactFetch(BACKEND, userId, text, artifactMsgId, setMessages)
-          }
-        },
-        (error) => {
-          if (error === 'reconnecting') {
-            flushVoiceTranscript()
-            if (reconnectAttemptsRef.current < MAX_RECONNECT) {
-              reconnectAttemptsRef.current += 1
-              console.log(`Auto-reconnect attempt ${reconnectAttemptsRef.current}/${MAX_RECONNECT}`)
-              voiceManagerRef.current = null
-              setJarvisSpeaking(false)
-              setTimeout(() => startVoice(), 3000)
-            } else {
-              setVoiceMode(false)
-              setJarvisSpeaking(false)
-              setVoiceError('Voice disconnected. Click mic to reconnect.')
-            }
-          } else {
-            setVoiceMode(false)
-            setJarvisSpeaking(false)
-          }
-        },
-        (update) => {
-          conversationBufferRef.current.push(update)
-          if (conversationBufferRef.current.length >= 10) {
-            flushVoiceTranscript()
-          }
-        },
-        () => flushVoiceTranscript()
-      )
-      await vm.connect(signed_url, system_prompt, verifiedUserId || userId)
-      voiceManagerRef.current = vm
+      await _getOrCreateJarvisVoice().startHandsFree(sendViaVoice)
       setVoiceMode(true)
     } catch (err) {
-      console.error('Voice connection failed:', err)
-      setVoiceError('Could not start voice. Check mic permissions.')
+      console.error('Hands-free start failed:', err)
+      setVoiceError('Could not start hands-free mode.')
     } finally {
       setVoiceConnecting(false)
     }
   }
 
-  async function stopVoice() {
-    reconnectAttemptsRef.current = 0
-    await flushVoiceTranscript()
-    await voiceManagerRef.current?.disconnect()
-    voiceManagerRef.current = null
+  function stopVoice() {
+    voiceManagerRef.current?.stopHandsFree()
     setVoiceMode(false)
     setJarvisSpeaking(false)
   }
@@ -1772,6 +1742,9 @@ export default function Home() {
       bodyPayload.image_base64 = imageB64
       bodyPayload.image_type = imageType || 'image/png'
     }
+    if (isVoiceEnabledRef.current || voiceInputPendingRef.current) {
+      bodyPayload.voice_mode = true
+    }
     // Also include all ready images as attachments (belt-and-suspenders for drag-drop)
     const readyImages = !override
       ? pendingFiles.filter(f => f.type?.startsWith('image/') && f.preview && f.status === 'ready')
@@ -1829,6 +1802,11 @@ export default function Home() {
                 if (idx !== -1) updated[idx] = { id: streamMsgId, role: 'assistant', content: accumulated }
                 return updated
               })
+              // Speak the response when voice was used to send the message
+              if ((isVoiceEnabledRef.current || voiceInputPendingRef.current) && accumulated?.trim()) {
+                voiceInputPendingRef.current = false
+                voiceManagerRef.current?.speak(accumulated)
+              }
               done = true
               break
             }
@@ -2118,7 +2096,10 @@ export default function Home() {
               input={input}
               setInput={setInput}
               onSend={sendMessage}
-              onMicClick={voiceMode ? stopVoice : startVoice}
+              onMicDown={startHoldToTalk}
+              onMicUp={stopHoldToTalk}
+              onMicLeave={cancelHoldToTalk}
+              holdToTalkActive={holdToTalkActive}
               voiceMode={voiceMode}
               voiceConnecting={voiceConnecting}
               loading={loading || isStreaming}
@@ -2175,6 +2156,36 @@ export default function Home() {
                   onMouseEnter={e => e.currentTarget.style.opacity = '1'}
                   onMouseLeave={e => e.currentTarget.style.opacity = '0.6'}
                 >◉</button>
+              )}
+
+              {/* Hands-free voice toggle */}
+              {userId && (
+                <button
+                  onClick={voiceMode ? stopVoice : startVoice}
+                  disabled={voiceConnecting}
+                  title={voiceMode ? 'Stop hands-free voice' : 'Start hands-free voice'}
+                  style={{
+                    background: voiceMode ? 'rgba(255,144,114,0.12)' : 'none',
+                    border: `1px solid ${voiceMode ? 'rgba(255,144,114,0.4)' : 'var(--line)'}`,
+                    borderRadius: '6px',
+                    color: voiceMode ? 'var(--accent)' : 'var(--ink-mute)',
+                    fontSize: '0.65rem', padding: '0.35rem 0.6rem',
+                    cursor: voiceConnecting ? 'default' : 'pointer',
+                    letterSpacing: '0.05em', transition: 'all 0.2s',
+                    fontFamily: 'var(--sans)', display: 'flex', alignItems: 'center', gap: 5,
+                  }}
+                >
+                  {voiceConnecting ? (
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', animation: 'inkPulse 0.8s ease-in-out infinite', display: 'inline-block' }} />
+                  ) : voiceMode ? (
+                    <>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', animation: 'inkPulse 1.4s ease-in-out infinite', display: 'inline-block' }} />
+                      <span>Voice On</span>
+                    </>
+                  ) : (
+                    <span>Voice</span>
+                  )}
+                </button>
               )}
 
               {/* Mode toggle */}
@@ -2276,7 +2287,10 @@ export default function Home() {
               input={input}
               setInput={setInput}
               onSend={sendMessage}
-              onMicClick={voiceMode ? stopVoice : startVoice}
+              onMicDown={startHoldToTalk}
+              onMicUp={stopHoldToTalk}
+              onMicLeave={cancelHoldToTalk}
+              holdToTalkActive={holdToTalkActive}
               voiceMode={voiceMode}
               voiceConnecting={voiceConnecting}
               loading={loading || isStreaming}
