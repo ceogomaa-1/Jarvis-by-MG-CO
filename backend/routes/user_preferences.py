@@ -25,6 +25,10 @@ class TimezoneUpdate(BaseModel):
     timezone_confirmed: bool = False
 
 
+class CompleteOnboardingRequest(BaseModel):
+    user_id: str
+
+
 class BusinessUserCreate(BaseModel):
     user_id: str
     email: Optional[str] = None
@@ -71,6 +75,21 @@ async def set_timezone(body: TimezoneUpdate):
         sb.table("user_preferences").upsert(data).execute()
         return {"ok": True}
     except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@router.post("/user-preferences/complete-onboarding")
+async def complete_onboarding(body: CompleteOnboardingRequest):
+    try:
+        sb = _client()
+        sb.table("user_preferences").upsert({
+            "user_id": body.user_id,
+            "onboarding_complete": True,
+        }).execute()
+        print(f"ONBOARDING_GATE: marked complete for user_id={body.user_id}")
+        return {"ok": True}
+    except Exception as e:
+        print(f"ONBOARDING_GATE: ERROR marking complete for {body.user_id}: {e}")
         return {"ok": False, "error": str(e)}
 
 

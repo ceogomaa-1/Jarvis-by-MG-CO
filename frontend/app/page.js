@@ -1379,6 +1379,11 @@ export default function Home() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ user_id: userId, timezone: tz, timezone_confirmed: true }),
             })
+            await fetch(`${BACKEND}/api/user-preferences/complete-onboarding`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ user_id: userId }),
+            })
           } catch {}
           setTimezoneConfirmed(true)
         }}
