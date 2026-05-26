@@ -834,7 +834,11 @@ function InputBar({ orbState, input, setInput, onSend, onMicClick, voiceMode, vo
                     {f.name}
                   </span>
                   {f.status === 'ready' && <span style={{ color: 'var(--accent)', fontSize: 9, fontFamily: 'var(--sans)' }}>Ready</span>}
-                  {f.status === 'error' && <span style={{ color: '#ef4444', fontSize: 9, fontFamily: 'var(--sans)' }}>Failed</span>}
+                  {f.status === 'error' && (
+                    <span title={f.errorMsg || 'Upload failed'} style={{ color: '#ef4444', fontSize: 9, fontFamily: 'var(--sans)', cursor: 'help', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: 'center' }}>
+                      Failed{f.errorMsg ? ` — ${f.errorMsg}` : ''}
+                    </span>
+                  )}
                 </div>
               )}
               <button
@@ -1568,10 +1572,12 @@ export default function Home() {
   }
 
   async function handleFileSelect(source) {
-    const files = source instanceof FileList
-      ? [...source]
+    const files = Array.isArray(source)
+      ? source
+      : source instanceof FileList
+      ? Array.from(source)
       : source?.target?.files
-      ? [...source.target.files]
+      ? Array.from(source.target.files)
       : []
     if (!files.length || !userId) return
     if (source?.target) source.target.value = ''
@@ -1609,7 +1615,7 @@ export default function Home() {
             : f))
         } catch (err) {
           console.error('File upload error:', err)
-          setPendingFiles(prev => prev.map(f => f.id === id ? { ...f, status: 'error' } : f))
+          setPendingFiles(prev => prev.map(f => f.id === id ? { ...f, status: 'error', errorMsg: err.message } : f))
         } finally {
           setUploadingFile(false)
         }
@@ -1943,12 +1949,14 @@ export default function Home() {
 
       {/* Layout — mobile / desktop */}
       <div
-        onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
+        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true) }}
         onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setIsDragging(false) }}
         onDrop={(e) => {
           e.preventDefault()
+          e.stopPropagation()
           setIsDragging(false)
-          if (e.dataTransfer.files.length) handleFileSelect(e.dataTransfer.files)
+          const droppedFiles = Array.from(e.dataTransfer.files)
+          if (droppedFiles.length) handleFileSelect(droppedFiles)
         }}
       >
       {isMobile ? (
