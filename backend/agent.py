@@ -21,17 +21,6 @@ ANTHROPIC_TOOLS = [
         },
     },
     {
-        "name": "web_search",
-        "description": "Search the web for current information",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string", "description": "Search query"},
-            },
-            "required": ["query"],
-        },
-    },
-    {
         "name": "save_note",
         "description": "Save a note or reminder for the user",
         "input_schema": {

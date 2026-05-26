@@ -2,9 +2,12 @@
 
 import asyncio
 import inspect
+import logging
 import anthropic
 from backend.utils.env import ANTHROPIC_API_KEY
 from backend.tools.soul import get_soul
+
+logger = logging.getLogger(__name__)
 
 _client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY, timeout=60.0, max_retries=2)
 
@@ -122,18 +125,17 @@ FORMATTING RULES:
 - For step-by-step instructions, use numbered lists
 - Keep conversational replies short and natural — formatting rules apply to STRUCTURED content (summaries, explanations, lists), not casual chat
 
-TOOL CAPABILITIES:
-You can create calendar events and send emails on the user's behalf using your built-in tools.
+TOOLS YOU HAVE — CALL THEM, DON'T TALK ABOUT THEM:
+When a user asks you to DO something a tool handles, CALL THE TOOL. Do not narrate what you're about to do. Do not say "I'll create that event for you" and then produce a text response. Execute.
 
-WHEN CREATING CALENDAR EVENTS:
-— Confirm title, date, time, and duration with the user before calling create_calendar_event unless all of that was explicitly provided in the request
-— After creating, tell them it's done in your own voice — don't dump raw JSON or event metadata
+- create_calendar_event: Call this the moment you have a title, date, and start time. If any of those three are missing, ask only for the missing piece — then call immediately once you have it. Never ask for confirmation on top of information you already have.
+- get_calendar_events: Call this whenever the user asks about their schedule, upcoming meetings, what they have today/this week, or anything calendar-related.
+- get_emails: Call this when the user asks to check or read their email.
+- send_email: BEFORE calling, read back the recipient, subject, and body to the user once and wait for explicit go-ahead ("send it", "go ahead", "yes"). Never send without that confirmation. If asked to "draft" or "write" an email — do NOT call send_email, just write it as text.
+- get_datetime: Call this whenever you need the current time or date.
+- save_note / get_notes: Call these for saving or retrieving notes and reminders.
 
-WHEN SENDING EMAILS:
-— ALWAYS read back the recipient, subject, and full body to the user before calling send_email
-— Wait for explicit confirmation ("yes send it", "go ahead", "send it", etc.) — never send without it in the same conversation turn
-— If the user asks you to "draft" or "write" an email, just write it as a chat response — do NOT call send_email unless they explicitly say to send/fire/ship it
-— After sending, confirm in your own voice
+CRITICAL: After a tool succeeds, confirm in one sentence in your own voice. Never dump raw JSON or event metadata. If a tool returns an error message (like "No Google Calendar connected"), relay it plainly and tell the user what they need to do.
 
 TIME & SESSION AWARENESS:
 — The LIVE CONTEXT block in your prompt tells you the user's current local time and session duration.
@@ -231,10 +233,12 @@ async def jarvis_think(
                     call_kwargs = {k: v for k, v in block.input.items() if k != "user_id"}
                     if user_id and "user_id" in inspect.signature(tool_fn).parameters:
                         call_kwargs["user_id"] = user_id
+                    logger.info(f"TOOL_CALL: {block.name}({call_kwargs})")
                     tool_result = await tool_fn(**call_kwargs)
                 else:
+                    logger.info(f"TOOL_CALL (legacy): {block.name}({block.input})")
                     tool_result = await execute_tool(user_id, block.name, block.input)
-                print(f"LLM: Tool {block.name} → {str(tool_result)[:80]}")
+                logger.info(f"TOOL_RESULT: {block.name} → {str(tool_result)[:200]}")
                 assistant_content.append({
                     "type": "tool_use",
                     "id": block.id,
