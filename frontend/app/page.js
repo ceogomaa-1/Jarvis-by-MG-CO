@@ -1377,7 +1377,7 @@ export default function Home() {
             await fetch(`${BACKEND}/api/user-preferences/timezone`, {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ user_id: userId, timezone: tz }),
+              body: JSON.stringify({ user_id: userId, timezone: tz, timezone_confirmed: true }),
             })
           } catch {}
           setTimezoneConfirmed(true)
