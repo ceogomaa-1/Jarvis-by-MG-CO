@@ -23,11 +23,12 @@ JARVIS_VOICE_REF_B = {
     "audio_url": "https://huggingface.co/spaces/sesame/csm-1b/resolve/main/prompts/conversational_b.wav",
     "speaker_id": 0,
     "prompt": (
-        "I don't know, I think it's just like, when you have a lot going on it's hard to know "
-        "where to start. Like there's this thing where you want to do everything perfectly but "
-        "then you end up doing nothing because you're so worried about getting it wrong. I've been "
-        "trying to just pick one thing and do that, and then move on. It's been actually helping "
-        "a lot more than I thought it would."
+        "like a super Mario level. Like it's very like high detail. And like, once you get into "
+        "the park, it just like, everything looks like a computer game and they have all these, "
+        "like, you know, if, if there's like a, you know, like in a Mario game, they will have "
+        "like a question block. And if you like, you know, punch it, a coin will come out. So "
+        "like everyone, when they come into the park, they get like this little bracelet and then "
+        "you can go punching question blocks around."
     ),
 }
 

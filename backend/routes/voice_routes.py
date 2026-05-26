@@ -7,7 +7,7 @@ import traceback
 from typing import Optional, Union
 
 import httpx
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 
 from backend.memory import get_relevant_memories, save_interaction, extract_emotional_context, memory_client
@@ -518,18 +518,28 @@ async def synthesize_speech(req: SynthRequest):
 
 @router.get("/voice/test")
 async def test_voice(
-    text: str = "Hey, what's up brother. Hope your day's going well.",
-    voice: str = "a",
+    text: str = Query("Hey what's up brother, welcome back."),
+    voice: str = Query("a"),
 ):
-    """Hit /api/voice/test?text=...&voice=a|b to audition reference clips."""
-    from backend.services.voice import synthesize_jarvis_voice, JARVIS_VOICE_REF_A, JARVIS_VOICE_REF_B
+    """Hit /api/voice/test?text=...&voice=a|b to audition reference clips in the browser."""
+    import fal_client  # type: ignore
+    from backend.services.voice import JARVIS_VOICE_REF_A, JARVIS_VOICE_REF_B
 
     if not os.getenv("FAL_API_KEY"):
         raise HTTPException(status_code=503, detail="FAL_API_KEY not configured")
+    os.environ.setdefault("FAL_KEY", os.getenv("FAL_API_KEY", ""))
 
-    ref = JARVIS_VOICE_REF_B if voice.lower() == "b" else JARVIS_VOICE_REF_A
+    ref_clips = {"a": JARVIS_VOICE_REF_A, "b": JARVIS_VOICE_REF_B}
+    chosen_ref = ref_clips.get(voice.lower(), JARVIS_VOICE_REF_A)
+
     try:
-        audio_url = await synthesize_jarvis_voice(text, voice_ref=ref)
-        return {"audio_url": audio_url, "voice": voice, "text": text}
+        result = await fal_client.subscribe_async(
+            "fal-ai/csm-1b",
+            arguments={
+                "scene": [{"text": text, "speaker_id": 0}],
+                "context": [chosen_ref],
+            },
+        )
+        return {"audio_url": result["audio"]["url"], "voice_used": voice, "text": text}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
