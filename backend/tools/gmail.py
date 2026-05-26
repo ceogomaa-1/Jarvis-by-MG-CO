@@ -1,10 +1,13 @@
 import base64
+from datetime import datetime
 from email.mime.text import MIMEText
+from zoneinfo import ZoneInfo
 
 import httpx
 
 from backend.tools.registry import register_tool
 from backend.tools.google_calendar import get_access_token, get_user_refresh_token
+from backend.utils.user_context import get_user_timezone
 
 
 def _extract_body(payload: dict) -> str:
@@ -54,6 +57,9 @@ async def get_emails(user_id: str, max_results: int = 5, query: str = "") -> str
 
     access_token = await get_access_token(refresh_token)
 
+    tz_name = (await get_user_timezone(user_id)) or "UTC"
+    user_tz = ZoneInfo(tz_name)
+
     async with httpx.AsyncClient() as client:
         profile_resp = await client.get(
             "https://gmail.googleapis.com/gmail/v1/users/me/profile",
@@ -90,11 +96,20 @@ async def get_emails(user_id: str, max_results: int = 5, query: str = "") -> str
             hd = {h["name"]: h["value"] for h in raw_headers}
             body = _extract_body(payload)
             body_preview = body[:500].strip() if body else "No body content"
+
+            # Convert internalDate (ms since epoch) to user's local time
+            internal_ms = int(msg_data.get("internalDate", 0) or 0)
+            if internal_ms:
+                dt_local = datetime.fromtimestamp(internal_ms / 1000, tz=ZoneInfo("UTC")).astimezone(user_tz)
+                received_str = dt_local.strftime("%a %b %d, %I:%M %p %Z")
+            else:
+                received_str = hd.get("Date", "")
+
             results.append(
                 f"From: {hd.get('From', 'Unknown')}\n"
                 f"To: {hd.get('To', account_email)}\n"
                 f"Subject: {hd.get('Subject', 'No subject')}\n"
-                f"Date: {hd.get('Date', '')}\n"
+                f"Received: {received_str}\n"
                 f"Message: {body_preview}"
             )
 

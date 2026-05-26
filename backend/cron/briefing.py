@@ -61,6 +61,7 @@ Reference something personal if relevant.
 End with one sharp question or observation about their day.""",
         conversation_history=[],
         system_override="You are Jarvis. Write a morning briefing exactly as you would speak it — natural, direct, personal. No greetings like 'Good morning!'. Just start talking.",
+        user_id=user_id,
     )
     return briefing
 

@@ -336,10 +336,13 @@ async def chat_stream(request: ChatRequest):
 async def generate_artifact(request: ChatRequest):
     import os
     import httpx
+    from backend.llm import get_current_moment_block
 
     api_key = os.getenv("ANTHROPIC_API_KEY", "")
     if not api_key:
         return {"artifact": "", "error": "No API key"}
+
+    moment_block = await get_current_moment_block(request.user_id)
 
     user_prompt = (
         f'Create a complete self-contained HTML page for:\n\n'
@@ -367,6 +370,7 @@ async def generate_artifact(request: ChatRequest):
                 "model": "claude-sonnet-4-20250514",
                 "max_tokens": 8096,
                 "system": (
+                    f"{moment_block}\n\n---\n\n"
                     "You are an expert HTML/CSS developer. "
                     "Output ONLY raw HTML. Start with <!DOCTYPE html> and end with </html>. "
                     "Keep total output under 3000 tokens. "

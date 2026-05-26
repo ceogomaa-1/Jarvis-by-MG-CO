@@ -5,7 +5,7 @@ from backend.tools.registry import register_tool
 
 @register_tool(
     name="get_datetime",
-    description="Get the current date and time in any timezone.",
+    description="Returns the current time. NOTE: you already have current time in your system prompt — only call this if you need a fresh re-check for a long-running operation.",
     parameters={
         "type": "object",
         "properties": {
