@@ -1571,6 +1571,13 @@ export default function Home() {
     setJarvisSpeaking(false)
   }
 
+  function _inferMime(file) {
+    if (file.type) return file.type
+    const ext = (file.name || '').split('.').pop().toLowerCase()
+    const map = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp', svg: 'image/svg+xml', pdf: 'application/pdf', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', doc: 'application/msword', txt: 'text/plain', csv: 'text/csv', md: 'text/plain' }
+    return map[ext] || 'application/octet-stream'
+  }
+
   async function handleFileSelect(source) {
     const files = Array.isArray(source)
       ? source
@@ -1588,14 +1595,22 @@ export default function Home() {
         continue
       }
       const id = Math.random().toString(36).slice(2, 10)
+      const mime = _inferMime(file)
+      console.log(`FILE_SELECT: name=${file.name} declared_type=${file.type || '(empty)'} resolved_mime=${mime}`)
 
-      if (file.type.startsWith('image/')) {
+      if (mime.startsWith('image/')) {
         const reader = new FileReader()
         reader.onload = (ev) => {
+          const dataUrl = ev.target.result
+          console.log(`FILE_SELECT: image ready name=${file.name} preview_length=${dataUrl?.length}`)
           setPendingFiles(prev => [...prev, {
-            id, name: file.name, type: file.type, size: file.size,
-            preview: ev.target.result, status: 'ready',
+            id, name: file.name, type: mime, size: file.size,
+            preview: dataUrl, status: 'ready',
           }])
+        }
+        reader.onerror = (ev) => {
+          console.error('FILE_SELECT: FileReader error', ev)
+          setPendingFiles(prev => prev.filter(f => f.id !== id))
         }
         reader.readAsDataURL(file)
       } else {
@@ -1718,6 +1733,8 @@ export default function Home() {
       ? { name: readyDocs.map(f => f.name).join(', '), type: 'docs', size: 0 }
       : null)
 
+    console.log('SEND: pendingFiles state', pendingFiles)
+    console.log('SEND: pendingImg found', !!pendingImg, 'imageB64 present', !!imageB64, 'imageType', imageType)
     console.log('sendMessage called with:', apiText.slice(0, 80))
     if ((!apiText && !imageB64 && readyDocs.length === 0) || loading || isStreaming) return
     if (!override) {
@@ -1755,6 +1772,14 @@ export default function Home() {
       bodyPayload.image_base64 = imageB64
       bodyPayload.image_type = imageType || 'image/png'
     }
+    // Also include all ready images as attachments (belt-and-suspenders for drag-drop)
+    const readyImages = !override
+      ? pendingFiles.filter(f => f.type?.startsWith('image/') && f.preview && f.status === 'ready')
+      : []
+    if (readyImages.length > 0) {
+      bodyPayload.attachments = readyImages.map(f => ({ url: f.preview, file_type: f.type }))
+    }
+    console.log('SEND: payload keys', Object.keys(bodyPayload), 'image_base64 present', !!bodyPayload.image_base64, 'image_base64 length', bodyPayload.image_base64?.length ?? 0, 'attachments', bodyPayload.attachments?.length ?? 0)
 
     const MAX_RETRIES = 2
     let streamMsgId = null

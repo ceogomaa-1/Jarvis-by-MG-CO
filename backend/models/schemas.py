@@ -26,6 +26,7 @@ class ChatRequest(BaseModel):
     conversation_history: list[Message] = []
     image_base64: str | None = None
     image_type: str | None = None
+    attachments: list[dict] = []  # [{url, file_type, file_id}] — future URL-based attachment flow
 
 
 class ChatResponse(BaseModel):
