@@ -3,6 +3,9 @@
 import asyncio
 import inspect
 import logging
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 import anthropic
 from backend.utils.env import ANTHROPIC_API_KEY
 from backend.tools.soul import get_soul
@@ -160,12 +163,60 @@ TIME & SESSION AWARENESS:
 — Don't volunteer time or session info unprompted unless it's contextually relevant."""
 
 
+async def get_current_moment_block(user_id: str) -> str:
+    from backend.utils.user_context import get_user_timezone
+    tz_name = "UTC"
+    try:
+        tz_name = (await get_user_timezone(user_id)) or "UTC"
+        tz = ZoneInfo(tz_name)
+    except Exception as e:
+        print(f"TIME_INJECT_FALLBACK: {e}")
+        tz = ZoneInfo("UTC")
+        tz_name = "UTC"
+
+    now = datetime.now(tz)
+    weekday   = now.strftime("%A")           # Monday
+    date_full = now.strftime("%B %d, %Y")   # May 26, 2026
+    time_12h  = now.strftime("%I:%M %p")    # 05:51 PM
+    iso       = now.isoformat()             # 2026-05-26T17:51:23-04:00
+
+    hour = now.hour
+    if 5 <= hour < 12:
+        vibe = "morning"
+    elif 12 <= hour < 17:
+        vibe = "afternoon"
+    elif 17 <= hour < 21:
+        vibe = "evening"
+    else:
+        vibe = "late night"
+
+    print(f"TIME_INJECT: user_id={user_id} → tz={tz_name} now={time_12h} ({vibe})")
+
+    return (
+        f"CURRENT MOMENT (always trust this, never guess):\n"
+        f"- It is {weekday}, {date_full}\n"
+        f"- Local time: {time_12h} ({tz_name})\n"
+        f"- Time of day: {vibe}\n"
+        f"- ISO timestamp: {iso}\n\n"
+        f"You are aware of time the way a human is — ambient, automatic. When the user asks "
+        f'"what time is it" / "what day is it" / "how long ago" / "is it late" — you know. '
+        f"You do NOT need to call any tool for the current time. This block is refreshed on "
+        f"every message you receive, so it is ALWAYS accurate.\n\n"
+        f"For calculating elapsed time (timers, \"how long since X\"), use the ISO timestamp "
+        f"above as \"now\" and subtract the past event's timestamp.\n\n"
+        f"For future events (calendar, reminders), still call create_calendar_event or "
+        f"get_calendar_events — those tools handle scheduling and storage. But \"what time is "
+        f"it RIGHT NOW\" is answered above, always."
+    )
+
+
 def _build_system_prompt(
     memory_context: str,
     user_model_context: str,
     system_override: str | None,
     tone_context: str,
     live_context: str = "",
+    moment_block: str = "",
 ) -> str:
     _absolute_rules = _BASE_SYSTEM_PROMPT.split("---\n\n")[0]
 
@@ -186,6 +237,11 @@ def _build_system_prompt(
         system_prompt += f"\n\n{tone_context}"
     if live_context:
         system_prompt += f"\n\n--- LIVE CONTEXT ---\n{live_context}\n--- END CONTEXT ---"
+
+    # Moment block goes at the very top so it's the first thing the model reads
+    if moment_block:
+        system_prompt = moment_block + "\n\n---\n\n" + system_prompt
+
     return system_prompt
 
 
@@ -220,7 +276,8 @@ async def jarvis_think(
 
     print(f"LLM_ONBOARDING_GATE: system_override={'SET' if system_override else 'NONE'}, tools={'suppressed' if system_override else 'active'}")
 
-    system_prompt = _build_system_prompt(memory_context, user_model_context, system_override, tone_context, live_context)
+    moment_block = await get_current_moment_block(user_id)
+    system_prompt = _build_system_prompt(memory_context, user_model_context, system_override, tone_context, live_context, moment_block=moment_block)
     if not system_override:
         system_prompt = "YOU ARE NOT IN ONBOARDING MODE. ALL TOOLS ARE ACTIVE. CALL THEM WITHOUT HESITATION.\n\n" + system_prompt
 
