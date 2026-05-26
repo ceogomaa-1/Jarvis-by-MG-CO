@@ -1,9 +1,12 @@
+import logging
 import os
 from urllib.parse import urlencode
 
 import httpx
 from fastapi import APIRouter
 from fastapi.responses import RedirectResponse
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -55,6 +58,7 @@ async def google_callback(code: str, state: str):
     access_token = tokens.get("access_token", "")
 
     if refresh_token:
+        logger.info(f"GCAL: Storing token for user_id={user_id!r}")
         supabase_url = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL", "")
         supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
         async with httpx.AsyncClient() as client:
@@ -72,6 +76,15 @@ async def google_callback(code: str, state: str):
                     "access_token": access_token,
                 },
             )
+
+        # Verify write succeeded by immediately re-reading
+        from backend.tools.google_calendar import get_user_refresh_token
+        verified = await get_user_refresh_token(user_id)
+        if verified:
+            logger.info(f"GCAL: Token verified for user_id={user_id!r}")
+        else:
+            logger.error(f"GCAL: Token write FAILED for user_id={user_id!r} — stored but not readable")
+
         return RedirectResponse("https://jarvis-by-mg-co.vercel.app/?calendar=connected")
 
     return {"error": "No refresh token received", "tokens": tokens}

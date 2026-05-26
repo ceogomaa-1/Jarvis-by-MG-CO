@@ -130,7 +130,7 @@ async def get_calendar_events(user_id: str, max_results: int = 5) -> str:
 
 @register_tool(
     name="create_calendar_event",
-    description="Create a calendar event on the user's Google Calendar. IMPORTANT: Before calling this, confirm the event title, date, time, and duration with the user — unless all of those were explicitly stated in their request. Only call this tool after confirming details.",
+    description="Create a calendar event on the user's Google Calendar. Call this as soon as you have the event title, date, and start time. If any of those are missing, ask only for what is missing, then call this tool immediately once you have them.",
     parameters={
         "type": "object",
         "properties": {
