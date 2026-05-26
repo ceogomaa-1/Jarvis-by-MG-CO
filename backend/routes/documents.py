@@ -20,7 +20,8 @@ def _sb():
 
 
 def _extract_text(content_bytes: bytes, mime_type: str, filename: str) -> str:
-    if mime_type == "application/pdf" or filename.lower().endswith(".pdf"):
+    fname = filename.lower()
+    if mime_type == "application/pdf" or fname.endswith(".pdf"):
         try:
             import pypdf
             reader = pypdf.PdfReader(io.BytesIO(content_bytes))
@@ -29,7 +30,16 @@ def _extract_text(content_bytes: bytes, mime_type: str, filename: str) -> str:
             raise HTTPException(400, "pypdf not installed — cannot parse PDF")
         except Exception as e:
             raise HTTPException(400, f"Could not parse PDF: {e}")
-    if mime_type.startswith("text/") or filename.lower().endswith((".txt", ".md", ".csv")):
+    if mime_type in ("application/vnd.openxmlformats-officedocument.wordprocessingml.document",) or fname.endswith((".docx", ".doc")):
+        try:
+            import docx
+            doc = docx.Document(io.BytesIO(content_bytes))
+            return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+        except ImportError:
+            raise HTTPException(400, "python-docx not installed — cannot parse DOCX")
+        except Exception as e:
+            raise HTTPException(400, f"Could not parse DOCX: {e}")
+    if mime_type.startswith("text/") or fname.endswith((".txt", ".md", ".csv", ".xlsx")):
         return content_bytes.decode("utf-8", errors="ignore")
     raise HTTPException(400, f"Unsupported file type for text extraction: {mime_type or filename}")
 

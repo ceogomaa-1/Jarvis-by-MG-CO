@@ -733,11 +733,11 @@ function Conversation({ messages, loading, onRetry }) {
 
 // ─── Input bar ────────────────────────────────────────────────────────────────
 
-function InputBar({ orbState, input, setInput, onSend, onMicClick, voiceMode, voiceConnecting, loading, disabled, fileInputRef, uploadingFile, onFileUpload, mobile, pastedImage, onPastedImageChange }) {
+function InputBar({ orbState, input, setInput, onSend, onMicClick, voiceMode, voiceConnecting, loading, disabled, fileInputRef, uploadingFile, onFileSelect, pendingFiles, onRemoveFile, mobile, pastedImage, onPastedImageChange }) {
   const isVoiceActive = voiceMode
   const isListening = orbState === 'listening'
   const textareaRef = useRef(null)
-  const hasContent = input.trim() || !!pastedImage
+  const hasContent = input.trim() || !!pastedImage || (pendingFiles || []).some(f => f.status === 'ready')
 
   // Reset height when message is sent (input cleared externally)
   useEffect(() => {
@@ -801,6 +801,58 @@ function InputBar({ orbState, input, setInput, onSend, onMicClick, voiceMode, vo
 
   return (
     <div style={{ padding: mobile ? '12px 16px 20px' : '20px 40px 32px', display: 'flex', justifyContent: 'center', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+      {(pendingFiles || []).length > 0 && (
+        <div style={{
+          width: '100%', maxWidth: 720,
+          display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2,
+          scrollbarWidth: 'none',
+        }}>
+          {(pendingFiles || []).map(f => (
+            <div key={f.id} style={{ position: 'relative', flexShrink: 0 }}>
+              {f.type?.startsWith('image/') && f.preview ? (
+                <img
+                  src={f.preview}
+                  alt={f.name}
+                  style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--accent)', display: 'block' }}
+                />
+              ) : (
+                <div style={{
+                  width: 110, height: 60, borderRadius: 8,
+                  border: `1px solid ${f.status === 'error' ? '#ef4444' : 'var(--accent)'}`,
+                  background: 'rgba(200,75,49,0.08)',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                  padding: '4px 8px', gap: 2,
+                }}>
+                  {f.status === 'uploading' && (
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', animation: 'inkPulse 0.8s ease-in-out infinite', display: 'inline-block' }} />
+                  )}
+                  <span style={{
+                    color: 'var(--ink-soft)', fontSize: 9, fontFamily: 'var(--sans)',
+                    textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap', width: '100%',
+                  }}>
+                    {f.name}
+                  </span>
+                  {f.status === 'ready' && <span style={{ color: 'var(--accent)', fontSize: 9, fontFamily: 'var(--sans)' }}>Ready</span>}
+                  {f.status === 'error' && <span style={{ color: '#ef4444', fontSize: 9, fontFamily: 'var(--sans)' }}>Failed</span>}
+                </div>
+              )}
+              <button
+                onClick={() => onRemoveFile?.(f.id)}
+                style={{
+                  position: 'absolute', top: -6, right: -6,
+                  width: 18, height: 18, borderRadius: '50%',
+                  background: '#1a0e08', border: '1px solid rgba(255,255,255,0.2)',
+                  color: 'rgba(243,234,217,0.8)', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 12, lineHeight: 1, padding: 0,
+                }}
+                aria-label="remove attachment"
+              >×</button>
+            </div>
+          ))}
+        </div>
+      )}
       {pastedImage && (
         <div style={{ width: '100%', maxWidth: 720, display: 'flex', alignItems: 'flex-start' }}>
           <div style={{ position: 'relative', display: 'inline-block' }}>
@@ -883,7 +935,14 @@ function InputBar({ orbState, input, setInput, onSend, onMicClick, voiceMode, vo
             </svg>
           )}
         </button>
-        <input ref={fileInputRef} type="file" style={{ display: 'none' }} accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.txt,.md,.csv" onChange={onFileUpload} />
+        <input
+          ref={fileInputRef}
+          type="file"
+          style={{ display: 'none' }}
+          accept="image/*,application/pdf,.docx,.doc,.txt,.md,.csv,.xlsx"
+          multiple
+          onChange={onFileSelect}
+        />
         <textarea
           ref={textareaRef}
           value={input}
@@ -1126,6 +1185,8 @@ export default function Home() {
   const fileInputRef = useRef(null)
   const [uploadingFile, setUploadingFile] = useState(false)
   const [pastedImage, setPastedImage] = useState(null)
+  const [pendingFiles, setPendingFiles] = useState([])
+  const [isDragging, setIsDragging] = useState(false)
   const [timezoneConfirmed, setTimezoneConfirmed] = useState(null)
   const [toast, setToast] = useState(null)
   const [isMobile, setIsMobile] = useState(false)
@@ -1506,31 +1567,53 @@ export default function Home() {
     setJarvisSpeaking(false)
   }
 
-  async function handleFileUpload(e) {
-    const file = e.target.files?.[0]
-    if (!file || !userId) return
-    e.target.value = ''
-    setUploadingFile(true)
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('user_id', userId)
-      const res = await fetch(`${BACKEND}/api/documents/upload`, {
-        method: 'POST',
-        body: formData,
-      })
-      if (!res.ok) throw new Error(`Upload failed: ${res.status}`)
-      const data = await res.json()
-      const attachment = { name: data.filename, type: file.type, size: data.file_size }
-      await sendMessage({
-        displayText: `Attached: ${data.filename}`,
-        apiText: `[Attached file: ${data.filename} — ${data.chunk_count} sections indexed. Ask me about it.]`,
-        attachment,
-      })
-    } catch (err) {
-      console.error('File upload error:', err)
-    } finally {
-      setUploadingFile(false)
+  async function handleFileSelect(source) {
+    const files = source instanceof FileList
+      ? [...source]
+      : source?.target?.files
+      ? [...source.target.files]
+      : []
+    if (!files.length || !userId) return
+    if (source?.target) source.target.value = ''
+
+    for (const file of files) {
+      if (file.size > 25 * 1024 * 1024) {
+        setToast({ message: `${file.name} is over the 25 MB limit` })
+        continue
+      }
+      const id = Math.random().toString(36).slice(2, 10)
+
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader()
+        reader.onload = (ev) => {
+          setPendingFiles(prev => [...prev, {
+            id, name: file.name, type: file.type, size: file.size,
+            preview: ev.target.result, status: 'ready',
+          }])
+        }
+        reader.readAsDataURL(file)
+      } else {
+        setPendingFiles(prev => [...prev, {
+          id, name: file.name, type: file.type, size: file.size, status: 'uploading',
+        }])
+        setUploadingFile(true)
+        try {
+          const form = new FormData()
+          form.append('file', file)
+          form.append('user_id', userId)
+          const res = await fetch(`${BACKEND}/api/documents/upload`, { method: 'POST', body: form })
+          if (!res.ok) throw new Error(`Upload failed: ${res.status}`)
+          const data = await res.json()
+          setPendingFiles(prev => prev.map(f => f.id === id
+            ? { ...f, docId: data.document_id, chunkCount: data.chunk_count, status: 'ready' }
+            : f))
+        } catch (err) {
+          console.error('File upload error:', err)
+          setPendingFiles(prev => prev.map(f => f.id === id ? { ...f, status: 'error' } : f))
+        } finally {
+          setUploadingFile(false)
+        }
+      }
     }
   }
 
@@ -1613,16 +1696,28 @@ export default function Home() {
   async function sendMessage(override = null) {
     const apiText = (override?.apiText ?? input).trim()
     const displayText = (override?.displayText ?? apiText)
-    const attachment = override?.attachment ?? null
-    const imageB64 = override?.imageBase64 ?? (pastedImage ? pastedImage.preview : null)
-    const imageType = override?.imageType ?? (pastedImage ? pastedImage.type : null)
-    const imagePreview = pastedImage?.preview ?? null
+
+    // Collect pending file attachments (only when not an override call)
+    const pendingImg = !override
+      ? pendingFiles.find(f => f.type?.startsWith('image/') && f.preview && f.status === 'ready')
+      : null
+    const readyDocs = !override
+      ? pendingFiles.filter(f => f.docId && f.status === 'ready')
+      : []
+
+    const imageB64 = override?.imageBase64 ?? (pendingImg?.preview ?? (pastedImage ? pastedImage.preview : null))
+    const imageType = override?.imageType ?? (pendingImg?.type ?? (pastedImage ? pastedImage.type : null))
+    const imagePreview = pendingImg?.preview ?? pastedImage?.preview ?? null
+    const attachment = override?.attachment ?? (readyDocs.length > 0
+      ? { name: readyDocs.map(f => f.name).join(', '), type: 'docs', size: 0 }
+      : null)
 
     console.log('sendMessage called with:', apiText.slice(0, 80))
-    if ((!apiText && !imageB64) || loading || isStreaming) return
+    if ((!apiText && !imageB64 && readyDocs.length === 0) || loading || isStreaming) return
     if (!override) {
       setInput('')
       setPastedImage(null)
+      setPendingFiles([])
     }
 
     // Intercept PDF export requests before hitting the chat API
@@ -1641,7 +1736,15 @@ export default function Home() {
     setMessages(prev => [...prev, { id: userMsgId, role: 'user', content: displayText, attachment, imagePreview, pending: true }])
     setLoading(true)
 
-    const bodyPayload = { user_id: userId, message: apiText || '', conversation_history: historyForApi }
+    // Inject doc references into the message so Jarvis knows to search them
+    let messageText = apiText || ''
+    if (readyDocs.length > 0 && messageText) {
+      messageText += `\n\n[Attached docs: ${readyDocs.map(f => `${f.name} (${f.chunkCount} sections indexed)`).join(', ')}]`
+    } else if (readyDocs.length > 0) {
+      messageText = `[Attached docs: ${readyDocs.map(f => `${f.name} (${f.chunkCount} sections indexed)`).join(', ')}]`
+    }
+
+    const bodyPayload = { user_id: userId, message: messageText, conversation_history: historyForApi }
     if (imageB64) {
       bodyPayload.image_base64 = imageB64
       bodyPayload.image_type = imageType || 'image/png'
@@ -1819,7 +1922,35 @@ export default function Home() {
         background: 'radial-gradient(ellipse 90% 85% at 50% 45%, transparent 35%, rgba(8,6,4,0.72) 100%)',
       }} />
 
+      {/* Drag-and-drop overlay */}
+      {isDragging && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1001,
+          background: 'rgba(200, 75, 49, 0.08)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          border: '2px dashed rgba(200, 75, 49, 0.5)',
+          pointerEvents: 'none',
+        }}>
+          <span style={{
+            color: 'var(--accent)', fontFamily: 'var(--sans)',
+            fontSize: '1rem', letterSpacing: '0.25em', textTransform: 'uppercase',
+          }}>
+            Drop to attach
+          </span>
+        </div>
+      )}
+
       {/* Layout — mobile / desktop */}
+      <div
+        onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
+        onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setIsDragging(false) }}
+        onDrop={(e) => {
+          e.preventDefault()
+          setIsDragging(false)
+          if (e.dataTransfer.files.length) handleFileSelect(e.dataTransfer.files)
+        }}
+      >
       {isMobile ? (
 
         /* ── MOBILE LAYOUT ─────────────────────────────────────────────── */
@@ -1961,7 +2092,9 @@ export default function Home() {
               disabled={!userId}
               fileInputRef={fileInputRef}
               uploadingFile={uploadingFile}
-              onFileUpload={handleFileUpload}
+              onFileSelect={handleFileSelect}
+              pendingFiles={pendingFiles}
+              onRemoveFile={(id) => setPendingFiles(prev => prev.filter(f => f.id !== id))}
               pastedImage={pastedImage}
               onPastedImageChange={setPastedImage}
               mobile
@@ -2117,7 +2250,9 @@ export default function Home() {
               disabled={!userId}
               fileInputRef={fileInputRef}
               uploadingFile={uploadingFile}
-              onFileUpload={handleFileUpload}
+              onFileSelect={handleFileSelect}
+              pendingFiles={pendingFiles}
+              onRemoveFile={(id) => setPendingFiles(prev => prev.filter(f => f.id !== id))}
               pastedImage={pastedImage}
               onPastedImageChange={setPastedImage}
             />
@@ -2125,6 +2260,7 @@ export default function Home() {
         </div>
 
       )}
+      </div>
     </>
   )
 }
