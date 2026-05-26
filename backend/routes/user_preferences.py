@@ -22,7 +22,7 @@ class PreferenceUpdate(BaseModel):
 class TimezoneUpdate(BaseModel):
     user_id: str
     timezone: str
-    timezone_confirmed: bool = True
+    timezone_confirmed: bool = False
 
 
 class BusinessUserCreate(BaseModel):
@@ -63,11 +63,12 @@ async def set_preference(body: PreferenceUpdate):
 async def set_timezone(body: TimezoneUpdate):
     try:
         sb = _client()
-        sb.table("user_preferences").upsert({
-            "user_id": body.user_id,
-            "timezone": body.timezone,
-            "timezone_confirmed": body.timezone_confirmed,
-        }).execute()
+        data: dict = {"user_id": body.user_id, "timezone": body.timezone}
+        # Only write timezone_confirmed when explicitly confirming — silent captures
+        # must not overwrite an existing True value for returning users.
+        if body.timezone_confirmed:
+            data["timezone_confirmed"] = True
+        sb.table("user_preferences").upsert(data).execute()
         return {"ok": True}
     except Exception as e:
         return {"ok": False, "error": str(e)}

@@ -1,3 +1,4 @@
+import logging
 import os
 from datetime import datetime, timedelta
 
@@ -6,6 +7,8 @@ import pytz
 
 from backend.tools.registry import register_tool
 from backend.utils.user_context import get_user_timezone
+
+logger = logging.getLogger(__name__)
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID") or os.getenv("GOOGLE_AUTH_ID", "")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET") or os.getenv("GOOGLE_AUTH_SECRET", "")
@@ -36,9 +39,11 @@ async def get_access_token(refresh_token: str) -> str:
 
 async def get_user_refresh_token(user_id: str) -> str:
     """Retrieve stored Google refresh token for this user from Supabase."""
+    logger.info(f"GCAL: Looking up token for user_id={user_id!r}")
     supabase_url = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL", "")
     supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
     if not supabase_url or not supabase_key:
+        logger.warning("GCAL: Missing Supabase credentials — cannot look up token")
         return ""
     async with httpx.AsyncClient() as client:
         resp = await client.get(
@@ -50,7 +55,12 @@ async def get_user_refresh_token(user_id: str) -> str:
             params={"user_id": f"eq.{user_id}", "limit": 1},
         )
     rows = resp.json() if resp.status_code == 200 else []
-    return rows[0].get("refresh_token", "") if rows else ""
+    token = rows[0].get("refresh_token", "") if rows else ""
+    if token:
+        logger.info(f"GCAL: Token found for user_id={user_id!r}")
+    else:
+        logger.warning(f"GCAL: No token found for user_id={user_id!r} (rows={len(rows)})")
+    return token
 
 
 @register_tool(

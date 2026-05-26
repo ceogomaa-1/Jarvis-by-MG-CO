@@ -1,24 +1,27 @@
 'use client'
 
 import { useState } from 'react'
-import { supabase } from '../../lib/supabase'
+import { supabase } from '../../../lib/supabase'
 
-export default function Login() {
+export default function PersonalLogin() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
-  const handleGoogleLogin = async () => {
+  const handleLogin = async () => {
     if (!supabase) return
     setLoading(true)
     setError(null)
-    const { error } = await supabase.auth.signInWithOAuth({
+    const { error: authError } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
+        // Encode the destination so it survives as a single `next` query param
+        // and lands at /?onboard=personal — page.js picks up ?onboard=personal
+        // to set jarvis_mode='personal' and skip the portal selector.
         redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent('/?onboard=personal')}`,
       },
     })
-    if (error) {
-      setError(error.message)
+    if (authError) {
+      setError(authError.message)
       setLoading(false)
     }
   }
@@ -26,7 +29,7 @@ export default function Login() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'var(--bg)',
+      background: '#0a0a0a',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -40,24 +43,23 @@ export default function Login() {
         alignItems: 'center',
         gap: 0,
       }}>
-        {/* Wordmark */}
         <div style={{
-          fontFamily: 'var(--display)',
+          fontFamily: 'Georgia, serif',
           fontSize: '2.8rem',
           letterSpacing: '0.55em',
           paddingLeft: '0.55em',
-          color: 'var(--ink)',
+          color: '#f3ead9',
           fontWeight: 400,
           userSelect: 'none',
         }}>
           JARVIS
         </div>
         <div style={{
-          fontFamily: 'var(--sans)',
+          fontFamily: 'system-ui, sans-serif',
           fontSize: '0.65rem',
           letterSpacing: '0.4em',
           paddingLeft: '0.4em',
-          color: 'var(--ink-mute)',
+          color: 'rgba(243,234,217,0.4)',
           textTransform: 'uppercase',
           fontWeight: 400,
           marginTop: 4,
@@ -65,13 +67,11 @@ export default function Login() {
           by MG &amp; Co
         </div>
 
-        {/* Subtitle */}
         <div style={{
-          fontFamily: 'var(--serif)',
+          fontFamily: 'Georgia, serif',
           fontSize: '1.05rem',
-          color: 'var(--ink-soft)',
+          color: 'rgba(243,234,217,0.55)',
           fontWeight: 300,
-          letterSpacing: 0.2,
           marginTop: 32,
           marginBottom: 40,
           textAlign: 'center',
@@ -80,9 +80,8 @@ export default function Login() {
           Your personal AI. Sign in to continue.
         </div>
 
-        {/* Google button */}
         <button
-          onClick={handleGoogleLogin}
+          onClick={handleLogin}
           disabled={loading}
           style={{
             width: '100%',
@@ -92,7 +91,7 @@ export default function Login() {
             gap: 14,
             padding: '14px 24px',
             background: 'rgba(243,234,217,0.04)',
-            border: '1px solid var(--line)',
+            border: '1px solid rgba(243,234,217,0.12)',
             borderRadius: 12,
             cursor: loading ? 'default' : 'pointer',
             transition: 'border-color 250ms ease, background 250ms ease',
@@ -106,11 +105,10 @@ export default function Login() {
             }
           }}
           onMouseLeave={e => {
-            e.currentTarget.style.borderColor = 'var(--line)'
+            e.currentTarget.style.borderColor = 'rgba(243,234,217,0.12)'
             e.currentTarget.style.background = 'rgba(243,234,217,0.04)'
           }}
         >
-          {/* Google logo */}
           <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
             <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
             <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853"/>
@@ -118,10 +116,10 @@ export default function Login() {
             <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
           </svg>
           <span style={{
-            fontFamily: 'var(--sans)',
+            fontFamily: 'system-ui, sans-serif',
             fontSize: '0.9rem',
             letterSpacing: '0.08em',
-            color: 'var(--ink)',
+            color: '#f3ead9',
             fontWeight: 400,
           }}>
             {loading ? 'Redirecting...' : 'Continue with Google'}
@@ -131,7 +129,7 @@ export default function Login() {
         {error && (
           <div style={{
             marginTop: 16,
-            fontFamily: 'var(--sans)',
+            fontFamily: 'system-ui, sans-serif',
             fontSize: '0.75rem',
             color: '#ef4444',
             textAlign: 'center',
@@ -142,13 +140,12 @@ export default function Login() {
 
         <div style={{
           marginTop: 48,
-          fontFamily: 'var(--sans)',
+          fontFamily: 'system-ui, sans-serif',
           fontSize: '0.65rem',
-          color: 'var(--ink-mute)',
+          color: 'rgba(243,234,217,0.25)',
           letterSpacing: '0.1em',
           textAlign: 'center',
           lineHeight: 1.8,
-          opacity: 0.6,
         }}>
           Your conversation and memory persist<br />
           across every session.

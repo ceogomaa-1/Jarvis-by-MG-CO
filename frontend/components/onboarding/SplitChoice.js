@@ -291,7 +291,7 @@ export default function SplitChoice() {
     if (!supabase) return
     await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth/callback?next=/&onboard=personal` },
+      options: { redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent('/?onboard=personal')}` },
     })
   }
 
