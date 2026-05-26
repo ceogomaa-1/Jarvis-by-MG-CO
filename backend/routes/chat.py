@@ -202,6 +202,7 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
             tone_context=tone_context,
             user_id=request.user_id,
             live_context=live_context,
+            voice_mode=request.voice_mode,
         )
     except Exception as e:
         debug_str = _log_fallback("LLM_EXCEPTION", request.message, exc=e)
@@ -291,6 +292,7 @@ async def chat_stream(request: ChatRequest):
                 tone_context=tone_context,
                 user_id=request.user_id,
                 live_context=live_context,
+                voice_mode=request.voice_mode,
             )
             # Handle empty / soft-refusal responses
             if not response_text or not response_text.strip():

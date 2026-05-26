@@ -27,6 +27,7 @@ class ChatRequest(BaseModel):
     image_base64: str | None = None
     image_type: str | None = None
     attachments: list[dict] = []  # [{url, file_type, file_id}] — future URL-based attachment flow
+    voice_mode: bool = False  # True → inject voice system prompt, TTS response on frontend
 
 
 class ChatResponse(BaseModel):

@@ -1,11 +1,13 @@
 import asyncio
 import json as json_module
 import os
+import tempfile
+import time
 import traceback
 from typing import Optional, Union
 
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from backend.memory import get_relevant_memories, save_interaction, extract_emotional_context, memory_client
@@ -438,3 +440,96 @@ async def voice_tool_timer(request: VoiceTimerRequest):
         return {"result": result}
     except Exception as e:
         return {"result": f"Could not set timer: {str(e)}"}
+
+
+# ─── STT — Whisper transcription ──────────────────────────────────────────────
+
+@router.post("/voice/transcribe")
+async def transcribe_audio(audio: UploadFile = File(...), user_id: str = Form("")):
+    t0 = time.time()
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="OPENAI_API_KEY not configured")
+
+    content = await audio.read()
+    filename = audio.filename or "audio.webm"
+    suffix = "." + filename.rsplit(".", 1)[-1] if "." in filename else ".webm"
+
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp.write(content)
+        tmp_path = tmp.name
+
+    try:
+        import openai
+        client = openai.AsyncOpenAI(api_key=api_key)
+        with open(tmp_path, "rb") as f:
+            transcript = await client.audio.transcriptions.create(
+                model="whisper-1",
+                file=(filename, f, audio.content_type or "audio/webm"),
+                response_format="text",
+            )
+        text = str(transcript).strip()
+        stt_ms = int((time.time() - t0) * 1000)
+        print(f"VOICE_STT: user_id={user_id!r} stt={stt_ms}ms text={text[:80]!r}")
+        return {"text": text, "language": "auto", "stt_ms": stt_ms}
+    except Exception as e:
+        print(f"VOICE_STT_ERROR: {e}")
+        raise HTTPException(status_code=500, detail=f"Transcription failed: {e}")
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass
+
+
+# ─── TTS — Fal.ai CSM 1B synthesis ───────────────────────────────────────────
+# FAL_KEY lives ONLY in Render env vars — never in frontend .env or NEXT_PUBLIC_*.
+# Frontend calls our backend → backend calls Fal with FAL_KEY. Key never leaves server.
+
+class SynthRequest(BaseModel):
+    text: str
+    user_id: str = ""
+
+
+@router.post("/voice/synthesize")
+async def synthesize_speech(req: SynthRequest):
+    from backend.services.voice import synthesize_jarvis_voice, check_rate_limit
+    t0 = time.time()
+
+    if not os.getenv("FAL_API_KEY"):
+        raise HTTPException(status_code=503, detail="FAL_API_KEY not configured")
+
+    # Rate limiting — max 100 requests/hour, 1000 chars/request per user
+    err = check_rate_limit(req.user_id or "anon", len(req.text))
+    if err:
+        raise HTTPException(status_code=429, detail=err)
+
+    try:
+        audio_url = await synthesize_jarvis_voice(req.text)
+        tts_ms = int((time.time() - t0) * 1000)
+        print(f"VOICE_TTS: user_id={req.user_id!r} tts={tts_ms}ms chars={len(req.text)}")
+        return {"audio_url": audio_url, "tts_ms": tts_ms}
+    except Exception as e:
+        print(f"VOICE_TTS_ERROR: {e}")
+        raise HTTPException(status_code=500, detail=f"TTS failed: {e}")
+
+
+# ─── Voice test — audition reference clips before going live ──────────────────
+
+@router.get("/voice/test")
+async def test_voice(
+    text: str = "Hey, what's up brother. Hope your day's going well.",
+    voice: str = "a",
+):
+    """Hit /api/voice/test?text=...&voice=a|b to audition reference clips."""
+    from backend.services.voice import synthesize_jarvis_voice, JARVIS_VOICE_REF_A, JARVIS_VOICE_REF_B
+
+    if not os.getenv("FAL_API_KEY"):
+        raise HTTPException(status_code=503, detail="FAL_API_KEY not configured")
+
+    ref = JARVIS_VOICE_REF_B if voice.lower() == "b" else JARVIS_VOICE_REF_A
+    try:
+        audio_url = await synthesize_jarvis_voice(text, voice_ref=ref)
+        return {"audio_url": audio_url, "voice": voice, "text": text}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
