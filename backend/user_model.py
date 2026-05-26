@@ -89,6 +89,31 @@ def _supabase_headers() -> dict:
     }
 
 
+async def is_onboarding_complete(user_id: str) -> bool:
+    """Check user_preferences.onboarding_complete — the single authoritative onboarding gate."""
+    if not _SUPABASE_URL or not _SUPABASE_KEY:
+        return True  # fail open — don't suppress tools when Supabase is unavailable
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{_SUPABASE_URL}/rest/v1/user_preferences",
+                headers=_supabase_headers(),
+                params={"user_id": f"eq.{user_id}", "select": "onboarding_complete", "limit": 1},
+                timeout=5.0,
+            )
+        if resp.status_code == 200:
+            rows = resp.json()
+            if rows:
+                result = bool(rows[0].get("onboarding_complete", False))
+                print(f"ONBOARDING_GATE: user={user_id} onboarding_complete={result}")
+                return result
+        print(f"ONBOARDING_GATE: user={user_id} no row in user_preferences — treating as incomplete")
+        return False
+    except Exception as e:
+        print(f"ONBOARDING_GATE: ERROR for {user_id}: {e} — failing open (tools active)")
+        return True
+
+
 async def get_user_model(user_id: str) -> dict:
     """Load the user model from Supabase. Returns a fresh model if none exists."""
     if not _SUPABASE_URL or not _SUPABASE_KEY:

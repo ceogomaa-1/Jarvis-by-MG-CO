@@ -11,7 +11,7 @@ from fastapi.responses import StreamingResponse
 from backend.models.schemas import ChatRequest, ChatResponse
 from backend.llm import jarvis_think
 from backend.memory import get_relevant_memories, save_interaction
-from backend.user_model import get_user_model, summarize_user_for_prompt, update_user_model, get_onboarding_prompt
+from backend.user_model import get_user_model, summarize_user_for_prompt, update_user_model, get_onboarding_prompt, is_onboarding_complete
 from backend.agent import ANTHROPIC_TOOLS as AVAILABLE_TOOLS
 from backend.triggers import analyze_conversation_for_insight
 from backend.conversation import get_conversation_history, save_conversation_turn
@@ -142,9 +142,9 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
     # Persist user message BEFORE the LLM call so it survives any failure
     await save_conversation_turn(request.user_id, "user", request.message)
 
-    user_model = await get_user_model(request.user_id)
+    onboarding_done = await is_onboarding_complete(request.user_id)
     system_override = None
-    if not user_model.get("onboarding_complete", False):
+    if not onboarding_done:
         system_override = await get_onboarding_prompt(request.user_id)
 
     tone = detect_emotional_tone(request.message)
@@ -222,9 +222,9 @@ async def chat_stream(request: ChatRequest):
     # Persist user message BEFORE streaming starts
     await save_conversation_turn(request.user_id, "user", request.message)
 
-    user_model = await get_user_model(request.user_id)
+    onboarding_done = await is_onboarding_complete(request.user_id)
     system_override = None
-    if not user_model.get("onboarding_complete", False):
+    if not onboarding_done:
         system_override = await get_onboarding_prompt(request.user_id)
 
     tone = detect_emotional_tone(request.message)
