@@ -58,11 +58,11 @@ async def google_callback(code: str, state: str):
     access_token = tokens.get("access_token", "")
 
     if refresh_token:
-        logger.info(f"GCAL: Storing token for user_id={user_id!r}")
+        logger.info(f"GCAL: Attempting token store for user_id='{user_id}'")
         supabase_url = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL", "")
         supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
         async with httpx.AsyncClient() as client:
-            await client.post(
+            upsert_resp = await client.post(
                 f"{supabase_url}/rest/v1/user_google_tokens",
                 headers={
                     "apikey": supabase_key,
@@ -76,6 +76,7 @@ async def google_callback(code: str, state: str):
                     "access_token": access_token,
                 },
             )
+        logger.info(f"GCAL: Upsert response: status={upsert_resp.status_code} body={upsert_resp.text[:200]!r}")
 
         # Verify write succeeded by immediately re-reading
         from backend.tools.google_calendar import get_user_refresh_token

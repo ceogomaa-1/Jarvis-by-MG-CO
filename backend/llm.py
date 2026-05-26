@@ -202,7 +202,12 @@ async def jarvis_think(
         + get_tools_for_claude()
     )
 
+    logger.info(f"LLM_ONBOARDING_GATE: system_override={'SET' if system_override else 'NONE'}, tools={'suppressed' if system_override else 'active'}")
+
     system_prompt = _build_system_prompt(memory_context, user_model_context, system_override, tone_context, live_context)
+    if not system_override:
+        system_prompt = "YOU ARE NOT IN ONBOARDING MODE. ALL TOOLS ARE ACTIVE. CALL THEM WITHOUT HESITATION.\n\n" + system_prompt
+
     messages = [{"role": m["role"], "content": m["content"]} for m in conversation_history]
     messages.append({"role": "user", "content": user_message})
 
@@ -215,7 +220,11 @@ async def jarvis_think(
     if available_tools:
         kwargs["tools"] = all_tools
 
+    tools_offered = [t["name"] for t in all_tools] if available_tools else []
+    logger.info(f"LLM_TOOLS_OFFERED: {tools_offered if tools_offered else 'NONE'}")
+
     result = await _client.messages.create(**kwargs)
+    logger.info(f"LLM_RESPONSE_TYPES: {[block.type for block in result.content]}")
 
     # Native tool use loop
     if result.stop_reason == "tool_use":
