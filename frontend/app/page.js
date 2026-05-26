@@ -885,8 +885,8 @@ function InputBar({ orbState, input, setInput, onSend, onMicDown, onMicUp, onMic
         width: '100%', maxWidth: 720,
         display: 'flex', alignItems: 'flex-end', gap: 14,
         padding: '14px 18px',
-        background: isVoiceActive ? 'rgba(255,144,114,0.06)' : 'rgba(243,234,217,0.035)',
-        border: `1px solid ${isVoiceActive ? 'rgba(255,144,114,0.45)' : 'var(--line)'}`,
+        background: voiceMode ? 'rgba(255,144,114,0.06)' : 'rgba(243,234,217,0.035)',
+        border: `1px solid ${voiceMode ? 'rgba(255,144,114,0.45)' : 'var(--line)'}`,
         borderRadius: 999, backdropFilter: 'blur(10px)',
         transition: 'border-color 300ms ease, background 300ms ease',
       }}>
