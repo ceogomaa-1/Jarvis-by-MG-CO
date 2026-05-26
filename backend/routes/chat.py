@@ -22,6 +22,30 @@ from backend.routes.documents import search_user_documents
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+
+def _build_multimodal_content(message: str, attachments: list[dict]) -> list | str:
+    """Build Anthropic multimodal content blocks from URL-based attachment dicts."""
+    content = []
+    for att in attachments:
+        url = att.get("url", "")
+        file_type = att.get("file_type", "")
+        if file_type.startswith("image/") and url:
+            # Support data URLs directly (no server fetch needed)
+            if url.startswith("data:"):
+                raw_b64 = url.split(",")[1] if "," in url else url
+            else:
+                print(f"CHAT: skipping non-data-URL attachment url={url[:60]}")
+                continue
+            content.append({
+                "type": "image",
+                "source": {"type": "base64", "media_type": file_type, "data": raw_b64},
+            })
+            print(f"VISION: attached image file_type={file_type} b64_len={len(raw_b64)}")
+    if not content:
+        return message
+    content.append({"type": "text", "text": message or "What do you see?"})
+    return content
+
 _INTERACTION_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "last_interaction"
 _FALLBACK_LLM_ERROR = "Hit a snag on my end. Try that again?"
 _FALLBACK_EMPTY    = "Caught me thinking. Say that again?"
@@ -151,12 +175,15 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
     tone_context = TONE_INSTRUCTIONS.get(tone, "")
 
     # Build user content — multimodal when image attached
+    print(f"CHAT: image_base64={'SET len=' + str(len(request.image_base64)) if request.image_base64 else 'NONE'} attachments={len(request.attachments)} user_id={request.user_id}")
     if request.image_base64:
         raw_b64 = request.image_base64.split(",")[1] if "," in request.image_base64 else request.image_base64
         user_content = [
             {"type": "image", "source": {"type": "base64", "media_type": request.image_type or "image/png", "data": raw_b64}},
             {"type": "text", "text": request.message or "What do you see in this image?"},
         ]
+    elif request.attachments:
+        user_content = _build_multimodal_content(request.message, request.attachments)
     else:
         user_content = request.message
 
@@ -231,12 +258,15 @@ async def chat_stream(request: ChatRequest):
     tone_context = TONE_INSTRUCTIONS.get(tone, "")
 
     # Build user content — multimodal when image attached
+    print(f"CHAT_STREAM: image_base64={'SET len=' + str(len(request.image_base64)) if request.image_base64 else 'NONE'} attachments={len(request.attachments)} user_id={request.user_id}")
     if request.image_base64:
         raw_b64 = request.image_base64.split(",")[1] if "," in request.image_base64 else request.image_base64
         user_content = [
             {"type": "image", "source": {"type": "base64", "media_type": request.image_type or "image/png", "data": raw_b64}},
             {"type": "text", "text": request.message or "What do you see in this image?"},
         ]
+    elif request.attachments:
+        user_content = _build_multimodal_content(request.message, request.attachments)
     else:
         user_content = request.message
 
