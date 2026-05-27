@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import re
 import traceback
 from collections import deque
 from datetime import datetime, timezone
@@ -50,6 +51,14 @@ _INTERACTION_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "las
 _FALLBACK_LLM_ERROR = "Hit a snag on my end. Try that again?"
 _FALLBACK_EMPTY    = "Caught me thinking. Say that again?"
 _error_buffer: deque = deque(maxlen=20)
+
+_SENTENCE_SPLIT_RE = re.compile(r'(?<=[.!?])\s+')
+
+
+def _split_voice_sentences(text: str) -> list[str]:
+    """Split a voice response into speakable sentences for streaming TTS."""
+    parts = _SENTENCE_SPLIT_RE.split(text.strip())
+    return [p.strip() for p in parts if p.strip() and len(p.strip()) > 2]
 
 
 def _log_fallback(fallback_type: str, user_msg: str, exc: Exception | None = None) -> str:
@@ -302,10 +311,13 @@ async def chat_stream(request: ChatRequest):
             debug_str = _log_fallback("LLM_EXCEPTION", request.message, exc=e)
             response_text = _FALLBACK_LLM_ERROR
 
-        # In voice mode, send the full text early so the frontend can start
-        # TTS streaming immediately instead of waiting for the fake char-stream
+        # In voice mode, send sentence-level events immediately so the frontend
+        # can start TTS streaming each sentence as soon as it's available,
+        # rather than waiting for the full fake character stream to finish.
         if request.voice_mode and response_text:
-            yield f"data: {json.dumps({'__voice': True, 'text': response_text})}\n\n"
+            sentences = _split_voice_sentences(response_text)
+            for sentence in sentences:
+                yield f"data: {json.dumps({'__vs': sentence})}\n\n"
 
         for char in response_text:
             yield f"data: {json.dumps(char)}\n\n"
