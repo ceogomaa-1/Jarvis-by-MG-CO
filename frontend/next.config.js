@@ -20,6 +20,10 @@ const nextConfig = {
         source: '/:path*.wasm',
         headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
       },
+      {
+        source: '/:path*.mjs',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+      },
     ]
   },
 }
