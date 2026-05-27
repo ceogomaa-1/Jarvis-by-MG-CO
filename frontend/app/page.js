@@ -1798,10 +1798,10 @@ export default function Home() {
             }
             try {
               const chunk = JSON.parse(raw)
-              // Early voice event — start TTS immediately, don't add to displayed text
-              if (chunk && typeof chunk === 'object' && chunk.__voice) {
-                if (isVoiceMessage && chunk.text?.trim()) {
-                  voiceManagerRef.current?.speak(chunk.text)
+              // Sentence-level voice event — queue TTS for this sentence immediately
+              if (chunk && typeof chunk === 'object' && chunk.__vs) {
+                if (isVoiceMessage && chunk.__vs.trim()) {
+                  voiceManagerRef.current?.speak(chunk.__vs)
                   voiceFired = true
                 }
                 continue

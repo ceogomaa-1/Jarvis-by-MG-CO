@@ -443,7 +443,7 @@ async def voice_tool_timer(request: VoiceTimerRequest):
         return {"result": f"Could not set timer: {str(e)}"}
 
 
-# ─── STT — Whisper transcription ──────────────────────────────────────────────
+# ─── STT — Deepgram transcription (Whisper fallback if key absent) ────────────
 
 _HALLUCINATIONS = [
     "thanks for watching", "thank you for watching", "please subscribe",
@@ -451,73 +451,119 @@ _HALLUCINATIONS = [
     "subtitles by", "subtitle by", "www.", ".com",
 ]
 
-# Common Whisper mishears for proper nouns in this context
+# Common STT mishears for proper nouns in this context
 _MISHEAR_FIXES = [
     (r'\btravis\b', 'Jarvis'),
+    (r'\bservice\b', 'Jarvis'),
+    (r'\bharvest\b', 'Jarvis'),
     (r'\bjarvis\b', 'Jarvis'),  # normalize capitalisation
 ]
 
+_deepgram = None
 
-@router.post("/voice/transcribe")
-async def transcribe_audio(audio: UploadFile = File(...), user_id: str = Form("")):
+
+def _get_deepgram():
+    global _deepgram
+    if _deepgram is None:
+        from deepgram import DeepgramClient  # type: ignore
+        _deepgram = DeepgramClient(os.getenv("DEEPGRAM_API_KEY", ""))
+    return _deepgram
+
+
+def _apply_stt_fixes(text: str) -> str:
+    """Apply mishear corrections and hallucination filtering."""
+    for pattern, replacement in _MISHEAR_FIXES:
+        text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+    return text
+
+
+async def _transcribe_deepgram(content: bytes) -> tuple[str, int]:
+    """Returns (text, latency_ms). Uses Deepgram nova-3, ~300-500ms."""
+    from deepgram import PrerecordedOptions  # type: ignore
     t0 = time.time()
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=503, detail="OPENAI_API_KEY not configured")
+    options = PrerecordedOptions(
+        model="nova-3",
+        smart_format=True,
+        punctuate=True,
+        language="multi",   # auto-detect English / Arabic Franco
+        filler_words=False,
+    )
+    client = _get_deepgram()
+    response = await asyncio.to_thread(
+        client.listen.rest.v("1").transcribe_file,
+        {"buffer": content, "mimetype": "audio/wav"},
+        options,
+    )
+    text = response.results.channels[0].alternatives[0].transcript.strip()
+    return text, int((time.time() - t0) * 1000)
 
-    content = await audio.read()
 
-    # Reject clips too short to be real speech (~500ms at 16kHz mono webm)
-    if len(content) < 6000:
-        print(f"VOICE_STT: skipped — too short ({len(content)} bytes)")
-        return {"text": "", "skipped": True, "reason": "too_short"}
-
-    filename = audio.filename or "audio.webm"
-    suffix = "." + filename.rsplit(".", 1)[-1] if "." in filename else ".webm"
-
+async def _transcribe_whisper(content: bytes, filename: str, content_type: str) -> tuple[str, int]:
+    """Whisper fallback when DEEPGRAM_API_KEY is absent."""
+    import openai
+    t0 = time.time()
+    suffix = "." + filename.rsplit(".", 1)[-1] if "." in filename else ".wav"
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         tmp.write(content)
         tmp_path = tmp.name
-
     try:
-        import openai
-        client = openai.AsyncOpenAI(api_key=api_key)
+        client = openai.AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY", ""))
         with open(tmp_path, "rb") as f:
             transcript = await client.audio.transcriptions.create(
                 model="whisper-1",
-                file=(filename, f, audio.content_type or "audio/webm"),
+                file=(filename, f, content_type or "audio/wav"),
                 response_format="text",
                 language="en",
                 prompt=(
-                    "The user is speaking to their AI assistant named Jarvis (JAR-vis, spelled J-A-R-V-I-S, NOT Travis). "
-                    "They may speak English or Egyptian Arabic Franco. Ignore background noise and music."
+                    "The user is speaking to their AI assistant named Jarvis (JAR-vis, NOT Travis). "
+                    "They may speak English or Egyptian Arabic Franco. Ignore background noise."
                 ),
                 temperature=0,
             )
-        text = str(transcript).strip()
-
-        # Fix known Whisper mishears before hallucination check
-        for pattern, replacement in _MISHEAR_FIXES:
-            text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
-
-        # Filter known Whisper hallucinations on short outputs
-        if text and len(text) < 60:
-            lower = text.lower()
-            if any(h in lower for h in _HALLUCINATIONS):
-                print(f"VOICE_STT: hallucination rejected — {text!r}")
-                return {"text": "", "skipped": True, "reason": "hallucination"}
-
-        stt_ms = int((time.time() - t0) * 1000)
-        print(f"VOICE_STT: user_id={user_id!r} stt={stt_ms}ms text={text[:80]!r}")
-        return {"text": text, "language": "en", "stt_ms": stt_ms}
-    except Exception as e:
-        print(f"VOICE_STT_ERROR: {e}")
-        raise HTTPException(status_code=500, detail=f"Transcription failed: {e}")
+        return str(transcript).strip(), int((time.time() - t0) * 1000)
     finally:
         try:
             os.unlink(tmp_path)
         except Exception:
             pass
+
+
+@router.post("/voice/transcribe")
+async def transcribe_audio(audio: UploadFile = File(...), user_id: str = Form("")):
+    content = await audio.read()
+
+    if len(content) < 6000:
+        print(f"VOICE_STT: skipped — too short ({len(content)} bytes)")
+        return {"text": "", "skipped": True, "reason": "too_short"}
+
+    use_deepgram = bool(os.getenv("DEEPGRAM_API_KEY"))
+    engine = "deepgram" if use_deepgram else "whisper"
+
+    try:
+        if use_deepgram:
+            text, stt_ms = await _transcribe_deepgram(content)
+        else:
+            text, stt_ms = await _transcribe_whisper(
+                content,
+                audio.filename or "recording.wav",
+                audio.content_type or "audio/wav",
+            )
+    except Exception as e:
+        print(f"VOICE_STT_ERROR ({engine}): {e}")
+        raise HTTPException(status_code=500, detail=f"Transcription failed: {e}")
+
+    # Apply mishear corrections
+    text = _apply_stt_fixes(text)
+
+    # Filter known STT hallucinations on short outputs
+    if text and len(text) < 60:
+        lower = text.lower()
+        if any(h in lower for h in _HALLUCINATIONS):
+            print(f"VOICE_STT: hallucination rejected — {text!r}")
+            return {"text": "", "skipped": True, "reason": "hallucination"}
+
+    print(f"DEEPGRAM_STT: user_id={user_id!r} engine={engine} stt={stt_ms}ms text={text[:80]!r}")
+    return {"text": text, "stt_ms": stt_ms, "engine": engine}
 
 
 # ─── TTS — Cartesia Sonic synthesis ──────────────────────────────────────────
@@ -596,6 +642,33 @@ async def list_voices():
         ]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/voice/test-tags")
+async def test_voice_tags():
+    """Diagnostic: test which Cartesia audio tags produce audible effects.
+    Returns JSON with audio byte sizes — larger = more audio = tag worked.
+    Hit /api/voice/test-tags to verify, then update the voice prompt accordingly."""
+    from backend.services.voice import synthesize_jarvis_voice
+
+    if not os.getenv("CARTESIA_API_KEY"):
+        raise HTTPException(status_code=503, detail="CARTESIA_API_KEY not configured")
+
+    test_phrases = [
+        "Hmm... let me think about that for a second.",
+        "Ha — that's actually a good one.",
+        "[laughs] Alright, you got me there.",
+        'Yeah, so <break time="300ms"/> here\'s the thing.',
+        'Honestly? <break time="500ms"/> I\'m not sure yet.',
+    ]
+    results = []
+    for text in test_phrases:
+        try:
+            audio = await synthesize_jarvis_voice(text)
+            results.append({"text": text, "audio_bytes": len(audio), "ok": True})
+        except Exception as e:
+            results.append({"text": text, "error": str(e), "ok": False})
+    return results
 
 
 @router.get("/voice/test")

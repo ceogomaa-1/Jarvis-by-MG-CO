@@ -13,3 +13,4 @@ APScheduler>=3.10.0
 reportlab>=4.0.0
 supabase>=2.0.0
 cartesia>=2.0.0
+deepgram-sdk>=3.0.0
