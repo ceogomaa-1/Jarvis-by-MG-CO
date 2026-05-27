@@ -1194,7 +1194,6 @@ export default function Home() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const mobileScrollRef = useRef(null)
   const isVoiceEnabledRef = useRef(false)
-  const voiceInputPendingRef = useRef(false)
   const MAX_RECONNECT = 5
 
   // Flush voice transcript every 30s so memory saves even on short sessions
@@ -1502,6 +1501,8 @@ export default function Home() {
         onSpeakingEnd: () => setJarvisSpeaking(false),
         onError: (msg) => setVoiceError(msg),
       })
+      // Unlock AudioContext during user gesture (required by browser autoplay policy)
+      await jv.resumeAudio()
       await jv.startHandsFree(sendViaVoice)
       voiceManagerRef.current = jv
       setVoiceMode(true)
@@ -1758,6 +1759,7 @@ export default function Home() {
         let buffer = ''
         let accumulated = ''
         let done = false
+        let voiceFired = false   // true once TTS has been queued via early __voice event
 
         while (!done) {
           const { done: readerDone, value } = await reader.read()
@@ -1775,8 +1777,8 @@ export default function Home() {
                 if (idx !== -1) updated[idx] = { id: streamMsgId, role: 'assistant', content: accumulated }
                 return updated
               })
-              // Speak the response only when this message was sent via voice
-              if (isVoiceMessage && accumulated?.trim()) {
+              // Speak the response only when sent via voice and not already fired
+              if (isVoiceMessage && !voiceFired && accumulated?.trim()) {
                 voiceManagerRef.current?.speak(accumulated)
               }
               done = true
@@ -1796,6 +1798,14 @@ export default function Home() {
             }
             try {
               const chunk = JSON.parse(raw)
+              // Early voice event — start TTS immediately, don't add to displayed text
+              if (chunk && typeof chunk === 'object' && chunk.__voice) {
+                if (isVoiceMessage && chunk.text?.trim()) {
+                  voiceManagerRef.current?.speak(chunk.text)
+                  voiceFired = true
+                }
+                continue
+              }
               accumulated += chunk
               setMessages(prev => {
                 const updated = [...prev]

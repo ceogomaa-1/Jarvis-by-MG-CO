@@ -1,62 +1,175 @@
 /**
  * JarvisVoice — VAD-gated Whisper STT + Cartesia Sonic TTS.
- * Single-tap to start/stop. No hold-to-talk.
+ * Single-tap to start/stop. Full-duplex via browser echo cancellation.
+ * Streaming PCM audio via Web Audio API — first sound in ~200ms.
  * All API calls go through our backend — no API keys in the browser.
  */
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || ''
 
-// ── AudioQueue — prevents AbortError from overlapping plays ──────────────────
+// ── StreamingAudioPlayer — Web Audio API PCM streaming ───────────────────────
+// Receives raw PCM float32 LE at 22050 Hz from the backend and schedules
+// chunks on a single AudioContext timeline so playback is gapless.
 
-class AudioQueue {
+class StreamingAudioPlayer {
   constructor() {
-    this._queue = []
-    this._current = null
-    this._playing = false
-    this.onStart = null
-    this.onEnd = null
+    this._ctx = null
+    this._nextPlayTime = 0
+    this._carry = null        // leftover bytes that don't align to 4-byte float boundary
+    this._queue = []          // pending {url, body} to stream
+    this._active = false
+    this._sources = []        // active AudioBufferSourceNodes (for stop())
+    this.onStart = null       // fires when first audio chunk is scheduled
+    this.onEnd = null         // fires when all queued audio finishes playing
+    this._started = false
   }
 
-  add(objectUrl) {
-    this._queue.push(objectUrl)
-    if (!this._playing) this._playNext()
+  // ── AudioContext — created on user gesture to satisfy autoplay policy ────
+
+  _ctx_create() {
+    if (!this._ctx || this._ctx.state === 'closed') {
+      this._ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 22050 })
+      this._nextPlayTime = 0
+      this._started = false
+    }
+    return this._ctx
   }
 
-  _playNext() {
-    if (this._queue.length === 0) {
-      this._playing = false
+  async resume() {
+    const ctx = this._ctx_create()
+    if (ctx.state === 'suspended') await ctx.resume()
+  }
+
+  // ── Queue management ────────────────────────────────────────────────────
+
+  enqueue(url, body) {
+    this._queue.push({ url, body })
+    if (!this._active) this._drain()
+  }
+
+  _drain() {
+    this._active = true
+    this._runDrain().catch(err => {
+      console.error('StreamingAudioPlayer: drain error', err)
+      this._active = false
       this.onEnd?.()
+    })
+  }
+
+  async _runDrain() {
+    while (this._queue.length > 0) {
+      const { url, body } = this._queue.shift()
+      await this._streamOne(url, body)
+    }
+    this._active = false
+    // Schedule onEnd to fire after the last scheduled chunk finishes playing
+    const ctx = this._ctx
+    if (ctx && this._nextPlayTime > ctx.currentTime) {
+      const delayMs = (this._nextPlayTime - ctx.currentTime) * 1000 + 150
+      setTimeout(() => this.onEnd?.(), delayMs)
+    } else {
+      this.onEnd?.()
+    }
+  }
+
+  // ── Core streaming ──────────────────────────────────────────────────────
+
+  async _streamOne(url, body) {
+    const ctx = this._ctx_create()
+    if (ctx.state === 'suspended') await ctx.resume()
+    this._carry = null
+
+    let res
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+    } catch (err) {
+      console.error('StreamingAudioPlayer: fetch error', err)
       return
     }
-    this._playing = true
-    const url = this._queue.shift()
-    if (this._queue.length === 0) this.onStart?.()  // fire once per batch
-    const audio = new Audio(url)
-    this._current = audio
-    audio.play().catch((err) => {
-      if (err.name !== 'AbortError') console.error('AudioQueue: play error', err)
-      URL.revokeObjectURL(url)
-      this._playNext()
-    })
-    audio.onended = () => {
-      URL.revokeObjectURL(url)
-      this._playNext()
+    if (!res.ok) {
+      console.error('StreamingAudioPlayer: TTS stream', res.status)
+      return
     }
-    audio.onerror = () => {
-      URL.revokeObjectURL(url)
-      this._playNext()
+
+    const reader = res.body.getReader()
+    while (true) {
+      let done, value
+      try {
+        ;({ done, value } = await reader.read())
+      } catch {
+        break
+      }
+      if (done) break
+      this._scheduleBytes(value)
     }
   }
 
-  stop() {
-    this._queue.forEach(url => URL.revokeObjectURL(url))
-    this._queue = []
-    if (this._current) {
-      this._current.pause()
-      this._current.src = ''
-      this._current = null
+  _scheduleBytes(incoming) {
+    // Merge with carry-over from previous chunk (PCM floats are 4 bytes each)
+    let bytes = incoming
+    if (this._carry && this._carry.byteLength > 0) {
+      const merged = new Uint8Array(this._carry.byteLength + incoming.byteLength)
+      merged.set(new Uint8Array(this._carry), 0)
+      merged.set(incoming, this._carry.byteLength)
+      bytes = merged
+      this._carry = null
     }
-    this._playing = false
+
+    // Trim to float32 boundary
+    const remainder = bytes.byteLength % 4
+    if (remainder !== 0) {
+      this._carry = bytes.slice(bytes.byteLength - remainder)
+      bytes = bytes.slice(0, bytes.byteLength - remainder)
+    }
+    if (bytes.byteLength === 0) return
+
+    const floats = new Float32Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 4)
+    this._scheduleChunk(floats)
+  }
+
+  _scheduleChunk(floats) {
+    const ctx = this._ctx
+    if (!ctx) return
+
+    const buf = ctx.createBuffer(1, floats.length, 22050)
+    buf.copyToChannel(floats, 0)
+
+    const src = ctx.createBufferSource()
+    src.buffer = buf
+    src.connect(ctx.destination)
+
+    // Chain immediately after the previous chunk
+    const playAt = Math.max(this._nextPlayTime, ctx.currentTime + 0.02)
+    src.start(playAt)
+    this._nextPlayTime = playAt + buf.duration
+    this._sources.push(src)
+
+    if (!this._started) {
+      this._started = true
+      this.onStart?.()
+    }
+  }
+
+  // ── Interruption ────────────────────────────────────────────────────────
+
+  stop() {
+    this._queue = []
+    this._carry = null
+    this._active = false
+    this._started = false
+    for (const src of this._sources) {
+      try { src.stop() } catch {}
+    }
+    this._sources = []
+    if (this._ctx && this._ctx.state !== 'closed') {
+      this._ctx.close().catch(() => {})
+    }
+    this._ctx = null
+    this._nextPlayTime = 0
   }
 }
 
@@ -71,41 +184,73 @@ export class JarvisVoice {
 
     this._vad = null
     this._handsFreeActive = false
-    this._audioQueue = new AudioQueue()
-    this._audioQueue.onStart = () => this.onSpeakingStart?.()
-    this._audioQueue.onEnd = () => this.onSpeakingEnd?.()
+    this._lastSpeakStart = 0   // timestamp when Jarvis last started speaking
+
+    this._audioPlayer = new StreamingAudioPlayer()
+    this._audioPlayer.onStart = () => this.onSpeakingStart?.()
+    this._audioPlayer.onEnd = () => this.onSpeakingEnd?.()
   }
 
-  // ── Hands-free (VAD) ────────────────────────────────────────────────────────
+  // ── AudioContext unlock (call during user gesture) ──────────────────────
+
+  async resumeAudio() {
+    await this._audioPlayer.resume()
+  }
+
+  // ── Hands-free (VAD) ────────────────────────────────────────────────────
 
   async startHandsFree(sendCb) {
     this._handsFreeActive = true
     try {
+      // Get mic with echo cancellation — lets browser subtract Jarvis's
+      // speaker output from the mic signal in real time (like Google Meet)
+      const micStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,
+        },
+      })
+
       const { MicVAD } = await import('@ricky0123/vad-web')
       this._vad = await MicVAD.new({
-        // Point to public/-served files copied by scripts/copy-vad-assets.js
+        stream: micStream,
+
         modelURL: '/silero_vad_legacy.onnx',
         workletURL: '/vad.worklet.bundle.min.js',
         ortConfig: (ort) => { ort.env.wasm.wasmPaths = '/' },
 
-        // Stricter thresholds — reduces false triggers and silence send
         positiveSpeechThreshold: 0.9,
         negativeSpeechThreshold: 0.75,
-        minSpeechFrames: 8,        // ~250ms of confirmed speech before triggering
+        minSpeechFrames: 8,
         preSpeechPadFrames: 4,
 
         onSpeechStart: () => {
-          if (this._handsFreeActive) console.log('VAD: speech start')
+          if (!this._handsFreeActive) return
+          // If Jarvis just started speaking, ignore VAD for 500ms — it might
+          // be speaker bleed that the browser AEC hasn't cancelled yet
+          if (Date.now() - this._lastSpeakStart < 500) {
+            console.log('VAD: ignoring speech-start (Jarvis just started, possible echo)')
+            return
+          }
+          // Real user speech detected — interrupt Jarvis
+          console.log('VAD: user speaking, interrupting Jarvis')
+          this._audioPlayer.stop()
+          this.onSpeakingEnd?.()
         },
+
         onSpeechEnd: async (audio) => {
           if (!this._handsFreeActive) return
           const blob = this._float32ToWav(audio, 16000)
           await this._transcribeAndSend(blob, sendCb)
         },
+
         onVADMisfire: () => { console.log('VAD: misfire (too short)') },
       })
+
       await this._vad.start()
-      console.log('VAD: started')
+      console.log('VAD: started (full-duplex, echo cancellation on)')
     } catch (err) {
       console.error('JarvisVoice: VAD start failed', err)
       this.onError?.('Could not start voice. Check mic permissions.')
@@ -118,12 +263,12 @@ export class JarvisVoice {
     this._handsFreeActive = false
     this._vad?.destroy()
     this._vad = null
-    this._audioQueue.stop()
+    this._audioPlayer.stop()
     this.onSpeakingEnd?.()
     console.log('VAD: stopped')
   }
 
-  // ── Transcription ───────────────────────────────────────────────────────────
+  // ── Transcription ───────────────────────────────────────────────────────
 
   async _transcribeAndSend(blob, sendCb) {
     try {
@@ -141,43 +286,30 @@ export class JarvisVoice {
     }
   }
 
-  // ── TTS playback ─────────────────────────────────────────────────────────────
-  // Backend returns raw MP3 bytes. We blob-URL them so Audio can play.
+  // ── TTS playback — streaming PCM via Web Audio API ───────────────────────
 
-  async speak(text) {
+  speak(text) {
     if (!text?.trim()) return
-    try {
-      const res = await fetch(`${BACKEND}/api/voice/synthesize`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: text.slice(0, 1500), user_id: this.userId || '' }),
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.detail || `TTS ${res.status}`)
-      }
-      const audioBlob = await res.blob()
-      const objectUrl = URL.createObjectURL(audioBlob)
-      this._audioQueue.add(objectUrl)
-    } catch (err) {
-      console.error('JarvisVoice: TTS error', err)
-      // Don't surface — text is already in chat
-    }
+    this._lastSpeakStart = Date.now()
+    this._audioPlayer.enqueue(
+      `${BACKEND}/api/voice/synthesize-stream`,
+      { text: text.slice(0, 1500), user_id: this.userId || '' }
+    )
   }
 
   stopSpeaking() {
-    this._audioQueue.stop()
+    this._audioPlayer.stop()
     this.onSpeakingEnd?.()
   }
 
-  // ── Cleanup ──────────────────────────────────────────────────────────────────
+  // ── Cleanup ──────────────────────────────────────────────────────────────
 
   destroy() {
     this.stopHandsFree()
     this.stopSpeaking()
   }
 
-  // ── Internals ────────────────────────────────────────────────────────────────
+  // ── Internals ────────────────────────────────────────────────────────────
 
   _float32ToWav(samples, sampleRate) {
     const buf = new ArrayBuffer(44 + samples.length * 2)

@@ -551,6 +551,34 @@ async def synthesize_speech(req: SynthRequest):
         raise HTTPException(status_code=500, detail=f"TTS failed: {e}")
 
 
+@router.post("/voice/synthesize-stream")
+async def synthesize_speech_stream(req: SynthRequest):
+    """Stream raw PCM float32 LE at 22050 Hz. First chunk arrives in ~200ms."""
+    from fastapi.responses import StreamingResponse
+    from backend.services.voice import stream_jarvis_voice, check_rate_limit
+
+    if not os.getenv("CARTESIA_API_KEY"):
+        raise HTTPException(status_code=503, detail="CARTESIA_API_KEY not configured")
+
+    text = req.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="text is required")
+
+    err = check_rate_limit(req.user_id or "anon", len(text))
+    if err:
+        raise HTTPException(status_code=429, detail=err)
+
+    return StreamingResponse(
+        stream_jarvis_voice(text),
+        media_type="audio/pcm",
+        headers={
+            "X-Audio-Encoding": "pcm_f32le",
+            "X-Sample-Rate": "22050",
+            "Cache-Control": "no-cache",
+        },
+    )
+
+
 # ─── Voice test + voice list — audition Cartesia voices in browser ────────────
 
 @router.get("/voice/list-voices")

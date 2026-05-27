@@ -302,6 +302,11 @@ async def chat_stream(request: ChatRequest):
             debug_str = _log_fallback("LLM_EXCEPTION", request.message, exc=e)
             response_text = _FALLBACK_LLM_ERROR
 
+        # In voice mode, send the full text early so the frontend can start
+        # TTS streaming immediately instead of waiting for the fake char-stream
+        if request.voice_mode and response_text:
+            yield f"data: {json.dumps({'__voice': True, 'text': response_text})}\n\n"
+
         for char in response_text:
             yield f"data: {json.dumps(char)}\n\n"
             await asyncio.sleep(0.01)
