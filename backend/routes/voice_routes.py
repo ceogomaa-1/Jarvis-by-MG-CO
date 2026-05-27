@@ -1,6 +1,7 @@
 import asyncio
 import json as json_module
 import os
+import re
 import tempfile
 import time
 import traceback
@@ -450,6 +451,12 @@ _HALLUCINATIONS = [
     "subtitles by", "subtitle by", "www.", ".com",
 ]
 
+# Common Whisper mishears for proper nouns in this context
+_MISHEAR_FIXES = [
+    (r'\btravis\b', 'Jarvis'),
+    (r'\bjarvis\b', 'Jarvis'),  # normalize capitalisation
+]
+
 
 @router.post("/voice/transcribe")
 async def transcribe_audio(audio: UploadFile = File(...), user_id: str = Form("")):
@@ -482,12 +489,16 @@ async def transcribe_audio(audio: UploadFile = File(...), user_id: str = Form(""
                 response_format="text",
                 language="en",
                 prompt=(
-                    "The user is speaking conversationally to their AI assistant Jarvis. "
-                    "They may use English or Egyptian Arabic Franco. Ignore background noise."
+                    "The user is speaking to their AI assistant named Jarvis (JAR-vis, spelled J-A-R-V-I-S, NOT Travis). "
+                    "They may speak English or Egyptian Arabic Franco. Ignore background noise and music."
                 ),
                 temperature=0,
             )
         text = str(transcript).strip()
+
+        # Fix known Whisper mishears before hallucination check
+        for pattern, replacement in _MISHEAR_FIXES:
+            text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
 
         # Filter known Whisper hallucinations on short outputs
         if text and len(text) < 60:

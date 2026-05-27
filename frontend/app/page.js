@@ -1475,8 +1475,7 @@ export default function Home() {
   }
 
   async function sendViaVoice(text) {
-    voiceInputPendingRef.current = true
-    await sendMessage({ apiText: text, displayText: text })
+    await sendMessage({ apiText: text, displayText: text, voiceMode: true })
   }
 
   // ── Single-tap voice toggle ───────────────────────────────────────────────────
@@ -1715,7 +1714,8 @@ export default function Home() {
       bodyPayload.image_base64 = imageB64
       bodyPayload.image_type = imageType || 'image/png'
     }
-    if (isVoiceEnabledRef.current || voiceInputPendingRef.current) {
+    const isVoiceMessage = override?.voiceMode === true
+    if (isVoiceMessage) {
       bodyPayload.voice_mode = true
     }
     // Also include all ready images as attachments (belt-and-suspenders for drag-drop)
@@ -1775,9 +1775,8 @@ export default function Home() {
                 if (idx !== -1) updated[idx] = { id: streamMsgId, role: 'assistant', content: accumulated }
                 return updated
               })
-              // Speak the response when voice was used to send the message
-              if ((isVoiceEnabledRef.current || voiceInputPendingRef.current) && accumulated?.trim()) {
-                voiceInputPendingRef.current = false
+              // Speak the response only when this message was sent via voice
+              if (isVoiceMessage && accumulated?.trim()) {
                 voiceManagerRef.current?.speak(accumulated)
               }
               done = true
