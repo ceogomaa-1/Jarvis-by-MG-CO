@@ -444,6 +444,13 @@ async def voice_tool_timer(request: VoiceTimerRequest):
 
 # ─── STT — Whisper transcription ──────────────────────────────────────────────
 
+_HALLUCINATIONS = [
+    "thanks for watching", "thank you for watching", "please subscribe",
+    "like and subscribe", "mbc 뉴스", "이덕영", "music", "[music]", "♪",
+    "subtitles by", "subtitle by", "www.", ".com",
+]
+
+
 @router.post("/voice/transcribe")
 async def transcribe_audio(audio: UploadFile = File(...), user_id: str = Form("")):
     t0 = time.time()
@@ -452,6 +459,12 @@ async def transcribe_audio(audio: UploadFile = File(...), user_id: str = Form(""
         raise HTTPException(status_code=503, detail="OPENAI_API_KEY not configured")
 
     content = await audio.read()
+
+    # Reject clips too short to be real speech (~500ms at 16kHz mono webm)
+    if len(content) < 6000:
+        print(f"VOICE_STT: skipped — too short ({len(content)} bytes)")
+        return {"text": "", "skipped": True, "reason": "too_short"}
+
     filename = audio.filename or "audio.webm"
     suffix = "." + filename.rsplit(".", 1)[-1] if "." in filename else ".webm"
 
@@ -467,11 +480,25 @@ async def transcribe_audio(audio: UploadFile = File(...), user_id: str = Form(""
                 model="whisper-1",
                 file=(filename, f, audio.content_type or "audio/webm"),
                 response_format="text",
+                language="en",
+                prompt=(
+                    "The user is speaking conversationally to their AI assistant Jarvis. "
+                    "They may use English or Egyptian Arabic Franco. Ignore background noise."
+                ),
+                temperature=0,
             )
         text = str(transcript).strip()
+
+        # Filter known Whisper hallucinations on short outputs
+        if text and len(text) < 60:
+            lower = text.lower()
+            if any(h in lower for h in _HALLUCINATIONS):
+                print(f"VOICE_STT: hallucination rejected — {text!r}")
+                return {"text": "", "skipped": True, "reason": "hallucination"}
+
         stt_ms = int((time.time() - t0) * 1000)
         print(f"VOICE_STT: user_id={user_id!r} stt={stt_ms}ms text={text[:80]!r}")
-        return {"text": text, "language": "auto", "stt_ms": stt_ms}
+        return {"text": text, "language": "en", "stt_ms": stt_ms}
     except Exception as e:
         print(f"VOICE_STT_ERROR: {e}")
         raise HTTPException(status_code=500, detail=f"Transcription failed: {e}")
@@ -482,9 +509,8 @@ async def transcribe_audio(audio: UploadFile = File(...), user_id: str = Form(""
             pass
 
 
-# ─── TTS — Fal.ai CSM 1B synthesis ───────────────────────────────────────────
-# FAL_KEY lives ONLY in Render env vars — never in frontend .env or NEXT_PUBLIC_*.
-# Frontend calls our backend → backend calls Fal with FAL_KEY. Key never leaves server.
+# ─── TTS — Cartesia Sonic synthesis ──────────────────────────────────────────
+# CARTESIA_API_KEY lives ONLY in Render env vars — never in frontend.
 
 class SynthRequest(BaseModel):
     text: str
@@ -493,53 +519,59 @@ class SynthRequest(BaseModel):
 
 @router.post("/voice/synthesize")
 async def synthesize_speech(req: SynthRequest):
+    from fastapi.responses import Response as FastResponse
     from backend.services.voice import synthesize_jarvis_voice, check_rate_limit
     t0 = time.time()
 
-    if not os.getenv("FAL_API_KEY"):
-        raise HTTPException(status_code=503, detail="FAL_API_KEY not configured")
+    if not os.getenv("CARTESIA_API_KEY"):
+        raise HTTPException(status_code=503, detail="CARTESIA_API_KEY not configured")
 
-    # Rate limiting — max 100 requests/hour, 1000 chars/request per user
     err = check_rate_limit(req.user_id or "anon", len(req.text))
     if err:
         raise HTTPException(status_code=429, detail=err)
 
     try:
-        audio_url = await synthesize_jarvis_voice(req.text)
+        audio_bytes = await synthesize_jarvis_voice(req.text)
         tts_ms = int((time.time() - t0) * 1000)
         print(f"VOICE_TTS: user_id={req.user_id!r} tts={tts_ms}ms chars={len(req.text)}")
-        return {"audio_url": audio_url, "tts_ms": tts_ms}
+        return FastResponse(content=audio_bytes, media_type="audio/mpeg")
     except Exception as e:
         print(f"VOICE_TTS_ERROR: {e}")
         raise HTTPException(status_code=500, detail=f"TTS failed: {e}")
 
 
-# ─── Voice test — audition reference clips before going live ──────────────────
+# ─── Voice test + voice list — audition Cartesia voices in browser ────────────
+
+@router.get("/voice/list-voices")
+async def list_voices():
+    """Returns all available Cartesia voices as JSON."""
+    from backend.services.voice import _get_cartesia
+    if not os.getenv("CARTESIA_API_KEY"):
+        raise HTTPException(status_code=503, detail="CARTESIA_API_KEY not configured")
+    try:
+        client = _get_cartesia()
+        voices = client.voices.list()
+        return [
+            {"id": v["id"], "name": v["name"], "description": v.get("description", "")}
+            for v in voices
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/voice/test")
 async def test_voice(
-    text: str = Query("Hey what's up brother, welcome back."),
-    voice: str = Query("a"),
+    text: str = Query("Hey what's up brother, glad you're back."),
+    voice_id: str = Query(None),
 ):
-    """Hit /api/voice/test?text=...&voice=a|b to audition reference clips in the browser."""
-    import fal_client  # type: ignore
-    from backend.services.voice import JARVIS_VOICE_REF_A, JARVIS_VOICE_REF_B
+    """Hit /api/voice/test?voice_id=XXX&text=... to audition a Cartesia voice in the browser."""
+    from fastapi.responses import Response as FastResponse
+    from backend.services.voice import synthesize_jarvis_voice, JARVIS_VOICE_ID
 
-    if not os.getenv("FAL_API_KEY"):
-        raise HTTPException(status_code=503, detail="FAL_API_KEY not configured")
-    os.environ.setdefault("FAL_KEY", os.getenv("FAL_API_KEY", ""))
-
-    ref_clips = {"a": JARVIS_VOICE_REF_A, "b": JARVIS_VOICE_REF_B}
-    chosen_ref = ref_clips.get(voice.lower(), JARVIS_VOICE_REF_A)
-
+    if not os.getenv("CARTESIA_API_KEY"):
+        raise HTTPException(status_code=503, detail="CARTESIA_API_KEY not configured")
     try:
-        result = await fal_client.subscribe_async(
-            "fal-ai/csm-1b",
-            arguments={
-                "scene": [{"text": text, "speaker_id": 0}],
-                "context": [chosen_ref],
-            },
-        )
-        return {"audio_url": result["audio"]["url"], "voice_used": voice, "text": text}
+        audio_bytes = await synthesize_jarvis_voice(text, voice_id=voice_id or JARVIS_VOICE_ID)
+        return FastResponse(content=audio_bytes, media_type="audio/mpeg")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
