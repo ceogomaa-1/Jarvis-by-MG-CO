@@ -443,7 +443,17 @@ async def voice_tool_timer(request: VoiceTimerRequest):
         return {"result": f"Could not set timer: {str(e)}"}
 
 
-# ─── STT — Deepgram transcription (Whisper fallback if key absent) ────────────
+# ─── STT — Deepgram (preferred) with Whisper fallback ────────────────────────
+# Import-time check so we know at startup whether the SDK loaded correctly.
+
+try:
+    from deepgram import DeepgramClient as _DeepgramClient  # type: ignore
+    print("STT_INIT: deepgram-sdk loaded successfully")
+    _DEEPGRAM_AVAILABLE = True
+except ImportError as _dg_err:
+    print(f"STT_INIT: deepgram-sdk NOT installed — {_dg_err}")
+    _DeepgramClient = None
+    _DEEPGRAM_AVAILABLE = False
 
 _HALLUCINATIONS = [
     "thanks for watching", "thank you for watching", "please subscribe",
@@ -451,67 +461,89 @@ _HALLUCINATIONS = [
     "subtitles by", "subtitle by", "www.", ".com",
 ]
 
-# Common STT mishears for proper nouns in this context
 _MISHEAR_FIXES = [
     (r'\btravis\b', 'Jarvis'),
     (r'\bservice\b', 'Jarvis'),
     (r'\bharvest\b', 'Jarvis'),
-    (r'\bjarvis\b', 'Jarvis'),  # normalize capitalisation
+    (r'\bjarvis\b', 'Jarvis'),
 ]
 
-_deepgram = None
 
-
-def _get_deepgram():
-    global _deepgram
-    if _deepgram is None:
-        from deepgram import DeepgramClient  # type: ignore
-        _deepgram = DeepgramClient(os.getenv("DEEPGRAM_API_KEY", ""))
-    return _deepgram
-
-
-def _apply_stt_fixes(text: str) -> str:
-    """Apply mishear corrections and hallucination filtering."""
+def _stt_clean(text: str) -> str:
+    """Apply mishear corrections and strip hallucinations. Returns empty string to reject."""
     for pattern, replacement in _MISHEAR_FIXES:
         text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+    if text and len(text) < 60:
+        lower = text.lower()
+        if any(h in lower for h in _HALLUCINATIONS):
+            print(f"STT_HALLUCINATION_REJECTED: {text!r}")
+            return ""
     return text
 
 
-async def _transcribe_deepgram(content: bytes) -> tuple[str, int]:
-    """Returns (text, latency_ms). Uses Deepgram nova-3, ~300-500ms."""
-    from deepgram import PrerecordedOptions  # type: ignore
-    t0 = time.time()
-    options = PrerecordedOptions(
-        model="nova-3",
-        smart_format=True,
-        punctuate=True,
-        language="multi",   # auto-detect English / Arabic Franco
-        filler_words=False,
-    )
-    client = _get_deepgram()
-    response = await asyncio.to_thread(
-        client.listen.rest.v("1").transcribe_file,
-        {"buffer": content, "mimetype": "audio/wav"},
-        options,
-    )
-    text = response.results.channels[0].alternatives[0].transcript.strip()
-    return text, int((time.time() - t0) * 1000)
-
-
-async def _transcribe_whisper(content: bytes, filename: str, content_type: str) -> tuple[str, int]:
-    """Whisper fallback when DEEPGRAM_API_KEY is absent."""
-    import openai
-    t0 = time.time()
-    suffix = "." + filename.rsplit(".", 1)[-1] if "." in filename else ".wav"
-    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-        tmp.write(content)
-        tmp_path = tmp.name
+@router.post("/voice/transcribe")
+async def transcribe_audio(audio: UploadFile = File(...), user_id: str = Form("")):
     try:
-        client = openai.AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY", ""))
-        with open(tmp_path, "rb") as f:
-            transcript = await client.audio.transcriptions.create(
+        content = await audio.read()
+        print(f"STT: received {len(content)} bytes content_type={audio.content_type!r} filename={audio.filename!r}")
+
+        if len(content) < 6000:
+            print(f"STT: skipped — too short ({len(content)} bytes)")
+            return {"text": "", "skipped": True, "reason": "too_short"}
+
+        deepgram_key = os.getenv("DEEPGRAM_API_KEY")
+
+        # ── Try Deepgram first ───────────────────────────────────────────────
+        if deepgram_key and _DEEPGRAM_AVAILABLE:
+            try:
+                print(f"STT: attempting Deepgram (key len={len(deepgram_key)})")
+                t0 = time.time()
+                client = _DeepgramClient(deepgram_key)
+                # Use dict options — avoids PrerecordedOptions import-path issues
+                # across different deepgram-sdk minor versions
+                dg_options = {
+                    "model": "nova-3",
+                    "smart_format": True,
+                    "punctuate": True,
+                    "language": "multi",
+                    "filler_words": False,
+                }
+                response = await asyncio.to_thread(
+                    client.listen.rest.v("1").transcribe_file,
+                    {"buffer": content, "mimetype": "audio/wav"},
+                    dg_options,
+                )
+                text = response.results.channels[0].alternatives[0].transcript.strip()
+                stt_ms = int((time.time() - t0) * 1000)
+                text = _stt_clean(text)
+                print(f"DEEPGRAM_STT: user_id={user_id!r} stt={stt_ms}ms text={text[:80]!r}")
+                return {"text": text, "stt_ms": stt_ms, "engine": "deepgram"}
+
+            except Exception as dg_err:
+                import traceback as _tb
+                print(f"DEEPGRAM_FAIL: {type(dg_err).__name__}: {dg_err}")
+                _tb.print_exc()
+                print("STT: falling back to Whisper")
+        else:
+            reason = "key absent" if not deepgram_key else "sdk not installed"
+            print(f"STT: skipping Deepgram ({reason}), using Whisper")
+
+        # ── Whisper fallback ─────────────────────────────────────────────────
+        try:
+            import openai
+            from io import BytesIO
+            openai_key = os.getenv("OPENAI_API_KEY")
+            if not openai_key:
+                raise HTTPException(status_code=503, detail="No STT engine configured (set DEEPGRAM_API_KEY or OPENAI_API_KEY)")
+
+            print("STT: attempting Whisper fallback")
+            t0 = time.time()
+            oai = openai.AsyncOpenAI(api_key=openai_key)
+            audio_buf = BytesIO(content)
+            audio_buf.name = "recording.wav"
+            transcript = await oai.audio.transcriptions.create(
                 model="whisper-1",
-                file=(filename, f, content_type or "audio/wav"),
+                file=audio_buf,
                 response_format="text",
                 language="en",
                 prompt=(
@@ -520,50 +552,27 @@ async def _transcribe_whisper(content: bytes, filename: str, content_type: str) 
                 ),
                 temperature=0,
             )
-        return str(transcript).strip(), int((time.time() - t0) * 1000)
-    finally:
-        try:
-            os.unlink(tmp_path)
-        except Exception:
-            pass
+            text = str(transcript).strip()
+            stt_ms = int((time.time() - t0) * 1000)
+            text = _stt_clean(text)
+            print(f"WHISPER_STT: user_id={user_id!r} stt={stt_ms}ms text={text[:80]!r}")
+            return {"text": text, "stt_ms": stt_ms, "engine": "whisper"}
 
+        except HTTPException:
+            raise
+        except Exception as whisper_err:
+            import traceback as _tb
+            print(f"WHISPER_FAIL: {type(whisper_err).__name__}: {whisper_err}")
+            _tb.print_exc()
+            raise HTTPException(status_code=500, detail=f"All STT engines failed. Last error: {whisper_err}")
 
-@router.post("/voice/transcribe")
-async def transcribe_audio(audio: UploadFile = File(...), user_id: str = Form("")):
-    content = await audio.read()
-
-    if len(content) < 6000:
-        print(f"VOICE_STT: skipped — too short ({len(content)} bytes)")
-        return {"text": "", "skipped": True, "reason": "too_short"}
-
-    use_deepgram = bool(os.getenv("DEEPGRAM_API_KEY"))
-    engine = "deepgram" if use_deepgram else "whisper"
-
-    try:
-        if use_deepgram:
-            text, stt_ms = await _transcribe_deepgram(content)
-        else:
-            text, stt_ms = await _transcribe_whisper(
-                content,
-                audio.filename or "recording.wav",
-                audio.content_type or "audio/wav",
-            )
-    except Exception as e:
-        print(f"VOICE_STT_ERROR ({engine}): {e}")
-        raise HTTPException(status_code=500, detail=f"Transcription failed: {e}")
-
-    # Apply mishear corrections
-    text = _apply_stt_fixes(text)
-
-    # Filter known STT hallucinations on short outputs
-    if text and len(text) < 60:
-        lower = text.lower()
-        if any(h in lower for h in _HALLUCINATIONS):
-            print(f"VOICE_STT: hallucination rejected — {text!r}")
-            return {"text": "", "skipped": True, "reason": "hallucination"}
-
-    print(f"DEEPGRAM_STT: user_id={user_id!r} engine={engine} stt={stt_ms}ms text={text[:80]!r}")
-    return {"text": text, "stt_ms": stt_ms, "engine": engine}
+    except HTTPException:
+        raise
+    except Exception as outer_err:
+        import traceback as _tb
+        print(f"STT_OUTER_FAIL: {type(outer_err).__name__}: {outer_err}")
+        _tb.print_exc()
+        raise HTTPException(status_code=500, detail=str(outer_err))
 
 
 # ─── TTS — Cartesia Sonic synthesis ──────────────────────────────────────────
