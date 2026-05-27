@@ -3,9 +3,11 @@ import os
 import time
 from collections import defaultdict
 
-# ─── Cartesia client (lazy-init so import doesn't fail if SDK missing) ─────────
+# ─── Cartesia clients (lazy-init) ─────────────────────────────────────────────
 
 _cartesia = None
+_async_cartesia = None
+
 
 def _get_cartesia():
     global _cartesia
@@ -15,10 +17,15 @@ def _get_cartesia():
     return _cartesia
 
 
+def _get_async_cartesia():
+    global _async_cartesia
+    if _async_cartesia is None:
+        from cartesia import AsyncCartesia  # type: ignore
+        _async_cartesia = AsyncCartesia(api_key=os.getenv("CARTESIA_API_KEY", ""))
+    return _async_cartesia
+
+
 # ─── Voice identity ───────────────────────────────────────────────────────────
-# Set JARVIS_VOICE_ID to whichever Cartesia voice ID sounds best.
-# Audition via GET /api/voice/test?voice_id=<id>&text=Hey+what%27s+up
-# List all options via GET /api/voice/list-voices
 
 JARVIS_VOICE_ID = os.getenv("JARVIS_VOICE_ID", "a0e99841-438c-4a64-b679-ae501e7d6091")
 
@@ -44,7 +51,46 @@ def check_rate_limit(user_id: str, char_count: int) -> str | None:
     return None
 
 
-# ─── Core synthesis ───────────────────────────────────────────────────────────
+# ─── Streaming synthesis (WebSocket — ~200ms first chunk) ────────────────────
+
+async def stream_jarvis_voice(text: str, voice_id: str | None = None):
+    """Stream raw PCM float32 LE audio at 22050 Hz via Cartesia WebSocket.
+    Yields bytes chunks as they arrive — first chunk in ~200ms."""
+    vid = voice_id or JARVIS_VOICE_ID
+    t0 = time.time()
+    print(f"VOICE_STREAM_START: {len(text)} chars voice_id={vid}")
+
+    client = _get_async_cartesia()
+    ws = await client.tts.websocket()
+    chunk_count = 0
+    try:
+        output_generate = await ws.send(
+            model_id="sonic-2",
+            transcript=text,
+            voice={"mode": "id", "id": vid},
+            output_format={
+                "container": "raw",
+                "encoding": "pcm_f32le",
+                "sample_rate": 22050,
+            },
+            stream=True,
+        )
+        async for chunk in output_generate:
+            # SDK may return object with .audio or dict with "audio"
+            audio = chunk.audio if hasattr(chunk, "audio") else chunk.get("audio", b"")
+            if audio:
+                if chunk_count == 0:
+                    print(f"VOICE_FIRST_CHUNK: {int((time.time() - t0) * 1000)}ms latency")
+                chunk_count += 1
+                yield audio
+    finally:
+        await ws.close()
+
+    cost_usd = len(text) * 0.000065
+    print(f"VOICE_STREAM_END: {chunk_count} chunks, ${cost_usd:.4f}")
+
+
+# ─── Non-streaming fallback (for /voice/test and backward compat) ─────────────
 
 async def synthesize_jarvis_voice(text: str, voice_id: str | None = None) -> bytes:
     """Synthesize speech via Cartesia Sonic. Returns raw MP3 bytes."""
@@ -53,7 +99,6 @@ async def synthesize_jarvis_voice(text: str, voice_id: str | None = None) -> byt
 
     client = _get_cartesia()
 
-    # Cartesia SDK is sync — run in thread to keep FastAPI non-blocking
     def _synth():
         audio_bytes = b""
         for chunk in client.tts.bytes(
