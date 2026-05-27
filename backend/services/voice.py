@@ -1,45 +1,32 @@
+import asyncio
 import os
 import time
 from collections import defaultdict
 
-# ─── Voice identity — swap these constants to change Jarvis's voice ──────────
-# context = reference clips that give CSM 1B the voice character to clone.
-# The model matches timber, pace, and energy from these clips.
+# ─── Cartesia client (lazy-init so import doesn't fail if SDK missing) ─────────
 
-JARVIS_VOICE_REF_A = {
-    "audio_url": "https://huggingface.co/spaces/sesame/csm-1b/resolve/main/prompts/conversational_a.wav",
-    "speaker_id": 0,
-    "prompt": (
-        "like revising for an exam I'd have to try and like keep up the momentum because I'd "
-        "start really early I'd be like okay I'm gonna start revising now and then like you're "
-        "revising for ages and then I just like start losing steam I didn't do that for the exam "
-        "we had recently to be fair that was a more of a last minute scenario but like yeah I'm "
-        "trying to like yeah I noticed this yesterday that like Mondays I sort of start the day "
-        "with this not like a panic but like a"
-    ),
-}
+_cartesia = None
 
-JARVIS_VOICE_REF_B = {
-    "audio_url": "https://huggingface.co/spaces/sesame/csm-1b/resolve/main/prompts/conversational_b.wav",
-    "speaker_id": 0,
-    "prompt": (
-        "like a super Mario level. Like it's very like high detail. And like, once you get into "
-        "the park, it just like, everything looks like a computer game and they have all these, "
-        "like, you know, if, if there's like a, you know, like in a Mario game, they will have "
-        "like a question block. And if you like, you know, punch it, a coin will come out. So "
-        "like everyone, when they come into the park, they get like this little bracelet and then "
-        "you can go punching question blocks around."
-    ),
-}
+def _get_cartesia():
+    global _cartesia
+    if _cartesia is None:
+        from cartesia import Cartesia  # type: ignore
+        _cartesia = Cartesia(api_key=os.getenv("CARTESIA_API_KEY", ""))
+    return _cartesia
 
-# Active reference — flip to JARVIS_VOICE_REF_B after testing via /api/voice/test
-JARVIS_VOICE_REF = JARVIS_VOICE_REF_A
+
+# ─── Voice identity ───────────────────────────────────────────────────────────
+# Set JARVIS_VOICE_ID to whichever Cartesia voice ID sounds best.
+# Audition via GET /api/voice/test?voice_id=<id>&text=Hey+what%27s+up
+# List all options via GET /api/voice/list-voices
+
+JARVIS_VOICE_ID = os.getenv("JARVIS_VOICE_ID", "a0e99841-438c-4a64-b679-ae501e7d6091")
 
 # ─── In-memory rate limiting ──────────────────────────────────────────────────
 
 _rl: dict[str, dict] = defaultdict(lambda: {"count": 0, "window_start": 0.0})
 _MAX_REQUESTS_PER_HOUR = 100
-_MAX_CHARS_PER_REQUEST = 1000
+_MAX_CHARS_PER_REQUEST = 1500
 
 
 def check_rate_limit(user_id: str, char_count: int) -> str | None:
@@ -50,37 +37,42 @@ def check_rate_limit(user_id: str, char_count: int) -> str | None:
         state["count"] = 0
         state["window_start"] = now
     if char_count > _MAX_CHARS_PER_REQUEST:
-        return f"Text too long — {char_count} chars exceeds {_MAX_CHARS_PER_REQUEST} char limit per request"
+        return f"Text too long — {char_count} chars exceeds {_MAX_CHARS_PER_REQUEST} char limit"
     if state["count"] >= _MAX_REQUESTS_PER_HOUR:
         return f"Voice rate limit: {_MAX_REQUESTS_PER_HOUR} requests/hour exceeded"
     state["count"] += 1
     return None
 
 
-# ─── Core synthesis function ──────────────────────────────────────────────────
+# ─── Core synthesis ───────────────────────────────────────────────────────────
 
-async def synthesize_jarvis_voice(text: str, voice_ref: dict | None = None) -> str:
-    """Call Fal.ai CSM 1B with scene + context. Returns public audio URL."""
-    import fal_client  # type: ignore
+async def synthesize_jarvis_voice(text: str, voice_id: str | None = None) -> bytes:
+    """Synthesize speech via Cartesia Sonic. Returns raw MP3 bytes."""
+    vid = voice_id or JARVIS_VOICE_ID
+    print(f"VOICE_SYNTH: synthesizing {len(text)} chars voice_id={vid}")
 
-    api_key = os.getenv("FAL_API_KEY")
-    if not api_key:
-        raise RuntimeError("FAL_API_KEY not set")
-    os.environ.setdefault("FAL_KEY", api_key)
+    client = _get_cartesia()
 
-    ref = voice_ref or JARVIS_VOICE_REF
+    # Cartesia SDK is sync — run in thread to keep FastAPI non-blocking
+    def _synth():
+        audio_bytes = b""
+        for chunk in client.tts.bytes(
+            model_id="sonic-2",
+            transcript=text,
+            voice={"mode": "id", "id": vid},
+            language="en",
+            output_format={
+                "container": "mp3",
+                "sample_rate": 44100,
+                "bit_rate": 128000,
+            },
+        ):
+            audio_bytes += chunk
+        return audio_bytes
 
-    result = await fal_client.subscribe_async(
-        "fal-ai/csm-1b",
-        arguments={
-            "scene": [{"text": text, "speaker_id": 0}],
-            "context": [ref],
-        },
-    )
-
-    audio_url = result.get("audio", {}).get("url", "")
-    cost = len(text) * 0.00003
-    print(f"VOICE_COST: chars={len(text)} cost=${cost:.4f} url={'yes' if audio_url else 'MISSING'}")
-    if not audio_url:
-        raise RuntimeError(f"Fal returned no audio URL — raw: {result}")
-    return audio_url
+    audio_bytes = await asyncio.to_thread(_synth)
+    cost_usd = len(text) * 0.000065
+    print(f"VOICE_COST: chars={len(text)} cost=${cost_usd:.4f} bytes={len(audio_bytes)}")
+    if not audio_bytes:
+        raise RuntimeError("Cartesia returned empty audio")
+    return audio_bytes

@@ -1,62 +1,79 @@
 /**
- * JarvisVoice — Whisper STT + Fal CSM 1B TTS pipeline.
- * FAL_KEY never touches the frontend; all Fal calls go through /api/voice/synthesize.
+ * JarvisVoice — VAD-gated Whisper STT + Cartesia Sonic TTS.
+ * Single-tap to start/stop. No hold-to-talk.
+ * All API calls go through our backend — no API keys in the browser.
  */
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || ''
 
+// ── AudioQueue — prevents AbortError from overlapping plays ──────────────────
+
+class AudioQueue {
+  constructor() {
+    this._queue = []
+    this._current = null
+    this._playing = false
+    this.onStart = null
+    this.onEnd = null
+  }
+
+  add(objectUrl) {
+    this._queue.push(objectUrl)
+    if (!this._playing) this._playNext()
+  }
+
+  _playNext() {
+    if (this._queue.length === 0) {
+      this._playing = false
+      this.onEnd?.()
+      return
+    }
+    this._playing = true
+    const url = this._queue.shift()
+    if (this._queue.length === 0) this.onStart?.()  // fire once per batch
+    const audio = new Audio(url)
+    this._current = audio
+    audio.play().catch((err) => {
+      if (err.name !== 'AbortError') console.error('AudioQueue: play error', err)
+      URL.revokeObjectURL(url)
+      this._playNext()
+    })
+    audio.onended = () => {
+      URL.revokeObjectURL(url)
+      this._playNext()
+    }
+    audio.onerror = () => {
+      URL.revokeObjectURL(url)
+      this._playNext()
+    }
+  }
+
+  stop() {
+    this._queue.forEach(url => URL.revokeObjectURL(url))
+    this._queue = []
+    if (this._current) {
+      this._current.pause()
+      this._current.src = ''
+      this._current = null
+    }
+    this._playing = false
+  }
+}
+
+// ── JarvisVoice ───────────────────────────────────────────────────────────────
+
 export class JarvisVoice {
-  constructor({ userId, onTranscript, onSpeakingStart, onSpeakingEnd, onError, onRecordingStart, onRecordingStop }) {
+  constructor({ userId, onSpeakingStart, onSpeakingEnd, onError }) {
     this.userId = userId
-    this.onTranscript = onTranscript
     this.onSpeakingStart = onSpeakingStart
     this.onSpeakingEnd = onSpeakingEnd
     this.onError = onError
-    this.onRecordingStart = onRecordingStart
-    this.onRecordingStop = onRecordingStop
 
-    this._mediaRecorder = null
-    this._chunks = []
-    this._recordStart = 0
-    this._currentAudio = null
     this._vad = null
     this._handsFreeActive = false
-  }
-
-  // ── Hold-to-talk ────────────────────────────────────────────────────────────
-
-  async startHoldToTalk() {
-    if (this._mediaRecorder?.state === 'recording') return
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      this._chunks = []
-      this._recordStart = Date.now()
-      this._mediaRecorder = new MediaRecorder(stream, { mimeType: this._bestMime() })
-      this._mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) this._chunks.push(e.data) }
-      this._mediaRecorder.start()
-      this.onRecordingStart?.()
-    } catch (err) {
-      console.error('JarvisVoice: mic access failed', err)
-      this.onError?.('Microphone access denied. Check browser permissions.')
-    }
-  }
-
-  async stopHoldToTalk(sendCb) {
-    if (!this._mediaRecorder || this._mediaRecorder.state !== 'recording') return
-    const elapsed = Date.now() - this._recordStart
-    if (elapsed < 500) {
-      // Too short — accidental tap, discard
-      this._stopRecorder()
-      return
-    }
-    const blob = await this._stopRecorderAndGetBlob()
-    this.onRecordingStop?.()
-    await this._transcribeAndSend(blob, sendCb)
-  }
-
-  cancelHoldToTalk() {
-    this._stopRecorder()
-    this.onRecordingStop?.()
+    this._audioQueue = new AudioQueue()
+    this._audioQueue.onStart = () => this.onSpeakingStart?.()
+    this._audioQueue.onEnd = () => this.onSpeakingEnd?.()
   }
 
   // ── Hands-free (VAD) ────────────────────────────────────────────────────────
@@ -64,23 +81,36 @@ export class JarvisVoice {
   async startHandsFree(sendCb) {
     this._handsFreeActive = true
     try {
-      // Dynamic import — avoids SSR issues with the WASM dependency
       const { MicVAD } = await import('@ricky0123/vad-web')
       this._vad = await MicVAD.new({
-        onSpeechStart: () => { if (this._handsFreeActive) this.onRecordingStart?.() },
+        // Point to public/-served files copied by scripts/copy-vad-assets.js
+        modelURL: '/silero_vad_legacy.onnx',
+        workletURL: '/vad.worklet.bundle.min.js',
+        ortConfig: (ort) => { ort.env.wasm.wasmPaths = '/' },
+
+        // Stricter thresholds — reduces false triggers and silence send
+        positiveSpeechThreshold: 0.9,
+        negativeSpeechThreshold: 0.75,
+        minSpeechFrames: 8,        // ~250ms of confirmed speech before triggering
+        preSpeechPadFrames: 4,
+
+        onSpeechStart: () => {
+          if (this._handsFreeActive) console.log('VAD: speech start')
+        },
         onSpeechEnd: async (audio) => {
           if (!this._handsFreeActive) return
-          this.onRecordingStop?.()
           const blob = this._float32ToWav(audio, 16000)
           await this._transcribeAndSend(blob, sendCb)
         },
-        onVADMisfire: () => {},
+        onVADMisfire: () => { console.log('VAD: misfire (too short)') },
       })
       await this._vad.start()
+      console.log('VAD: started')
     } catch (err) {
       console.error('JarvisVoice: VAD start failed', err)
-      this.onError?.('Could not start hands-free mode.')
+      this.onError?.('Could not start voice. Check mic permissions.')
       this._handsFreeActive = false
+      throw err
     }
   }
 
@@ -88,7 +118,9 @@ export class JarvisVoice {
     this._handsFreeActive = false
     this._vad?.destroy()
     this._vad = null
-    this.stopSpeaking()
+    this._audioQueue.stop()
+    this.onSpeakingEnd?.()
+    console.log('VAD: stopped')
   }
 
   // ── Transcription ───────────────────────────────────────────────────────────
@@ -96,102 +128,56 @@ export class JarvisVoice {
   async _transcribeAndSend(blob, sendCb) {
     try {
       const form = new FormData()
-      form.append('audio', blob, 'recording.' + this._ext(blob.type))
-      form.append('user_id', this.userId)
+      form.append('audio', blob, 'recording.wav')
+      form.append('user_id', this.userId || '')
       const res = await fetch(`${BACKEND}/api/voice/transcribe`, { method: 'POST', body: form })
-      if (!res.ok) throw new Error(`Whisper returned ${res.status}`)
-      const { text } = await res.json()
-      if (text?.trim()) {
-        this.onTranscript?.(text.trim())
-        await sendCb?.(text.trim())
-      }
+      if (!res.ok) throw new Error(`STT ${res.status}`)
+      const data = await res.json()
+      if (data.skipped || !data.text?.trim()) return
+      console.log('STT:', data.text)
+      await sendCb?.(data.text.trim())
     } catch (err) {
       console.error('JarvisVoice: transcribe error', err)
-      this.onError?.('Could not transcribe. Try again.')
     }
   }
 
-  // ── TTS playback ────────────────────────────────────────────────────────────
+  // ── TTS playback ─────────────────────────────────────────────────────────────
+  // Backend returns raw MP3 bytes. We blob-URL them so Audio can play.
 
   async speak(text) {
     if (!text?.trim()) return
-    this.stopSpeaking()
     try {
       const res = await fetch(`${BACKEND}/api/voice/synthesize`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: text.slice(0, 1000), user_id: this.userId }),
+        body: JSON.stringify({ text: text.slice(0, 1500), user_id: this.userId || '' }),
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
         throw new Error(err.detail || `TTS ${res.status}`)
       }
-      const { audio_url } = await res.json()
-      if (!audio_url) throw new Error('No audio URL returned')
-      this._currentAudio = new Audio(audio_url)
-      this.onSpeakingStart?.()
-      this._currentAudio.onended = () => { this._currentAudio = null; this.onSpeakingEnd?.() }
-      this._currentAudio.onerror = () => { this._currentAudio = null; this.onSpeakingEnd?.() }
-      await this._currentAudio.play()
+      const audioBlob = await res.blob()
+      const objectUrl = URL.createObjectURL(audioBlob)
+      this._audioQueue.add(objectUrl)
     } catch (err) {
       console.error('JarvisVoice: TTS error', err)
-      this.onSpeakingEnd?.()
-      // Don't surface TTS errors to user — text response is already in chat
+      // Don't surface — text is already in chat
     }
   }
 
   stopSpeaking() {
-    if (this._currentAudio) {
-      this._currentAudio.pause()
-      this._currentAudio.src = ''
-      this._currentAudio = null
-      this.onSpeakingEnd?.()
-    }
+    this._audioQueue.stop()
+    this.onSpeakingEnd?.()
   }
 
-  // ── Cleanup ─────────────────────────────────────────────────────────────────
+  // ── Cleanup ──────────────────────────────────────────────────────────────────
 
   destroy() {
     this.stopHandsFree()
-    this.cancelHoldToTalk()
     this.stopSpeaking()
   }
 
-  // ── Internals ───────────────────────────────────────────────────────────────
-
-  _bestMime() {
-    for (const m of ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4']) {
-      if (MediaRecorder.isTypeSupported(m)) return m
-    }
-    return ''
-  }
-
-  _ext(mimeType) {
-    if (mimeType.includes('ogg')) return 'ogg'
-    if (mimeType.includes('mp4')) return 'mp4'
-    return 'webm'
-  }
-
-  _stopRecorder() {
-    if (this._mediaRecorder?.state === 'recording') this._mediaRecorder.stop()
-    this._mediaRecorder?.stream?.getTracks().forEach(t => t.stop())
-    this._mediaRecorder = null
-    this._chunks = []
-  }
-
-  _stopRecorderAndGetBlob() {
-    return new Promise(resolve => {
-      const mr = this._mediaRecorder
-      mr.onstop = () => {
-        const blob = new Blob(this._chunks, { type: mr.mimeType || 'audio/webm' })
-        this._chunks = []
-        mr.stream?.getTracks().forEach(t => t.stop())
-        this._mediaRecorder = null
-        resolve(blob)
-      }
-      mr.stop()
-    })
-  }
+  // ── Internals ────────────────────────────────────────────────────────────────
 
   _float32ToWav(samples, sampleRate) {
     const buf = new ArrayBuffer(44 + samples.length * 2)
