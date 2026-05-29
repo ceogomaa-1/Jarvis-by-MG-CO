@@ -221,10 +221,16 @@ export class JarvisVoice {
         workletURL: '/vad.worklet.bundle.min.js',
         ortConfig: (ort) => { ort.env.wasm.wasmPaths = '/' },
 
-        positiveSpeechThreshold: 0.9,
-        negativeSpeechThreshold: 0.75,
-        minSpeechFrames: 8,
-        preSpeechPadFrames: 4,
+        // VAD tuning — Batch 13.1 endpointing fix
+        // Prev config (0.9/0.75) was rejecting all but the cleanest silence,
+        // causing 7-14s endpointing delays in normal rooms. Echo cancellation
+        // in getUserMedia handles self-triggering; thresholds can run at defaults.
+        positiveSpeechThreshold: 0.5,
+        negativeSpeechThreshold: 0.35,
+        redemptionFrames: 4,        // 4 × 96ms = ~384ms silence tail
+        frameSamples: 1536,         // explicit, 16kHz default
+        minSpeechFrames: 3,         // accept short utterances ("yes", "stop")
+        preSpeechPadFrames: 2,
 
         onSpeechStart: () => {
           if (!this._handsFreeActive) return

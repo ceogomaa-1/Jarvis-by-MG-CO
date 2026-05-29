@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@11labs/client": "latest",
-    "@ricky0123/vad-web": "latest",
+    "@ricky0123/vad-web": "0.0.30",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.105.4",
     "framer-motion": "^11.18.2",
