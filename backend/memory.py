@@ -2,6 +2,10 @@ import asyncio
 import logging
 import traceback
 from mem0 import MemoryClient
+try:
+    from mem0.exceptions import RateLimitError
+except ImportError:
+    RateLimitError = None  # mem0 version doesn't expose this exception class
 from backend.utils.env import MEM0_API_KEY
 
 logger = logging.getLogger(__name__)
@@ -45,6 +49,9 @@ async def get_relevant_memories(user_id: str, current_message: str) -> str:
         lines = [f"- {r['memory']}" for r in results if r.get("memory")]
         return "\n".join(lines)
     except Exception as e:
+        if RateLimitError and isinstance(e, RateLimitError):
+            print(f"MEMORY: rate limited (Mem0 quota exceeded, resets June 1) — skipping for user {user_id}")
+            return ""
         print(f"MEMORY: ERROR — get_relevant_memories failed for user {user_id}: {e}")
         traceback.print_exc()
         return ""
