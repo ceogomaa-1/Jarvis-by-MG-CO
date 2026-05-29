@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import re
+import time
 import traceback
 from collections import deque
 from datetime import datetime, timezone
@@ -288,6 +289,9 @@ async def chat_stream(request: ChatRequest):
     tools = AVAILABLE_TOOLS if not system_override else None
 
     async def event_generator():
+        voice_t0 = time.time()
+        print(f"CHAT_T0: user_id={request.user_id!r} voice={request.voice_mode}")
+
         response_text = _FALLBACK_LLM_ERROR
         debug_str = None
         try:
@@ -303,6 +307,8 @@ async def chat_stream(request: ChatRequest):
                 live_context=live_context,
                 voice_mode=request.voice_mode,
             )
+            llm_ms = int((time.time() - voice_t0) * 1000)
+            print(f"CHAT_LLM_DONE: {llm_ms}ms chars={len(response_text)}")
             # Handle empty / soft-refusal responses
             if not response_text or not response_text.strip():
                 debug_str = _log_fallback("EMPTY_RESPONSE", request.message)
@@ -311,17 +317,22 @@ async def chat_stream(request: ChatRequest):
             debug_str = _log_fallback("LLM_EXCEPTION", request.message, exc=e)
             response_text = _FALLBACK_LLM_ERROR
 
-        # In voice mode, send sentence-level events immediately so the frontend
-        # can start TTS streaming each sentence as soon as it's available,
-        # rather than waiting for the full fake character stream to finish.
         if request.voice_mode and response_text:
+            # Fire sentence-level TTS events immediately — frontend queues each
+            # into StreamingAudioPlayer so first audio plays in ~200ms.
             sentences = _split_voice_sentences(response_text)
-            for sentence in sentences:
+            for i, sentence in enumerate(sentences):
+                tts_ms = int((time.time() - voice_t0) * 1000)
+                print(f"CHAT_TTS_FIRE: {tts_ms}ms sentence[{i}]={sentence[:40]!r}")
                 yield f"data: {json.dumps({'__vs': sentence})}\n\n"
-
-        for char in response_text:
-            yield f"data: {json.dumps(char)}\n\n"
-            await asyncio.sleep(0.01)
+            # Stream text with no delay in voice mode — TTS already fired above,
+            # text display is secondary output so no need for fake typing rhythm.
+            for char in response_text:
+                yield f"data: {json.dumps(char)}\n\n"
+        else:
+            for char in response_text:
+                yield f"data: {json.dumps(char)}\n\n"
+                await asyncio.sleep(0.01)
 
         _record_interaction(request.user_id)
         async def _run_post_tasks():
@@ -336,6 +347,8 @@ async def chat_stream(request: ChatRequest):
         )
         if debug_str:
             yield f"data: [DEBUG:{debug_str}]\n\n"
+        done_ms = int((time.time() - voice_t0) * 1000)
+        print(f"CHAT_DONE: {done_ms}ms")
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(

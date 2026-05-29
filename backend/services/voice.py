@@ -55,14 +55,15 @@ def check_rate_limit(user_id: str, char_count: int) -> str | None:
 
 async def stream_jarvis_voice(text: str, voice_id: str | None = None):
     """Stream raw PCM float32 LE audio at 22050 Hz via Cartesia WebSocket.
-    Yields bytes chunks as they arrive — first chunk in ~200ms."""
+    Yields bytes chunks as they arrive — first chunk typically in ~200ms."""
     vid = voice_id or JARVIS_VOICE_ID
     t0 = time.time()
-    print(f"VOICE_STREAM_START: {len(text)} chars voice_id={vid}")
+    print(f"VOICE_WS_START: {len(text)} chars voice_id={vid}")
 
     client = _get_async_cartesia()
     ws = await client.tts.websocket()
     chunk_count = 0
+    first_chunk_ms = None
     try:
         output_generate = await ws.send(
             model_id="sonic-2",
@@ -80,14 +81,16 @@ async def stream_jarvis_voice(text: str, voice_id: str | None = None):
             audio = chunk.audio if hasattr(chunk, "audio") else chunk.get("audio", b"")
             if audio:
                 if chunk_count == 0:
-                    print(f"VOICE_FIRST_CHUNK: {int((time.time() - t0) * 1000)}ms latency")
+                    first_chunk_ms = int((time.time() - t0) * 1000)
+                    print(f"VOICE_WS_FIRST_CHUNK: {first_chunk_ms}ms")
                 chunk_count += 1
                 yield audio
     finally:
         await ws.close()
 
+    total_ms = int((time.time() - t0) * 1000)
     cost_usd = len(text) * 0.000065
-    print(f"VOICE_STREAM_END: {chunk_count} chunks, ${cost_usd:.4f}")
+    print(f"VOICE_WS_END: chunks={chunk_count} total={total_ms}ms first={first_chunk_ms}ms cost=${cost_usd:.4f}")
 
 
 # ─── Non-streaming fallback (for /voice/test and backward compat) ─────────────
