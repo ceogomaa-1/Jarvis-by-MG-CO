@@ -625,7 +625,7 @@ async def synthesize_speech_stream(req: SynthRequest):
 
     return StreamingResponse(
         stream_jarvis_voice(text),
-        media_type="audio/pcm",
+        media_type="application/octet-stream",
         headers={
             "X-Audio-Encoding": "pcm_f32le",
             "X-Sample-Rate": "22050",
