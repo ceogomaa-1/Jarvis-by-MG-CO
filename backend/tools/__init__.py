@@ -5,3 +5,4 @@ from backend.tools import timer_tool as _timer  # noqa: F401
 from backend.tools import timer_manager as _tm  # noqa: F401
 from backend.tools import web_search as _ws  # noqa: F401
 from backend.tools import document_search as _ds  # noqa: F401
+from backend.tools import url_fetch as _uf  # noqa: F401
