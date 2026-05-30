@@ -1,6 +1,7 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { detectShowMeHow } from '../../lib/business/showMeHowDetector'
 import Walkthrough from './Walkthrough'
 import DownloadPDFButton from './DownloadPDFButton'
@@ -33,7 +34,7 @@ function AssistantBubble({ content, streaming }) {
       }}
         className="biz-markdown"
       >
-        <ReactMarkdown>{content || ''}</ReactMarkdown>
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{content || ''}</ReactMarkdown>
         {streaming && (
           <span style={{
             display: 'inline-block', width: 2, height: 14,

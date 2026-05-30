@@ -7,6 +7,7 @@ import httpx
 from fastapi import APIRouter
 from backend.llm import jarvis_think
 from backend.triggers import get_pending_proactive_message, mark_proactive_delivered
+from backend.conversation import save_conversation_turn
 
 router = APIRouter()
 
@@ -119,6 +120,8 @@ async def check_proactive(user_id: str):
     # 1. Reminders take priority — fire them the moment they're due
     reminder = await _check_due_reminders(user_id)
     if reminder:
+        if reminder.get("message"):
+            await save_conversation_turn(user_id, "assistant", reminder["message"])
         return reminder
 
     # 2. Deliver any background-generated insight that's been stored
@@ -127,6 +130,8 @@ async def check_proactive(user_id: str):
         return _NO_MESSAGE
 
     await mark_proactive_delivered(user_id)
+    if pending.get("message"):
+        await save_conversation_turn(user_id, "assistant", pending["message"])
     return {
         "has_message": True,
         "message": pending["message"],

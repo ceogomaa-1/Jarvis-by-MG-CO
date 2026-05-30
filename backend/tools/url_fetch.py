@@ -1,3 +1,4 @@
+import html
 import re
 import httpx
 import trafilatura
@@ -43,14 +44,14 @@ async def fetch_url_content(url: str) -> dict:
         ctype = resp.headers.get("content-type", "").lower()
         if "html" not in ctype and "text" not in ctype:
             return {"url": url, "title": "", "content": "", "error": f"unsupported content-type: {ctype}"}
-        html = resp.text
+        html_text = resp.text
     except httpx.TimeoutException:
         return {"url": url, "title": "", "content": "", "error": "timeout (5s)"}
     except Exception as e:
         return {"url": url, "title": "", "content": "", "error": f"fetch failed: {type(e).__name__}"}
 
     extracted = trafilatura.extract(
-        html,
+        html_text,
         include_comments=False,
         include_tables=True,
         include_images=False,
@@ -60,8 +61,8 @@ async def fetch_url_content(url: str) -> dict:
     if not extracted or len(extracted.strip()) < 50:
         return {"url": url, "title": "", "content": "", "error": "could not extract main content"}
 
-    title_match = re.search(r'<title[^>]*>(.*?)</title>', html, re.IGNORECASE | re.DOTALL)
-    title = title_match.group(1).strip()[:200] if title_match else url
+    title_match = re.search(r'<title[^>]*>(.*?)</title>', html_text, re.IGNORECASE | re.DOTALL)
+    title = html.unescape(title_match.group(1)).strip()[:200] if title_match else url
 
     if len(extracted) > MAX_CONTENT_CHARS:
         extracted = extracted[:MAX_CONTENT_CHARS] + "\n\n[content truncated]"
