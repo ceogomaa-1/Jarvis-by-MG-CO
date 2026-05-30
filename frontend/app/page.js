@@ -490,6 +490,116 @@ function KnowledgePanel({ userId, onClose }) {
 
 // ─── Conversation ─────────────────────────────────────────────────────────────
 
+function preprocessCitations(text, sources) {
+  if (!text || !sources || sources.length === 0) return text || ''
+  return text.replace(/\[(\d+)\]/g, (match, n) => {
+    const idx = parseInt(n, 10)
+    if (sources.some(s => s.index === idx)) {
+      return `[${match}](#cite-${idx})`
+    }
+    return match
+  })
+}
+
+function CitationPill({ index, source }) {
+  return (
+    <a
+      href={source.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={source.title}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minWidth: 18,
+        height: 18,
+        padding: '0 5px',
+        marginLeft: 2,
+        marginRight: 1,
+        borderRadius: 4,
+        background: 'rgba(200,75,49,0.15)',
+        color: 'var(--accent)',
+        fontSize: 11,
+        fontWeight: 600,
+        fontFamily: 'var(--sans)',
+        textDecoration: 'none',
+        border: '1px solid rgba(200,75,49,0.3)',
+        verticalAlign: 'super',
+        lineHeight: 1,
+        cursor: 'pointer',
+      }}
+    >
+      {index}
+    </a>
+  )
+}
+
+function SourceCards({ sources }) {
+  return (
+    <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 6, maxWidth: '100%' }}>
+      <div style={{
+        fontFamily: 'var(--sans)', fontSize: 9, letterSpacing: '0.3em',
+        textTransform: 'uppercase', color: 'var(--ink-soft)', opacity: 0.55,
+        marginBottom: 6,
+      }}>
+        Sources
+      </div>
+      {sources.map((s) => (
+        <a
+          key={s.index}
+          href={s.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '8px 12px',
+            borderRadius: 8,
+            border: '1px solid rgba(243,234,217,0.08)',
+            background: 'rgba(255,255,255,0.02)',
+            textDecoration: 'none',
+            fontFamily: 'var(--sans)',
+            transition: 'background 200ms ease, border-color 200ms ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
+            e.currentTarget.style.borderColor = 'rgba(243,234,217,0.18)'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(255,255,255,0.02)'
+            e.currentTarget.style.borderColor = 'rgba(243,234,217,0.08)'
+          }}
+        >
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 20, height: 20, borderRadius: 4, flexShrink: 0,
+            background: 'rgba(200,75,49,0.15)',
+            color: 'var(--accent)', fontSize: 11, fontWeight: 600,
+          }}>{s.index}</div>
+          {s.favicon && (
+            <img
+              src={s.favicon}
+              alt=""
+              style={{ width: 16, height: 16, borderRadius: 2, flexShrink: 0 }}
+              onError={(e) => { e.currentTarget.style.display = 'none' }}
+            />
+          )}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              color: 'var(--ink)', fontSize: 13, fontWeight: 500,
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            }}>{s.title || s.url}</div>
+            <div style={{
+              color: 'var(--ink-soft)', fontSize: 11, opacity: 0.6,
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            }}>{s.domain || s.url}</div>
+          </div>
+        </a>
+      ))}
+    </div>
+  )
+}
+
 function BlinkCaret() {
   return (
     <span style={{
@@ -663,9 +773,25 @@ function Message({ msg, isLatest, onRetry }) {
         </div>
       )}
       <div className="prose" style={{ fontFamily: 'var(--serif)', fontSize: 22, lineHeight: 1.35, fontWeight: 400, color: 'var(--ink)', letterSpacing: 0.2 }}>
-        <ReactMarkdown>{textContent}</ReactMarkdown>
+        <ReactMarkdown
+          components={{
+            a: ({ href, children, ...props }) => {
+              if (typeof href === 'string' && href.startsWith('#cite-')) {
+                const n = parseInt(href.slice(6), 10)
+                const src = msg.sources?.find(s => s.index === n)
+                if (src) return <CitationPill index={n} source={src} />
+              }
+              return <a href={href} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>
+            }
+          }}
+        >
+          {preprocessCitations(textContent, msg.sources)}
+        </ReactMarkdown>
         {msg.streaming && <BlinkCaret />}
       </div>
+      {msg.sources && msg.sources.length > 0 && !msg.streaming && (
+        <SourceCards sources={msg.sources} />
+      )}
     </div>
   )
 }
@@ -1774,7 +1900,7 @@ export default function Home() {
               setMessages(prev => {
                 const updated = [...prev]
                 const idx = updated.findIndex(m => m.id === streamMsgId)
-                if (idx !== -1) updated[idx] = { id: streamMsgId, role: 'assistant', content: accumulated }
+                if (idx !== -1) updated[idx] = { ...updated[idx], id: streamMsgId, role: 'assistant', content: accumulated, streaming: false }
                 return updated
               })
               // Speak the response only when sent via voice and not already fired
@@ -1804,6 +1930,16 @@ export default function Home() {
                   voiceManagerRef.current?.speak(chunk.__vs)
                   voiceFired = true
                 }
+                continue
+              }
+              // Batch 14: sources event — attach to streaming message
+              if (chunk && typeof chunk === 'object' && Array.isArray(chunk.__sources)) {
+                setMessages(prev => {
+                  const updated = [...prev]
+                  const idx = updated.findIndex(m => m.id === streamMsgId)
+                  if (idx !== -1) updated[idx] = { ...updated[idx], sources: chunk.__sources }
+                  return updated
+                })
                 continue
               }
               accumulated += chunk

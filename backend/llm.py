@@ -249,6 +249,17 @@ FRANCO IN VOICE MODE:
 - Mix Franco + English freely the way Egyptians actually do."""
 
 
+_CITATION_RULES = """
+WHEN CITING SOURCES:
+- If the user provided URLs in their message, they appear in your context as "[Source N]" blocks with full fetched content.
+- When you use web_search or fetch_url, results come back numbered [1], [2], [3].
+- Cite claims inline using the matching number in square brackets, e.g. "The post argues [2] that pricing should..."
+- Only cite what's actually in a source. Do NOT fabricate source numbers. Do NOT cite from memory.
+- Do NOT add a "Sources:" section at the end — sources are rendered automatically as cards beneath your message.
+- In voice mode (voice_mode=True), SKIP the [n] markers entirely — they don't read well aloud. Source cards still render visually for the user to click.
+"""
+
+
 def _build_system_prompt(
     memory_context: str,
     user_model_context: str,
@@ -280,6 +291,8 @@ def _build_system_prompt(
 
     if voice_mode:
         system_prompt += f"\n\n{_VOICE_MODE_BLOCK}"
+
+    system_prompt += _CITATION_RULES
 
     # Moment block goes at the very top so it's the first thing the model reads
     if moment_block:

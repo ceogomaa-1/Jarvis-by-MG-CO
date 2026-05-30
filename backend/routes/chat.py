@@ -20,6 +20,8 @@ from backend.conversation import get_conversation_history, save_conversation_tur
 from backend.utils.user_context import format_user_time_context
 from backend.lib.sessions import format_session_context
 from backend.routes.documents import search_user_documents
+from backend.tools.citation_context import init_collector, add_source, get_sources
+from backend.tools.url_fetch import extract_urls, fetch_url_content
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -257,6 +259,25 @@ async def chat_stream(request: ChatRequest):
     if skills_summary:
         user_model_context = f"{user_model_context}\n\n{skills_summary}" if user_model_context else skills_summary
 
+    # ── Batch 14: URL detection + auto-fetch ──────────────────────────
+    user_text = request.message if isinstance(request.message, str) else ""
+    urls_in_msg = extract_urls(user_text)
+    url_contents = []
+    if urls_in_msg:
+        print(f"CHAT_STREAM: detected {len(urls_in_msg)} URLs in user message — fetching in parallel")
+        url_contents = list(await asyncio.gather(*[fetch_url_content(u) for u in urls_in_msg]))
+    if url_contents:
+        url_block_parts = ["\n\n--- USER-PROVIDED URLS (auto-fetched) ---"]
+        for i, uc in enumerate(url_contents, 1):
+            if uc.get("error"):
+                url_block_parts.append(f"\n[Link {i}] {uc['url']}\n  ERROR: {uc['error']}")
+            else:
+                url_block_parts.append(
+                    f"\n[Source {i}] {uc['title']}\n  URL: {uc['url']}\n  CONTENT:\n{uc['content']}"
+                )
+        url_block_parts.append("\n--- END USER-PROVIDED URLS ---")
+        memory_context = (memory_context or "") + "\n".join(url_block_parts)
+
     # Persist user message BEFORE streaming starts
     await save_conversation_turn(request.user_id, "user", request.message)
 
@@ -289,6 +310,16 @@ async def chat_stream(request: ChatRequest):
     tools = AVAILABLE_TOOLS if not system_override else None
 
     async def event_generator():
+        # Batch 14: per-request citation collector
+        init_collector()
+        for uc in url_contents:
+            if uc.get("error") is None:
+                add_source(
+                    url=uc["url"],
+                    title=uc["title"],
+                    snippet=uc["content"][:200],
+                    source_type="user_url",
+                )
         voice_t0 = time.time()
         print(f"CHAT_T0: user_id={request.user_id!r} voice={request.voice_mode}")
 
@@ -347,6 +378,10 @@ async def chat_stream(request: ChatRequest):
         )
         if debug_str:
             yield f"data: [DEBUG:{debug_str}]\n\n"
+        # Batch 14: emit sources collected during this turn
+        final_sources = get_sources()
+        if final_sources:
+            yield f"data: {json.dumps({'__sources': final_sources})}\n\n"
         done_ms = int((time.time() - voice_t0) * 1000)
         print(f"CHAT_DONE: {done_ms}ms")
         yield "data: [DONE]\n\n"

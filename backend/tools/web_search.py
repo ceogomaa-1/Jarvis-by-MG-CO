@@ -3,13 +3,14 @@ import os
 import httpx
 
 from backend.tools.registry import register_tool
+from backend.tools.citation_context import add_source
 
 BRAVE_API_KEY = os.getenv("BRAVE_SEARCH_API_KEY", "")
 
 
 @register_tool(
     name="web_search",
-    description="Search the web for current information. Use when the user asks about recent events, current facts, news, prices, weather, or anything that requires real-time information beyond your training data. Do NOT use for things you already know.",
+    description="Search the web for current information. Use when the user asks about recent events, current facts, news, prices, weather, or anything that requires real-time information beyond your training data. Each result is numbered — cite them inline using [1], [2], etc. Do NOT use for things you already know.",
     parameters={
         "type": "object",
         "properties": {
@@ -23,7 +24,8 @@ BRAVE_API_KEY = os.getenv("BRAVE_SEARCH_API_KEY", "")
 )
 async def web_search(query: str) -> str:
     print(f"WEB_SEARCH: query={query!r}")
-    # Brave Search (best results)
+    results = []
+
     if BRAVE_API_KEY:
         try:
             async with httpx.AsyncClient() as client:
@@ -38,39 +40,44 @@ async def web_search(query: str) -> str:
                     timeout=10.0,
                 )
             data = resp.json()
-            results = data.get("web", {}).get("results", [])
-            if results:
-                lines = [
-                    f"{r.get('title', '')}: {r.get('description', '')}"
-                    for r in results[:3]
-                ]
-                return "\n\n".join(lines)
-        except Exception:
-            pass
+            for r in data.get("web", {}).get("results", [])[:5]:
+                url = r.get("url", "")
+                title = r.get("title", "")
+                desc = r.get("description", "")
+                if url:
+                    results.append({"url": url, "title": title, "snippet": desc})
+        except Exception as e:
+            print(f"WEB_SEARCH: Brave failed: {e}")
 
-    # Fallback: DuckDuckGo instant answer
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(
-            "https://api.duckduckgo.com/",
-            params={"q": query, "format": "json", "no_html": 1, "skip_disambig": 1},
-            timeout=10.0,
+    if not results:
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(
+                    "https://api.duckduckgo.com/",
+                    params={"q": query, "format": "json", "no_html": 1, "skip_disambig": 1},
+                    timeout=10.0,
+                )
+            data = resp.json()
+            for r in data.get("RelatedTopics", [])[:5]:
+                if isinstance(r, dict) and r.get("FirstURL") and r.get("Text"):
+                    results.append({
+                        "url": r["FirstURL"],
+                        "title": r["Text"].split(" - ")[0][:120],
+                        "snippet": r["Text"],
+                    })
+        except Exception as e:
+            print(f"WEB_SEARCH: DuckDuckGo failed: {e}")
+
+    if not results:
+        return f"No results found for: {query}"
+
+    lines = []
+    for r in results:
+        idx = add_source(
+            url=r["url"],
+            title=r["title"],
+            snippet=r["snippet"],
+            source_type="web_search",
         )
-    data = resp.json()
-    abstract = data.get("AbstractText", "")
-    answer = data.get("Answer", "")
-    related = [
-        r.get("Text", "")
-        for r in data.get("RelatedTopics", [])[:3]
-        if isinstance(r, dict) and r.get("Text")
-    ]
-
-    parts = []
-    if answer:
-        parts.append(answer)
-    if abstract:
-        parts.append(abstract)
-    parts.extend(related)
-
-    if parts:
-        return "\n\n".join(parts[:3])
-    return f"No results found for: {query}"
+        lines.append(f"[{idx}] {r['title']}\nURL: {r['url']}\n{r['snippet']}")
+    return "\n\n".join(lines)
