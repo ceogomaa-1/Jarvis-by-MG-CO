@@ -28,9 +28,7 @@ export function LandingPage() {
   const router = useRouter()
 
   const handleBegin = () => {
-    // For now, route to current root where the chat/auth lives
-    // We'll revise this when we wire the landing as the root
-    router.push('/')
+    router.push('/welcome')
   }
 
   return (

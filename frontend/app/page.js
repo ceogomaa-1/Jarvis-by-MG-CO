@@ -11,6 +11,7 @@ import SignOutDrawer from '../components/shared/SignOutDrawer'
 import TimezoneStep from '../components/onboarding/TimezoneStep'
 import { JarvisVoice } from '../lib/jarvisVoice'
 import { playSound, preloadSounds } from '../lib/soundPlayer'
+import { LandingPage } from '../components/landing/LandingPage'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 const DEV_MODE = true
@@ -1459,18 +1460,18 @@ export default function Home() {
             setAuthLoading(false)
             return
           }
-          router.replace('/welcome')
+          // router.replace('/welcome')  // replaced by LandingPage guard below
           return
         }
         if (session?.user) {
           setUser(session.user)
           setUserId('user_' + session.user.id.replace(/-/g, ''))
         } else {
-          router.replace('/welcome')
+          // router.replace('/welcome')  // replaced by LandingPage guard below
         }
       } catch (err) {
         console.error('Auth error:', err)
-        router.replace('/welcome')
+        // router.replace('/welcome')  // replaced by LandingPage guard below
       } finally {
         setAuthLoading(false)
       }
@@ -1481,7 +1482,7 @@ export default function Home() {
       if (event === 'SIGNED_OUT') {
         setUser(null)
         setUserId(null)
-        router.replace('/welcome')
+        // router.replace('/welcome')  // replaced by LandingPage guard below
         return
       }
       if (session?.user) {
@@ -1564,6 +1565,8 @@ export default function Home() {
       </div>
     )
   }
+
+  if (!userId) return <LandingPage />
 
   if (userId && timezoneConfirmed === false) {
     return (
