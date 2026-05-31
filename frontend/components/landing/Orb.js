@@ -1,6 +1,6 @@
 'use client'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { useGLTF, Center } from '@react-three/drei'
+import { useGLTF, Bounds } from '@react-three/drei'
 import { Suspense, useRef } from 'react'
 import { motion } from 'framer-motion'
 
@@ -17,9 +17,7 @@ function RotatingModel() {
   return (
     <group rotation={[0.41, 0, 0]}>
       <group ref={groupRef}>
-        <Center>
-          <primitive object={scene} scale={1.4} />
-        </Center>
+        <primitive object={scene} />
       </group>
     </group>
   )
@@ -80,7 +78,9 @@ export function Orb({ size = 220 }) {
           <pointLight position={[-3, -1, 2]} intensity={0.7} color="#c84b31" />
           <pointLight position={[0, 4, -2]} intensity={0.5} color="#ff7a4d" />
           <Suspense fallback={null}>
-            <RotatingModel />
+            <Bounds fit clip margin={0.95}>
+              <RotatingModel />
+            </Bounds>
           </Suspense>
         </Canvas>
       </div>
