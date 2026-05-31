@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@11labs/client": "latest",
+    "@react-three/drei": "^9.122.0",
+    "@react-three/fiber": "^8.18.0",
     "@ricky0123/vad-web": "0.0.30",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.105.4",
@@ -19,6 +21,7 @@
     "react-dom": "^18.3.0",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
+    "three": "^0.170.0",
     "uuid": "^14.0.0"
   },
   "devDependencies": {

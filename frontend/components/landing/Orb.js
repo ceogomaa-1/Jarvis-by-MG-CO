@@ -1,83 +1,89 @@
 'use client'
+import { Canvas, useFrame } from '@react-three/fiber'
+import { useGLTF, Center } from '@react-three/drei'
+import { Suspense, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { useEffect, useState } from 'react'
 
-export function Orb({ size = 220 }) {
-  const [mouseOffset, setMouseOffset] = useState({ x: 0, y: 0 })
+function RotatingModel() {
+  const groupRef = useRef()
+  const { scene } = useGLTF('/models/jarvis-orb.glb')
 
-  useEffect(() => {
-    function handleMove(e) {
-      const cx = window.innerWidth / 2
-      const cy = window.innerHeight / 2
-      const dx = (e.clientX - cx) / cx
-      const dy = (e.clientY - cy) / cy
-      setMouseOffset({ x: dx * 12, y: dy * 12 })
+  useFrame((_, delta) => {
+    if (groupRef.current) {
+      groupRef.current.rotation.y += delta * 0.18
     }
-    window.addEventListener('mousemove', handleMove)
-    return () => window.removeEventListener('mousemove', handleMove)
-  }, [])
+  })
 
   return (
-    <motion.div
+    <group rotation={[0.41, 0, 0]}>
+      <group ref={groupRef}>
+        <Center>
+          <primitive object={scene} scale={1.4} />
+        </Center>
+      </group>
+    </group>
+  )
+}
+
+useGLTF.preload('/models/jarvis-orb.glb')
+
+export function Orb({ size = 220 }) {
+  return (
+    <div
       style={{
         position: 'relative',
         width: size,
         height: size,
-        x: mouseOffset.x,
-        y: mouseOffset.y,
+        pointerEvents: 'none',
       }}
-      transition={{ type: 'spring', damping: 20, stiffness: 100 }}
     >
-      {/* Outer aura */}
+      {/* Pulsing halo behind the model */}
       <motion.div
         style={{
           position: 'absolute',
-          inset: -size * 0.35,
+          inset: -size * 0.4,
           borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(200,75,49,0.28) 0%, rgba(200,75,49,0.08) 40%, transparent 70%)',
-          filter: 'blur(20px)',
+          background: 'radial-gradient(circle, rgba(200,75,49,0.40) 0%, rgba(200,75,49,0.12) 40%, transparent 72%)',
+          filter: 'blur(24px)',
+          pointerEvents: 'none',
+          zIndex: 0,
         }}
-        animate={{ scale: [1, 1.08, 1], opacity: [0.7, 1, 0.7] }}
+        animate={{ scale: [1, 1.12, 1], opacity: [0.65, 1, 0.65] }}
         transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
       />
 
-      {/* Main orb body */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          borderRadius: '50%',
-          background: 'radial-gradient(circle at 38% 35%, rgba(255,210,170,0.95) 0%, rgba(220,90,55,1) 25%, rgba(140,40,20,1) 60%, rgba(60,20,10,1) 90%)',
-          boxShadow: '0 0 90px rgba(200,75,49,0.5), inset 0 0 60px rgba(40,15,8,0.6)',
-        }}
-      />
-
-      {/* Inner moving highlight */}
+      {/* Inner tight glow for extra depth */}
       <motion.div
         style={{
           position: 'absolute',
-          top: '18%',
-          left: '22%',
-          width: '42%',
-          height: '42%',
+          inset: -size * 0.15,
           borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(255,235,210,0.95) 0%, rgba(255,180,130,0.4) 30%, transparent 65%)',
-          filter: 'blur(8px)',
+          background: 'radial-gradient(circle, rgba(255,140,90,0.25) 0%, transparent 60%)',
+          filter: 'blur(12px)',
+          pointerEvents: 'none',
+          zIndex: 0,
         }}
-        animate={{ x: [0, 6, -4, 2, 0], y: [0, -4, 5, -2, 0] }}
-        transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
+        animate={{ opacity: [0.5, 0.9, 0.5] }}
+        transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
       />
 
-      {/* Subtle outer ring */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: -8,
-          borderRadius: '50%',
-          border: '1px solid rgba(200,75,49,0.15)',
-          pointerEvents: 'none',
-        }}
-      />
-    </motion.div>
+      {/* 3D Canvas */}
+      <div style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%' }}>
+        <Canvas
+          camera={{ position: [0, 0, 3.2], fov: 45 }}
+          gl={{ antialias: true, alpha: true, preserveDrawingBuffer: false }}
+          dpr={[1, 2]}
+          style={{ background: 'transparent' }}
+        >
+          <ambientLight intensity={0.55} />
+          <pointLight position={[3, 2, 4]} intensity={1.4} color="#ffb088" />
+          <pointLight position={[-3, -1, 2]} intensity={0.7} color="#c84b31" />
+          <pointLight position={[0, 4, -2]} intensity={0.5} color="#ff7a4d" />
+          <Suspense fallback={null}>
+            <RotatingModel />
+          </Suspense>
+        </Canvas>
+      </div>
+    </div>
   )
 }
