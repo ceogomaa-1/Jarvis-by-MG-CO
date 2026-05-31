@@ -1639,7 +1639,6 @@ export default function Home() {
       playSound('voiceActivate')
       setVoiceMode(true)
     } catch (err) {
-      console.error('Voice toggle: start failed', err)
       setVoiceError('Could not start voice. Check mic permissions.')
     } finally {
       setVoiceConnecting(false)

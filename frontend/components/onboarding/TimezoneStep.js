@@ -62,22 +62,32 @@ export default function TimezoneStep({ onConfirm, userId }) {
     }}>
       {/* Video background */}
       <video
-        autoPlay muted loop playsInline
-        style={{
-          position: 'fixed', top: 0, left: 0,
-          width: '100%', height: '100%',
-          objectFit: 'cover', zIndex: 0,
-        }}
         src="/onboarding/cosmos.mp4"
+        autoPlay
+        loop
+        muted
+        playsInline
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          objectFit: 'cover',
+          zIndex: 0,
+          opacity: 0.30,
+          pointerEvents: 'none',
+        }}
       />
-
-      {/* Radial gradient overlay */}
-      <div style={{
-        position: 'fixed', top: 0, left: 0,
-        width: '100%', height: '100%',
-        zIndex: 1,
-        background: 'radial-gradient(ellipse at center, rgba(10,10,10,0.4) 0%, rgba(10,10,10,0.85) 100%)',
-      }} />
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.65)',
+          zIndex: 1,
+          pointerEvents: 'none',
+        }}
+      />
 
       {/* Content */}
       <div style={{
