@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import LoadingTransition from './LoadingTransition'
+import { FallingPattern } from './FallingPattern'
 import { preloadSounds } from '../../lib/soundPlayer'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
@@ -60,34 +61,24 @@ export default function TimezoneStep({ onConfirm, userId }) {
       background: 'rgba(10,10,10,0.3)',
       overflow: 'hidden',
     }}>
-      {/* Video background */}
-      <video
-        src="/onboarding/cosmos.mp4"
-        autoPlay
-        loop
-        muted
-        playsInline
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100vw',
-          height: '100vh',
-          objectFit: 'cover',
-          zIndex: 0,
-          opacity: 0.30,
-          pointerEvents: 'none',
-        }}
-      />
+      {/* Animated background */}
       <div
         style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(0,0,0,0.65)',
-          zIndex: 1,
+          zIndex: 0,
           pointerEvents: 'none',
+          overflow: 'hidden',
         }}
-      />
+      >
+        <FallingPattern
+          color="#c84b31"
+          backgroundColor="#0a0a0a"
+          duration={180}
+          blurIntensity="0.9em"
+          density={1}
+        />
+      </div>
 
       {/* Content */}
       <div style={{
