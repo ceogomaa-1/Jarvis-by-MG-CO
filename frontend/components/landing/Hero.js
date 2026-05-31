@@ -1,6 +1,5 @@
 'use client'
 import { motion } from 'framer-motion'
-import { Orb } from './Orb'
 import { GooeyFilter } from './GooeyFilter'
 import { PixelTrail } from './PixelTrail'
 import { useScreenSize } from './useScreenSize'
@@ -26,6 +25,17 @@ export function Hero({ onBegin }) {
     >
       {/* Background — gooey pixel trail */}
       <GooeyFilter id="hero-gooey" strength={5} />
+      {/* Faint base dot pattern — gives the hero static texture even without mouse */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          zIndex: 0,
+          backgroundImage: 'radial-gradient(circle at center, rgba(255,255,255,0.06) 1px, transparent 1px)',
+          backgroundSize: '32px 32px',
+          pointerEvents: 'none',
+        }}
+      />
       <div
         style={{
           position: 'absolute',
@@ -36,8 +46,8 @@ export function Hero({ onBegin }) {
       >
         <PixelTrail
           pixelSize={screenSize.lessThan('md') ? 24 : 32}
-          fadeDuration={0}
-          delay={500}
+          fadeDuration={1200}
+          delay={0}
           pixelClassName="bg-white"
         />
       </div>
@@ -80,25 +90,17 @@ export function Hero({ onBegin }) {
           <div style={{ width: 32, height: 1, background: 'rgba(243,234,217,0.3)' }} />
         </motion.div>
 
-        {/* Center: orb + heading + sub + CTA */}
+        {/* Center: heading + sub + CTA */}
         <div
           style={{
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            gap: 36,
+            gap: 28,
             textAlign: 'center',
             maxWidth: 900,
           }}
         >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.85 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 1.4, delay: 0.4, ease: 'easeOut' }}
-          >
-            <Orb size={220} />
-          </motion.div>
-
           {/* Word-by-word headline */}
           <h1
             style={{
