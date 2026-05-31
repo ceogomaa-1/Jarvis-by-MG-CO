@@ -1,7 +1,9 @@
 'use client'
 import { motion } from 'framer-motion'
-import { FallingPattern } from '../onboarding/FallingPattern'
 import { Orb } from './Orb'
+import { GooeyFilter } from './GooeyFilter'
+import { PixelTrail } from './PixelTrail'
+import { useScreenSize } from './useScreenSize'
 
 const HEADING_LINES = [
   ['Not', 'a', 'tool.'],
@@ -9,6 +11,8 @@ const HEADING_LINES = [
 ]
 
 export function Hero({ onBegin }) {
+  const screenSize = useScreenSize()
+
   return (
     <section
       style={{
@@ -20,21 +24,23 @@ export function Hero({ onBegin }) {
         background: '#0a0a0a',
       }}
     >
-      {/* Background pattern */}
-      <div style={{ position: 'absolute', inset: 0, zIndex: 0, opacity: 0.55, pointerEvents: 'none' }}>
-        <FallingPattern color="#c84b31" backgroundColor="#0a0a0a" duration={200} blurIntensity="1em" density={1} />
-      </div>
-
-      {/* Vignette overlay for premium edges */}
+      {/* Background — gooey pixel trail */}
+      <GooeyFilter id="hero-gooey" strength={5} />
       <div
         style={{
           position: 'absolute',
           inset: 0,
-          zIndex: 1,
-          background: 'radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.7) 100%)',
-          pointerEvents: 'none',
+          zIndex: 0,
+          filter: 'url(#hero-gooey)',
         }}
-      />
+      >
+        <PixelTrail
+          pixelSize={screenSize.lessThan('md') ? 24 : 32}
+          fadeDuration={0}
+          delay={500}
+          pixelClassName="bg-white"
+        />
+      </div>
 
       {/* Content */}
       <div
