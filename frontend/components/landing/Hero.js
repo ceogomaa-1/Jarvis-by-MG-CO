@@ -23,31 +23,36 @@ export function Hero({ onBegin }) {
         background: '#0a0a0a',
       }}
     >
-      {/* Background — gooey pixel trail */}
-      <GooeyFilter id="hero-gooey" strength={5} />
-      {/* Faint base dot pattern — gives the hero static texture even without mouse */}
-      <div
+      {/* Background — impressionist painting */}
+      <img
+        src="https://images.aiscribbles.com/34fe5695dbc942628e3cad9744e8ae13.png?v=60d084"
+        alt=""
         style={{
           position: 'absolute',
           inset: 0,
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          opacity: 0.7,
           zIndex: 0,
-          backgroundImage: 'radial-gradient(circle at center, rgba(255,255,255,0.06) 1px, transparent 1px)',
-          backgroundSize: '32px 32px',
           pointerEvents: 'none',
         }}
       />
+
+      {/* Gooey pixel trail overlay */}
+      <GooeyFilter id="hero-gooey" strength={5} />
       <div
         style={{
           position: 'absolute',
           inset: 0,
-          zIndex: 0,
+          zIndex: 1,
           filter: 'url(#hero-gooey)',
         }}
       >
         <PixelTrail
           pixelSize={screenSize.lessThan('md') ? 24 : 32}
-          fadeDuration={1200}
-          delay={0}
+          fadeDuration={0}
+          delay={500}
           pixelClassName="bg-white"
         />
       </div>
