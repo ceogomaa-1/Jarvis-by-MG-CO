@@ -1,0 +1,207 @@
+'use client'
+import { motion } from 'framer-motion'
+import { FallingPattern } from '../onboarding/FallingPattern'
+import { Orb } from './Orb'
+
+const HEADING_LINES = [
+  ['Not', 'a', 'tool.'],
+  ['A', 'presence.'],
+]
+
+export function Hero({ onBegin }) {
+  return (
+    <section
+      style={{
+        position: 'relative',
+        width: '100vw',
+        height: '100vh',
+        minHeight: 700,
+        overflow: 'hidden',
+        background: '#0a0a0a',
+      }}
+    >
+      {/* Background pattern */}
+      <div style={{ position: 'absolute', inset: 0, zIndex: 0, opacity: 0.55, pointerEvents: 'none' }}>
+        <FallingPattern color="#c84b31" backgroundColor="#0a0a0a" duration={200} blurIntensity="1em" density={1} />
+      </div>
+
+      {/* Vignette overlay for premium edges */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          zIndex: 1,
+          background: 'radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.7) 100%)',
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* Content */}
+      <div
+        style={{
+          position: 'relative',
+          zIndex: 2,
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '48px 24px 32px',
+          fontFamily: 'Georgia, "Times New Roman", serif',
+        }}
+      >
+        {/* Top wordmark */}
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 1, delay: 0.2 }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 16,
+            color: 'rgba(243,234,217,0.85)',
+          }}
+        >
+          <div style={{ width: 32, height: 1, background: 'rgba(243,234,217,0.3)' }} />
+          <span style={{
+            fontFamily: 'Georgia, serif',
+            fontSize: 13,
+            letterSpacing: '0.5em',
+            fontWeight: 400,
+            textTransform: 'uppercase',
+          }}>JARVIS</span>
+          <div style={{ width: 32, height: 1, background: 'rgba(243,234,217,0.3)' }} />
+        </motion.div>
+
+        {/* Center: orb + heading + sub + CTA */}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 36,
+            textAlign: 'center',
+            maxWidth: 900,
+          }}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.85 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 1.4, delay: 0.4, ease: 'easeOut' }}
+          >
+            <Orb size={220} />
+          </motion.div>
+
+          {/* Word-by-word headline */}
+          <h1
+            style={{
+              fontSize: 'clamp(48px, 7vw, 88px)',
+              fontWeight: 400,
+              lineHeight: 1.05,
+              letterSpacing: '-0.02em',
+              color: '#f3ead9',
+              margin: 0,
+              padding: '0 16px',
+            }}
+          >
+            {HEADING_LINES.map((line, lineIdx) => (
+              <div key={lineIdx} style={{ display: 'block' }}>
+                {line.map((word, wordIdx) => {
+                  const flatIdx = HEADING_LINES.slice(0, lineIdx).flat().length + wordIdx
+                  return (
+                    <motion.span
+                      key={wordIdx}
+                      initial={{ opacity: 0, y: 24 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{
+                        duration: 0.8,
+                        delay: 1.2 + flatIdx * 0.18,
+                        ease: [0.2, 0.65, 0.3, 1],
+                      }}
+                      style={{ display: 'inline-block', marginRight: '0.25em' }}
+                    >
+                      {word}
+                    </motion.span>
+                  )
+                })}
+              </div>
+            ))}
+          </h1>
+
+          <motion.p
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 1, delay: 2.4 }}
+            style={{
+              fontFamily: 'system-ui, -apple-system, sans-serif',
+              fontSize: 17,
+              fontWeight: 300,
+              lineHeight: 1.6,
+              color: 'rgba(243,234,217,0.7)',
+              maxWidth: 540,
+              margin: 0,
+              padding: '0 16px',
+              letterSpacing: '0.01em',
+            }}
+          >
+            Jarvis remembers. Anticipates. Acts.<br />
+            Across everything you do.
+          </motion.p>
+
+          <motion.button
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 1, delay: 2.8 }}
+            whileHover={{ scale: 1.03, color: '#c84b31' }}
+            whileTap={{ scale: 0.97 }}
+            onClick={onBegin}
+            style={{
+              fontFamily: 'system-ui, -apple-system, sans-serif',
+              fontSize: 15,
+              fontWeight: 500,
+              letterSpacing: '0.15em',
+              textTransform: 'uppercase',
+              color: 'rgba(243,234,217,0.9)',
+              background: 'transparent',
+              border: '1px solid rgba(243,234,217,0.18)',
+              borderRadius: 999,
+              padding: '14px 32px',
+              cursor: 'pointer',
+              transition: 'border-color 300ms ease',
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(200,75,49,0.5)'}
+            onMouseLeave={(e) => e.currentTarget.style.borderColor = 'rgba(243,234,217,0.18)'}
+          >
+            Begin <span style={{ marginLeft: 8 }}>→</span>
+          </motion.button>
+        </div>
+
+        {/* Bottom scroll hint */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 3.4, duration: 1 }}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 8,
+            color: 'rgba(243,234,217,0.4)',
+            fontFamily: 'system-ui, sans-serif',
+            fontSize: 10,
+            letterSpacing: '0.3em',
+            textTransform: 'uppercase',
+          }}
+        >
+          <span>Scroll</span>
+          <motion.div
+            animate={{ y: [0, 6, 0] }}
+            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+            style={{ width: 1, height: 24, background: 'rgba(243,234,217,0.3)' }}
+          />
+        </motion.div>
+      </div>
+    </section>
+  )
+}
