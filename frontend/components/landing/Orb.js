@@ -73,10 +73,11 @@ export function Orb({ size = 220 }) {
           dpr={[1, 2]}
           style={{ background: 'transparent' }}
         >
-          <ambientLight intensity={0.55} />
-          <pointLight position={[3, 2, 4]} intensity={1.4} color="#ffb088" />
-          <pointLight position={[-3, -1, 2]} intensity={0.7} color="#c84b31" />
-          <pointLight position={[0, 4, -2]} intensity={0.5} color="#ff7a4d" />
+          {/* Three-point lighting — preserves model's true crimson + adds cool rim for atmosphere */}
+          <ambientLight intensity={0.9} />
+          <directionalLight position={[5, 4, 5]} intensity={3.2} color="#ffffff" />
+          <directionalLight position={[-4, -1, -3]} intensity={2.2} color="#5878ff" />
+          <directionalLight position={[0, -3, 4]} intensity={0.7} color="#ffd0c0" />
           <Suspense fallback={null}>
             <Bounds fit clip margin={0.95}>
               <RotatingModel />
