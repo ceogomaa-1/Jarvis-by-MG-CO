@@ -349,15 +349,9 @@ async def chat_stream(request: ChatRequest):
             response_text = _FALLBACK_LLM_ERROR
 
         if request.voice_mode and response_text:
-            # Fire sentence-level TTS events immediately — frontend queues each
-            # into StreamingAudioPlayer so first audio plays in ~200ms.
-            sentences = _split_voice_sentences(response_text)
-            for i, sentence in enumerate(sentences):
-                tts_ms = int((time.time() - voice_t0) * 1000)
-                print(f"CHAT_TTS_FIRE: {tts_ms}ms sentence[{i}]={sentence[:40]!r}")
-                yield f"data: {json.dumps({'__vs': sentence})}\n\n"
-            # Stream text with no delay in voice mode — TTS already fired above,
-            # text display is secondary output so no need for fake typing rhythm.
+            tts_ms = int((time.time() - voice_t0) * 1000)
+            print(f"CHAT_TTS_FIRE: {tts_ms}ms full_response chars={len(response_text)}")
+            yield f"data: {json.dumps({'__vs': response_text})}\n\n"
             for char in response_text:
                 yield f"data: {json.dumps(char)}\n\n"
         else:
