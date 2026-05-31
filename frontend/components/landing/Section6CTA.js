@@ -26,7 +26,7 @@ export function Section6CTA() {
         transition={{ duration: 1.5, ease: 'easeOut' }}
         style={{ marginBottom: 64 }}
       >
-        <Orb size={180} />
+        <Orb size={280} />
       </motion.div>
 
       <motion.h2

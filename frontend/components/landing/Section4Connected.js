@@ -72,12 +72,12 @@ export function Section4Connected() {
           viewport={{ once: true }}
           transition={{ duration: 1.2, delay: 0.5 }}
         >
-          <Orb size={140} />
+          <Orb size={220} />
         </motion.div>
 
         {INTEGRATIONS.map((item, i) => {
           const radians = (item.angle * Math.PI) / 180
-          const radius = 170
+          const radius = 200
           const x = Math.cos(radians) * radius
           const y = Math.sin(radians) * radius
 
