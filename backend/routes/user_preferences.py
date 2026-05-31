@@ -37,6 +37,11 @@ class BusinessUserCreate(BaseModel):
     role: str  # 'owner' | 'manager' | 'operator'
 
 
+class PreferredNameUpdate(BaseModel):
+    user_id: str
+    preferred_name: str
+
+
 @router.get("/user-preferences/{user_id}")
 async def get_preference(user_id: str):
     try:
@@ -90,6 +95,19 @@ async def complete_onboarding(body: CompleteOnboardingRequest):
         return {"ok": True}
     except Exception as e:
         print(f"ONBOARDING_GATE: ERROR marking complete for {body.user_id}: {e}")
+        return {"ok": False, "error": str(e)}
+
+
+@router.patch("/user-preferences/preferred-name")
+async def set_preferred_name(body: PreferredNameUpdate):
+    try:
+        sb = _client()
+        sb.table("user_preferences").upsert({
+            "user_id": body.user_id,
+            "preferred_name": body.preferred_name,
+        }).execute()
+        return {"ok": True}
+    except Exception as e:
         return {"ok": False, "error": str(e)}
 
 

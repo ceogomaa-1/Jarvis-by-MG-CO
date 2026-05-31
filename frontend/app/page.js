@@ -10,6 +10,7 @@ import ModeToggle from '../components/shared/ModeToggle'
 import SignOutDrawer from '../components/shared/SignOutDrawer'
 import TimezoneStep from '../components/onboarding/TimezoneStep'
 import { JarvisVoice } from '../lib/jarvisVoice'
+import { playSound, preloadSounds } from '../lib/soundPlayer'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 const DEV_MODE = true
@@ -1531,6 +1532,7 @@ export default function Home() {
         const data = await res.json()
         if (data.has_message && data.message) {
           msgIdRef.current += 1
+          playSound('proactive')
           setMessages(prev => [...prev, { id: msgIdRef.current, role: 'assistant', content: data.message, proactive: true }])
           setProactiveHint(data.message)
           if (!document.hasFocus()) document.title = 'Jarvis has something for you'
@@ -1566,6 +1568,7 @@ export default function Home() {
   if (userId && timezoneConfirmed === false) {
     return (
       <TimezoneStep
+        userId={userId}
         onConfirm={async (tz) => {
           try {
             await fetch(`${BACKEND}/api/user-preferences/timezone`, {
@@ -1633,6 +1636,7 @@ export default function Home() {
       await jv.resumeAudio()
       await jv.startHandsFree(sendViaVoice)
       voiceManagerRef.current = jv
+      playSound('voiceActivate')
       setVoiceMode(true)
     } catch (err) {
       console.error('Voice toggle: start failed', err)
