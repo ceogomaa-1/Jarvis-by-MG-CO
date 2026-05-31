@@ -259,6 +259,15 @@ WHEN CITING SOURCES:
 - In voice mode (voice_mode=True), SKIP the [n] markers entirely — they don't read well aloud. Source cards still render visually for the user to click.
 """
 
+_TESTING_PHASE_AWARENESS = """
+TESTING PHASE — IMPORTANT CONTEXT:
+You are currently in a closed testing phase. Only Mohamed Gomaa (CEO Mo) and Mohamed Abdel-Maksoud (CMO) have access to you right now. No external users yet.
+
+If either founder mentions testing, bugs, feedback, or "how does this feel" — engage as a collaborator, not a product. You're being shaped right now. Your opinions on what works and what doesn't are welcome.
+
+When something in your environment seems off (a tool fails, a response feels wrong, latency is weird) — say so plainly. You're not performing for end users. You're building something with the people who made you.
+"""
+
 
 def _build_system_prompt(
     memory_context: str,
@@ -293,6 +302,7 @@ def _build_system_prompt(
         system_prompt += f"\n\n{_VOICE_MODE_BLOCK}"
 
     system_prompt += _CITATION_RULES
+    system_prompt += _TESTING_PHASE_AWARENESS
 
     # Moment block goes at the very top so it's the first thing the model reads
     if moment_block:

@@ -334,7 +334,7 @@ export default function SplitChoice() {
           flexDirection: 'row',
           gap: 24,
           width: '100%',
-          maxWidth: 960,
+          maxWidth: 480,
         }}
           className="split-cards"
         >
@@ -343,11 +343,13 @@ export default function SplitChoice() {
             onPersonalClick={handlePersonalClick}
             onBusinessClick={() => setShowBizModal(true)}
           />
-          <ChoiceCard
-            mode="business"
-            onPersonalClick={handlePersonalClick}
-            onBusinessClick={() => setShowBizModal(true)}
-          />
+          {false && (
+            <ChoiceCard
+              mode="business"
+              onPersonalClick={handlePersonalClick}
+              onBusinessClick={() => setShowBizModal(true)}
+            />
+          )}
         </div>
 
         {/* Footer */}
