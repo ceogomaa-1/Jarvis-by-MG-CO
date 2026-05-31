@@ -70,6 +70,7 @@ export function Hero({ onBegin }) {
           justifyContent: 'space-between',
           padding: '48px 24px 32px',
           fontFamily: 'Georgia, "Times New Roman", serif',
+          pointerEvents: 'none',
         }}
       >
         {/* Top wordmark */}
@@ -170,6 +171,7 @@ export function Hero({ onBegin }) {
             whileTap={{ scale: 0.97 }}
             onClick={onBegin}
             style={{
+              pointerEvents: 'auto',
               fontFamily: 'system-ui, -apple-system, sans-serif',
               fontSize: 15,
               fontWeight: 500,
