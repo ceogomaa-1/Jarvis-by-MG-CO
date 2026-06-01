@@ -5,6 +5,8 @@ import remarkGfm from 'remark-gfm'
 import { detectShowMeHow } from '../../lib/business/showMeHowDetector'
 import Walkthrough from './Walkthrough'
 import DownloadPDFButton from './DownloadPDFButton'
+import { detectCreation } from '../../lib/business/creationDetector'
+import CreationCanvas from './CreationCanvas'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
@@ -166,9 +168,76 @@ export default function ChatCanvas({ userId }) {
       return
     }
 
+    if (detectCreation(text)) {
+      // Creation 1.0 — sub-agent orchestration
+      msgIdRef.current += 1
+      const cId = msgIdRef.current
+      setMessages(prev => [...prev, {
+        id: cId, role: 'creation',
+        title: '', intro: '', agents: [], statuses: {},
+        artifact: '', error: '', complete: false,
+      }])
+
+      try {
+        const res = await fetch(`${BACKEND}/api/business/create`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text, user_id: userId || '' }),
+        })
+        const reader = res.body.getReader()
+        const decoder = new TextDecoder()
+        let buf = ''
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buf += decoder.decode(value, { stream: true })
+          const lines = buf.split('\n')
+          buf = lines.pop() ?? ''
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue
+            const raw = line.slice(6)
+            if (raw === '[DONE]') break
+            try {
+              const ev = JSON.parse(raw)
+              setMessages(prev => prev.map(m => {
+                if (m.id !== cId) return m
+                if (ev.type === 'plan') {
+                  const initialStatuses = {}
+                  for (const a of ev.agents) initialStatuses[a.id] = 'pending'
+                  return { ...m, title: ev.title, intro: ev.intro, agents: ev.agents, statuses: initialStatuses }
+                }
+                if (ev.type === 'agent_status') {
+                  return { ...m, statuses: { ...m.statuses, [ev.id]: ev.status } }
+                }
+                if (ev.type === 'artifact') {
+                  return { ...m, artifact: ev.content }
+                }
+                if (ev.type === 'complete') {
+                  return { ...m, complete: true }
+                }
+                if (ev.type === 'error') {
+                  return { ...m, error: ev.value, complete: true }
+                }
+                return m
+              }))
+            } catch {}
+          }
+        }
+      } catch (err) {
+        console.error('Creation failed:', err)
+        setMessages(prev => prev.map(m =>
+          m.id === cId ? { ...m, error: 'Creation failed. Please try again.', complete: true } : m
+        ))
+      }
+      setLoading(false)
+      return
+    }
+
     // Regular chat mode
     const history = messages
-      .filter(m => m.role !== 'walkthrough' && typeof m.content === 'string')
+      .filter(m => m.role !== 'walkthrough' && m.role !== 'creation' && typeof m.content === 'string')
       .map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content }))
 
     msgIdRef.current += 1
@@ -236,9 +305,10 @@ export default function ChatCanvas({ userId }) {
           {messages.map((m, i) => {
             if (m.role === 'user') return <UserBubble key={m.id ?? i} content={m.content} />
             if (m.role === 'walkthrough') return <WalkthroughMessage key={m.id ?? i} msg={m} />
+            if (m.role === 'creation') return <CreationCanvas key={m.id ?? i} msg={m} />
             return <AssistantBubble key={m.id ?? i} content={m.content} streaming={m.streaming} />
           })}
-          {loading && messages[messages.length - 1]?.role !== 'walkthrough' && <ThinkingDots />}
+          {loading && !['walkthrough','creation'].includes(messages[messages.length - 1]?.role) && <ThinkingDots />}
         </div>
       </div>
 
