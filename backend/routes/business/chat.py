@@ -43,8 +43,8 @@ async def business_chat_stream(request: BusinessChatRequest):
                         "content-type": "application/json",
                     },
                     json={
-                        "model": "claude-sonnet-4-20250514",
-                        "max_tokens": 2048,
+                        "model": "claude-opus-4-7",
+                        "max_tokens": 4096,
                         "system": system_prompt,
                         "messages": messages,
                     },

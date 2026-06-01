@@ -10,8 +10,8 @@ const INDUSTRIES = [
   'Dental',
   'Salon/Spa',
   'Trades/Contractors',
-  'Fitness',
-  'Auto Repair',
+  'Retail',
+  'Law',
 ]
 
 const ROLES = ['Owner', 'Manager', 'Operator']
