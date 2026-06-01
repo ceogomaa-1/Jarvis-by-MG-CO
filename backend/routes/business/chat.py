@@ -7,6 +7,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from backend.lib.business.system_prompt_builder import build_system_prompt
+from backend.lib.business.model_router import select_model, OPUS
 
 router = APIRouter()
 
@@ -32,6 +33,9 @@ async def business_chat_stream(request: BusinessChatRequest):
     ]
     messages = safe_history + [{"role": "user", "content": request.message}]
 
+    model = select_model(request.message)
+    max_tokens = 4096 if model == OPUS else 2048
+
     async def generate():
         try:
             async with httpx.AsyncClient() as client:
@@ -43,8 +47,8 @@ async def business_chat_stream(request: BusinessChatRequest):
                         "content-type": "application/json",
                     },
                     json={
-                        "model": "claude-opus-4-7",
-                        "max_tokens": 4096,
+                        "model": model,
+                        "max_tokens": max_tokens,
                         "system": system_prompt,
                         "messages": messages,
                     },

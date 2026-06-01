@@ -211,6 +211,9 @@ export default function ChatCanvas({ userId }) {
                 if (ev.type === 'agent_status') {
                   return { ...m, statuses: { ...m.statuses, [ev.id]: ev.status } }
                 }
+                if (ev.type === 'creation_id') {
+                  return { ...m, creationId: ev.id }
+                }
                 if (ev.type === 'artifact') {
                   return { ...m, artifact: ev.content }
                 }
@@ -305,7 +308,15 @@ export default function ChatCanvas({ userId }) {
           {messages.map((m, i) => {
             if (m.role === 'user') return <UserBubble key={m.id ?? i} content={m.content} />
             if (m.role === 'walkthrough') return <WalkthroughMessage key={m.id ?? i} msg={m} />
-            if (m.role === 'creation') return <CreationCanvas key={m.id ?? i} msg={m} />
+            if (m.role === 'creation') return (
+              <CreationCanvas
+                key={m.id ?? i}
+                msg={m}
+                onArtifactUpdate={(artifact) => {
+                  setMessages(prev => prev.map(x => x.id === m.id ? { ...x, artifact } : x))
+                }}
+              />
+            )
             return <AssistantBubble key={m.id ?? i} content={m.content} streaming={m.streaming} />
           })}
           {loading && !['walkthrough','creation'].includes(messages[messages.length - 1]?.role) && <ThinkingDots />}
