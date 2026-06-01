@@ -17,10 +17,14 @@ _INDUSTRY_FILE_MAP = {
     "trades_contractors": "trades_contractors.md",
     "trades": "trades_contractors.md",
     "contractors": "trades_contractors.md",
-    # Fitness and Auto Repair don't have bibles yet — fall back gracefully
-    "fitness": None,
-    "auto repair": None,
-    "auto_repair": None,
+    # Final 2 industries — locked in Batch 15
+    "retail": "retail.md",
+    "retail shops": "retail.md",
+    "retail_shops": "retail.md",
+    "law": "law.md",
+    "law firms": "law.md",
+    "law_firms": "law.md",
+    "legal": "law.md",
 }
 
 # Maps ## header patterns → section key
