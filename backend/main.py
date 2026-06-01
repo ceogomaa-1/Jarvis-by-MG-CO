@@ -21,6 +21,8 @@ from backend.routes.business.chat import router as business_chat_router
 from backend.routes.business.show_me_how import router as business_show_me_how_router
 from backend.routes.business.create import router as business_create_router
 from backend.routes.business.create_actions import router as business_create_actions_router
+from backend.routes.business.proactive_routes import router as business_proactive_router
+from backend.cron.business_risk_cron import run_business_risk_briefings
 from backend.routes.user_preferences import router as user_preferences_router
 from backend.routes.export import router as export_router
 from backend.routes.documents import router as documents_router
@@ -51,8 +53,14 @@ async def lifespan(app: FastAPI):
         id="morning_briefings",
         replace_existing=True,
     )
+    scheduler.add_job(
+        run_business_risk_briefings,
+        CronTrigger(hour=6, minute=0, timezone="America/Toronto"),
+        id="business_risk_briefings",
+        replace_existing=True,
+    )
     scheduler.start()
-    print("CRON: Scheduler started — morning briefings at 08:00 Toronto")
+    print("CRON: Scheduler started — personal briefings at 08:00, business risk at 06:00 Toronto")
 
     yield
 
@@ -90,6 +98,7 @@ app.include_router(business_chat_router, prefix="/api")
 app.include_router(business_show_me_how_router, prefix="/api")
 app.include_router(business_create_router, prefix="/api")
 app.include_router(business_create_actions_router, prefix="/api")
+app.include_router(business_proactive_router, prefix="/api")
 app.include_router(user_preferences_router, prefix="/api")
 app.include_router(export_router, prefix="/api")
 app.include_router(documents_router, prefix="/api")
