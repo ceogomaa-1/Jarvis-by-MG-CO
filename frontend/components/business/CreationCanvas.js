@@ -1,6 +1,10 @@
 'use client'
+import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import RefineModal from './RefineModal'
+
+const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
 const ROLE_LABELS = {
   strategist: 'STRATEGIST',
@@ -63,8 +67,37 @@ function StatusPill({ agent, status }) {
   )
 }
 
-export default function CreationCanvas({ msg }) {
-  const { title, intro, agents = [], statuses = {}, artifact, error, complete } = msg
+export default function CreationCanvas({ msg, onArtifactUpdate }) {
+  const { title, intro, agents = [], statuses = {}, artifact: streamedArtifact, error, complete, creationId } = msg
+  const [localArtifact, setLocalArtifact] = useState(null)
+  const [showRefine, setShowRefine] = useState(false)
+  const [downloading, setDownloading] = useState(false)
+
+  const displayArtifact = localArtifact ?? streamedArtifact ?? ''
+
+  async function handleDownloadPDF() {
+    if (!creationId || downloading) return
+    setDownloading(true)
+    try {
+      const res = await fetch(`${BACKEND}/api/business/create/${creationId}/pdf`)
+      if (!res.ok) throw new Error('Download failed')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `jarvis-creation-${creationId.slice(0, 8)}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('PDF download failed:', err)
+    }
+    setDownloading(false)
+  }
+
+  function handleRefined(newArtifact) {
+    setLocalArtifact(newArtifact)
+    if (onArtifactUpdate) onArtifactUpdate(newArtifact)
+  }
 
   return (
     <div style={{ marginBottom: 24, maxWidth: '94%' }}>
@@ -115,7 +148,7 @@ export default function CreationCanvas({ msg }) {
       )}
 
       {/* Final artifact */}
-      {artifact && (
+      {displayArtifact && (
         <div style={{
           background: 'rgba(243,234,217,0.03)',
           border: '1px solid rgba(243,234,217,0.1)',
@@ -124,11 +157,53 @@ export default function CreationCanvas({ msg }) {
           marginTop: 12,
         }}>
           <div style={{
-            fontSize: 10, fontWeight: 600, letterSpacing: '0.12em',
-            color: '#22c55e', marginBottom: 14, textTransform: 'uppercase',
+            display: 'flex', alignItems: 'center',
+            justifyContent: 'space-between', marginBottom: 14,
           }}>
-            SHIPPED
+            <div style={{
+              fontSize: 10, fontWeight: 600, letterSpacing: '0.12em',
+              color: '#22c55e', textTransform: 'uppercase',
+            }}>
+              SHIPPED
+            </div>
+
+            {complete && creationId && (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={() => setShowRefine(true)}
+                  style={{
+                    background: 'rgba(200,75,49,0.1)',
+                    border: '1px solid rgba(200,75,49,0.3)',
+                    borderRadius: 6, padding: '5px 12px',
+                    color: '#c84b31', fontSize: 12, fontWeight: 500,
+                    cursor: 'pointer', fontFamily: 'system-ui, sans-serif',
+                    transition: 'all 200ms ease',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(200,75,49,0.2)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'rgba(200,75,49,0.1)')}
+                >
+                  Refine
+                </button>
+                <button
+                  onClick={handleDownloadPDF}
+                  disabled={downloading}
+                  style={{
+                    background: 'rgba(243,234,217,0.06)',
+                    border: '1px solid rgba(243,234,217,0.15)',
+                    borderRadius: 6, padding: '5px 12px',
+                    color: downloading ? 'rgba(243,234,217,0.3)' : 'rgba(243,234,217,0.7)',
+                    fontSize: 12, fontWeight: 500,
+                    cursor: downloading ? 'default' : 'pointer',
+                    fontFamily: 'system-ui, sans-serif',
+                    transition: 'all 200ms ease',
+                  }}
+                >
+                  {downloading ? 'Downloading...' : 'Download PDF'}
+                </button>
+              </div>
+            )}
           </div>
+
           <div
             className="biz-markdown"
             style={{
@@ -136,7 +211,7 @@ export default function CreationCanvas({ msg }) {
               fontFamily: 'system-ui, sans-serif',
             }}
           >
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{artifact}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayArtifact}</ReactMarkdown>
           </div>
         </div>
       )}
@@ -146,13 +221,19 @@ export default function CreationCanvas({ msg }) {
         <div style={{
           background: 'rgba(239,68,68,0.08)',
           border: '1px solid rgba(239,68,68,0.3)',
-          borderRadius: 10,
-          padding: '14px 18px',
-          color: '#f3ead9', fontSize: 13,
-          marginTop: 12,
+          borderRadius: 10, padding: '14px 18px',
+          color: '#f3ead9', fontSize: 13, marginTop: 12,
         }}>
           {error}
         </div>
+      )}
+
+      {showRefine && creationId && (
+        <RefineModal
+          creationId={creationId}
+          onClose={() => setShowRefine(false)}
+          onRefined={handleRefined}
+        />
       )}
     </div>
   )

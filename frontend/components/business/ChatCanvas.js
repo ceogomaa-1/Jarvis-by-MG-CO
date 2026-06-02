@@ -7,6 +7,9 @@ import Walkthrough from './Walkthrough'
 import DownloadPDFButton from './DownloadPDFButton'
 import { detectCreation } from '../../lib/business/creationDetector'
 import CreationCanvas from './CreationCanvas'
+import ProactiveBanner from './ProactiveBanner'
+import MetricsModal from './MetricsModal'
+import ConnectionsModal from './ConnectionsModal'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
@@ -87,6 +90,9 @@ export default function ChatCanvas({ userId }) {
   }])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [briefing, setBriefing] = useState(null)
+  const [metricsOpen, setMetricsOpen] = useState(false)
+  const [connectionsOpen, setConnectionsOpen] = useState(false)
   const msgIdRef = useRef(1)
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
@@ -97,10 +103,39 @@ export default function ChatCanvas({ userId }) {
     }
   }, [messages])
 
-  async function sendMessage() {
-    const text = input.trim()
+  // Load latest unread briefing on mount
+  useEffect(() => {
+    if (!userId) return
+    let cancelled = false
+    fetch(`${BACKEND}/api/business/proactive/latest?user_id=${encodeURIComponent(userId)}`)
+      .then(r => r.json())
+      .then(d => { if (!cancelled) setBriefing(d.briefing || null) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [userId])
+
+  const dismissBriefing = async (briefingId) => {
+    setBriefing(null)
+    if (!briefingId || !userId) return
+    try {
+      await fetch(`${BACKEND}/api/business/proactive/mark-read`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ briefing_id: briefingId, user_id: userId }),
+      })
+    } catch {}
+  }
+
+  const dispatchBriefingAction = (actionText, briefingId) => {
+    if (!actionText) return
+    dismissBriefing(briefingId)
+    sendMessage(actionText)
+  }
+
+  async function sendMessage(overrideText = null) {
+    const text = (overrideText !== null ? overrideText : input).trim()
     if (!text || loading) return
-    setInput('')
+    if (overrideText === null) setInput('')
     inputRef.current?.focus()
 
     msgIdRef.current += 1
@@ -211,6 +246,9 @@ export default function ChatCanvas({ userId }) {
                 if (ev.type === 'agent_status') {
                   return { ...m, statuses: { ...m.statuses, [ev.id]: ev.status } }
                 }
+                if (ev.type === 'creation_id') {
+                  return { ...m, creationId: ev.id }
+                }
                 if (ev.type === 'artifact') {
                   return { ...m, artifact: ev.content }
                 }
@@ -292,20 +330,85 @@ export default function ChatCanvas({ userId }) {
         }
       `}</style>
 
+      <MetricsModal
+        open={metricsOpen}
+        onClose={() => setMetricsOpen(false)}
+        userId={userId}
+      />
+
+      <ConnectionsModal
+        open={connectionsOpen}
+        onClose={() => setConnectionsOpen(false)}
+        userId={userId}
+      />
+
+      {/* Top toolbar */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '14px 40px 0' }}>
+        <button
+          onClick={() => setConnectionsOpen(true)}
+          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(243,234,217,0.08)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'rgba(243,234,217,0.04)')}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 7,
+            background: 'rgba(243,234,217,0.04)',
+            border: '1px solid rgba(243,234,217,0.12)',
+            borderRadius: 8, padding: '7px 14px',
+            color: 'rgba(243,234,217,0.85)', fontSize: 12, fontWeight: 500,
+            fontFamily: 'system-ui, sans-serif', cursor: 'pointer',
+            transition: 'background 180ms ease',
+          }}
+        >
+          <span>🔌</span>
+          <span>Connections</span>
+        </button>
+        <button
+          onClick={() => setMetricsOpen(true)}
+          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(243,234,217,0.08)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'rgba(243,234,217,0.04)')}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 7,
+            background: 'rgba(243,234,217,0.04)',
+            border: '1px solid rgba(243,234,217,0.12)',
+            borderRadius: 8, padding: '7px 14px',
+            color: 'rgba(243,234,217,0.85)', fontSize: 12, fontWeight: 500,
+            fontFamily: 'system-ui, sans-serif', cursor: 'pointer',
+            transition: 'background 180ms ease',
+          }}
+        >
+          <span>📊</span>
+          <span>Update my numbers</span>
+        </button>
+      </div>
+
       {/* Messages */}
       <div
         ref={scrollRef}
         style={{
-          flex: 1, overflowY: 'auto', padding: '28px 40px 12px',
+          flex: 1, overflowY: 'auto', padding: '20px 40px 12px',
           maskImage: 'linear-gradient(to bottom, transparent 0, #000 40px, #000 100%)',
           WebkitMaskImage: 'linear-gradient(to bottom, transparent 0, #000 40px, #000 100%)',
         }}
       >
         <div style={{ maxWidth: 760, margin: '0 auto' }}>
+          {briefing && (
+            <ProactiveBanner
+              briefing={briefing}
+              onDispatchAction={dispatchBriefingAction}
+              onDismiss={dismissBriefing}
+            />
+          )}
           {messages.map((m, i) => {
             if (m.role === 'user') return <UserBubble key={m.id ?? i} content={m.content} />
             if (m.role === 'walkthrough') return <WalkthroughMessage key={m.id ?? i} msg={m} />
-            if (m.role === 'creation') return <CreationCanvas key={m.id ?? i} msg={m} />
+            if (m.role === 'creation') return (
+              <CreationCanvas
+                key={m.id ?? i}
+                msg={m}
+                onArtifactUpdate={(artifact) => {
+                  setMessages(prev => prev.map(x => x.id === m.id ? { ...x, artifact } : x))
+                }}
+              />
+            )
             return <AssistantBubble key={m.id ?? i} content={m.content} streaming={m.streaming} />
           })}
           {loading && !['walkthrough','creation'].includes(messages[messages.length - 1]?.role) && <ThinkingDots />}
@@ -338,7 +441,7 @@ export default function ChatCanvas({ userId }) {
             onBlur={e => e.target.style.borderColor = 'rgba(243,234,217,0.1)'}
           />
           <button
-            onClick={sendMessage}
+            onClick={() => sendMessage()}
             disabled={!input.trim() || loading}
             style={{
               background: input.trim() && !loading ? '#c84b31' : 'rgba(200,75,49,0.12)',
