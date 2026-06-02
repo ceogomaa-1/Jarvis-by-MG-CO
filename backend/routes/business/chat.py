@@ -23,7 +23,7 @@ class BusinessChatRequest(BaseModel):
 @router.post("/business/chat/stream")
 async def business_chat_stream(request: BusinessChatRequest):
     # Build the industry-aware system prompt before entering the streaming closure
-    system_prompt = build_system_prompt(request.user_id, request.message)
+    system_prompt = await build_system_prompt(request.user_id, request.message)
 
     safe_history = [
         {"role": m.get("role", "user"), "content": str(m.get("content", ""))}

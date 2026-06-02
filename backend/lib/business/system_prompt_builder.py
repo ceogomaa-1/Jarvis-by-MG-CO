@@ -1,3 +1,4 @@
+import asyncio
 import os
 from supabase import create_client
 
@@ -179,12 +180,13 @@ def _fetch_user_profile(user_id: str) -> dict:
         return {}
 
 
-def build_system_prompt(user_id: str, user_message: str) -> str:
+async def build_system_prompt(user_id: str, user_message: str) -> str:
     """
     Build the full system prompt for a business chat message.
     Falls back to generic system prompt if no industry profile exists.
+    Prepends the $1M North Star block to prime every response.
     """
-    profile = _fetch_user_profile(user_id) if user_id else {}
+    profile = await asyncio.to_thread(_fetch_user_profile, user_id) if user_id else {}
 
     industry = profile.get("industry", "")
     company_name = profile.get("company_name", "your business")
@@ -192,34 +194,28 @@ def build_system_prompt(user_id: str, user_message: str) -> str:
 
     # No industry → use the generic fallback
     if not industry:
-        return _GENERIC_SYSTEM
-
-    bible = load_bible(industry)
-    # Industry exists in DB but we don't have a Bible for it yet → generic
-    if not bible:
-        return _GENERIC_SYSTEM.replace(
+        base_prompt = _GENERIC_SYSTEM
+    elif not load_bible(industry):
+        base_prompt = _GENERIC_SYSTEM.replace(
             "You are Jarvis for Business",
             f"You are Jarvis for Business, advising {company_name} ({industry}). You are Jarvis for Business",
         )
+    else:
+        bible = load_bible(industry)
+        section_keys = classify_intent(user_message)
+        section_parts = [bible[k] for k in section_keys if bible.get(k)]
+        bible_sections = "\n\n---\n\n".join(section_parts) if section_parts else ""
+        base_prompt = _BASE_TEMPLATE.format(
+            company_name=company_name,
+            industry=industry,
+            role=role,
+            bible_sections=bible_sections,
+        )
 
-    # Classify which sections to load
-    section_keys = classify_intent(user_message)
-
-    # Stitch selected sections together
-    section_parts = []
-    for key in section_keys:
-        content = bible.get(key)
-        if content:
-            section_parts.append(content)
-
-    bible_sections = "\n\n---\n\n".join(section_parts) if section_parts else ""
-
-    return _BASE_TEMPLATE.format(
-        company_name=company_name,
-        industry=industry,
-        role=role,
-        bible_sections=bible_sections,
-    )
+    # Inject the $1M North Star at the top of every system prompt
+    from backend.lib.business.north_star import north_star_context_for_user
+    north_star_block = await north_star_context_for_user(user_id)
+    return north_star_block + "\n\n" + base_prompt
 
 
 def get_industry_context_note(user_id: str) -> str:
