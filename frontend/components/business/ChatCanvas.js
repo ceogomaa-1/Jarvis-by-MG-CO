@@ -9,6 +9,7 @@ import { detectCreation } from '../../lib/business/creationDetector'
 import CreationCanvas from './CreationCanvas'
 import ProactiveBanner from './ProactiveBanner'
 import MetricsModal from './MetricsModal'
+import ConnectionsModal from './ConnectionsModal'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
@@ -91,6 +92,7 @@ export default function ChatCanvas({ userId }) {
   const [loading, setLoading] = useState(false)
   const [briefing, setBriefing] = useState(null)
   const [metricsOpen, setMetricsOpen] = useState(false)
+  const [connectionsOpen, setConnectionsOpen] = useState(false)
   const msgIdRef = useRef(1)
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
@@ -334,8 +336,31 @@ export default function ChatCanvas({ userId }) {
         userId={userId}
       />
 
+      <ConnectionsModal
+        open={connectionsOpen}
+        onClose={() => setConnectionsOpen(false)}
+        userId={userId}
+      />
+
       {/* Top toolbar */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '14px 40px 0' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '14px 40px 0' }}>
+        <button
+          onClick={() => setConnectionsOpen(true)}
+          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(243,234,217,0.08)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'rgba(243,234,217,0.04)')}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 7,
+            background: 'rgba(243,234,217,0.04)',
+            border: '1px solid rgba(243,234,217,0.12)',
+            borderRadius: 8, padding: '7px 14px',
+            color: 'rgba(243,234,217,0.85)', fontSize: 12, fontWeight: 500,
+            fontFamily: 'system-ui, sans-serif', cursor: 'pointer',
+            transition: 'background 180ms ease',
+          }}
+        >
+          <span>🔌</span>
+          <span>Connections</span>
+        </button>
         <button
           onClick={() => setMetricsOpen(true)}
           onMouseEnter={e => (e.currentTarget.style.background = 'rgba(243,234,217,0.08)')}

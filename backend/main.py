@@ -22,6 +22,7 @@ from backend.routes.business.show_me_how import router as business_show_me_how_r
 from backend.routes.business.create import router as business_create_router
 from backend.routes.business.create_actions import router as business_create_actions_router
 from backend.routes.business.proactive_routes import router as business_proactive_router
+from backend.routes.business.connections import router as business_connections_router
 from backend.cron.business_risk_cron import run_business_risk_briefings
 from backend.routes.user_preferences import router as user_preferences_router
 from backend.routes.export import router as export_router
@@ -74,7 +75,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=False,
-    allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -99,6 +100,7 @@ app.include_router(business_show_me_how_router, prefix="/api")
 app.include_router(business_create_router, prefix="/api")
 app.include_router(business_create_actions_router, prefix="/api")
 app.include_router(business_proactive_router, prefix="/api")
+app.include_router(business_connections_router, prefix="/api")
 app.include_router(user_preferences_router, prefix="/api")
 app.include_router(export_router, prefix="/api")
 app.include_router(documents_router, prefix="/api")

@@ -4,6 +4,7 @@ import os
 import httpx
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+from backend.lib.business.connectors.registry import available_connectors_summary  # noqa: E402
 SUB_AGENT_MODEL = "claude-sonnet-4-6"
 SUB_AGENT_TIMEOUT = 90.0
 
@@ -203,6 +204,12 @@ async def run_sub_agent(
             user_message_parts.append(f"Industry: {context['industry']}")
         if context.get("company_name"):
             user_message_parts.append(f"Company: {context['company_name']}")
+        if context.get("user_id"):
+            try:
+                summary = await available_connectors_summary(context["user_id"])
+                user_message_parts.append(f"Connector status: {summary}")
+            except Exception as e:
+                print(f"SUB_AGENT: connector summary failed: {e}")
         if context.get("prior_outputs"):
             user_message_parts.append(
                 "Prior sub-agent outputs (JSON):\n"
