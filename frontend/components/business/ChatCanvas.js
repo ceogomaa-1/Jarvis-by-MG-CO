@@ -10,6 +10,8 @@ import CreationCanvas from './CreationCanvas'
 import ProactiveBanner from './ProactiveBanner'
 import MetricsModal from './MetricsModal'
 import ConnectionsModal from './ConnectionsModal'
+import BrandModal from './BrandModal'
+import PendingActionsStack from './PendingActionsStack'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
@@ -93,6 +95,8 @@ export default function ChatCanvas({ userId }) {
   const [briefing, setBriefing] = useState(null)
   const [metricsOpen, setMetricsOpen] = useState(false)
   const [connectionsOpen, setConnectionsOpen] = useState(false)
+  const [brandOpen, setBrandOpen] = useState(false)
+  const [actionsOpen, setActionsOpen] = useState(false)
   const msgIdRef = useRef(1)
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
@@ -342,8 +346,54 @@ export default function ChatCanvas({ userId }) {
         userId={userId}
       />
 
+      <BrandModal
+        open={brandOpen}
+        onClose={() => setBrandOpen(false)}
+        userId={userId}
+      />
+
+      <PendingActionsStack
+        open={actionsOpen}
+        onClose={() => setActionsOpen(false)}
+        userId={userId}
+      />
+
       {/* Top toolbar */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '14px 40px 0' }}>
+        <button
+          onClick={() => setActionsOpen(true)}
+          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(243,234,217,0.08)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'rgba(243,234,217,0.04)')}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 7,
+            background: 'rgba(243,234,217,0.04)',
+            border: '1px solid rgba(243,234,217,0.12)',
+            borderRadius: 8, padding: '7px 14px',
+            color: 'rgba(243,234,217,0.85)', fontSize: 12, fontWeight: 500,
+            fontFamily: 'system-ui, sans-serif', cursor: 'pointer',
+            transition: 'background 180ms ease',
+          }}
+        >
+          <span>📋</span>
+          <span>Morning Queue</span>
+        </button>
+        <button
+          onClick={() => setBrandOpen(true)}
+          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(243,234,217,0.08)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'rgba(243,234,217,0.04)')}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 7,
+            background: 'rgba(243,234,217,0.04)',
+            border: '1px solid rgba(243,234,217,0.12)',
+            borderRadius: 8, padding: '7px 14px',
+            color: 'rgba(243,234,217,0.85)', fontSize: 12, fontWeight: 500,
+            fontFamily: 'system-ui, sans-serif', cursor: 'pointer',
+            transition: 'background 180ms ease',
+          }}
+        >
+          <span>⚙️</span>
+          <span>Brand</span>
+        </button>
         <button
           onClick={() => setConnectionsOpen(true)}
           onMouseEnter={e => (e.currentTarget.style.background = 'rgba(243,234,217,0.08)')}
