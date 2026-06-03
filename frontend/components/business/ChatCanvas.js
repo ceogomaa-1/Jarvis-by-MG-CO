@@ -12,6 +12,7 @@ import ProactiveBanner from './ProactiveBanner'
 import ChatHeaderMenu from './ChatHeaderMenu'
 import ViewToggle from './workflow/ViewToggle'
 import WelcomeState from './WelcomeState'
+import JarvisAvatar from './JarvisAvatar'
 import { PromptInputBox } from '@/components/ui/ai-prompt-box'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
@@ -38,7 +39,25 @@ function UserBubble({ content }) {
   )
 }
 
-function AssistantBubble({ content, streaming }) {
+// Animated typing indicator (framer-motion, three dots in sequence)
+function ThinkingDots() {
+  return (
+    <div style={{ display: 'flex', gap: 5, marginBottom: 16, paddingTop: 4 }}>
+      {[0, 1, 2].map(i => (
+        <motion.div
+          key={i}
+          style={{ width: 6, height: 6, borderRadius: '50%', background: '#c84b31' }}
+          animate={{ opacity: [0.3, 1, 0.3], scale: [0.85, 1.1, 0.85] }}
+          transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut', delay: i * 0.15 }}
+        />
+      ))}
+    </div>
+  )
+}
+
+function AssistantBubble({ content, chunks, streaming }) {
+  const hasChunks = chunks && chunks.length > 0
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 6 }}
@@ -48,18 +67,23 @@ function AssistantBubble({ content, streaming }) {
     >
       <div
         className="biz-markdown"
-        style={{
-          fontSize: 15, color: 'rgba(243,234,217,0.9)', lineHeight: 1.7,
-          fontFamily: 'system-ui, sans-serif',
-        }}
+        style={{ fontSize: 15, color: 'rgba(243,234,217,0.9)', lineHeight: 1.7, fontFamily: 'system-ui, sans-serif' }}
       >
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{content || ''}</ReactMarkdown>
-        {streaming && (
-          <span style={{
-            display: 'inline-block', width: 2, height: 14,
-            background: '#c84b31', marginLeft: 2, verticalAlign: -2,
-            animation: 'bizBlink 1s steps(1) infinite',
-          }} />
+        {streaming && !hasChunks ? (
+          // Waiting for first chunk — show typing indicator
+          <ThinkingDots />
+        ) : streaming && hasChunks ? (
+          // Streaming: render all chunks, animate only the newest one, show cursor
+          <p style={{ margin: 0, whiteSpace: 'pre-wrap', lineHeight: 1.7, wordBreak: 'break-word' }}>
+            {chunks.slice(0, -1).map(c => c.text).join('')}
+            <span key={chunks[chunks.length - 1].key} className="chunk-fade-in">
+              {chunks[chunks.length - 1].text}
+            </span>
+            <span className="streaming-cursor" />
+          </p>
+        ) : (
+          // Done: render with full markdown formatting
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{content || ''}</ReactMarkdown>
         )}
       </div>
     </motion.div>
@@ -75,45 +99,14 @@ function WalkthroughMessage({ msg }) {
       style={{ marginBottom: 28, maxWidth: '94%' }}
     >
       <Walkthrough
-        title={msg.title}
-        intro={msg.intro}
-        steps={msg.steps || []}
-        loading={msg.loading}
+        title={msg.title} intro={msg.intro}
+        steps={msg.steps || []} loading={msg.loading}
         sources={msg.sources || []}
       />
       {msg.complete && msg.walkthroughData && (
         <DownloadPDFButton walkthrough={msg.walkthroughData} />
       )}
     </motion.div>
-  )
-}
-
-function StreamingDot() {
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      style={{ marginBottom: 12 }}
-    >
-      <div style={{
-        width: 8, height: 8, borderRadius: '50%',
-        background: '#c84b31', animation: 'bizDotPulse 1s ease-in-out infinite',
-      }} />
-    </motion.div>
-  )
-}
-
-function ThinkingDots() {
-  return (
-    <div style={{ display: 'flex', gap: 5, marginBottom: 16 }}>
-      {[0, 1, 2].map(i => (
-        <div key={i} style={{
-          width: 6, height: 6, borderRadius: '50%', background: 'rgba(200,75,49,0.7)',
-          animation: `bizDot 1.2s ease-in-out ${i * 0.2}s infinite`,
-        }} />
-      ))}
-    </div>
   )
 }
 
@@ -125,6 +118,8 @@ export default function ChatCanvas({ userId }) {
   const msgIdRef = useRef(1)
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
+
+  const isActivelyStreaming = messages.some(m => m.streaming === true)
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -163,22 +158,18 @@ export default function ChatCanvas({ userId }) {
   async function sendMessage(overrideText = null) {
     const rawText = (overrideText !== null ? overrideText : input).trim()
     let text = rawText
-    let routingHint = null
     if (text.startsWith('[Search: ') && text.endsWith(']')) {
       text = text.slice(9, -1).trim()
-      routingHint = 'search'
     } else if (text.startsWith('[Operator: ') && text.endsWith(']')) {
       text = text.slice(11, -1).trim()
       if (!/^(build|generate|create|design|draft|produce|write|make|launch|put together)\b/i.test(text)) {
         text = 'Build me ' + text
       }
-      routingHint = 'operator'
     } else if (text.startsWith('[ShowMe: ') && text.endsWith(']')) {
       text = text.slice(9, -1).trim()
       if (!/^(show me|walk me through|how (do|to))/i.test(text)) {
         text = 'Show me how to ' + text
       }
-      routingHint = 'showme'
     }
     if (!text || loading) return
     if (overrideText === null) setInput('')
@@ -228,8 +219,7 @@ export default function ChatCanvas({ userId }) {
                 if (ev.type === 'step') return { ...m, steps: [...m.steps, ev] }
                 if (ev.type === 'complete') return {
                   ...m, loading: false, complete: true,
-                  walkthroughData: ev.walkthrough,
-                  sources: ev.sources || [],
+                  walkthroughData: ev.walkthrough, sources: ev.sources || [],
                 }
                 if (ev.type === 'error') return { ...m, loading: false, intro: ev.value }
                 return m
@@ -307,14 +297,14 @@ export default function ChatCanvas({ userId }) {
       return
     }
 
-    // Regular chat
+    // Regular chat — with 50ms chunk batching for smooth fade-in
     const history = messages
       .filter(m => m.role !== 'walkthrough' && m.role !== 'creation' && typeof m.content === 'string')
       .map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content }))
 
     msgIdRef.current += 1
     const aId = msgIdRef.current
-    setMessages(prev => [...prev, { id: aId, role: 'assistant', content: '', streaming: true }])
+    setMessages(prev => [...prev, { id: aId, role: 'assistant', content: '', streaming: true, chunks: [] }])
 
     try {
       const res = await fetch(`${BACKEND}/api/business/chat/stream`, {
@@ -326,6 +316,23 @@ export default function ChatCanvas({ userId }) {
       const decoder = new TextDecoder()
       let buf = ''
       let acc = ''
+      let pendingBatch = ''
+      let batchTimer = null
+      const allChunks = []
+
+      function flushBatch() {
+        if (!pendingBatch) { batchTimer = null; return }
+        const batchText = pendingBatch
+        const batchKey = Date.now() + Math.random()
+        pendingBatch = ''
+        batchTimer = null
+        allChunks.push({ text: batchText, key: batchKey })
+        const chunksSnapshot = [...allChunks]
+        const currentContent = acc
+        setMessages(prev => prev.map(m =>
+          m.id === aId ? { ...m, content: currentContent, chunks: chunksSnapshot } : m
+        ))
+      }
 
       while (true) {
         const { done, value } = await reader.read()
@@ -339,12 +346,24 @@ export default function ChatCanvas({ userId }) {
           const raw = line.slice(6)
           if (raw === '[DONE]') break
           try {
-            acc += JSON.parse(raw)
-            setMessages(prev => prev.map(m => m.id === aId ? { ...m, content: acc } : m))
+            const chunk = JSON.parse(raw)
+            acc += chunk
+            pendingBatch += chunk
+            if (!batchTimer) {
+              batchTimer = setTimeout(flushBatch, 50)
+            }
           } catch {}
         }
       }
-      setMessages(prev => prev.map(m => m.id === aId ? { ...m, streaming: false } : m))
+
+      // Flush any remaining buffered text
+      if (batchTimer) clearTimeout(batchTimer)
+      if (pendingBatch) {
+        allChunks.push({ text: pendingBatch, key: Date.now() + Math.random() })
+      }
+      setMessages(prev => prev.map(m =>
+        m.id === aId ? { ...m, content: acc, chunks: [...allChunks], streaming: false } : m
+      ))
     } catch (err) {
       console.error('Chat failed:', err)
       setMessages(prev => prev.map(m =>
@@ -354,9 +373,7 @@ export default function ChatCanvas({ userId }) {
     setLoading(false)
   }
 
-  const handleSuggestion = (text) => {
-    sendMessage(text)
-  }
+  const handleSuggestion = (text) => sendMessage(text)
 
   const hasMessages = messages.length > 0
 
@@ -368,18 +385,6 @@ export default function ChatCanvas({ userId }) {
       transition={{ duration: 0.4, ease: 'easeOut' }}
       style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
     >
-      <style>{`
-        @keyframes bizBlink { 50% { opacity: 0; } }
-        @keyframes bizDot {
-          0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
-          40%            { opacity: 1;   transform: scale(1); }
-        }
-        @keyframes bizDotPulse {
-          0%, 100% { opacity: 0.4; transform: scale(0.9); }
-          50%       { opacity: 1;   transform: scale(1); }
-        }
-      `}</style>
-
       <ChatHeaderMenu userId={userId} onBrandSaved={() => {}} />
       <ViewToggle />
 
@@ -406,7 +411,7 @@ export default function ChatCanvas({ userId }) {
                   </div>
                 </div>
               )}
-              <WelcomeState onSuggestion={handleSuggestion} />
+              <WelcomeState onSuggestion={handleSuggestion} isStreaming={loading} />
             </motion.div>
           ) : (
             <div
@@ -416,7 +421,8 @@ export default function ChatCanvas({ userId }) {
               style={{
                 position: 'absolute', inset: 0,
                 overflowY: 'auto',
-                padding: '24px 40px 12px',
+                // Extra top padding to clear the mini avatar
+                padding: '64px 40px 12px',
               }}
             >
               <div style={{ maxWidth: 760, margin: '0 auto' }}>
@@ -443,17 +449,31 @@ export default function ChatCanvas({ userId }) {
                     <AssistantBubble
                       key={m.id ?? i}
                       content={m.content}
+                      chunks={m.chunks}
                       streaming={m.streaming}
                     />
                   )
                 })}
-                {loading && messages.length > 0 && messages[messages.length - 1]?.role === 'user' && (
-                  <ThinkingDots />
-                )}
               </div>
             </div>
           )}
         </AnimatePresence>
+
+        {/* Mini Jarvis avatar — persistent during conversation */}
+        {hasMessages && (
+          <div style={{
+            position: 'absolute', top: 12, left: 0, right: 0, zIndex: 3,
+            display: 'flex', justifyContent: 'center',
+            pointerEvents: 'none',
+          }}>
+            <motion.div
+              animate={{ opacity: isActivelyStreaming ? 1 : 0.55 }}
+              transition={{ duration: 0.4, ease: 'easeInOut' }}
+            >
+              <JarvisAvatar size={32} isStreaming={isActivelyStreaming || loading} />
+            </motion.div>
+          </div>
+        )}
 
         {/* Gradient fade above input */}
         {hasMessages && (

@@ -54,6 +54,27 @@ html, body {
 .biz-markdown blockquote { border-left: 2px solid rgba(200,75,49,0.3); margin: 12px 0; padding-left: 16px; color: rgba(243,234,217,0.6); font-style: italic; }
 .biz-markdown hr { border: none; height: 1px; background: linear-gradient(to right, transparent, rgba(243,234,217,0.1), transparent); margin: 20px 0; }
 
+/* ─── Streaming response effects ─────────────────────────────────────────────── */
+@keyframes chunkFadeIn {
+  from { opacity: 0; transform: translateY(1px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.chunk-fade-in { animation: chunkFadeIn 150ms ease-out forwards; }
+
+@keyframes cursorBlink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+.streaming-cursor::after {
+  content: '|';
+  color: #c84b31;
+  font-weight: 300;
+  font-size: 1em;
+  animation: cursorBlink 0.8s ease-in-out infinite;
+  margin-left: 1px;
+  display: inline;
+}
+
 /* ─── Business chat scroll container ─────────────────────────────────────────── */
 .biz-chat-scroll::-webkit-scrollbar { width: 6px; }
 .biz-chat-scroll::-webkit-scrollbar-track { background: transparent; }
