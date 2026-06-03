@@ -8,7 +8,6 @@ import DownloadPDFButton from './DownloadPDFButton'
 import { detectCreation } from '../../lib/business/creationDetector'
 import CreationCanvas from './CreationCanvas'
 import ProactiveBanner from './ProactiveBanner'
-import PendingActionsStack from './PendingActionsStack'
 import ChatHeaderMenu from './ChatHeaderMenu'
 import { PromptInputBox } from '@/components/ui/ai-prompt-box'
 
@@ -353,12 +352,6 @@ export default function ChatCanvas({ userId }) {
         onBrandSaved={() => {}}
       />
 
-      {/* Inline pending actions stack — stays until Mo decides to remove it */}
-      <PendingActionsStack
-        open={true}
-        onClose={() => {}}
-        userId={userId}
-      />
 
       {/* Messages */}
       <div
