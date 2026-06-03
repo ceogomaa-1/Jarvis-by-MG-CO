@@ -68,7 +68,7 @@ export default function WelcomeState({ onSuggestion }) {
         transition={{ duration: 0.6, ease: 'easeOut', delay: 0 }}
         style={{ marginBottom: 28, filter: 'drop-shadow(0 0 40px rgba(200,75,49,0.15))' }}
       >
-        <Image src="/logo-os1.png" alt="Jarvis" width={48} height={48} style={{ objectFit: 'contain' }} />
+        <Image src="/logo-transparent.png" alt="Jarvis" width={72} height={72} style={{ objectFit: 'contain' }} />
       </motion.div>
 
       <motion.h1

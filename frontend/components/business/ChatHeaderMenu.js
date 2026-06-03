@@ -29,7 +29,7 @@ export default function ChatHeaderMenu({ userId, onBrandSaved }) {
 
   return (
     <>
-      <div style={{ position: 'fixed', top: 20, right: 20, zIndex: 50 }}>
+      <div style={{ position: 'fixed', top: 68, right: 20, zIndex: 50 }}>
         <CircleMenu items={items} arcStart={arcStart} arcSpan={arcSpan} />
       </div>
 

@@ -12,7 +12,7 @@ export default function ViewToggle() {
       onClick={() => router.push(isWorkflow ? '/business/chat' : '/business/workflow')}
       title={isWorkflow ? 'Go to Chat' : 'Go to Workflow'}
       style={{
-        position: 'fixed', top: 20, left: 20, zIndex: 50,
+        position: 'fixed', top: 68, left: 20, zIndex: 50,
         width: 48, height: 48, borderRadius: '50%',
         background: 'rgba(15,15,18,0.65)',
         backdropFilter: 'blur(20px) saturate(180%)',
