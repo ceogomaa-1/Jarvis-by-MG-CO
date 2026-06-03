@@ -58,7 +58,8 @@ module.exports = {
         sm: '6px',
       },
       fontFamily: {
-        sans: ['system-ui', '-apple-system', '"Segoe UI"', 'sans-serif'],
+        sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
+        serif: ['var(--font-serif)', 'Georgia', 'serif'],
         mono: ['ui-monospace', '"SF Mono"', 'Menlo', 'monospace'],
       },
       keyframes: {

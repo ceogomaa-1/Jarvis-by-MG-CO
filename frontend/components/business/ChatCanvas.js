@@ -8,9 +8,10 @@ import DownloadPDFButton from './DownloadPDFButton'
 import { detectCreation } from '../../lib/business/creationDetector'
 import CreationCanvas from './CreationCanvas'
 import ProactiveBanner from './ProactiveBanner'
-import PendingActionsStack from './PendingActionsStack'
 import ChatHeaderMenu from './ChatHeaderMenu'
+import ViewToggle from './workflow/ViewToggle'
 import { PromptInputBox } from '@/components/ui/ai-prompt-box'
+import { motion } from 'framer-motion'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
@@ -338,7 +339,13 @@ export default function ChatCanvas({ userId }) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <motion.div
+      initial={{ opacity: 0, scale: 0.96 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 1.04 }}
+      transition={{ duration: 0.4, ease: 'easeOut' }}
+      style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
+    >
       <style>{`
         @keyframes bizBlink { 50% { opacity: 0; } }
         @keyframes bizDot {
@@ -347,18 +354,15 @@ export default function ChatCanvas({ userId }) {
         }
       `}</style>
 
-      {/* Top-right radial menu — replaces the 4 old toolbar buttons */}
+      {/* Top-right radial menu */}
       <ChatHeaderMenu
         userId={userId}
         onBrandSaved={() => {}}
       />
 
-      {/* Inline pending actions stack — stays until Mo decides to remove it */}
-      <PendingActionsStack
-        open={true}
-        onClose={() => {}}
-        userId={userId}
-      />
+      {/* Top-left view toggle */}
+      <ViewToggle />
+
 
       {/* Messages */}
       <div
@@ -407,6 +411,6 @@ export default function ChatCanvas({ userId }) {
           />
         </div>
       </div>
-    </div>
+    </motion.div>
   )
 }
