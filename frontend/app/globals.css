@@ -160,3 +160,29 @@ html, body {
 
 .orb-speaking { animation: orbSpeak 1.8s ease-in-out infinite; }
 .orb-listening { animation: orbListen 2.4s ease-in-out infinite; }
+
+@layer base {
+  :root {
+    --jarvis-bg: #0a0a0a;
+    --jarvis-surface: #1a1a1a;
+    --jarvis-border: rgba(243, 234, 217, 0.12);
+    --jarvis-text: #f3ead9;
+    --jarvis-muted: rgba(243, 234, 217, 0.55);
+    --jarvis-accent: #c84b31;
+    --jarvis-accent-glow: rgba(200, 75, 49, 0.15);
+  }
+}
+
+.jarvis-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.jarvis-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.jarvis-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(243, 234, 217, 0.15);
+  border-radius: 3px;
+}
+.jarvis-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(243, 234, 217, 0.25);
+}

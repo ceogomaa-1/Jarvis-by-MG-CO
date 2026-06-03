@@ -12,6 +12,7 @@ import MetricsModal from './MetricsModal'
 import ConnectionsModal from './ConnectionsModal'
 import BrandModal from './BrandModal'
 import PendingActionsStack from './PendingActionsStack'
+import { PromptInputBox } from '@/components/ui/ai-prompt-box'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
@@ -137,7 +138,25 @@ export default function ChatCanvas({ userId }) {
   }
 
   async function sendMessage(overrideText = null) {
-    const text = (overrideText !== null ? overrideText : input).trim()
+    const rawText = (overrideText !== null ? overrideText : input).trim()
+    let text = rawText
+    let routingHint = null
+    if (text.startsWith('[Search: ') && text.endsWith(']')) {
+      text = text.slice(9, -1).trim()
+      routingHint = 'search'
+    } else if (text.startsWith('[Operator: ') && text.endsWith(']')) {
+      text = text.slice(11, -1).trim()
+      if (!/^(build|generate|create|design|draft|produce|write|make|launch|put together)\b/i.test(text)) {
+        text = 'Build me ' + text
+      }
+      routingHint = 'operator'
+    } else if (text.startsWith('[ShowMe: ') && text.endsWith(']')) {
+      text = text.slice(9, -1).trim()
+      if (!/^(show me|walk me through|how (do|to))/i.test(text)) {
+        text = 'Show me how to ' + text
+      }
+      routingHint = 'showme'
+    }
     if (!text || loading) return
     if (overrideText === null) setInput('')
     inputRef.current?.focus()
@@ -466,44 +485,15 @@ export default function ChatCanvas({ userId }) {
       </div>
 
       {/* Input bar */}
-      <div style={{
-        padding: '14px 40px 28px',
-        borderTop: '1px solid rgba(243,234,217,0.07)',
-      }}>
-        <div style={{ maxWidth: 760, margin: '0 auto', display: 'flex', gap: 10 }}>
-          <input
-            ref={inputRef}
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
-            placeholder='Ask anything, or "show me how to export invoices in QuickBooks..."'
-            disabled={loading}
-            style={{
-              flex: 1,
-              background: 'rgba(243,234,217,0.04)',
-              border: '1px solid rgba(243,234,217,0.1)',
-              borderRadius: 8, padding: '12px 16px',
-              color: '#f3ead9', fontFamily: 'system-ui, sans-serif',
-              fontSize: 14, outline: 'none',
-              transition: 'border-color 200ms',
-            }}
-            onFocus={e => e.target.style.borderColor = 'rgba(200,75,49,0.4)'}
-            onBlur={e => e.target.style.borderColor = 'rgba(243,234,217,0.1)'}
+      <div style={{ padding: '12px 40px 24px', borderTop: '1px solid rgba(243,234,217,0.05)' }}>
+        <div style={{ maxWidth: 760, margin: '0 auto' }}>
+          <PromptInputBox
+            onSend={(message) => sendMessage(message)}
+            isLoading={loading}
+            placeholder="Ask Jarvis to do something…"
+            enableVoice={false}
+            enableUpload={true}
           />
-          <button
-            onClick={() => sendMessage()}
-            disabled={!input.trim() || loading}
-            style={{
-              background: input.trim() && !loading ? '#c84b31' : 'rgba(200,75,49,0.12)',
-              border: 'none', borderRadius: 8, padding: '12px 22px',
-              color: input.trim() && !loading ? 'white' : 'rgba(200,75,49,0.4)',
-              cursor: input.trim() && !loading ? 'pointer' : 'default',
-              fontFamily: 'system-ui, sans-serif', fontSize: 13, fontWeight: 500,
-              transition: 'all 200ms ease', flexShrink: 0,
-            }}
-          >
-            Send
-          </button>
         </div>
       </div>
     </div>
