@@ -99,10 +99,13 @@ export default function BrandModal({ open, onClose, userId }) {
         onClick={e => e.stopPropagation()}
         style={{
           width: '100%', maxWidth: 560, margin: '0 20px',
-          background: '#0a0a0a',
-          border: '1px solid rgba(243,234,217,0.1)',
-          borderRadius: 16, padding: 28,
+          background: 'rgba(15, 15, 18, 0.55)',
+          backdropFilter: 'blur(28px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(28px) saturate(180%)',
+          border: '1px solid rgba(243,234,217,0.15)',
+          borderRadius: 20, padding: 28,
           fontFamily: 'system-ui, sans-serif',
+          boxShadow: '0 24px 60px rgba(0,0,0,0.55), inset 0 1px 0 rgba(243,234,217,0.06)',
           maxHeight: '88vh', display: 'flex', flexDirection: 'column',
         }}
       >
