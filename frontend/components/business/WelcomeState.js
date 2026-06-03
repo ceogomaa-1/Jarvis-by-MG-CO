@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { PenTool, BarChart3, Lightbulb, Shield } from 'lucide-react'
-import Image from 'next/image'
+import JarvisAvatar from './JarvisAvatar'
 
 function getGreeting() {
   const h = new Date().getHours()
@@ -29,27 +29,22 @@ function SuggestionCard({ icon: Icon, text, onClick }) {
       style={{
         background: hovered ? 'rgba(243,234,217,0.06)' : 'rgba(243,234,217,0.03)',
         border: `1px solid ${hovered ? 'rgba(243,234,217,0.1)' : 'rgba(243,234,217,0.06)'}`,
-        borderRadius: 16,
-        padding: '18px 16px',
+        borderRadius: 16, padding: '18px 16px',
         display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8,
-        cursor: 'pointer', textAlign: 'left',
+        cursor: 'pointer', textAlign: 'left', width: '100%',
         transform: hovered ? 'translateY(-1px)' : 'translateY(0)',
         transition: 'all 300ms cubic-bezier(0.4,0,0.2,1)',
-        width: '100%',
       }}
     >
       <Icon size={20} color="rgba(243,234,217,0.3)" />
-      <span style={{
-        fontFamily: 'system-ui, sans-serif', fontSize: 13,
-        color: 'rgba(243,234,217,0.6)', lineHeight: 1.4,
-      }}>
+      <span style={{ fontFamily: 'system-ui, sans-serif', fontSize: 13, color: 'rgba(243,234,217,0.6)', lineHeight: 1.4 }}>
         {text}
       </span>
     </button>
   )
 }
 
-export default function WelcomeState({ onSuggestion }) {
+export default function WelcomeState({ onSuggestion, isStreaming = false }) {
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -62,13 +57,14 @@ export default function WelcomeState({ onSuggestion }) {
         textAlign: 'center',
       }}
     >
+      {/* Animated logo */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.6, ease: 'easeOut', delay: 0 }}
-        style={{ marginBottom: 28, filter: 'drop-shadow(0 0 40px rgba(200,75,49,0.15))' }}
+        style={{ marginBottom: 36 }}
       >
-        <Image src="/logo-os1.png" alt="Jarvis" width={48} height={48} style={{ objectFit: 'contain' }} />
+        <JarvisAvatar size={80} isStreaming={isStreaming} />
       </motion.div>
 
       <motion.h1
@@ -102,10 +98,8 @@ export default function WelcomeState({ onSuggestion }) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, ease: 'easeOut', delay: 0.5 }}
         style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(2, 1fr)',
-          gap: 10, marginTop: 40,
-          maxWidth: 400, width: '100%',
+          display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)',
+          gap: 10, marginTop: 40, maxWidth: 400, width: '100%',
         }}
       >
         {SUGGESTIONS.map(({ icon, text }) => (

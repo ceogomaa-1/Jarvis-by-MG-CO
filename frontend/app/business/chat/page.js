@@ -92,7 +92,7 @@ export default function BusinessChatPage() {
         {/* Left: logo + wordmark */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginLeft: 72 }}>
           <Image
-            src="/logo-os1.png"
+            src="/logo-transparent.png"
             alt="Jarvis"
             width={28}
             height={28}
