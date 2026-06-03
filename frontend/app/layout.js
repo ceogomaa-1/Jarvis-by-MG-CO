@@ -1,5 +1,6 @@
 import { Instrument_Serif, Inter } from 'next/font/google'
 import './globals.css'
+import AgentationProvider from '../components/dev/AgentationProvider'
 
 const instrumentSerif = Instrument_Serif({
   weight: ['400'],
@@ -26,6 +27,7 @@ export default function RootLayout({ children }) {
     <html lang="en" className={`${instrumentSerif.variable} ${inter.variable}`}>
       <body style={{ backgroundColor: '#0a0908', margin: 0, padding: 0, height: '100vh' }}>
         {children}
+        <AgentationProvider />
       </body>
     </html>
   )
