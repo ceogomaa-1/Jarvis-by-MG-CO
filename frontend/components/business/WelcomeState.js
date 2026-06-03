@@ -1,0 +1,117 @@
+'use client'
+import { useState } from 'react'
+import { motion } from 'framer-motion'
+import { PenTool, BarChart3, Lightbulb, Shield } from 'lucide-react'
+import Image from 'next/image'
+
+function getGreeting() {
+  const h = new Date().getHours()
+  if (h >= 5 && h < 12) return 'Good morning.'
+  if (h >= 12 && h < 18) return 'Good afternoon.'
+  if (h >= 18 && h < 22) return 'Good evening.'
+  return 'Working late.'
+}
+
+const SUGGESTIONS = [
+  { icon: PenTool, text: 'Draft a sales outreach' },
+  { icon: BarChart3, text: 'Analyze my business metrics' },
+  { icon: Lightbulb, text: 'Create a marketing strategy' },
+  { icon: Shield, text: 'Review my risk flags' },
+]
+
+function SuggestionCard({ icon: Icon, text, onClick }) {
+  const [hovered, setHovered] = useState(false)
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        background: hovered ? 'rgba(243,234,217,0.06)' : 'rgba(243,234,217,0.03)',
+        border: `1px solid ${hovered ? 'rgba(243,234,217,0.1)' : 'rgba(243,234,217,0.06)'}`,
+        borderRadius: 16,
+        padding: '18px 16px',
+        display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8,
+        cursor: 'pointer', textAlign: 'left',
+        transform: hovered ? 'translateY(-1px)' : 'translateY(0)',
+        transition: 'all 300ms cubic-bezier(0.4,0,0.2,1)',
+        width: '100%',
+      }}
+    >
+      <Icon size={20} color="rgba(243,234,217,0.3)" />
+      <span style={{
+        fontFamily: 'system-ui, sans-serif', fontSize: 13,
+        color: 'rgba(243,234,217,0.6)', lineHeight: 1.4,
+      }}>
+        {text}
+      </span>
+    </button>
+  )
+}
+
+export default function WelcomeState({ onSuggestion }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0, scale: 0.98 }}
+      transition={{ duration: 0.3, ease: 'easeOut' }}
+      style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        justifyContent: 'center', height: '100%', padding: '0 24px 60px',
+        textAlign: 'center',
+      }}
+    >
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.6, ease: 'easeOut', delay: 0 }}
+        style={{ marginBottom: 28, filter: 'drop-shadow(0 0 40px rgba(200,75,49,0.15))' }}
+      >
+        <Image src="/logo-os1.png" alt="Jarvis" width={48} height={48} style={{ objectFit: 'contain' }} />
+      </motion.div>
+
+      <motion.h1
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: 'easeOut', delay: 0.2 }}
+        style={{
+          fontFamily: 'var(--font-serif), Georgia, serif',
+          fontSize: 42, fontWeight: 400, color: '#f3ead9',
+          margin: 0, lineHeight: 1.1,
+        }}
+      >
+        {getGreeting()}
+      </motion.h1>
+
+      <motion.p
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: 'easeOut', delay: 0.35 }}
+        style={{
+          fontFamily: 'system-ui, sans-serif', fontSize: 15,
+          color: 'rgba(243,234,217,0.4)', marginTop: 12, marginBottom: 0,
+          letterSpacing: '0.02em',
+        }}
+      >
+        What should we work on?
+      </motion.p>
+
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: 'easeOut', delay: 0.5 }}
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(2, 1fr)',
+          gap: 10, marginTop: 40,
+          maxWidth: 400, width: '100%',
+        }}
+      >
+        {SUGGESTIONS.map(({ icon, text }) => (
+          <SuggestionCard key={text} icon={icon} text={text} onClick={() => onSuggestion(text)} />
+        ))}
+      </motion.div>
+    </motion.div>
+  )
+}

@@ -8,8 +8,9 @@ function Field({ label, children }) {
     <div style={{ marginBottom: 14 }}>
       <label style={{
         display: 'block', fontSize: 11, fontWeight: 500,
-        color: 'rgba(243,234,217,0.7)', marginBottom: 5,
-        textTransform: 'uppercase', letterSpacing: '0.06em',
+        color: 'rgba(243,234,217,0.5)', marginBottom: 6,
+        textTransform: 'uppercase', letterSpacing: '0.15em',
+        fontFamily: 'system-ui, sans-serif',
       }}>
         {label}
       </label>
@@ -20,11 +21,12 @@ function Field({ label, children }) {
 
 const inputStyle = {
   width: '100%', boxSizing: 'border-box',
-  background: 'rgba(243,234,217,0.04)',
-  border: '1px solid rgba(243,234,217,0.12)',
-  borderRadius: 7, padding: '9px 12px',
+  background: 'rgba(243,234,217,0.03)',
+  border: '1px solid rgba(243,234,217,0.08)',
+  borderRadius: 12, padding: '12px 16px',
   color: '#f3ead9', fontSize: 13,
   fontFamily: 'system-ui, sans-serif', outline: 'none',
+  transition: 'border-color 200ms ease, box-shadow 200ms ease',
 }
 
 export default function BrandModal({ open, onClose, userId }) {
@@ -283,17 +285,18 @@ export default function BrandModal({ open, onClose, userId }) {
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
           {saved && (
             <span style={{ fontSize: 12, color: '#22c55e', alignSelf: 'center', marginRight: 8 }}>
-              ✅ Saved
+              Saved
             </span>
           )}
           <button
             onClick={onClose}
             style={{
               background: 'transparent',
-              border: '1px solid rgba(243,234,217,0.15)',
-              borderRadius: 8, padding: '8px 18px',
+              border: '1px solid rgba(243,234,217,0.1)',
+              borderRadius: 12, padding: '10px 24px',
               color: 'rgba(243,234,217,0.7)', fontSize: 13,
               fontFamily: 'system-ui, sans-serif', cursor: 'pointer',
+              transition: 'all 200ms ease',
             }}
           >
             Close
@@ -303,10 +306,11 @@ export default function BrandModal({ open, onClose, userId }) {
             disabled={saving || loading}
             style={{
               background: saving ? 'rgba(200,75,49,0.5)' : '#c84b31',
-              border: 'none', borderRadius: 8, padding: '8px 20px',
-              color: 'white', fontSize: 13, fontWeight: 500,
+              border: 'none', borderRadius: 12, padding: '10px 24px',
+              color: '#0a0a0a', fontSize: 13, fontWeight: 500,
               fontFamily: 'system-ui, sans-serif',
               cursor: saving ? 'default' : 'pointer',
+              transition: 'background 200ms ease',
             }}
           >
             {saving ? 'Saving…' : 'Save'}

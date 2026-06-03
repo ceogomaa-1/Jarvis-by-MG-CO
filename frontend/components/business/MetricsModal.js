@@ -71,7 +71,8 @@ export default function MetricsModal({ open, onClose, userId }) {
       onClick={onClose}
       style={{
         position: 'fixed', inset: 0,
-        background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
+        background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         zIndex: 1000,
       }}
@@ -134,10 +135,11 @@ export default function MetricsModal({ open, onClose, userId }) {
             disabled={saving}
             style={{
               background: 'transparent',
-              border: '1px solid rgba(243,234,217,0.15)',
-              borderRadius: 8, padding: '10px 18px',
+              border: '1px solid rgba(243,234,217,0.1)',
+              borderRadius: 12, padding: '10px 24px',
               color: 'rgba(243,234,217,0.7)', fontSize: 13,
               fontFamily: 'system-ui, sans-serif', cursor: saving ? 'default' : 'pointer',
+              transition: 'all 200ms ease',
             }}
           >
             Close
@@ -147,10 +149,11 @@ export default function MetricsModal({ open, onClose, userId }) {
             disabled={saving || loading}
             style={{
               background: saving ? 'rgba(200,75,49,0.4)' : '#c84b31',
-              border: 'none', borderRadius: 8, padding: '10px 22px',
-              color: 'white', fontSize: 13, fontWeight: 500,
+              border: 'none', borderRadius: 12, padding: '10px 24px',
+              color: '#0a0a0a', fontSize: 13, fontWeight: 500,
               fontFamily: 'system-ui, sans-serif',
               cursor: saving ? 'default' : 'pointer',
+              transition: 'background 200ms ease',
             }}
           >
             {saving ? 'Saving...' : 'Save numbers'}

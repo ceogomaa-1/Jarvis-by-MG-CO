@@ -188,7 +188,7 @@ export default function ConnectionsModal({ open, onClose, userId }) {
       onClick={onClose}
       style={{
         position: 'fixed', inset: 0,
-        background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
+        background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         zIndex: 1000,
       }}
@@ -269,10 +269,11 @@ export default function ConnectionsModal({ open, onClose, userId }) {
                       onClick={() => setExpandedType(expanded ? null : manifest.type)}
                       style={{
                         background: existing ? 'rgba(243,234,217,0.04)' : '#c84b31',
-                        border: existing ? '1px solid rgba(243,234,217,0.12)' : 'none',
-                        borderRadius: 6, padding: '5px 12px',
-                        color: existing ? '#f3ead9' : 'white',
+                        border: existing ? '1px solid rgba(243,234,217,0.1)' : 'none',
+                        borderRadius: 8, padding: '6px 14px',
+                        color: existing ? '#f3ead9' : '#0a0a0a',
                         fontSize: 11, fontWeight: 500, cursor: 'pointer',
+                        transition: 'all 200ms ease',
                       }}
                     >
                       {expanded ? 'Close' : existing ? 'Edit' : 'Connect'}
@@ -309,10 +310,11 @@ export default function ConnectionsModal({ open, onClose, userId }) {
             onClick={onClose}
             style={{
               background: 'transparent',
-              border: '1px solid rgba(243,234,217,0.15)',
-              borderRadius: 8, padding: '8px 20px',
+              border: '1px solid rgba(243,234,217,0.1)',
+              borderRadius: 12, padding: '10px 24px',
               color: 'rgba(243,234,217,0.7)', fontSize: 13,
               fontFamily: 'system-ui, sans-serif', cursor: 'pointer',
+              transition: 'all 200ms ease',
             }}
           >
             Close

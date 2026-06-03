@@ -28,20 +28,38 @@ html, body {
 }
 
 /* ─── Business chat markdown styles ─────────────────────────────────────────── */
-.biz-markdown h1, .biz-markdown h2 { color: #f3ead9; font-size: 1rem; font-weight: 700; margin: 14px 0 6px; }
-.biz-markdown h3 { color: #f3ead9; font-size: 0.9rem; font-weight: 600; margin: 10px 0 4px; }
-.biz-markdown p { margin: 0 0 8px; }
+.biz-markdown h1 { font-family: var(--font-serif), Georgia, serif; color: #f3ead9; font-size: 1.35rem; font-weight: 400; margin: 22px 0 8px; line-height: 1.25; }
+.biz-markdown h2 { font-family: var(--font-serif), Georgia, serif; color: #f3ead9; font-size: 1.15rem; font-weight: 400; margin: 18px 0 7px; line-height: 1.25; }
+.biz-markdown h3 { font-family: var(--font-serif), Georgia, serif; color: #f3ead9; font-size: 1rem; font-weight: 400; margin: 14px 0 5px; }
+.biz-markdown h1:first-child, .biz-markdown h2:first-child, .biz-markdown h3:first-child { margin-top: 0; }
+.biz-markdown p { margin: 0 0 10px; color: rgba(243,234,217,0.9); }
 .biz-markdown p:last-child { margin-bottom: 0; }
-.biz-markdown ul, .biz-markdown ol { margin: 6px 0 8px 18px; padding: 0; }
-.biz-markdown li { margin-bottom: 3px; }
+.biz-markdown ul, .biz-markdown ol { margin: 8px 0 10px 0; padding: 0; list-style: none; }
+.biz-markdown ul li, .biz-markdown ol li { margin-bottom: 5px; padding-left: 16px; position: relative; color: rgba(243,234,217,0.85); }
+.biz-markdown ul li::before { content: ''; position: absolute; left: 0; top: 9px; width: 4px; height: 4px; border-radius: 50%; background: rgba(243,234,217,0.3); }
+.biz-markdown ol { counter-reset: item; }
+.biz-markdown ol li { counter-increment: item; }
+.biz-markdown ol li::before { content: counter(item) '.'; position: absolute; left: 0; color: rgba(243,234,217,0.35); font-size: 12px; top: 1px; }
 .biz-markdown strong { color: #f3ead9; font-weight: 600; }
-.biz-markdown code { background: rgba(243,234,217,0.08); border-radius: 3px; padding: 1px 5px; font-size: 12px; font-family: monospace; }
-.biz-markdown pre { background: rgba(243,234,217,0.05); border-radius: 6px; padding: 10px 14px; overflow-x: auto; margin: 8px 0; }
-.biz-markdown pre code { background: none; padding: 0; }
-.biz-markdown table { border-collapse: collapse; width: 100%; margin: 8px 0; }
-.biz-markdown th { background: rgba(200,75,49,0.12); color: #c84b31; font-weight: 600; padding: 6px 10px; border: 1px solid rgba(243,234,217,0.08); font-size: 12px; }
-.biz-markdown td { padding: 5px 10px; border: 1px solid rgba(243,234,217,0.07); font-size: 13px; }
-.biz-markdown blockquote { border-left: 2px solid rgba(200,75,49,0.4); margin: 8px 0; padding-left: 12px; color: rgba(243,234,217,0.6); }
+.biz-markdown em { color: rgba(243,234,217,0.8); font-style: italic; }
+.biz-markdown a { color: #c84b31; text-decoration: underline; text-underline-offset: 2px; transition: color 150ms ease; }
+.biz-markdown a:hover { color: rgba(200,75,49,0.8); }
+.biz-markdown code { background: rgba(243,234,217,0.06); border-radius: 4px; padding: 2px 6px; font-size: 13px; font-family: ui-monospace, 'SF Mono', Menlo, monospace; color: rgba(243,234,217,0.85); }
+.biz-markdown pre { background: rgba(243,234,217,0.04); border: 1px solid rgba(243,234,217,0.06); border-radius: 12px; padding: 16px; overflow-x: auto; margin: 12px 0; }
+.biz-markdown pre code { background: none; padding: 0; font-size: 13px; color: rgba(243,234,217,0.85); }
+.biz-markdown table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+.biz-markdown th { color: rgba(243,234,217,0.5); font-weight: 600; padding: 8px 12px; border-bottom: 1px solid rgba(243,234,217,0.1); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; text-align: left; }
+.biz-markdown td { padding: 8px 12px; border-bottom: 1px solid rgba(243,234,217,0.06); font-size: 13px; color: rgba(243,234,217,0.85); }
+.biz-markdown tr:last-child td { border-bottom: none; }
+.biz-markdown blockquote { border-left: 2px solid rgba(200,75,49,0.3); margin: 12px 0; padding-left: 16px; color: rgba(243,234,217,0.6); font-style: italic; }
+.biz-markdown hr { border: none; height: 1px; background: linear-gradient(to right, transparent, rgba(243,234,217,0.1), transparent); margin: 20px 0; }
+
+/* ─── Business chat scroll container ─────────────────────────────────────────── */
+.biz-chat-scroll::-webkit-scrollbar { width: 6px; }
+.biz-chat-scroll::-webkit-scrollbar-track { background: transparent; }
+.biz-chat-scroll::-webkit-scrollbar-thumb { background: rgba(243,234,217,0.08); border-radius: 3px; }
+.biz-chat-scroll::-webkit-scrollbar-thumb:hover { background: rgba(243,234,217,0.15); }
+.biz-chat-scroll { scrollbar-width: thin; scrollbar-color: rgba(243,234,217,0.08) transparent; }
 
 /* ─── Mobile message typography + overflow guard ──────────────────────────── */
 @media (max-width: 767px) {

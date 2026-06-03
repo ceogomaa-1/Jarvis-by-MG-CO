@@ -451,7 +451,7 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
   const {
     onSend = () => {},
     isLoading = false,
-    placeholder = 'Ask Jarvis to do something…',
+    placeholder = 'Message Jarvis...',
     className,
     enableVoice = false,
     enableUpload = true,
@@ -599,10 +599,10 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
               <PromptInputAction tooltip="Upload image">
                 <button
                   onClick={() => uploadInputRef.current?.click()}
-                  className="flex h-8 w-8 text-[rgba(243,234,217,0.55)] cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-[rgba(243,234,217,0.06)] hover:text-[#f3ead9]"
+                  className="flex h-7 w-7 text-[rgba(243,234,217,0.25)] cursor-pointer items-center justify-center rounded-full transition-colors hover:text-[rgba(243,234,217,0.5)]"
                   disabled={isRecording}
                 >
-                  <Paperclip className="h-5 w-5" />
+                  <Paperclip className="h-4 w-4" />
                   <input
                     ref={uploadInputRef}
                     type="file"
@@ -617,27 +617,19 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
               </PromptInputAction>
             )}
 
-            <div className="flex items-center">
+            <div className="flex items-center gap-1">
               {/* Search toggle */}
               <button
                 type="button"
                 onClick={() => handleToggleChange('search')}
                 className={cn(
-                  'rounded-full transition-all flex items-center gap-1 px-2 py-1 border h-8',
+                  'rounded-full transition-all flex items-center gap-1 px-2.5 py-1 border h-7 text-[11px] tracking-[0.1em] uppercase font-medium',
                   showSearch
-                    ? 'bg-[#1EAEDB]/15 border-[#1EAEDB] text-[#1EAEDB]'
-                    : 'bg-transparent border-transparent text-[rgba(243,234,217,0.55)] hover:text-[#f3ead9]'
+                    ? 'bg-[rgba(200,75,49,0.12)] border-[rgba(200,75,49,0.2)] text-[#c84b31]'
+                    : 'bg-[rgba(243,234,217,0.04)] border-[rgba(243,234,217,0.06)] text-[rgba(243,234,217,0.35)] hover:border-[rgba(243,234,217,0.1)] hover:text-[rgba(243,234,217,0.6)]'
                 )}
               >
-                <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
-                  <motion.div
-                    animate={{ rotate: showSearch ? 360 : 0, scale: showSearch ? 1.1 : 1 }}
-                    whileHover={{ scale: 1.1 }}
-                    transition={{ type: 'spring', stiffness: 260, damping: 25 }}
-                  >
-                    <Globe className={cn('w-4 h-4', showSearch ? 'text-[#1EAEDB]' : 'text-inherit')} />
-                  </motion.div>
-                </div>
+                <Globe className="w-3.5 h-3.5 flex-shrink-0" />
                 <AnimatePresence>
                   {showSearch && (
                     <motion.span
@@ -645,7 +637,7 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
                       animate={{ width: 'auto', opacity: 1 }}
                       exit={{ width: 0, opacity: 0 }}
                       transition={{ duration: 0.2 }}
-                      className="text-xs overflow-hidden whitespace-nowrap text-[#1EAEDB] flex-shrink-0"
+                      className="overflow-hidden whitespace-nowrap flex-shrink-0"
                     >
                       Search
                     </motion.span>
@@ -653,28 +645,18 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
                 </AnimatePresence>
               </button>
 
-              <CustomDivider />
-
               {/* Operator toggle */}
               <button
                 type="button"
                 onClick={() => handleToggleChange('operator')}
                 className={cn(
-                  'rounded-full transition-all flex items-center gap-1 px-2 py-1 border h-8',
+                  'rounded-full transition-all flex items-center gap-1 px-2.5 py-1 border h-7 text-[11px] tracking-[0.1em] uppercase font-medium',
                   showOperator
-                    ? 'bg-[#8B5CF6]/15 border-[#8B5CF6] text-[#8B5CF6]'
-                    : 'bg-transparent border-transparent text-[rgba(243,234,217,0.55)] hover:text-[#f3ead9]'
+                    ? 'bg-[rgba(200,75,49,0.12)] border-[rgba(200,75,49,0.2)] text-[#c84b31]'
+                    : 'bg-[rgba(243,234,217,0.04)] border-[rgba(243,234,217,0.06)] text-[rgba(243,234,217,0.35)] hover:border-[rgba(243,234,217,0.1)] hover:text-[rgba(243,234,217,0.6)]'
                 )}
               >
-                <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
-                  <motion.div
-                    animate={{ rotate: showOperator ? 360 : 0, scale: showOperator ? 1.1 : 1 }}
-                    whileHover={{ scale: 1.1 }}
-                    transition={{ type: 'spring', stiffness: 260, damping: 25 }}
-                  >
-                    <BrainCog className={cn('w-4 h-4', showOperator ? 'text-[#8B5CF6]' : 'text-inherit')} />
-                  </motion.div>
-                </div>
+                <BrainCog className="w-3.5 h-3.5 flex-shrink-0" />
                 <AnimatePresence>
                   {showOperator && (
                     <motion.span
@@ -682,7 +664,7 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
                       animate={{ width: 'auto', opacity: 1 }}
                       exit={{ width: 0, opacity: 0 }}
                       transition={{ duration: 0.2 }}
-                      className="text-xs overflow-hidden whitespace-nowrap text-[#8B5CF6] flex-shrink-0"
+                      className="overflow-hidden whitespace-nowrap flex-shrink-0"
                     >
                       Operator
                     </motion.span>
@@ -690,28 +672,18 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
                 </AnimatePresence>
               </button>
 
-              <CustomDivider />
-
               {/* Show Me toggle */}
               <button
                 type="button"
                 onClick={() => handleToggleChange('showme')}
                 className={cn(
-                  'rounded-full transition-all flex items-center gap-1 px-2 py-1 border h-8',
+                  'rounded-full transition-all flex items-center gap-1 px-2.5 py-1 border h-7 text-[11px] tracking-[0.1em] uppercase font-medium',
                   showShowMe
-                    ? 'bg-[#F97316]/15 border-[#F97316] text-[#F97316]'
-                    : 'bg-transparent border-transparent text-[rgba(243,234,217,0.55)] hover:text-[#f3ead9]'
+                    ? 'bg-[rgba(200,75,49,0.12)] border-[rgba(200,75,49,0.2)] text-[#c84b31]'
+                    : 'bg-[rgba(243,234,217,0.04)] border-[rgba(243,234,217,0.06)] text-[rgba(243,234,217,0.35)] hover:border-[rgba(243,234,217,0.1)] hover:text-[rgba(243,234,217,0.6)]'
                 )}
               >
-                <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
-                  <motion.div
-                    animate={{ rotate: showShowMe ? 360 : 0, scale: showShowMe ? 1.1 : 1 }}
-                    whileHover={{ scale: 1.1 }}
-                    transition={{ type: 'spring', stiffness: 260, damping: 25 }}
-                  >
-                    <FolderCode className={cn('w-4 h-4', showShowMe ? 'text-[#F97316]' : 'text-inherit')} />
-                  </motion.div>
-                </div>
+                <FolderCode className="w-3.5 h-3.5 flex-shrink-0" />
                 <AnimatePresence>
                   {showShowMe && (
                     <motion.span
@@ -719,7 +691,7 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
                       animate={{ width: 'auto', opacity: 1 }}
                       exit={{ width: 0, opacity: 0 }}
                       transition={{ duration: 0.2 }}
-                      className="text-xs overflow-hidden whitespace-nowrap text-[#F97316] flex-shrink-0"
+                      className="overflow-hidden whitespace-nowrap flex-shrink-0"
                     >
                       Show Me
                     </motion.span>
@@ -746,8 +718,8 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
                 isRecording
                   ? 'bg-transparent hover:bg-[rgba(243,234,217,0.08)] text-red-500'
                   : hasContent
-                  ? 'bg-[#f3ead9] hover:bg-[#f3ead9]/85 text-[#0a0a0a]'
-                  : 'bg-transparent hover:bg-[rgba(243,234,217,0.06)] text-[rgba(243,234,217,0.4)]'
+                  ? 'bg-[#c84b31] hover:bg-[rgba(200,75,49,0.85)] text-[#fff]'
+                  : 'bg-transparent hover:bg-[rgba(243,234,217,0.06)] text-[rgba(243,234,217,0.25)]'
               )}
               onClick={() => {
                 if (isRecording) setIsRecording(false)

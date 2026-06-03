@@ -33,7 +33,7 @@ export default function WorkflowPage() {
         padding: '0 40px',
         borderBottom: '1px solid rgba(243,234,217,0.07)',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingLeft: 64 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginLeft: 72 }}>
           <div style={{
             fontFamily: 'Georgia, serif', fontSize: 16, letterSpacing: '0.3em',
             color: '#f3ead9', fontWeight: 400,

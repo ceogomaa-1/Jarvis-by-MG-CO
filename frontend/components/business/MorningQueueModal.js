@@ -182,11 +182,12 @@ export default function MorningQueueModal({ open, onClose, userId }) {
           <button
             onClick={onClose}
             style={{
-              background: 'rgba(243,234,217,0.06)',
-              border: '1px solid rgba(243,234,217,0.15)',
-              borderRadius: 8, padding: '10px 22px',
-              color: '#f3ead9', fontSize: 13,
+              background: 'transparent',
+              border: '1px solid rgba(243,234,217,0.1)',
+              borderRadius: 12, padding: '10px 24px',
+              color: 'rgba(243,234,217,0.7)', fontSize: 13,
               fontFamily: 'system-ui, sans-serif', cursor: 'pointer',
+              transition: 'all 200ms ease',
             }}
           >
             Close

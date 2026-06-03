@@ -134,12 +134,13 @@ export default function ProfileModal({ open, onClose }) {
             disabled={signingOut || !user}
             style={{
               background: 'transparent',
-              border: '1px solid rgba(239,68,68,0.35)',
-              borderRadius: 8, padding: '10px 18px',
+              border: '1px solid rgba(239,68,68,0.3)',
+              borderRadius: 12, padding: '10px 18px',
               color: '#ef4444', fontSize: 13, fontWeight: 500,
               fontFamily: 'system-ui, sans-serif',
               cursor: (signingOut || !user) ? 'default' : 'pointer',
               opacity: (signingOut || !user) ? 0.5 : 1,
+              transition: 'all 200ms ease',
             }}
           >
             {signingOut ? 'Signing out…' : 'Sign out'}
@@ -147,11 +148,12 @@ export default function ProfileModal({ open, onClose }) {
           <button
             onClick={onClose}
             style={{
-              background: 'rgba(243,234,217,0.06)',
-              border: '1px solid rgba(243,234,217,0.15)',
-              borderRadius: 8, padding: '10px 22px',
-              color: '#f3ead9', fontSize: 13,
+              background: 'transparent',
+              border: '1px solid rgba(243,234,217,0.1)',
+              borderRadius: 12, padding: '10px 24px',
+              color: 'rgba(243,234,217,0.7)', fontSize: 13,
               fontFamily: 'system-ui, sans-serif', cursor: 'pointer',
+              transition: 'all 200ms ease',
             }}
           >
             Close
