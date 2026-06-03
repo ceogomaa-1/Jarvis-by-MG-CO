@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { motion, AnimatePresence } from 'framer-motion'
 import { detectShowMeHow } from '../../lib/business/showMeHowDetector'
 import Walkthrough from './Walkthrough'
 import DownloadPDFButton from './DownloadPDFButton'
@@ -10,36 +11,47 @@ import CreationCanvas from './CreationCanvas'
 import ProactiveBanner from './ProactiveBanner'
 import ChatHeaderMenu from './ChatHeaderMenu'
 import ViewToggle from './workflow/ViewToggle'
+import WelcomeState from './WelcomeState'
 import { PromptInputBox } from '@/components/ui/ai-prompt-box'
-import { motion } from 'framer-motion'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
 function UserBubble({ content }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: 'easeOut' }}
+      style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}
+    >
       <div style={{
-        maxWidth: '72%', padding: '11px 16px',
-        borderRadius: '16px 16px 4px 16px',
-        background: 'rgba(200,75,49,0.1)',
-        border: '1px solid rgba(200,75,49,0.2)',
-        color: '#f3ead9', fontSize: 14,
-        fontFamily: 'system-ui, sans-serif', lineHeight: 1.5,
+        maxWidth: '70%', padding: '12px 18px',
+        borderRadius: '20px 20px 4px 20px',
+        background: 'rgba(243,234,217,0.06)',
+        border: '1px solid rgba(243,234,217,0.04)',
+        color: '#f3ead9', fontSize: 15,
+        fontFamily: 'system-ui, sans-serif', lineHeight: 1.6,
       }}>
         {content}
       </div>
-    </div>
+    </motion.div>
   )
 }
 
 function AssistantBubble({ content, streaming }) {
   return (
-    <div style={{ marginBottom: 18, maxWidth: '84%' }}>
-      <div style={{
-        fontSize: 14, color: '#f3ead9', lineHeight: 1.7,
-        fontFamily: 'system-ui, sans-serif',
-      }}
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: 'easeOut' }}
+      style={{ marginBottom: 28, maxWidth: '85%' }}
+    >
+      <div
         className="biz-markdown"
+        style={{
+          fontSize: 15, color: 'rgba(243,234,217,0.9)', lineHeight: 1.7,
+          fontFamily: 'system-ui, sans-serif',
+        }}
       >
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{content || ''}</ReactMarkdown>
         {streaming && (
@@ -50,13 +62,18 @@ function AssistantBubble({ content, streaming }) {
           }} />
         )}
       </div>
-    </div>
+    </motion.div>
   )
 }
 
 function WalkthroughMessage({ msg }) {
   return (
-    <div style={{ marginBottom: 24, maxWidth: '94%' }}>
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: 'easeOut' }}
+      style={{ marginBottom: 28, maxWidth: '94%' }}
+    >
       <Walkthrough
         title={msg.title}
         intro={msg.intro}
@@ -67,7 +84,23 @@ function WalkthroughMessage({ msg }) {
       {msg.complete && msg.walkthroughData && (
         <DownloadPDFButton walkthrough={msg.walkthroughData} />
       )}
-    </div>
+    </motion.div>
+  )
+}
+
+function StreamingDot() {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      style={{ marginBottom: 12 }}
+    >
+      <div style={{
+        width: 8, height: 8, borderRadius: '50%',
+        background: '#c84b31', animation: 'bizDotPulse 1s ease-in-out infinite',
+      }} />
+    </motion.div>
   )
 }
 
@@ -76,7 +109,7 @@ function ThinkingDots() {
     <div style={{ display: 'flex', gap: 5, marginBottom: 16 }}>
       {[0, 1, 2].map(i => (
         <div key={i} style={{
-          width: 7, height: 7, borderRadius: '50%', background: '#c84b31',
+          width: 6, height: 6, borderRadius: '50%', background: 'rgba(200,75,49,0.7)',
           animation: `bizDot 1.2s ease-in-out ${i * 0.2}s infinite`,
         }} />
       ))}
@@ -85,11 +118,7 @@ function ThinkingDots() {
 }
 
 export default function ChatCanvas({ userId }) {
-  const [messages, setMessages] = useState([{
-    id: 0,
-    role: 'assistant',
-    content: "I'm Jarvis for Business. Ask me anything — or say \"show me how to...\" and I'll walk you through it step by step.",
-  }])
+  const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [briefing, setBriefing] = useState(null)
@@ -103,7 +132,6 @@ export default function ChatCanvas({ userId }) {
     }
   }, [messages])
 
-  // Load latest unread briefing on mount
   useEffect(() => {
     if (!userId) return
     let cancelled = false
@@ -162,7 +190,6 @@ export default function ChatCanvas({ userId }) {
     setLoading(true)
 
     if (detectShowMeHow(text)) {
-      // Walkthrough mode
       msgIdRef.current += 1
       const wId = msgIdRef.current
       setMessages(prev => [...prev, {
@@ -222,7 +249,6 @@ export default function ChatCanvas({ userId }) {
     }
 
     if (detectCreation(text)) {
-      // Creation 1.0 — sub-agent orchestration
       msgIdRef.current += 1
       const cId = msgIdRef.current
       setMessages(prev => [...prev, {
@@ -261,21 +287,11 @@ export default function ChatCanvas({ userId }) {
                   for (const a of ev.agents) initialStatuses[a.id] = 'pending'
                   return { ...m, title: ev.title, intro: ev.intro, agents: ev.agents, statuses: initialStatuses }
                 }
-                if (ev.type === 'agent_status') {
-                  return { ...m, statuses: { ...m.statuses, [ev.id]: ev.status } }
-                }
-                if (ev.type === 'creation_id') {
-                  return { ...m, creationId: ev.id }
-                }
-                if (ev.type === 'artifact') {
-                  return { ...m, artifact: ev.content }
-                }
-                if (ev.type === 'complete') {
-                  return { ...m, complete: true }
-                }
-                if (ev.type === 'error') {
-                  return { ...m, error: ev.value, complete: true }
-                }
+                if (ev.type === 'agent_status') return { ...m, statuses: { ...m.statuses, [ev.id]: ev.status } }
+                if (ev.type === 'creation_id') return { ...m, creationId: ev.id }
+                if (ev.type === 'artifact') return { ...m, artifact: ev.content }
+                if (ev.type === 'complete') return { ...m, complete: true }
+                if (ev.type === 'error') return { ...m, error: ev.value, complete: true }
                 return m
               }))
             } catch {}
@@ -291,7 +307,7 @@ export default function ChatCanvas({ userId }) {
       return
     }
 
-    // Regular chat mode
+    // Regular chat
     const history = messages
       .filter(m => m.role !== 'walkthrough' && m.role !== 'creation' && typeof m.content === 'string')
       .map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content }))
@@ -338,6 +354,12 @@ export default function ChatCanvas({ userId }) {
     setLoading(false)
   }
 
+  const handleSuggestion = (text) => {
+    sendMessage(text)
+  }
+
+  const hasMessages = messages.length > 0
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.96 }}
@@ -352,60 +374,104 @@ export default function ChatCanvas({ userId }) {
           0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
           40%            { opacity: 1;   transform: scale(1); }
         }
+        @keyframes bizDotPulse {
+          0%, 100% { opacity: 0.4; transform: scale(0.9); }
+          50%       { opacity: 1;   transform: scale(1); }
+        }
       `}</style>
 
-      {/* Top-right radial menu */}
-      <ChatHeaderMenu
-        userId={userId}
-        onBrandSaved={() => {}}
-      />
-
-      {/* Top-left view toggle */}
+      <ChatHeaderMenu userId={userId} onBrandSaved={() => {}} />
       <ViewToggle />
 
-
-      {/* Messages */}
-      <div
-        ref={scrollRef}
-        style={{
-          flex: 1, overflowY: 'auto', padding: '20px 40px 12px',
-          maskImage: 'linear-gradient(to bottom, transparent 0, #000 40px, #000 100%)',
-          WebkitMaskImage: 'linear-gradient(to bottom, transparent 0, #000 40px, #000 100%)',
-        }}
-      >
-        <div style={{ maxWidth: 760, margin: '0 auto' }}>
-          {briefing && (
-            <ProactiveBanner
-              briefing={briefing}
-              onDispatchAction={dispatchBriefingAction}
-              onDismiss={dismissBriefing}
-            />
+      {/* Messages or Welcome */}
+      <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+        <AnimatePresence mode="wait">
+          {!hasMessages ? (
+            <motion.div
+              key="welcome"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              transition={{ duration: 0.3 }}
+              style={{ position: 'absolute', inset: 0 }}
+            >
+              {briefing && (
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: '20px 40px 0', zIndex: 2 }}>
+                  <div style={{ maxWidth: 760, margin: '0 auto' }}>
+                    <ProactiveBanner
+                      briefing={briefing}
+                      onDispatchAction={dispatchBriefingAction}
+                      onDismiss={dismissBriefing}
+                    />
+                  </div>
+                </div>
+              )}
+              <WelcomeState onSuggestion={handleSuggestion} />
+            </motion.div>
+          ) : (
+            <div
+              key="messages"
+              ref={scrollRef}
+              className="biz-chat-scroll"
+              style={{
+                position: 'absolute', inset: 0,
+                overflowY: 'auto',
+                padding: '24px 40px 12px',
+              }}
+            >
+              <div style={{ maxWidth: 760, margin: '0 auto' }}>
+                {briefing && (
+                  <ProactiveBanner
+                    briefing={briefing}
+                    onDispatchAction={dispatchBriefingAction}
+                    onDismiss={dismissBriefing}
+                  />
+                )}
+                {messages.map((m, i) => {
+                  if (m.role === 'user') return <UserBubble key={m.id ?? i} content={m.content} />
+                  if (m.role === 'walkthrough') return <WalkthroughMessage key={m.id ?? i} msg={m} />
+                  if (m.role === 'creation') return (
+                    <CreationCanvas
+                      key={m.id ?? i}
+                      msg={m}
+                      onArtifactUpdate={(artifact) => {
+                        setMessages(prev => prev.map(x => x.id === m.id ? { ...x, artifact } : x))
+                      }}
+                    />
+                  )
+                  return (
+                    <AssistantBubble
+                      key={m.id ?? i}
+                      content={m.content}
+                      streaming={m.streaming}
+                    />
+                  )
+                })}
+                {loading && messages.length > 0 && messages[messages.length - 1]?.role === 'user' && (
+                  <ThinkingDots />
+                )}
+              </div>
+            </div>
           )}
-          {messages.map((m, i) => {
-            if (m.role === 'user') return <UserBubble key={m.id ?? i} content={m.content} />
-            if (m.role === 'walkthrough') return <WalkthroughMessage key={m.id ?? i} msg={m} />
-            if (m.role === 'creation') return (
-              <CreationCanvas
-                key={m.id ?? i}
-                msg={m}
-                onArtifactUpdate={(artifact) => {
-                  setMessages(prev => prev.map(x => x.id === m.id ? { ...x, artifact } : x))
-                }}
-              />
-            )
-            return <AssistantBubble key={m.id ?? i} content={m.content} streaming={m.streaming} />
-          })}
-          {loading && !['walkthrough','creation'].includes(messages[messages.length - 1]?.role) && <ThinkingDots />}
-        </div>
+        </AnimatePresence>
+
+        {/* Gradient fade above input */}
+        {hasMessages && (
+          <div style={{
+            position: 'absolute', bottom: 0, left: 0, right: 0, height: 56,
+            background: 'linear-gradient(to bottom, transparent, #0a0908)',
+            pointerEvents: 'none', zIndex: 1,
+          }} />
+        )}
       </div>
 
-      {/* Input bar */}
-      <div style={{ padding: '12px 40px 24px', borderTop: '1px solid rgba(243,234,217,0.05)' }}>
+      {/* Input area */}
+      <div style={{ padding: '8px 40px 24px', flexShrink: 0 }}>
         <div style={{ maxWidth: 760, margin: '0 auto' }}>
           <PromptInputBox
             onSend={(message) => sendMessage(message)}
             isLoading={loading}
-            placeholder="Ask Jarvis to do something…"
+            placeholder="Message Jarvis..."
             enableVoice={false}
             enableUpload={true}
           />
