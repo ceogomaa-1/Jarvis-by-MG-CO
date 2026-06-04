@@ -28,6 +28,8 @@ class BaseConnector:
     DESCRIPTION: str = ""                # Short user-facing description
     DOCS_URL: str = ""                   # Where users go to get credentials
     REQUIRED_FIELDS: dict = {}           # {field_name: {label, type, placeholder, secret}}
+    AUTH_TYPE: str = "api_key"           # "api_key" or "oauth"
+    STATUS_NOTE: str = ""                # Optional note shown in UI (e.g. "requires partner approval")
 
     def __init__(self, credentials: dict):
         self.credentials = credentials or {}
@@ -46,6 +48,8 @@ class BaseConnector:
             "display_name": cls.DISPLAY_NAME,
             "description": cls.DESCRIPTION,
             "docs_url": cls.DOCS_URL,
+            "auth_type": cls.AUTH_TYPE,
+            "status_note": cls.STATUS_NOTE,
             "fields": [
                 {"name": name, **meta}
                 for name, meta in cls.REQUIRED_FIELDS.items()

@@ -12,6 +12,11 @@ from backend.lib.business.connectors.base import BaseConnector, ConnectorResult
 from backend.lib.business.connectors.twilio_conn import TwilioConnector
 from backend.lib.business.connectors.stripe_conn import StripeConnector
 from backend.lib.business.connectors.smtp_conn import SMTPConnector
+from backend.lib.business.connectors.elevenlabs_conn import ElevenLabsConnector
+from backend.lib.business.connectors.notion_conn import NotionConnector
+from backend.lib.business.connectors.google_conn import GoogleConnector
+from backend.lib.business.connectors.canva_conn import CanvaConnector
+from backend.lib.business.connectors.gohighlevel_conn import GoHighLevelConnector
 
 
 SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL", "")
@@ -23,6 +28,11 @@ _CONNECTOR_REGISTRY: dict[str, type[BaseConnector]] = {
     TwilioConnector.CONNECTOR_TYPE: TwilioConnector,
     StripeConnector.CONNECTOR_TYPE: StripeConnector,
     SMTPConnector.CONNECTOR_TYPE: SMTPConnector,
+    ElevenLabsConnector.CONNECTOR_TYPE: ElevenLabsConnector,
+    NotionConnector.CONNECTOR_TYPE: NotionConnector,
+    GoogleConnector.CONNECTOR_TYPE: GoogleConnector,
+    CanvaConnector.CONNECTOR_TYPE: CanvaConnector,
+    GoHighLevelConnector.CONNECTOR_TYPE: GoHighLevelConnector,
 }
 
 
@@ -198,20 +208,52 @@ async def update_test_result(
         print(f"REGISTRY: update_test_result exception: {e}")
 
 
+_CONNECTOR_ACTIONS: dict[str, list[str]] = {
+    "twilio": ["send_sms"],
+    "stripe": ["list_recent_charges", "revenue_summary_last_30_days"],
+    "smtp": ["send_email"],
+    "elevenlabs": ["list_voices", "text_to_speech"],
+    "notion": ["search", "read_page", "query_database", "create_page"],
+    "google": ["list_calendar_events", "create_calendar_event", "list_emails", "send_email"],
+    "canva": ["list_designs", "create_design"],
+    "gohighlevel": ["list_contacts", "search_contacts", "create_contact", "list_pipelines", "list_opportunities", "list_appointments"],
+}
+
+_CONNECTOR_LABELS: dict[str, str] = {
+    "twilio": "Twilio (SMS)",
+    "stripe": "Stripe (financial data)",
+    "smtp": "Email via SMTP",
+    "elevenlabs": "ElevenLabs (AI voice)",
+    "notion": "Notion (workspace)",
+    "google": "Google Calendar + Gmail",
+    "canva": "Canva (design)",
+    "gohighlevel": "GoHighLevel (CRM)",
+}
+
+
 async def available_connectors_summary(user_id: str) -> str:
     """
-    Returns a short human-readable list of which connectors the user has wired.
-    Used by Creation 1.0 sub-agents to know what execution surface they have.
+    Returns a human-readable list of connected tools with their available actions.
+    Injected into the system prompt so Jarvis knows what it can execute.
     """
     rows = await list_user_connections(user_id)
     active = [r for r in rows if r.get("status") == "active"]
     if not active:
-        return "No connectors wired — sub-agents produce drafts only (cannot send/publish)."
-    types = sorted({r["connector_type"] for r in active})
-    pretty = {
-        "twilio": "Twilio (SMS)",
-        "stripe": "Stripe (financial data)",
-        "smtp": "Email via SMTP",
-    }
-    rendered = ", ".join(pretty.get(t, t) for t in types)
-    return f"Connected: {rendered}. Sub-agents may execute via these — but always produce a draft for user review first."
+        return "No connectors wired — produce drafts only (cannot send/publish/execute)."
+
+    lines = []
+    for row in active:
+        t = row["connector_type"]
+        label = _CONNECTOR_LABELS.get(t, t)
+        actions = _CONNECTOR_ACTIONS.get(t, [])
+        action_str = ", ".join(actions) if actions else "connected"
+        lines.append(f"- **{label}**: {action_str}")
+
+    block = "\n".join(lines)
+    return (
+        "## Connected Tools\n"
+        "The user has authorized the following services. You may use these to take real actions:\n\n"
+        f"{block}\n\n"
+        "Always produce a clear draft or summary for user review before executing irreversible actions "
+        "(sending messages, creating records, charging customers)."
+    )

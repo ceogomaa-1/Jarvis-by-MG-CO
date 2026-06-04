@@ -1,13 +1,18 @@
 """
 API for connector management.
 
-  GET    /business/connections/manifests  → list of available connector types + their required fields
-  GET    /business/connections            → list of user's connections (with status)
-  POST   /business/connections            → upsert credentials + run test immediately
-  POST   /business/connections/test       → test an existing connection
-  DELETE /business/connections            → remove a connection
+  GET    /business/connections/manifests          → list of available connector types + their required fields
+  GET    /business/connections                    → list of user's connections (with status)
+  POST   /business/connections                    → upsert credentials + run test immediately
+  POST   /business/connections/test               → test an existing connection
+  DELETE /business/connections                    → remove a connection
+  GET    /business/connections/google/auth        → redirect to Google OAuth consent screen
+  GET    /business/connections/google/callback    → handle Google OAuth callback
 """
+import os
+
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 
 from backend.lib.business.connectors.registry import (
@@ -19,6 +24,8 @@ from backend.lib.business.connectors.registry import (
     update_test_result,
     connector_class,
 )
+
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://jarvis-by-mg-co.vercel.app")
 
 router = APIRouter()
 
@@ -100,3 +107,50 @@ class DeleteConnectionRequest(BaseModel):
 async def delete_connection(request: DeleteConnectionRequest):
     ok = await delete_user_connection(request.user_id, request.connector_type)
     return {"ok": ok}
+
+
+# ─── Google OAuth endpoints ────────────────────────────────────────────────────
+
+@router.get("/business/connections/google/auth")
+async def google_auth_redirect(user_id: str = ""):
+    """Redirect user to Google OAuth consent screen."""
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id required")
+    from backend.lib.business.connectors.google_conn import GoogleConnector
+    url = GoogleConnector.get_auth_url(user_id)
+    return RedirectResponse(url)
+
+
+@router.get("/business/connections/google/callback")
+async def google_oauth_callback(code: str = "", state: str = "", error: str = ""):
+    """Handle Google OAuth callback — exchange code for tokens, store, redirect to frontend."""
+    if error:
+        return RedirectResponse(f"{FRONTEND_URL}/business/chat?connector_error={error}")
+
+    if not code or not state:
+        return RedirectResponse(f"{FRONTEND_URL}/business/chat?connector_error=missing_code")
+
+    user_id = state
+
+    from backend.lib.business.connectors.google_conn import GoogleConnector
+    tokens = await GoogleConnector.handle_callback(code=code)
+
+    if not tokens.get("refresh_token"):
+        return RedirectResponse(
+            f"{FRONTEND_URL}/business/chat?connector_error=no_refresh_token"
+        )
+
+    # Store tokens in business_connections
+    await upsert_user_connection(
+        user_id=user_id,
+        connector_type="google",
+        credentials=tokens,
+        display_name="Google (Calendar + Gmail)",
+    )
+
+    # Verify by running test
+    g = GoogleConnector(credentials=tokens)
+    result = await g.test()
+    await update_test_result(user_id, "google", result)
+
+    return RedirectResponse(f"{FRONTEND_URL}/business/chat?connector_connected=google")

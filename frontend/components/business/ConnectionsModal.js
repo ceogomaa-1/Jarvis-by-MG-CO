@@ -25,13 +25,64 @@ function StatusBadge({ status, lastResult }) {
   )
 }
 
-function ConnectForm({ manifest, onSave, onCancel, saving }) {
+function ConnectForm({ manifest, userId, onSave, onCancel, saving }) {
   const [values, setValues] = useState(() => {
     const v = {}
     for (const f of manifest.fields) v[f.name] = ''
     return v
   })
 
+  // OAuth connector — show a redirect button instead of credential fields
+  if (manifest.auth_type === 'oauth') {
+    const authUrl = `${BACKEND}/api/business/connections/${manifest.type}/auth?user_id=${encodeURIComponent(userId || '')}`
+    return (
+      <div style={{
+        background: 'rgba(243,234,217,0.03)',
+        border: '1px solid rgba(243,234,217,0.1)',
+        borderRadius: 10, padding: '16px 18px', marginTop: 8,
+      }}>
+        <div style={{ fontSize: 12, color: 'rgba(243,234,217,0.6)', marginBottom: 14 }}>
+          {manifest.description}{' '}
+          {manifest.docs_url && (
+            <a
+              href={manifest.docs_url} target="_blank" rel="noreferrer"
+              style={{ color: '#c84b31', textDecoration: 'underline' }}
+            >
+              Learn more
+            </a>
+          )}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+          <button
+            onClick={onCancel}
+            style={{
+              background: 'transparent',
+              border: '1px solid rgba(243,234,217,0.15)',
+              borderRadius: 7, padding: '7px 14px',
+              color: 'rgba(243,234,217,0.7)', fontSize: 12,
+              fontFamily: 'system-ui, sans-serif', cursor: 'pointer',
+            }}
+          >
+            Cancel
+          </button>
+          <a
+            href={authUrl}
+            style={{
+              background: '#c84b31',
+              border: 'none', borderRadius: 7, padding: '8px 18px',
+              color: 'white', fontSize: 12, fontWeight: 500,
+              fontFamily: 'system-ui, sans-serif',
+              textDecoration: 'none', display: 'inline-block',
+            }}
+          >
+            Connect with {manifest.display_name} →
+          </a>
+        </div>
+      </div>
+    )
+  }
+
+  // API key connector — show credential input fields
   return (
     <div style={{
       background: 'rgba(243,234,217,0.03)',
@@ -49,6 +100,17 @@ function ConnectForm({ manifest, onSave, onCancel, saving }) {
           </a>
         )}
       </div>
+
+      {manifest.status_note && (
+        <div style={{
+          marginBottom: 12, padding: '7px 10px',
+          background: 'rgba(243,234,217,0.04)',
+          border: '1px solid rgba(243,234,217,0.1)',
+          borderRadius: 6, fontSize: 11, color: 'rgba(243,234,217,0.55)',
+        }}>
+          ℹ️ {manifest.status_note}
+        </div>
+      )}
 
       {manifest.fields.map(field => (
         <div key={field.name} style={{ marginBottom: 10 }}>
@@ -136,6 +198,27 @@ export default function ConnectionsModal({ open, onClose, userId }) {
   useEffect(() => {
     if (open && userId) loadAll()
   }, [open, userId])
+
+  // Handle OAuth callback redirect — check for connector_connected / connector_error in URL
+  useEffect(() => {
+    if (!open) return
+    const params = new URLSearchParams(window.location.search)
+    const connected = params.get('connector_connected')
+    const error = params.get('connector_error')
+    if (connected) {
+      setFeedback({ type: connected, ok: true, message: `${connected} connected successfully.` })
+      // Clean up URL param without navigating
+      const url = new URL(window.location.href)
+      url.searchParams.delete('connector_connected')
+      window.history.replaceState({}, '', url.toString())
+      loadAll()
+    } else if (error) {
+      setFeedback({ type: 'google', ok: false, message: `OAuth error: ${error}` })
+      const url = new URL(window.location.href)
+      url.searchParams.delete('connector_error')
+      window.history.replaceState({}, '', url.toString())
+    }
+  }, [open])
 
   if (!open) return null
 
@@ -299,6 +382,7 @@ export default function ConnectionsModal({ open, onClose, userId }) {
                 {expanded && (
                   <ConnectForm
                     manifest={manifest}
+                    userId={userId}
                     onSave={vals => handleSave(manifest, vals)}
                     onCancel={() => { setExpandedType(null); setFeedback(null) }}
                     saving={saving}
