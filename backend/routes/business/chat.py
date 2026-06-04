@@ -111,11 +111,37 @@ async def _auto_title(sb, conv_id: str, first_user_message: str) -> None:
         print(f"Auto-title error: {e}")
 
 
+class AttachmentItem(BaseModel):
+    type: str = "image"
+    media_type: str = "image/jpeg"
+    data: str  # base64-encoded
+
+
 class BusinessChatRequest(BaseModel):
     message: str
     user_id: str = ""
     conversation_history: list = []
     conversation_id: str | None = None
+    attachments: list[AttachmentItem] = []
+
+
+def _build_user_content(text: str, attachments: list[AttachmentItem]) -> list | str:
+    """Build Anthropic content block(s) for a user turn, including any images."""
+    if not attachments:
+        return text
+    blocks: list = []
+    for att in attachments:
+        if att.type == "image":
+            blocks.append({
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": att.media_type,
+                    "data": att.data,
+                },
+            })
+    blocks.append({"type": "text", "text": text})
+    return blocks
 
 
 @router.post("/business/chat/stream")
@@ -129,7 +155,8 @@ async def business_chat_stream(request: BusinessChatRequest):
         if isinstance(m.get("content"), str) and m["content"].strip()
         and m.get("role") in ("user", "assistant")
     ]
-    messages = safe_history + [{"role": "user", "content": request.message}]
+    user_content = _build_user_content(request.message, request.attachments)
+    messages = safe_history + [{"role": "user", "content": user_content}]
 
     model = select_model(request.message)
     max_tokens = 4096 if model == OPUS else 2048

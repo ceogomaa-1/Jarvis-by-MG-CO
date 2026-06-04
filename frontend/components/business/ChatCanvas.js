@@ -18,24 +18,38 @@ import TetrisLoader from '../ui/TetrisLoader'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
-function UserBubble({ content }) {
+function UserBubble({ content, attachments }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: 'easeOut' }}
-      style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}
+      style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20, flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}
     >
-      <div style={{
-        maxWidth: '70%', padding: '12px 18px',
-        borderRadius: '20px 20px 4px 20px',
-        background: 'rgba(243,234,217,0.06)',
-        border: '1px solid rgba(243,234,217,0.04)',
-        color: '#f3ead9', fontSize: 15,
-        fontFamily: 'system-ui, sans-serif', lineHeight: 1.6,
-      }}>
-        {content}
-      </div>
+      {attachments && attachments.length > 0 && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          {attachments.map((att, i) => att.preview_url && (
+            <img
+              key={i}
+              src={att.preview_url}
+              alt=""
+              style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 12, border: '1px solid rgba(243,234,217,0.1)' }}
+            />
+          ))}
+        </div>
+      )}
+      {content && (
+        <div style={{
+          maxWidth: '70%', padding: '12px 18px',
+          borderRadius: '20px 20px 4px 20px',
+          background: 'rgba(243,234,217,0.06)',
+          border: '1px solid rgba(243,234,217,0.04)',
+          color: '#f3ead9', fontSize: 15,
+          fontFamily: 'system-ui, sans-serif', lineHeight: 1.6,
+        }}>
+          {content}
+        </div>
+      )}
     </motion.div>
   )
 }
@@ -241,7 +255,24 @@ export default function ChatCanvas({
     sendMessage(actionText)
   }
 
-  async function sendMessage(overrideText = null) {
+  async function fileToAttachment(file) {
+    return new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const dataUrl = e.target.result
+        const base64 = dataUrl.split(',')[1]
+        resolve({
+          type: 'image',
+          media_type: file.type || 'image/jpeg',
+          data: base64,
+          preview_url: dataUrl,
+        })
+      }
+      reader.readAsDataURL(file)
+    })
+  }
+
+  async function sendMessage(overrideText = null, overrideFiles = null) {
     const rawText = (overrideText !== null ? overrideText : input).trim()
     let text = rawText
     if (text.startsWith('[Search: ') && text.endsWith(']')) {
@@ -257,13 +288,20 @@ export default function ChatCanvas({
         text = 'Show me how to ' + text
       }
     }
-    if (!text || loading) return
+    const files = overrideFiles || []
+    if (!text && files.length === 0) return
+    if (loading) return
     if (overrideText === null) setInput('')
     inputRef.current?.focus()
 
+    // Convert File objects to base64 attachments
+    const attachments = files.length > 0
+      ? await Promise.all(files.map(fileToAttachment))
+      : []
+
     msgIdRef.current += 1
     const userMsgId = msgIdRef.current
-    setMessages(prev => [...prev, { id: userMsgId, role: 'user', content: text }])
+    setMessages(prev => [...prev, { id: userMsgId, role: 'user', content: text, attachments }])
     setLoading(true)
 
     if (detectShowMeHow(text)) {
@@ -401,6 +439,7 @@ export default function ChatCanvas({
           user_id: userId || '',
           conversation_history: history,
           conversation_id: activeConvRef.current || null,
+          attachments: attachments.map(a => ({ type: a.type, media_type: a.media_type, data: a.data })),
         }),
       })
       const reader = res.body.getReader()
@@ -557,7 +596,7 @@ export default function ChatCanvas({
                   />
                 )}
                 {messages.map((m, i) => {
-                  if (m.role === 'user') return <UserBubble key={m.id ?? i} content={m.content} />
+                  if (m.role === 'user') return <UserBubble key={m.id ?? i} content={m.content} attachments={m.attachments} />
                   if (m.role === 'walkthrough') return <WalkthroughMessage key={m.id ?? i} msg={m} />
                   if (m.role === 'creation') return (
                     <CreationCanvas
@@ -613,7 +652,7 @@ export default function ChatCanvas({
       <div style={{ padding: '8px 40px 24px', flexShrink: 0 }}>
         <div style={{ maxWidth: 760, margin: '0 auto' }}>
           <PromptInputBox
-            onSend={(message) => sendMessage(message)}
+            onSend={(message, files) => sendMessage(message, files)}
             isLoading={loading}
             placeholder="Message Jarvis..."
             enableVoice={false}
