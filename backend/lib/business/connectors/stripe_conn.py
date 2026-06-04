@@ -51,8 +51,10 @@ class StripeConnector(BaseConnector):
                         "available_minor": first.get("amount", 0),
                     },
                 )
-            if resp.status_code in (401, 403):
-                return ConnectorResult(ok=False, error="Invalid Stripe secret key")
+            if resp.status_code == 401:
+                return ConnectorResult(ok=False, error="Invalid Stripe secret key — check your key in Stripe Dashboard → Developers → API keys.")
+            if resp.status_code == 403:
+                return ConnectorResult(ok=False, error="This key has restricted permissions and can't read balance. Use an unrestricted secret key, or add the 'Balance' read permission in Stripe Dashboard → Developers → API keys → Restrictions.")
             return ConnectorResult(ok=False, error=f"Stripe returned {resp.status_code}")
         except Exception as e:
             return ConnectorResult(ok=False, error=f"Stripe connection failed: {e}")
