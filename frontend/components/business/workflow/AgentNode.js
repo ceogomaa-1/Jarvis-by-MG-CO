@@ -33,13 +33,25 @@ export default function AgentNode({ data, selected }) {
         onHoverStart={() => setHovered(true)}
         onHoverEnd={() => setHovered(false)}
         whileHover={{ scale: 1.06 }}
-        transition={{ type: 'spring', stiffness: 400, damping: 28 }}
+        animate={agent.status === 'active' ? {
+          boxShadow: [
+            '0 0 0 0px rgba(200,75,49,0.5)',
+            '0 0 0 14px rgba(200,75,49,0)',
+          ],
+        } : {}}
+        transition={agent.status === 'active' ? {
+          duration: 1.4,
+          repeat: Infinity,
+          ease: 'easeOut',
+        } : { type: 'spring', stiffness: 400, damping: 28 }}
         style={{
           width: 96, height: 96, borderRadius: 999,
           background: 'rgba(15,15,18,0.55)',
           backdropFilter: 'blur(20px) saturate(180%)',
           WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-          border: selected || hovered
+          border: agent.status === 'active'
+            ? '1px solid rgba(200,75,49,0.6)'
+            : selected || hovered
             ? '1px solid rgba(200,75,49,0.5)'
             : '1px solid rgba(243,234,217,0.12)',
           display: 'flex', flexDirection: 'column',

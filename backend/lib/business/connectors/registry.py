@@ -226,7 +226,7 @@ _CONNECTOR_ACTIONS: dict[str, list[str]] = {
     "stripe": ["list_recent_charges", "revenue_summary_last_30_days"],
     "smtp": ["send_email"],
     "elevenlabs": ["list_voices", "text_to_speech", "list_agents", "get_agent", "create_agent", "update_agent", "delete_agent"],
-    "notion": ["search", "read_page", "query_database", "create_page"],
+    "notion": ["search", "read_page", "query_database", "create_page", "list_pages", "create_database"],
     "google": ["list_calendar_events", "create_calendar_event", "list_emails", "send_email"],
     "canva": ["list_designs", "create_design"],
     "gohighlevel": ["list_contacts", "search_contacts", "create_contact", "list_pipelines", "list_opportunities", "list_appointments"],
