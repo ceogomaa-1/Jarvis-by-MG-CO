@@ -38,11 +38,10 @@ function groupConversations(conversations) {
 
 function GroupLabel({ label }) {
   return (
-    <div style={{
-      fontSize: 10, fontWeight: 700, letterSpacing: '0.15em',
+    <div className="font-arcade" style={{
+      fontSize: 6, letterSpacing: '0.2em',
       color: 'rgba(243,234,217,0.3)', textTransform: 'uppercase',
       padding: '8px 16px 4px',
-      fontFamily: 'system-ui, sans-serif',
     }}>
       {label}
     </div>
@@ -70,12 +69,11 @@ function ConversationItem({ conv, isActive, onSelect, onDelete }) {
       }}
     >
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{
-          fontSize: 13,
+        <div className="font-arcade" style={{
+          fontSize: 9,
           color: isActive ? '#f3ead9' : 'rgba(243,234,217,0.75)',
-          fontFamily: 'system-ui, sans-serif',
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-          lineHeight: 1.4,
+          lineHeight: 1.6,
         }}>
           {conv.title || 'New conversation'}
         </div>
@@ -174,7 +172,7 @@ export default function ChatSidebar({
             borderRadius: 12, padding: '10px 14px',
             color: 'rgba(243,234,217,0.65)',
             cursor: 'pointer',
-            fontFamily: 'system-ui, sans-serif', fontSize: 13,
+            fontSize: 8,
             display: 'flex', alignItems: 'center', gap: 8,
             transition: 'all 200ms ease',
           }}
@@ -188,7 +186,7 @@ export default function ChatSidebar({
           }}
         >
           <span style={{ fontSize: 16, lineHeight: 1 }}>+</span>
-          <span>New chat</span>
+          <span className="font-arcade" style={{ fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase' }}>New chat</span>
         </button>
       </div>
 
@@ -205,7 +203,7 @@ export default function ChatSidebar({
             borderBottom: '1px solid rgba(243,234,217,0.06)',
             padding: '6px 4px',
             color: 'rgba(243,234,217,0.6)',
-            fontFamily: 'system-ui, sans-serif', fontSize: 12,
+            fontFamily: 'var(--font-arcade), monospace', fontSize: 7,
             outline: 'none',
           }}
         />
@@ -223,7 +221,7 @@ export default function ChatSidebar({
           <div style={{
             padding: '24px 16px',
             color: 'rgba(243,234,217,0.2)',
-            fontSize: 12, fontFamily: 'system-ui, sans-serif',
+            fontSize: 7, fontFamily: 'var(--font-arcade), monospace',
             textAlign: 'center',
           }}>
             {search ? 'No matches' : 'No conversations yet'}
@@ -242,8 +240,8 @@ export default function ChatSidebar({
       <div style={{
         padding: '12px 16px',
         borderTop: '1px solid rgba(243,234,217,0.04)',
-        fontSize: 11, color: 'rgba(243,234,217,0.22)',
-        fontFamily: 'system-ui, sans-serif',
+        fontSize: 6, color: 'rgba(243,234,217,0.22)',
+        fontFamily: 'var(--font-arcade), monospace',
       }}>
         {memoryCount > 0 ? `${memoryCount} memories learned` : 'No memories yet'}
       </div>

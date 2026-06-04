@@ -37,7 +37,7 @@ function SuggestionCard({ icon: Icon, text, onClick }) {
       }}
     >
       <Icon size={20} color="rgba(243,234,217,0.3)" />
-      <span style={{ fontFamily: 'system-ui, sans-serif', fontSize: 13, color: 'rgba(243,234,217,0.6)', lineHeight: 1.4 }}>
+      <span className="font-arcade text-[7px] tracking-wider text-[rgba(243,234,217,0.6)]" style={{ lineHeight: 1.6 }}>
         {text}
       </span>
     </button>
@@ -71,11 +71,8 @@ export default function WelcomeState({ onSuggestion, isStreaming = false }) {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, ease: 'easeOut', delay: 0.2 }}
-        style={{
-          fontFamily: 'var(--font-serif), Georgia, serif',
-          fontSize: 42, fontWeight: 400, color: '#f3ead9',
-          margin: 0, lineHeight: 1.1,
-        }}
+        className="font-arcade text-2xl md:text-3xl text-[#f3ead9]"
+        style={{ margin: 0, lineHeight: 1.4 }}
       >
         {getGreeting()}
       </motion.h1>
@@ -84,11 +81,8 @@ export default function WelcomeState({ onSuggestion, isStreaming = false }) {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, ease: 'easeOut', delay: 0.35 }}
-        style={{
-          fontFamily: 'system-ui, sans-serif', fontSize: 15,
-          color: 'rgba(243,234,217,0.4)', marginTop: 12, marginBottom: 0,
-          letterSpacing: '0.02em',
-        }}
+        className="font-arcade text-[9px] tracking-wider text-[rgba(243,234,217,0.4)]"
+        style={{ marginTop: 16, marginBottom: 0 }}
       >
         What should we work on?
       </motion.p>

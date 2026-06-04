@@ -96,7 +96,7 @@ const MenuItem = ({ item, index, totalItems, isOpen, arcStart, arcSpan, itemBgCl
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -2 }}
             transition={{ duration: 0.15 }}
-            className="text-[10px] font-semibold tracking-wider text-[#f3ead9] absolute top-full left-1/2 -translate-x-1/2 mt-1.5 whitespace-nowrap bg-[#0a0a0a]/90 border border-[rgba(243,234,217,0.15)] px-2 py-0.5 rounded uppercase pointer-events-none"
+            className="font-arcade text-[6px] tracking-wider text-[#f3ead9] absolute top-full left-1/2 -translate-x-1/2 mt-1.5 whitespace-nowrap bg-[#0a0a0a]/90 border border-[rgba(243,234,217,0.15)] px-2 py-0.5 rounded uppercase pointer-events-none"
             style={{ backdropFilter: 'blur(8px)' }}
           >
             {item.label}

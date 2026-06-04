@@ -153,12 +153,16 @@ export default function MorningQueueModal({ open, onClose, userId }) {
     <div onClick={onClose} style={GLASS_OVERLAY}>
       <div onClick={e => e.stopPropagation()} style={GLASS_PANEL}>
         <div style={{
-          fontSize: 11, fontWeight: 600, letterSpacing: '0.12em',
-          color: '#c84b31', marginBottom: 6, textTransform: 'uppercase',
+          fontFamily: 'var(--font-arcade), monospace',
+          fontSize: 7, letterSpacing: '0.12em',
+          color: '#c84b31', marginBottom: 8, textTransform: 'uppercase',
         }}>
           📋 MORNING QUEUE
         </div>
-        <div style={{ fontSize: 18, color: '#f3ead9', marginBottom: 6, fontWeight: 600 }}>
+        <div style={{
+          fontFamily: 'var(--font-arcade), monospace',
+          fontSize: 11, color: '#f3ead9', marginBottom: 6, lineHeight: 1.5,
+        }}>
           {loading ? 'Loading…' : actions.length === 0 ? 'Inbox zero' : `${actions.length} pending action${actions.length === 1 ? '' : 's'}`}
         </div>
         <div style={{ fontSize: 12, color: 'rgba(243,234,217,0.55)', marginBottom: 18 }}>

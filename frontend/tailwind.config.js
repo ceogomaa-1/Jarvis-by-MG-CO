@@ -61,6 +61,7 @@ module.exports = {
         sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
         serif: ['var(--font-serif)', 'Georgia', 'serif'],
         mono: ['ui-monospace', '"SF Mono"', 'Menlo', 'monospace'],
+        arcade: ['var(--font-arcade)', 'monospace'],
       },
       keyframes: {
         'accordion-down': {

@@ -208,12 +208,16 @@ export default function ConnectionsModal({ open, onClose, userId }) {
         }}
       >
         <div style={{
-          fontSize: 11, fontWeight: 600, letterSpacing: '0.12em',
-          color: '#c84b31', marginBottom: 6, textTransform: 'uppercase',
+          fontFamily: 'var(--font-arcade), monospace',
+          fontSize: 7, letterSpacing: '0.12em',
+          color: '#c84b31', marginBottom: 8, textTransform: 'uppercase',
         }}>
           🔌 CONNECTIONS
         </div>
-        <div style={{ fontSize: 18, color: '#f3ead9', marginBottom: 6, fontWeight: 600 }}>
+        <div style={{
+          fontFamily: 'var(--font-arcade), monospace',
+          fontSize: 11, color: '#f3ead9', marginBottom: 6, lineHeight: 1.5,
+        }}>
           Wire Jarvis into your real systems
         </div>
         <div style={{ fontSize: 12, color: 'rgba(243,234,217,0.5)', marginBottom: 16, lineHeight: 1.5 }}>

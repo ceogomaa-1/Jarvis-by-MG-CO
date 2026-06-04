@@ -10,7 +10,6 @@ import { detectCreation } from '../../lib/business/creationDetector'
 import CreationCanvas from './CreationCanvas'
 import ProactiveBanner from './ProactiveBanner'
 import ChatHeaderMenu from './ChatHeaderMenu'
-import ViewToggle from './workflow/ViewToggle'
 import WelcomeState from './WelcomeState'
 import JarvisAvatar from './JarvisAvatar'
 import { PromptInputBox } from '@/components/ui/ai-prompt-box'
@@ -454,7 +453,6 @@ export default function ChatCanvas({
       style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
     >
       <ChatHeaderMenu userId={userId} onBrandSaved={() => {}} />
-      <ViewToggle />
 
       {/* Messages or Welcome */}
       <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
