@@ -9,10 +9,10 @@ function Field({ label, children }) {
   return (
     <div style={{ marginBottom: 14 }}>
       <label style={{
-        display: 'block', fontSize: 11, fontWeight: 500,
+        display: 'block', fontSize: 6,
         color: 'rgba(243,234,217,0.5)', marginBottom: 6,
         textTransform: 'uppercase', letterSpacing: '0.15em',
-        fontFamily: 'system-ui, sans-serif',
+        fontFamily: 'var(--font-arcade), monospace',
       }}>
         {label}
       </label>
@@ -252,12 +252,16 @@ export default function BrandModal({ open, onClose, userId }) {
         }}
       >
         <div style={{
-          fontSize: 11, fontWeight: 600, letterSpacing: '0.12em',
-          color: '#c84b31', marginBottom: 6, textTransform: 'uppercase',
+          fontFamily: 'var(--font-arcade), monospace',
+          fontSize: 7, letterSpacing: '0.12em',
+          color: '#c84b31', marginBottom: 8, textTransform: 'uppercase',
         }}>
           ⚙️ BRAND & NORTH STAR
         </div>
-        <div style={{ fontSize: 18, color: '#f3ead9', marginBottom: 4, fontWeight: 600 }}>
+        <div style={{
+          fontFamily: 'var(--font-arcade), monospace',
+          fontSize: 11, color: '#f3ead9', marginBottom: 4, lineHeight: 1.5,
+        }}>
           Customize Jarvis for your business
         </div>
         <div style={{ fontSize: 12, color: 'rgba(243,234,217,0.5)', marginBottom: 20, lineHeight: 1.5 }}>
@@ -273,7 +277,8 @@ export default function BrandModal({ open, onClose, userId }) {
             <>
               {/* Identity */}
               <div style={{
-                fontSize: 10, fontWeight: 700, letterSpacing: '0.1em',
+                fontFamily: 'var(--font-arcade), monospace',
+                fontSize: 6, letterSpacing: '0.1em',
                 color: 'rgba(243,234,217,0.35)', textTransform: 'uppercase',
                 marginBottom: 10,
               }}>
@@ -434,8 +439,9 @@ export default function BrandModal({ open, onClose, userId }) {
               background: 'transparent',
               border: '1px solid rgba(243,234,217,0.1)',
               borderRadius: 12, padding: '10px 24px',
-              color: 'rgba(243,234,217,0.7)', fontSize: 13,
-              fontFamily: 'system-ui, sans-serif', cursor: 'pointer',
+              color: 'rgba(243,234,217,0.7)', fontSize: 7,
+              fontFamily: 'var(--font-arcade), monospace', cursor: 'pointer',
+              letterSpacing: '0.08em', textTransform: 'uppercase',
               transition: 'all 200ms ease',
             }}
           >
@@ -447,8 +453,9 @@ export default function BrandModal({ open, onClose, userId }) {
             style={{
               background: saving ? 'rgba(200,75,49,0.5)' : '#c84b31',
               border: 'none', borderRadius: 12, padding: '10px 24px',
-              color: '#0a0a0a', fontSize: 13, fontWeight: 500,
-              fontFamily: 'system-ui, sans-serif',
+              color: '#0a0a0a', fontSize: 7,
+              fontFamily: 'var(--font-arcade), monospace',
+              letterSpacing: '0.08em', textTransform: 'uppercase',
               cursor: saving ? 'default' : 'pointer',
               transition: 'background 200ms ease',
               display: 'flex', alignItems: 'center', gap: 8, minWidth: 80, justifyContent: 'center',

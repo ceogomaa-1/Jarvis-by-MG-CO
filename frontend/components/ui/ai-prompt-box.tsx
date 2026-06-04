@@ -35,7 +35,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
   ({ className, ...props }, ref) => (
     <textarea
       className={cn(
-        'jarvis-prompt-textarea flex w-full rounded-md border-none bg-transparent px-3 py-2.5 text-base text-[#f3ead9] placeholder:text-[rgba(243,234,217,0.4)] focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 min-h-[44px] resize-none',
+        'jarvis-prompt-textarea flex w-full rounded-md border-none bg-transparent px-3 py-2.5 text-base text-[#f3ead9] placeholder:text-[rgba(243,234,217,0.4)] placeholder:font-arcade placeholder:text-[9px] placeholder:tracking-wider focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 min-h-[44px] resize-none',
         className
       )}
       ref={ref}
@@ -623,7 +623,7 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
                 type="button"
                 onClick={() => handleToggleChange('search')}
                 className={cn(
-                  'rounded-full transition-all flex items-center gap-1 px-2.5 py-1 border h-7 text-[11px] tracking-[0.1em] uppercase font-medium',
+                  'rounded-full transition-all flex items-center gap-1 px-2.5 py-1 border h-7 text-[7px] tracking-[0.1em] uppercase font-arcade',
                   showSearch
                     ? 'bg-[rgba(200,75,49,0.12)] border-[rgba(200,75,49,0.2)] text-[#c84b31]'
                     : 'bg-[rgba(243,234,217,0.04)] border-[rgba(243,234,217,0.06)] text-[rgba(243,234,217,0.35)] hover:border-[rgba(243,234,217,0.1)] hover:text-[rgba(243,234,217,0.6)]'
@@ -650,7 +650,7 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
                 type="button"
                 onClick={() => handleToggleChange('operator')}
                 className={cn(
-                  'rounded-full transition-all flex items-center gap-1 px-2.5 py-1 border h-7 text-[11px] tracking-[0.1em] uppercase font-medium',
+                  'rounded-full transition-all flex items-center gap-1 px-2.5 py-1 border h-7 text-[7px] tracking-[0.1em] uppercase font-arcade',
                   showOperator
                     ? 'bg-[rgba(200,75,49,0.12)] border-[rgba(200,75,49,0.2)] text-[#c84b31]'
                     : 'bg-[rgba(243,234,217,0.04)] border-[rgba(243,234,217,0.06)] text-[rgba(243,234,217,0.35)] hover:border-[rgba(243,234,217,0.1)] hover:text-[rgba(243,234,217,0.6)]'
@@ -677,7 +677,7 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
                 type="button"
                 onClick={() => handleToggleChange('showme')}
                 className={cn(
-                  'rounded-full transition-all flex items-center gap-1 px-2.5 py-1 border h-7 text-[11px] tracking-[0.1em] uppercase font-medium',
+                  'rounded-full transition-all flex items-center gap-1 px-2.5 py-1 border h-7 text-[7px] tracking-[0.1em] uppercase font-arcade',
                   showShowMe
                     ? 'bg-[rgba(200,75,49,0.12)] border-[rgba(200,75,49,0.2)] text-[#c84b31]'
                     : 'bg-[rgba(243,234,217,0.04)] border-[rgba(243,234,217,0.06)] text-[rgba(243,234,217,0.35)] hover:border-[rgba(243,234,217,0.1)] hover:text-[rgba(243,234,217,0.6)]'

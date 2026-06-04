@@ -85,15 +85,15 @@ export default function JarvisCenterNode() {
         </div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
           <span style={{
-            fontFamily: 'var(--font-serif), Georgia, serif',
-            fontSize: 20, color: '#f3ead9', fontWeight: 400, letterSpacing: '0.05em',
+            fontFamily: 'var(--font-arcade), monospace',
+            fontSize: 16, color: '#f3ead9',
           }}>
             Jarvis
           </span>
           <span style={{
-            fontFamily: 'var(--font-sans), system-ui, sans-serif',
-            fontSize: 9, color: '#c84b31', fontWeight: 600,
-            letterSpacing: '0.3em', textTransform: 'uppercase',
+            fontFamily: 'var(--font-arcade), monospace',
+            fontSize: 8, color: '#c84b31',
+            letterSpacing: '0.1em',
           }}>
             OS1
           </span>
