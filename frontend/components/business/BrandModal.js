@@ -1,5 +1,6 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
+import { supabase } from '../../lib/supabase'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
@@ -27,6 +28,144 @@ const inputStyle = {
   color: '#f3ead9', fontSize: 13,
   fontFamily: 'system-ui, sans-serif', outline: 'none',
   transition: 'border-color 200ms ease, box-shadow 200ms ease',
+}
+
+function ImageUploadField({ label, url, onUrlChange, bucket = 'business-brand-assets', userId, filePrefix }) {
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState('')
+  const inputRef = useRef(null)
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 2 * 1024 * 1024) {
+      setError('File must be under 2MB')
+      return
+    }
+    if (!supabase || !userId) {
+      setError('Sign in to upload files')
+      return
+    }
+    setError('')
+    setUploading(true)
+    try {
+      const ext = file.name.split('.').pop()
+      const fileName = `${userId}/${filePrefix}-${Date.now()}.${ext}`
+      const { error: uploadError } = await supabase.storage
+        .from(bucket)
+        .upload(fileName, file, { upsert: true })
+
+      if (uploadError) {
+        setError('Upload failed: ' + uploadError.message)
+        return
+      }
+
+      const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(fileName)
+      onUrlChange(urlData.publicUrl)
+    } catch (err) {
+      setError('Upload failed')
+      console.error('Upload error:', err)
+    } finally {
+      setUploading(false)
+      if (inputRef.current) inputRef.current.value = ''
+    }
+  }
+
+  const handleRemove = () => {
+    onUrlChange('')
+    setError('')
+  }
+
+  return (
+    <Field label={label}>
+      {/* Current image preview */}
+      {url && (
+        <div style={{
+          position: 'relative', display: 'inline-block',
+          marginBottom: 10,
+        }}>
+          <div style={{
+            width: 72, height: 72, borderRadius: 12,
+            overflow: 'hidden',
+            border: '1px solid rgba(243,234,217,0.08)',
+            background: 'rgba(243,234,217,0.03)',
+          }}>
+            <img
+              src={url} alt={label}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              onError={e => { e.target.style.display = 'none' }}
+            />
+          </div>
+          <button
+            onClick={handleRemove}
+            style={{
+              position: 'absolute', top: -6, right: -6,
+              width: 20, height: 20, borderRadius: '50%',
+              background: 'rgba(10,9,8,0.9)',
+              border: '1px solid rgba(243,234,217,0.15)',
+              color: 'rgba(243,234,217,0.7)',
+              fontSize: 12, lineHeight: 1, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+            title="Remove"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {/* Upload area */}
+      <label style={{
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        width: '100%', height: 80, borderRadius: 12,
+        border: '1px dashed rgba(243,234,217,0.1)',
+        background: uploading ? 'rgba(243,234,217,0.02)' : 'rgba(243,234,217,0.02)',
+        cursor: uploading ? 'wait' : 'pointer',
+        transition: 'all 200ms ease',
+        gap: 4,
+      }}
+        onMouseEnter={e => {
+          if (!uploading) {
+            e.currentTarget.style.border = '1px dashed rgba(243,234,217,0.2)'
+            e.currentTarget.style.background = 'rgba(243,234,217,0.04)'
+          }
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.border = '1px dashed rgba(243,234,217,0.1)'
+          e.currentTarget.style.background = 'rgba(243,234,217,0.02)'
+        }}
+      >
+        <span style={{ fontSize: 18, color: 'rgba(243,234,217,0.3)' }}>
+          {uploading ? '⏳' : '↑'}
+        </span>
+        <span style={{ fontSize: 11, color: 'rgba(243,234,217,0.3)', fontFamily: 'system-ui, sans-serif' }}>
+          {uploading ? 'Uploading…' : 'Click to upload or drag & drop'}
+        </span>
+        <span style={{ fontSize: 10, color: 'rgba(243,234,217,0.2)', fontFamily: 'system-ui, sans-serif' }}>
+          PNG, JPG up to 2MB
+        </span>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          onChange={handleFileChange}
+          disabled={uploading}
+          style={{ display: 'none' }}
+        />
+      </label>
+
+      {error && (
+        <div style={{
+          marginTop: 6, fontSize: 11,
+          color: 'rgba(200,75,49,0.8)',
+          fontFamily: 'system-ui, sans-serif',
+        }}>
+          {error}
+        </div>
+      )}
+    </Field>
+  )
 }
 
 export default function BrandModal({ open, onClose, userId }) {
@@ -167,23 +306,21 @@ export default function BrandModal({ open, onClose, userId }) {
                 </div>
               </Field>
 
-              <Field label="Logo URL (optional)">
-                <input
-                  style={inputStyle}
-                  value={form.logo_url}
-                  onChange={e => set('logo_url', e.target.value)}
-                  placeholder="https://..."
-                />
-              </Field>
+              <ImageUploadField
+                label="Logo (optional)"
+                url={form.logo_url}
+                onUrlChange={url => set('logo_url', url)}
+                userId={userId}
+                filePrefix="logo"
+              />
 
-              <Field label="Banner URL (optional)">
-                <input
-                  style={inputStyle}
-                  value={form.banner_url}
-                  onChange={e => set('banner_url', e.target.value)}
-                  placeholder="https://..."
-                />
-              </Field>
+              <ImageUploadField
+                label="Banner (optional)"
+                url={form.banner_url}
+                onUrlChange={url => set('banner_url', url)}
+                userId={userId}
+                filePrefix="banner"
+              />
 
               {/* North Star */}
               <div style={{
