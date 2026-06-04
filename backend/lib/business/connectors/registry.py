@@ -225,7 +225,7 @@ _CONNECTOR_ACTIONS: dict[str, list[str]] = {
     "twilio": ["send_sms"],
     "stripe": ["list_recent_charges", "revenue_summary_last_30_days"],
     "smtp": ["send_email"],
-    "elevenlabs": ["list_voices", "text_to_speech"],
+    "elevenlabs": ["list_voices", "text_to_speech", "list_agents", "get_agent", "create_agent", "update_agent", "delete_agent"],
     "notion": ["search", "read_page", "query_database", "create_page"],
     "google": ["list_calendar_events", "create_calendar_event", "list_emails", "send_email"],
     "canva": ["list_designs", "create_design"],

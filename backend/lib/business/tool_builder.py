@@ -70,6 +70,58 @@ _TOOLS: dict[str, dict] = {
             "required": ["text"],
         },
     },
+    "elevenlabs__list_agents": {
+        "description": "[ElevenLabs] List all Conversational AI agents in the account.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    "elevenlabs__get_agent": {
+        "description": "[ElevenLabs] Get full details of a specific Conversational AI agent (config, voice, system prompt).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "agent_id": {"type": "string", "description": "The agent ID to retrieve"},
+            },
+            "required": ["agent_id"],
+        },
+    },
+    "elevenlabs__create_agent": {
+        "description": "[ElevenLabs] Create a new Conversational AI agent. Draft config first, confirm with user before calling.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Name for the new agent"},
+                "system_prompt": {"type": "string", "description": "System prompt / instructions for the agent"},
+                "first_message": {"type": "string", "description": "Greeting message the agent says first"},
+                "voice_id": {"type": "string", "description": "ElevenLabs voice ID (get from list_voices)"},
+                "language": {"type": "string", "description": "Language code (default: en)"},
+            },
+            "required": ["name", "system_prompt"],
+        },
+    },
+    "elevenlabs__update_agent": {
+        "description": "[ElevenLabs] Update an existing Conversational AI agent. Show changes to user and confirm before calling.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "agent_id": {"type": "string", "description": "The agent ID to update"},
+                "name": {"type": "string", "description": "New name (optional)"},
+                "system_prompt": {"type": "string", "description": "New system prompt (optional)"},
+                "first_message": {"type": "string", "description": "New first message (optional)"},
+                "voice_id": {"type": "string", "description": "New voice ID (optional)"},
+            },
+            "required": ["agent_id"],
+        },
+    },
+    "elevenlabs__delete_agent": {
+        "description": "[ElevenLabs] Delete a Conversational AI agent. ALWAYS confirm with user first — irreversible.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "agent_id": {"type": "string", "description": "The agent ID to delete"},
+            },
+            "required": ["agent_id"],
+        },
+    },
 
     # ── Notion ────────────────────────────────────────────────────────────────
     "notion__search": {

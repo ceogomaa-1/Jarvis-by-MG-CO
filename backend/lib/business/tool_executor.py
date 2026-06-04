@@ -74,6 +74,23 @@ async def _dispatch(connector, connector_type: str, action_name: str, inp: dict)
                 text=inp["text"],
                 voice_id=inp.get("voice_id", "21m00Tcm4TlvDq8ikWAM"),
             )
+        if action_name == "list_agents":
+            return await connector.list_agents()
+        if action_name == "get_agent":
+            return await connector.get_agent(agent_id=inp["agent_id"])
+        if action_name == "create_agent":
+            return await connector.create_agent(
+                name=inp["name"],
+                system_prompt=inp["system_prompt"],
+                first_message=inp.get("first_message", "Hello! How can I help you?"),
+                voice_id=inp.get("voice_id", "21m00Tcm4TlvDq8ikWAM"),
+                language=inp.get("language", "en"),
+            )
+        if action_name == "update_agent":
+            kwargs = {k: v for k, v in inp.items() if k != "agent_id"}
+            return await connector.update_agent(agent_id=inp["agent_id"], **kwargs)
+        if action_name == "delete_agent":
+            return await connector.delete_agent(agent_id=inp["agent_id"])
 
     # ── Notion ────────────────────────────────────────────────────────────────
     if connector_type == "notion":
