@@ -1,122 +1,107 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { X, Search, ChevronDown, ChevronUp, Loader2, Unplug } from 'lucide-react'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
-function StatusBadge({ status, lastResult }) {
-  const styles = {
-    active: { bg: 'rgba(34,197,94,0.12)', color: '#22c55e', label: '● Active' },
-    invalid: { bg: 'rgba(239,68,68,0.12)', color: '#ef4444', label: '● Invalid' },
-    disabled: { bg: 'rgba(156,163,175,0.12)', color: '#9ca3af', label: '● Disabled' },
-    none: { bg: 'rgba(243,234,217,0.04)', color: 'rgba(243,234,217,0.5)', label: '○ Not connected' },
-  }
-  const s = styles[status] || styles.none
+// ── Connector brand icons (colored letter blocks) ─────────────────────────────
+const ICON_CONFIG = {
+  stripe:       { text: 'S',   bg: '#635BFF', color: '#fff' },
+  twilio:       { text: 'T',   bg: '#F22F46', color: '#fff' },
+  smtp:         { text: '✉',   bg: '#4A90D9', color: '#fff' },
+  elevenlabs:   { text: 'XI',  bg: '#1a1a1a', color: '#fff', border: '1px solid rgba(255,255,255,0.12)' },
+  notion:       { text: 'N',   bg: '#ffffff', color: '#000' },
+  google:       { text: 'G',   bg: '#4285F4', color: '#fff' },
+  canva:        { text: 'C',   bg: '#00C4CC', color: '#fff' },
+  gohighlevel:  { text: 'GHL', bg: '#FF6B35', color: '#fff', small: true },
+}
+
+function ConnectorIcon({ name, size = 40 }) {
+  const cfg = ICON_CONFIG[name] || { text: '?', bg: '#555', color: '#fff' }
   return (
-    <span
-      title={lastResult || ''}
-      style={{
-        background: s.bg, color: s.color,
-        fontSize: 10, fontWeight: 600, letterSpacing: '0.06em',
-        padding: '3px 8px', borderRadius: 6, textTransform: 'uppercase',
-      }}
-    >
-      {s.label}
-    </span>
+    <div style={{
+      width: size, height: size, borderRadius: 10,
+      background: cfg.bg,
+      border: cfg.border || '1px solid rgba(243,234,217,0.08)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      flexShrink: 0,
+      color: cfg.color,
+      fontWeight: 700,
+      fontSize: cfg.small ? 8 : (cfg.text.length > 1 ? 11 : 15),
+      letterSpacing: cfg.small ? '0.04em' : 0,
+      fontFamily: 'system-ui, sans-serif',
+      userSelect: 'none',
+    }}>
+      {cfg.text}
+    </div>
   )
 }
 
-function ConnectForm({ manifest, userId, onSave, onCancel, saving }) {
+// ── Credential form (API key connectors) ─────────────────────────────────────
+function CredentialForm({ manifest, userId, onSave, saving, feedback }) {
   const [values, setValues] = useState(() => {
     const v = {}
-    for (const f of manifest.fields) v[f.name] = ''
+    for (const f of (manifest.fields || [])) v[f.name] = ''
     return v
   })
 
-  // OAuth connector — show a redirect button instead of credential fields
   if (manifest.auth_type === 'oauth') {
     const authUrl = `${BACKEND}/api/business/connections/${manifest.type}/auth?user_id=${encodeURIComponent(userId || '')}`
     return (
-      <div style={{
-        background: 'rgba(243,234,217,0.03)',
-        border: '1px solid rgba(243,234,217,0.1)',
-        borderRadius: 10, padding: '16px 18px', marginTop: 8,
-      }}>
-        <div style={{ fontSize: 12, color: 'rgba(243,234,217,0.6)', marginBottom: 14 }}>
-          {manifest.description}{' '}
-          {manifest.docs_url && (
-            <a
-              href={manifest.docs_url} target="_blank" rel="noreferrer"
-              style={{ color: '#c84b31', textDecoration: 'underline' }}
-            >
+      <div style={{ paddingTop: 14 }}>
+        {manifest.docs_url && (
+          <p style={{ fontSize: 11, color: 'rgba(243,234,217,0.45)', marginBottom: 12, lineHeight: 1.5 }}>
+            {manifest.description}{' '}
+            <a href={manifest.docs_url} target="_blank" rel="noreferrer" style={{ color: '#c84b31' }}>
               Learn more
             </a>
-          )}
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-          <button
-            onClick={onCancel}
-            style={{
-              background: 'transparent',
-              border: '1px solid rgba(243,234,217,0.15)',
-              borderRadius: 7, padding: '7px 14px',
-              color: 'rgba(243,234,217,0.7)', fontSize: 12,
-              fontFamily: 'system-ui, sans-serif', cursor: 'pointer',
-            }}
-          >
-            Cancel
-          </button>
-          <a
-            href={authUrl}
-            style={{
-              background: '#c84b31',
-              border: 'none', borderRadius: 7, padding: '8px 18px',
-              color: 'white', fontSize: 12, fontWeight: 500,
-              fontFamily: 'system-ui, sans-serif',
-              textDecoration: 'none', display: 'inline-block',
-            }}
-          >
-            Connect with {manifest.display_name} →
-          </a>
-        </div>
+          </p>
+        )}
+        {feedback && (
+          <FeedbackBar ok={feedback.ok} message={feedback.message} />
+        )}
+        <a
+          href={authUrl}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            background: '#c84b31', borderRadius: 8, padding: '8px 16px',
+            color: '#fff', fontSize: 11, fontWeight: 500,
+            textDecoration: 'none', fontFamily: 'system-ui, sans-serif',
+            transition: 'opacity 200ms ease',
+          }}
+        >
+          Connect with {manifest.display_name} →
+        </a>
       </div>
     )
   }
 
-  // API key connector — show credential input fields
   return (
-    <div style={{
-      background: 'rgba(243,234,217,0.03)',
-      border: '1px solid rgba(243,234,217,0.1)',
-      borderRadius: 10, padding: '16px 18px', marginTop: 8,
-    }}>
-      <div style={{ fontSize: 12, color: 'rgba(243,234,217,0.6)', marginBottom: 12 }}>
-        {manifest.description}{' '}
-        {manifest.docs_url && (
-          <a
-            href={manifest.docs_url} target="_blank" rel="noreferrer"
-            style={{ color: '#c84b31', textDecoration: 'underline' }}
-          >
+    <div style={{ paddingTop: 12 }}>
+      {manifest.docs_url && (
+        <p style={{ fontSize: 11, color: 'rgba(243,234,217,0.45)', marginBottom: 10, lineHeight: 1.5 }}>
+          <a href={manifest.docs_url} target="_blank" rel="noreferrer" style={{ color: '#c84b31' }}>
             Where do I get this?
           </a>
-        )}
-      </div>
-
+        </p>
+      )}
       {manifest.status_note && (
         <div style={{
-          marginBottom: 12, padding: '7px 10px',
-          background: 'rgba(243,234,217,0.04)',
-          border: '1px solid rgba(243,234,217,0.1)',
-          borderRadius: 6, fontSize: 11, color: 'rgba(243,234,217,0.55)',
+          marginBottom: 10, padding: '6px 10px',
+          background: 'rgba(243,234,217,0.03)',
+          border: '1px solid rgba(243,234,217,0.08)',
+          borderRadius: 7, fontSize: 10, color: 'rgba(243,234,217,0.5)', lineHeight: 1.5,
         }}>
           ℹ️ {manifest.status_note}
         </div>
       )}
-
-      {manifest.fields.map(field => (
-        <div key={field.name} style={{ marginBottom: 10 }}>
+      {(manifest.fields || []).map(field => (
+        <div key={field.name} style={{ marginBottom: 8 }}>
           <label style={{
-            display: 'block', fontSize: 11, fontWeight: 500,
-            color: 'rgba(243,234,217,0.7)', marginBottom: 4,
+            display: 'block', fontSize: 10, fontWeight: 500,
+            color: 'rgba(243,234,217,0.6)', marginBottom: 3,
+            letterSpacing: '0.04em', textTransform: 'uppercase',
           }}>
             {field.label}{field.required !== false ? ' *' : ''}
           </label>
@@ -128,41 +113,30 @@ function ConnectForm({ manifest, userId, onSave, onCancel, saving }) {
             style={{
               width: '100%', boxSizing: 'border-box',
               background: 'rgba(243,234,217,0.04)',
-              border: '1px solid rgba(243,234,217,0.12)',
-              borderRadius: 7, padding: '9px 12px',
-              color: '#f3ead9', fontSize: 13,
+              border: '1px solid rgba(243,234,217,0.1)',
+              borderRadius: 8, padding: '8px 11px',
+              color: '#f3ead9', fontSize: 12,
               fontFamily: field.type === 'password' ? 'ui-monospace, monospace' : 'system-ui, sans-serif',
               outline: 'none',
             }}
           />
         </div>
       ))}
-
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
-        <button
-          onClick={onCancel}
-          disabled={saving}
-          style={{
-            background: 'transparent',
-            border: '1px solid rgba(243,234,217,0.15)',
-            borderRadius: 7, padding: '7px 14px',
-            color: 'rgba(243,234,217,0.7)', fontSize: 12,
-            fontFamily: 'system-ui, sans-serif', cursor: saving ? 'default' : 'pointer',
-          }}
-        >
-          Cancel
-        </button>
+      {feedback && <FeedbackBar ok={feedback.ok} message={feedback.message} />}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
         <button
           onClick={() => onSave(values)}
           disabled={saving}
           style={{
+            display: 'flex', alignItems: 'center', gap: 6,
             background: saving ? 'rgba(200,75,49,0.5)' : '#c84b31',
-            border: 'none', borderRadius: 7, padding: '7px 16px',
-            color: 'white', fontSize: 12, fontWeight: 500,
+            border: 'none', borderRadius: 8, padding: '7px 16px',
+            color: '#fff', fontSize: 11, fontWeight: 500,
             fontFamily: 'system-ui, sans-serif',
-            cursor: saving ? 'default' : 'pointer',
+            cursor: saving ? 'not-allowed' : 'pointer', transition: 'all 200ms',
           }}
         >
+          {saving && <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} />}
           {saving ? 'Testing…' : 'Save & Test'}
         </button>
       </div>
@@ -170,15 +144,230 @@ function ConnectForm({ manifest, userId, onSave, onCancel, saving }) {
   )
 }
 
+// ── Connected details panel ───────────────────────────────────────────────────
+function ConnectedDetails({ connection, onDisconnect, onTest, testing }) {
+  const tested = connection.last_tested_at
+    ? new Date(connection.last_tested_at).toLocaleString()
+    : null
+  const isOk = connection.status === 'active'
+
+  return (
+    <div style={{ paddingTop: 12 }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 6,
+        padding: '7px 10px', borderRadius: 8,
+        background: isOk ? 'rgba(127,176,105,0.06)' : 'rgba(239,68,68,0.06)',
+        border: `1px solid ${isOk ? 'rgba(127,176,105,0.15)' : 'rgba(239,68,68,0.15)'}`,
+        marginBottom: 10,
+      }}>
+        <div style={{ width: 6, height: 6, borderRadius: '50%', background: isOk ? '#7fb069' : '#ef4444', flexShrink: 0 }} />
+        <span style={{ fontSize: 10, color: isOk ? '#7fb069' : '#ef4444', fontFamily: 'system-ui' }}>
+          {isOk ? 'Active' : 'Invalid — credentials need updating'}
+        </span>
+      </div>
+      {tested && (
+        <p style={{ fontSize: 10, color: 'rgba(243,234,217,0.35)', marginBottom: 10 }}>
+          Last tested: {tested}
+          {connection.last_test_result && (
+            <span style={{ marginLeft: 6, color: isOk ? 'rgba(127,176,105,0.6)' : 'rgba(239,68,68,0.6)' }}>
+              — {connection.last_test_result}
+            </span>
+          )}
+        </p>
+      )}
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button
+          onClick={onTest}
+          disabled={testing}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 5,
+            background: 'transparent',
+            border: '1px solid rgba(243,234,217,0.1)',
+            borderRadius: 8, padding: '6px 12px',
+            color: 'rgba(243,234,217,0.6)', fontSize: 10,
+            fontFamily: 'system-ui', cursor: testing ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {testing ? <Loader2 size={10} style={{ animation: 'spin 1s linear infinite' }} /> : null}
+          Test Connection
+        </button>
+        <button
+          onClick={onDisconnect}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 5,
+            background: 'transparent',
+            border: '1px solid rgba(239,68,68,0.2)',
+            borderRadius: 8, padding: '6px 12px',
+            color: 'rgba(239,68,68,0.7)', fontSize: 10,
+            fontFamily: 'system-ui', cursor: 'pointer',
+          }}
+        >
+          <Unplug size={10} />
+          Disconnect
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function FeedbackBar({ ok, message }) {
+  return (
+    <div style={{
+      marginBottom: 10, padding: '7px 10px', borderRadius: 8,
+      background: ok ? 'rgba(127,176,105,0.08)' : 'rgba(239,68,68,0.08)',
+      border: `1px solid ${ok ? 'rgba(127,176,105,0.2)' : 'rgba(239,68,68,0.2)'}`,
+      color: '#f3ead9', fontSize: 11, fontFamily: 'system-ui', lineHeight: 1.4,
+    }}>
+      {ok ? '✅' : '❌'} {message}
+    </div>
+  )
+}
+
+// ── Single connector card ────────────────────────────────────────────────────
+function ConnectorCard({ manifest, connection, userId, onSave, onDelete, onTest, saving, testing, feedback }) {
+  const [expanded, setExpanded] = useState(false)
+  const isConnected = !!connection
+  const isActive = connection?.status === 'active'
+  const cardFeedback = feedback?.type === manifest.type ? feedback : null
+
+  return (
+    <div style={{
+      borderRadius: 14,
+      border: isConnected
+        ? ' 1px solid rgba(200,75,49,0.18)'
+        : '1px solid rgba(243,234,217,0.06)',
+      background: isConnected
+        ? 'rgba(200,75,49,0.03)'
+        : 'rgba(243,234,217,0.015)',
+      overflow: 'hidden',
+      transition: 'border-color 200ms, background 200ms',
+    }}>
+      {/* Card header */}
+      <div
+        style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', cursor: 'pointer' }}
+        onClick={() => setExpanded(e => !e)}
+      >
+        <ConnectorIcon name={manifest.type} size={40} />
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+            <span style={{
+              fontFamily: 'var(--font-arcade), monospace',
+              fontSize: 8, letterSpacing: '0.1em',
+              color: '#f3ead9', textTransform: 'uppercase',
+            }}>
+              {manifest.display_name}
+            </span>
+            {isConnected && isActive && (
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                padding: '2px 7px', borderRadius: 99,
+                background: 'rgba(127,176,105,0.1)',
+                border: '1px solid rgba(127,176,105,0.18)',
+              }}>
+                <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#7fb069' }} />
+                <span style={{
+                  fontFamily: 'var(--font-arcade), monospace',
+                  fontSize: 5, letterSpacing: '0.08em', color: '#7fb069',
+                }}>Connected</span>
+              </span>
+            )}
+            {isConnected && !isActive && (
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                padding: '2px 7px', borderRadius: 99,
+                background: 'rgba(239,68,68,0.08)',
+                border: '1px solid rgba(239,68,68,0.18)',
+              }}>
+                <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#ef4444' }} />
+                <span style={{
+                  fontFamily: 'var(--font-arcade), monospace',
+                  fontSize: 5, letterSpacing: '0.08em', color: '#ef4444',
+                }}>Invalid</span>
+              </span>
+            )}
+          </div>
+          <p style={{ fontSize: 11, color: 'rgba(243,234,217,0.38)', margin: 0, lineHeight: 1.4, fontFamily: 'system-ui' }}>
+            {manifest.description}
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          {!isConnected && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setExpanded(true) }}
+              style={{
+                background: '#c84b31', border: 'none', borderRadius: 8,
+                padding: '6px 13px',
+                fontFamily: 'var(--font-arcade), monospace',
+                fontSize: 6, letterSpacing: '0.1em', textTransform: 'uppercase',
+                color: '#0a0a0a', cursor: 'pointer', transition: 'opacity 200ms',
+              }}
+            >
+              Connect
+            </button>
+          )}
+          <div style={{ color: 'rgba(243,234,217,0.3)' }}>
+            {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </div>
+        </div>
+      </div>
+
+      {/* Expanded panel */}
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            key="panel"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: 'easeInOut' }}
+            style={{ overflow: 'hidden' }}
+          >
+            <div style={{
+              padding: '0 16px 14px',
+              borderTop: '1px solid rgba(243,234,217,0.04)',
+            }}>
+              {isConnected ? (
+                <ConnectedDetails
+                  connection={connection}
+                  onDisconnect={() => onDelete(manifest.type)}
+                  onTest={() => onTest(manifest.type)}
+                  testing={testing === manifest.type}
+                />
+              ) : (
+                <CredentialForm
+                  manifest={manifest}
+                  userId={userId}
+                  onSave={(vals) => onSave(manifest, vals)}
+                  saving={saving === manifest.type}
+                  feedback={cardFeedback}
+                />
+              )}
+              {cardFeedback && isConnected && (
+                <div style={{ marginTop: 10 }}>
+                  <FeedbackBar ok={cardFeedback.ok} message={cardFeedback.message} />
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+// ── Main modal ───────────────────────────────────────────────────────────────
 export default function ConnectionsModal({ open, onClose, userId }) {
   const [manifests, setManifests] = useState([])
   const [userConnections, setUserConnections] = useState([])
   const [loading, setLoading] = useState(true)
-  const [expandedType, setExpandedType] = useState(null)
-  const [saving, setSaving] = useState(false)
+  const [saving, setSaving] = useState(null)    // connector_type or null
+  const [testing, setTesting] = useState(null)  // connector_type or null
   const [feedback, setFeedback] = useState(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
-  const loadAll = async () => {
+  const loadAll = useCallback(async () => {
     setLoading(true)
     try {
       const [mRes, cRes] = await Promise.all([
@@ -193,13 +382,13 @@ export default function ConnectionsModal({ open, onClose, userId }) {
       console.error('Load connections failed', e)
     }
     setLoading(false)
-  }
+  }, [userId])
 
   useEffect(() => {
     if (open && userId) loadAll()
-  }, [open, userId])
+  }, [open, userId, loadAll])
 
-  // Handle OAuth callback redirect — check for connector_connected / connector_error in URL
+  // Handle OAuth callback params
   useEffect(() => {
     if (!open) return
     const params = new URLSearchParams(window.location.search)
@@ -207,7 +396,6 @@ export default function ConnectionsModal({ open, onClose, userId }) {
     const error = params.get('connector_error')
     if (connected) {
       setFeedback({ type: connected, ok: true, message: `${connected} connected successfully.` })
-      // Clean up URL param without navigating
       const url = new URL(window.location.href)
       url.searchParams.delete('connector_connected')
       window.history.replaceState({}, '', url.toString())
@@ -218,14 +406,22 @@ export default function ConnectionsModal({ open, onClose, userId }) {
       url.searchParams.delete('connector_error')
       window.history.replaceState({}, '', url.toString())
     }
-  }, [open])
+  }, [open, loadAll])
 
   if (!open) return null
 
   const connByType = Object.fromEntries(userConnections.map(c => [c.connector_type, c]))
 
+  const filteredManifests = searchQuery.trim()
+    ? manifests.filter(m =>
+        m.display_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        m.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        m.type?.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : manifests
+
   const handleSave = async (manifest, values) => {
-    setSaving(true)
+    setSaving(manifest.type)
     setFeedback(null)
     try {
       const res = await fetch(`${BACKEND}/api/business/connections`, {
@@ -241,7 +437,6 @@ export default function ConnectionsModal({ open, onClose, userId }) {
       const data = await res.json()
       if (data.ok) {
         setFeedback({ type: manifest.type, ok: true, message: 'Connected and verified.' })
-        setExpandedType(null)
       } else {
         setFeedback({ type: manifest.type, ok: false, message: data.error || 'Test failed.' })
       }
@@ -249,7 +444,7 @@ export default function ConnectionsModal({ open, onClose, userId }) {
     } catch (e) {
       setFeedback({ type: manifest.type, ok: false, message: e.message })
     }
-    setSaving(false)
+    setSaving(null)
   }
 
   const handleDelete = async (connector_type) => {
@@ -266,149 +461,157 @@ export default function ConnectionsModal({ open, onClose, userId }) {
     }
   }
 
+  const handleTest = async (connector_type) => {
+    setTesting(connector_type)
+    setFeedback(null)
+    try {
+      const res = await fetch(`${BACKEND}/api/business/connections/test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, connector_type }),
+      })
+      const data = await res.json()
+      setFeedback({
+        type: connector_type,
+        ok: data.ok,
+        message: data.ok ? 'Connection verified.' : (data.error || 'Test failed.'),
+      })
+      await loadAll()
+    } catch (e) {
+      setFeedback({ type: connector_type, ok: false, message: e.message })
+    }
+    setTesting(null)
+  }
+
   return (
     <div
       onClick={onClose}
       style={{
         position: 'fixed', inset: 0,
-        background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+        background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        zIndex: 1000,
+        zIndex: 1000, padding: '20px',
       }}
     >
-      <div
+      <motion.div
+        initial={{ opacity: 0, scale: 0.97, y: 12 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.97, y: 12 }}
+        transition={{ duration: 0.25, ease: 'easeOut' }}
         onClick={e => e.stopPropagation()}
         style={{
-          width: '100%', maxWidth: 620, margin: '0 20px',
-          background: 'rgba(15, 15, 18, 0.55)',
+          width: '100%', maxWidth: 760,
+          maxHeight: '88vh',
+          background: 'rgba(12,12,15,0.9)',
           backdropFilter: 'blur(28px) saturate(180%)',
           WebkitBackdropFilter: 'blur(28px) saturate(180%)',
-          border: '1px solid rgba(243,234,217,0.15)',
-          borderRadius: 20, padding: 28,
+          border: '1px solid rgba(243,234,217,0.1)',
+          borderRadius: 20,
+          boxShadow: '0 30px 70px rgba(0,0,0,0.6), inset 0 1px 0 rgba(243,234,217,0.05)',
+          display: 'flex', flexDirection: 'column',
+          overflow: 'hidden',
           fontFamily: 'system-ui, sans-serif',
-          boxShadow: '0 24px 60px rgba(0,0,0,0.55), inset 0 1px 0 rgba(243,234,217,0.06)',
-          maxHeight: '88vh', display: 'flex', flexDirection: 'column',
         }}
       >
+        {/* Header */}
         <div style={{
-          fontFamily: 'var(--font-arcade), monospace',
-          fontSize: 7, letterSpacing: '0.12em',
-          color: '#c84b31', marginBottom: 8, textTransform: 'uppercase',
+          padding: '20px 22px 16px',
+          borderBottom: '1px solid rgba(243,234,217,0.06)',
+          flexShrink: 0,
         }}>
-          🔌 CONNECTIONS
-        </div>
-        <div style={{
-          fontFamily: 'var(--font-arcade), monospace',
-          fontSize: 11, color: '#f3ead9', marginBottom: 6, lineHeight: 1.5,
-        }}>
-          Wire Jarvis into your real systems
-        </div>
-        <div style={{ fontSize: 12, color: 'rgba(243,234,217,0.5)', marginBottom: 16, lineHeight: 1.5 }}>
-          Each connection unlocks new capabilities — Jarvis can read your real data and execute actions on your behalf. All credentials are encrypted at rest. You can disconnect any time.
-        </div>
-
-        <div style={{ overflowY: 'auto', flex: 1, paddingRight: 4 }}>
-          {loading ? (
-            <div style={{ color: 'rgba(243,234,217,0.5)', fontSize: 13, padding: 12 }}>Loading…</div>
-          ) : manifests.map(manifest => {
-            const existing = connByType[manifest.type]
-            const status = existing?.status || 'none'
-            const expanded = expandedType === manifest.type
-            const fb = feedback?.type === manifest.type ? feedback : null
-
-            return (
-              <div
-                key={manifest.type}
-                style={{
-                  border: '1px solid rgba(243,234,217,0.08)',
-                  borderRadius: 10, padding: '14px 16px',
-                  marginBottom: 10,
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ fontSize: 14, color: '#f3ead9', fontWeight: 600 }}>
-                        {manifest.display_name}
-                      </div>
-                      <StatusBadge status={status} lastResult={existing?.last_test_result} />
-                    </div>
-                    <div style={{ fontSize: 11, color: 'rgba(243,234,217,0.5)', marginTop: 3 }}>
-                      {manifest.description}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 6, flexShrink: 0, marginLeft: 12 }}>
-                    {existing && (
-                      <button
-                        onClick={() => handleDelete(manifest.type)}
-                        style={{
-                          background: 'transparent',
-                          border: '1px solid rgba(239,68,68,0.3)',
-                          borderRadius: 6, padding: '5px 10px',
-                          color: '#ef4444', fontSize: 11,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        Disconnect
-                      </button>
-                    )}
-                    <button
-                      onClick={() => setExpandedType(expanded ? null : manifest.type)}
-                      style={{
-                        background: existing ? 'rgba(243,234,217,0.04)' : '#c84b31',
-                        border: existing ? '1px solid rgba(243,234,217,0.1)' : 'none',
-                        borderRadius: 8, padding: '6px 14px',
-                        color: existing ? '#f3ead9' : '#0a0a0a',
-                        fontSize: 11, fontWeight: 500, cursor: 'pointer',
-                        transition: 'all 200ms ease',
-                      }}
-                    >
-                      {expanded ? 'Close' : existing ? 'Edit' : 'Connect'}
-                    </button>
-                  </div>
-                </div>
-
-                {fb && (
-                  <div style={{
-                    marginTop: 10, padding: '8px 12px',
-                    background: fb.ok ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
-                    border: `1px solid ${fb.ok ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
-                    borderRadius: 7, color: '#f3ead9', fontSize: 12,
-                  }}>
-                    {fb.ok ? '✅' : '❌'} {fb.message}
-                  </div>
-                )}
-
-                {expanded && (
-                  <ConnectForm
-                    manifest={manifest}
-                    userId={userId}
-                    onSave={vals => handleSave(manifest, vals)}
-                    onCancel={() => { setExpandedType(null); setFeedback(null) }}
-                    saving={saving}
-                  />
-                )}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div>
+              <div style={{
+                fontFamily: 'var(--font-arcade), monospace',
+                fontSize: 7, letterSpacing: '0.14em',
+                color: '#c84b31', textTransform: 'uppercase', marginBottom: 4,
+              }}>
+                Connections
               </div>
-            )
-          })}
+              <p style={{ fontSize: 11, color: 'rgba(243,234,217,0.4)', margin: 0, lineHeight: 1.4 }}>
+                Wire Jarvis into your real systems. All credentials are encrypted at rest.
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              style={{
+                background: 'rgba(243,234,217,0.05)',
+                border: '1px solid rgba(243,234,217,0.08)',
+                borderRadius: 8, padding: 6, cursor: 'pointer',
+                color: 'rgba(243,234,217,0.5)', display: 'flex', alignItems: 'center',
+                transition: 'all 200ms',
+              }}
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          {/* Search */}
+          <div style={{ position: 'relative' }}>
+            <Search size={13} style={{
+              position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)',
+              color: 'rgba(243,234,217,0.25)', pointerEvents: 'none',
+            }} />
+            <input
+              type="text"
+              placeholder="Search connectors…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                width: '100%', boxSizing: 'border-box',
+                background: 'rgba(243,234,217,0.03)',
+                border: '1px solid rgba(243,234,217,0.07)',
+                borderRadius: 10, padding: '8px 12px 8px 32px',
+                color: '#f3ead9', fontSize: 12,
+                fontFamily: 'system-ui', outline: 'none',
+                transition: 'border-color 200ms',
+              }}
+              onFocus={e => { e.target.style.borderColor = 'rgba(243,234,217,0.15)' }}
+              onBlur={e => { e.target.style.borderColor = 'rgba(243,234,217,0.07)' }}
+            />
+          </div>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
-          <button
-            onClick={onClose}
-            style={{
-              background: 'transparent',
-              border: '1px solid rgba(243,234,217,0.1)',
-              borderRadius: 12, padding: '10px 24px',
-              color: 'rgba(243,234,217,0.7)', fontSize: 13,
-              fontFamily: 'system-ui, sans-serif', cursor: 'pointer',
-              transition: 'all 200ms ease',
-            }}
-          >
-            Close
-          </button>
+        {/* Card grid */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 22px 20px' }}>
+          {loading ? (
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              padding: 48, color: 'rgba(243,234,217,0.3)', gap: 10,
+            }}>
+              <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+              <span style={{ fontSize: 12 }}>Loading connectors…</span>
+            </div>
+          ) : filteredManifests.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 40, color: 'rgba(243,234,217,0.3)', fontSize: 12 }}>
+              No connectors match "{searchQuery}"
+            </div>
+          ) : (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+              gap: 10,
+            }}>
+              {filteredManifests.map(manifest => (
+                <ConnectorCard
+                  key={manifest.type}
+                  manifest={manifest}
+                  connection={connByType[manifest.type] || null}
+                  userId={userId}
+                  onSave={handleSave}
+                  onDelete={handleDelete}
+                  onTest={handleTest}
+                  saving={saving}
+                  testing={testing}
+                  feedback={feedback}
+                />
+              ))}
+            </div>
+          )}
         </div>
-      </div>
+      </motion.div>
+
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   )
 }
