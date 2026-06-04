@@ -109,6 +109,79 @@ class NotionConnector(BaseConnector):
         except Exception as e:
             return ConnectorResult(ok=False, error=f"Create page failed: {e}")
 
+    async def list_pages(self) -> ConnectorResult:
+        """List top-level pages shared with the integration — useful for finding parent IDs."""
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(
+                    f"{BASE}/search",
+                    headers=self._headers(),
+                    json={"filter": {"value": "page", "property": "object"}, "page_size": 25},
+                    timeout=15.0,
+                )
+            resp.raise_for_status()
+            pages = [
+                {"id": r["id"], "title": self._extract_title(r), "url": r.get("url", "")}
+                for r in resp.json().get("results", [])
+            ]
+            return ConnectorResult(ok=True, data={"pages": pages, "count": len(pages)})
+        except Exception as e:
+            return ConnectorResult(ok=False, error=f"List pages failed: {e}")
+
+    async def create_database(
+        self,
+        parent_page_id: str,
+        title: str,
+        columns: list | None = None,
+    ) -> ConnectorResult:
+        """Create a new database under a parent page with optional custom column schema."""
+        if not parent_page_id:
+            return ConnectorResult(ok=False, error="`parent_page_id` is required — use list_pages to find available parent pages")
+        if not title:
+            return ConnectorResult(ok=False, error="`title` is required")
+
+        properties: dict = {"Name": {"title": {}}}
+        for col in (columns or []):
+            col_name = col.get("name", "").strip()
+            col_type = col.get("type", "rich_text")
+            if not col_name or col_name == "Name":
+                continue
+            if col_type == "select":
+                properties[col_name] = {"select": {"options": [{"name": opt} for opt in col.get("options", [])]}}
+            elif col_type == "number":
+                properties[col_name] = {"number": {"format": col.get("format", "number")}}
+            elif col_type == "date":
+                properties[col_name] = {"date": {}}
+            elif col_type == "checkbox":
+                properties[col_name] = {"checkbox": {}}
+            elif col_type == "url":
+                properties[col_name] = {"url": {}}
+            elif col_type == "email":
+                properties[col_name] = {"email": {}}
+            elif col_type == "phone_number":
+                properties[col_name] = {"phone_number": {}}
+            else:
+                properties[col_name] = {"rich_text": {}}
+
+        body = {
+            "parent": {"page_id": parent_page_id},
+            "title": [{"type": "text", "text": {"content": title}}],
+            "properties": properties,
+        }
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(f"{BASE}/databases", headers=self._headers(), json=body, timeout=20.0)
+            resp.raise_for_status()
+            result = resp.json()
+            return ConnectorResult(ok=True, data={
+                "database_id": result["id"],
+                "title": title,
+                "url": result.get("url", ""),
+                "status": "created",
+            })
+        except Exception as e:
+            return ConnectorResult(ok=False, error=f"Create database failed: {e}")
+
     @staticmethod
     def _extract_title(obj: dict) -> str:
         if obj["object"] == "database":

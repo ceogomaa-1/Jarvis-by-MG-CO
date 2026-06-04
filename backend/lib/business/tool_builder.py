@@ -176,6 +176,45 @@ _TOOLS: dict[str, dict] = {
             "required": ["database_id", "properties"],
         },
     },
+    "notion__list_pages": {
+        "description": "[Notion] List top-level pages shared with the integration — use to find parent page IDs before creating a database.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    "notion__create_database": {
+        "description": "[Notion] Create a new database under a parent page. ALWAYS call list_pages first and confirm parent + schema with user before creating.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "parent_page_id": {"type": "string", "description": "ID of the parent page (from list_pages)"},
+                "title": {"type": "string", "description": "Name of the new database"},
+                "columns": {
+                    "type": "array",
+                    "description": "Custom columns beyond the default 'Name' title column",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string"},
+                            "type": {
+                                "type": "string",
+                                "description": "rich_text, number, select, date, checkbox, url, email, phone_number",
+                            },
+                            "options": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Options for select-type columns",
+                            },
+                            "format": {
+                                "type": "string",
+                                "description": "Number format (number, dollar, percent) for number columns",
+                            },
+                        },
+                        "required": ["name"],
+                    },
+                },
+            },
+            "required": ["parent_page_id", "title"],
+        },
+    },
 
     # ── Google Calendar + Gmail ───────────────────────────────────────────────
     "google__list_calendar_events": {

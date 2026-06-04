@@ -112,6 +112,14 @@ async def _dispatch(connector, connector_type: str, action_name: str, inp: dict)
                 properties=inp["properties"],
                 children=inp.get("children"),
             )
+        if action_name == "list_pages":
+            return await connector.list_pages()
+        if action_name == "create_database":
+            return await connector.create_database(
+                parent_page_id=inp["parent_page_id"],
+                title=inp["title"],
+                columns=inp.get("columns"),
+            )
 
     # ── Google (Calendar + Gmail) ─────────────────────────────────────────────
     if connector_type == "google":

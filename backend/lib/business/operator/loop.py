@@ -150,13 +150,22 @@ async def _fetch_user_context(user_id: str) -> dict:
     return out
 
 
-async def run_operator_for_user(user_id: str) -> dict:
-    """Execute the full 4-cycle operator run for one user."""
+async def create_operator_run_row(user_id: str) -> str | None:
+    """Public entry point for callers that need to create the row before launching the pipeline."""
+    return await _create_run_row(user_id)
+
+
+async def run_operator_for_user(user_id: str, existing_run_id: str | None = None) -> dict:
+    """Execute the full 4-cycle operator run for one user.
+
+    Pass existing_run_id when the caller has already created the run row (e.g. for
+    background-task launches that need to return the run_id immediately).
+    """
     print(f"OPERATOR: Starting run for user {user_id}")
 
     brand = await get_brand_config(user_id)
     budget = BudgetTracker(daily_budget_usd=brand.get("operator_daily_budget_usd", 5.0))
-    run_id = await _create_run_row(user_id)
+    run_id = existing_run_id or await _create_run_row(user_id)
     if not run_id:
         return {"error": "Could not create run row"}
 
