@@ -10,6 +10,14 @@ SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL"
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 
 
+def _user_id_to_uuid(user_id: str) -> str:
+    """Strip 'user_' prefix and reformat 32-char hex as a proper UUID."""
+    hex_id = user_id.removeprefix("user_")
+    if len(hex_id) == 32 and all(c in "0123456789abcdef" for c in hex_id.lower()):
+        return f"{hex_id[:8]}-{hex_id[8:12]}-{hex_id[12:16]}-{hex_id[16:20]}-{hex_id[20:]}"
+    return user_id
+
+
 def _read_headers() -> dict:
     return {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
 
@@ -36,6 +44,7 @@ _DEFAULTS = {
 
 async def get_brand_config(user_id: str) -> dict:
     """Returns the user's brand config, falling back to defaults for missing fields."""
+    user_id = _user_id_to_uuid(user_id)
     if not user_id or not SUPABASE_URL or not SUPABASE_KEY:
         return {"user_id": user_id, **_DEFAULTS}
     try:
@@ -57,6 +66,7 @@ async def get_brand_config(user_id: str) -> dict:
 
 async def upsert_brand_config(user_id: str, fields: dict) -> dict | None:
     """Upsert allowed fields. Returns merged row or None on failure."""
+    user_id = _user_id_to_uuid(user_id)
     if not user_id or not SUPABASE_URL or not SUPABASE_KEY:
         return None
 

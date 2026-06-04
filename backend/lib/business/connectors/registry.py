@@ -23,6 +23,14 @@ SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL"
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 
 
+def _user_id_to_uuid(user_id: str) -> str:
+    """Strip 'user_' prefix and reformat 32-char hex as a proper UUID."""
+    hex_id = user_id.removeprefix("user_")
+    if len(hex_id) == 32 and all(c in "0123456789abcdef" for c in hex_id.lower()):
+        return f"{hex_id[:8]}-{hex_id[8:12]}-{hex_id[12:16]}-{hex_id[16:20]}-{hex_id[20:]}"
+    return user_id
+
+
 # Add new connector classes here — that's the only registration step needed.
 _CONNECTOR_REGISTRY: dict[str, type[BaseConnector]] = {
     TwilioConnector.CONNECTOR_TYPE: TwilioConnector,
@@ -48,6 +56,7 @@ def connector_class(connector_type: str) -> type[BaseConnector] | None:
 
 async def _fetch_user_connection_row(user_id: str, connector_type: str) -> dict | None:
     """Fetch the raw business_connections row for a user + type. None if missing."""
+    user_id = _user_id_to_uuid(user_id)
     if not user_id or not connector_type or not SUPABASE_URL or not SUPABASE_KEY:
         return None
     try:
@@ -76,6 +85,7 @@ async def _fetch_user_connection_row(user_id: str, connector_type: str) -> dict 
 
 async def list_user_connections(user_id: str) -> list[dict]:
     """List all connections for a user — used by Connections page."""
+    user_id = _user_id_to_uuid(user_id)
     if not user_id or not SUPABASE_URL or not SUPABASE_KEY:
         return []
     try:
@@ -124,6 +134,7 @@ async def upsert_user_connection(
     display_name: str = "",
 ) -> dict | None:
     """Insert or update a user connection. Returns the row, or None on failure."""
+    user_id = _user_id_to_uuid(user_id)
     if not user_id or not connector_type or not SUPABASE_URL or not SUPABASE_KEY:
         return None
     payload = {
@@ -157,6 +168,7 @@ async def upsert_user_connection(
 
 
 async def delete_user_connection(user_id: str, connector_type: str) -> bool:
+    user_id = _user_id_to_uuid(user_id)
     if not user_id or not connector_type or not SUPABASE_URL or not SUPABASE_KEY:
         return False
     try:
@@ -183,6 +195,7 @@ async def update_test_result(
     result: ConnectorResult,
 ) -> None:
     """Record a test result against a connection row."""
+    user_id = _user_id_to_uuid(user_id)
     if not user_id or not connector_type or not SUPABASE_URL or not SUPABASE_KEY:
         return
     payload = {
@@ -236,6 +249,7 @@ async def available_connectors_summary(user_id: str) -> str:
     Returns a human-readable list of connected tools with their available actions.
     Injected into the system prompt so Jarvis knows what it can execute.
     """
+    user_id = _user_id_to_uuid(user_id)
     rows = await list_user_connections(user_id)
     active = [r for r in rows if r.get("status") == "active"]
     if not active:
