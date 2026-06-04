@@ -25,6 +25,7 @@ from backend.routes.business.proactive_routes import router as business_proactiv
 from backend.routes.business.connections import router as business_connections_router
 from backend.routes.business.brand_routes import router as business_brand_router
 from backend.routes.business.operator_routes import router as business_operator_router
+from backend.routes.business.conversations import router as business_conversations_router
 from backend.cron.operator_cron import run_operator_nightly
 from backend.cron.business_risk_cron import run_business_risk_briefings
 from backend.routes.user_preferences import router as user_preferences_router
@@ -112,6 +113,7 @@ app.include_router(business_proactive_router, prefix="/api")
 app.include_router(business_connections_router, prefix="/api")
 app.include_router(business_brand_router, prefix="/api")
 app.include_router(business_operator_router, prefix="/api")
+app.include_router(business_conversations_router, prefix="/api")
 app.include_router(user_preferences_router, prefix="/api")
 app.include_router(export_router, prefix="/api")
 app.include_router(documents_router, prefix="/api")

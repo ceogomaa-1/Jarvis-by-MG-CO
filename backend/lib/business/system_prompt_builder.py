@@ -108,11 +108,20 @@ If a needed MCP isn't connected, say so once and offer to help connect it. Never
 
 ---
 
-## TONE & VOICE
+## Personality & Tone
 
-- **Premium, confident, direct.** No hedging. No "as a language model." No apology for being AI.
-- **Match the user's energy.** Casual when they're casual. Calm and tactical when they're stressed.
-- **Use the loaded Bible's vocabulary.** Never generic.
+You are Jarvis OS1 — a sharp, warm, slightly witty AI operator. You're not a corporate robot and you're not a formal assistant. Think of yourself as the user's most competent friend who happens to know everything about running a business.
+
+Tone guidelines:
+- Conversational and direct — talk like a smart colleague, not a customer service bot
+- Light humor when appropriate — a well-placed quip, never forced
+- Confident but not arrogant — you know your stuff and you share it naturally
+- Brief by default — don't over-explain unless asked. Short punchy responses > walls of text
+- Use "you" and "your" naturally — this is a dialogue, not a lecture
+- Occasionally ask "how's that sound?" or "want me to go deeper on any of this?" — show you're collaborative
+- When the user is stressed or frustrated, match their energy and help, don't add pleasantries
+- NEVER say "Great question!" or "I'd be happy to help!" or "Certainly!" — these are AI slop phrases
+- If you don't know something, say so plainly and offer to figure it out
 - **Push back honestly.** You are a CFO who tells the founder "this is a bad idea" — not a sycophant.
 - **Lead with the answer.** Reasoning second. Never bury the lede.
 - **Show the math.** For any number that drives a decision.
@@ -160,6 +169,44 @@ def _get_supabase():
     if not SUPABASE_URL or not SUPABASE_KEY:
         return None
     return create_client(SUPABASE_URL, SUPABASE_KEY)
+
+
+def _user_id_to_uuid(user_id: str) -> str:
+    hex_id = user_id.removeprefix("user_")
+    if len(hex_id) == 32 and all(c in "0123456789abcdef" for c in hex_id.lower()):
+        return f"{hex_id[:8]}-{hex_id[8:12]}-{hex_id[12:16]}-{hex_id[16:20]}-{hex_id[20:]}"
+    return user_id
+
+
+def _fetch_user_memories(user_id: str) -> str:
+    """Fetch user memories and format as a block for system prompt injection."""
+    try:
+        sb = _get_supabase()
+        if not sb:
+            return ""
+        user_uuid = _user_id_to_uuid(user_id)
+        res = (
+            sb.table("business_user_memories")
+            .select("memory")
+            .eq("user_id", user_uuid)
+            .order("created_at", desc=True)
+            .limit(30)
+            .execute()
+        )
+        if not res.data:
+            return ""
+        memories = [m["memory"] for m in res.data if m.get("memory")]
+        if not memories:
+            return ""
+        lines = "\n".join(f"- {m}" for m in memories)
+        return (
+            "## What I Know About This User\n"
+            "The following are facts and preferences learned from previous conversations. "
+            "Use these naturally — don't announce that you \"remember\" things, just act on the knowledge:\n\n"
+            f"{lines}"
+        )
+    except Exception:
+        return ""
 
 
 def _fetch_user_profile(user_id: str) -> dict:
@@ -215,7 +262,15 @@ async def build_system_prompt(user_id: str, user_message: str) -> str:
     # Inject the $1M North Star at the top of every system prompt
     from backend.lib.business.north_star import north_star_context_for_user
     north_star_block = await north_star_context_for_user(user_id)
-    return north_star_block + "\n\n" + base_prompt
+
+    # Inject user memories (after North Star, before base template)
+    memory_block = await asyncio.to_thread(_fetch_user_memories, user_id) if user_id else ""
+
+    parts = [north_star_block]
+    if memory_block:
+        parts.append(memory_block)
+    parts.append(base_prompt)
+    return "\n\n".join(parts)
 
 
 def get_industry_context_note(user_id: str) -> str:

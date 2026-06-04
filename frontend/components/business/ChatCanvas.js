@@ -14,6 +14,7 @@ import ViewToggle from './workflow/ViewToggle'
 import WelcomeState from './WelcomeState'
 import JarvisAvatar from './JarvisAvatar'
 import { PromptInputBox } from '@/components/ui/ai-prompt-box'
+import { supabase } from '../../lib/supabase'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
@@ -39,7 +40,6 @@ function UserBubble({ content }) {
   )
 }
 
-// Animated typing indicator (framer-motion, three dots in sequence)
 function ThinkingDots() {
   return (
     <div style={{ display: 'flex', gap: 5, marginBottom: 16, paddingTop: 4 }}>
@@ -70,10 +70,8 @@ function AssistantBubble({ content, chunks, streaming }) {
         style={{ fontSize: 15, color: 'rgba(243,234,217,0.9)', lineHeight: 1.7, fontFamily: 'system-ui, sans-serif' }}
       >
         {streaming && !hasChunks ? (
-          // Waiting for first chunk — show typing indicator
           <ThinkingDots />
         ) : streaming && hasChunks ? (
-          // Streaming: render all chunks, animate only the newest one, show cursor
           <p style={{ margin: 0, whiteSpace: 'pre-wrap', lineHeight: 1.7, wordBreak: 'break-word' }}>
             {chunks.slice(0, -1).map(c => c.text).join('')}
             <span key={chunks[chunks.length - 1].key} className="chunk-fade-in">
@@ -82,7 +80,6 @@ function AssistantBubble({ content, chunks, streaming }) {
             <span className="streaming-cursor" />
           </p>
         ) : (
-          // Done: render with full markdown formatting
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{content || ''}</ReactMarkdown>
         )}
       </div>
@@ -110,7 +107,12 @@ function WalkthroughMessage({ msg }) {
   )
 }
 
-export default function ChatCanvas({ userId }) {
+export default function ChatCanvas({
+  userId,
+  activeConversationId,
+  onConversationCreated,
+  onConversationsUpdated,
+}) {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -118,8 +120,38 @@ export default function ChatCanvas({ userId }) {
   const msgIdRef = useRef(1)
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
+  // Track current conversation ID in a ref so the send handler always has the latest value
+  const activeConvRef = useRef(activeConversationId)
 
   const isActivelyStreaming = messages.some(m => m.streaming === true)
+
+  // Keep ref in sync with prop
+  useEffect(() => {
+    activeConvRef.current = activeConversationId
+  }, [activeConversationId])
+
+  // Load messages when conversation changes
+  useEffect(() => {
+    if (activeConversationId === null || activeConversationId === undefined) {
+      setMessages([])
+      return
+    }
+    if (!supabase) return
+    const load = async () => {
+      const { data: msgs } = await supabase
+        .from('business_messages')
+        .select('id, role, content, created_at')
+        .eq('conversation_id', activeConversationId)
+        .order('created_at', { ascending: true })
+      // Normalize DB messages to match in-memory format
+      setMessages((msgs || []).map(m => ({
+        ...m,
+        streaming: false,
+        chunks: [],
+      })))
+    }
+    load().catch(console.error)
+  }, [activeConversationId])
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -310,7 +342,12 @@ export default function ChatCanvas({ userId }) {
       const res = await fetch(`${BACKEND}/api/business/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, user_id: userId || '', conversation_history: history }),
+        body: JSON.stringify({
+          message: text,
+          user_id: userId || '',
+          conversation_history: history,
+          conversation_id: activeConvRef.current || null,
+        }),
       })
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
@@ -347,6 +384,19 @@ export default function ChatCanvas({ userId }) {
           if (raw === '[DONE]') break
           try {
             const chunk = JSON.parse(raw)
+
+            // Handle special event objects (conv_id, etc.)
+            if (typeof chunk === 'object' && chunk !== null) {
+              if (chunk.type === 'conv_id' && chunk.value) {
+                if (!activeConvRef.current) {
+                  activeConvRef.current = chunk.value
+                  onConversationCreated?.(chunk.value)
+                }
+              }
+              continue
+            }
+
+            // Regular text chunk
             acc += chunk
             pendingBatch += chunk
             if (!batchTimer) {
@@ -356,7 +406,7 @@ export default function ChatCanvas({ userId }) {
         }
       }
 
-      // Flush any remaining buffered text
+      // Flush remaining buffered text
       if (batchTimer) clearTimeout(batchTimer)
       if (pendingBatch) {
         allChunks.push({ text: pendingBatch, key: Date.now() + Math.random() })
@@ -364,6 +414,10 @@ export default function ChatCanvas({ userId }) {
       setMessages(prev => prev.map(m =>
         m.id === aId ? { ...m, content: acc, chunks: [...allChunks], streaming: false } : m
       ))
+
+      // Notify parent to refresh sidebar (new title may have been generated)
+      onConversationsUpdated?.()
+
     } catch (err) {
       console.error('Chat failed:', err)
       setMessages(prev => prev.map(m =>
@@ -421,7 +475,6 @@ export default function ChatCanvas({ userId }) {
               style={{
                 position: 'absolute', inset: 0,
                 overflowY: 'auto',
-                // Extra top padding to clear the mini avatar
                 padding: '64px 40px 12px',
               }}
             >
