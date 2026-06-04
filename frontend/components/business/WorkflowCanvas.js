@@ -1,5 +1,5 @@
 'use client'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState, useEffect } from 'react'
 import {
   ReactFlow, Background, Controls,
   useNodesState, useEdgesState,
@@ -10,6 +10,8 @@ import { AGENTS, getOrbitPosition } from '../../lib/business/workflow/agentRegis
 import JarvisCenterNode from './workflow/JarvisCenterNode'
 import AgentNode from './workflow/AgentNode'
 import AgentInspectorPanel from './workflow/AgentInspectorPanel'
+
+const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
 const nodeTypes = {
   jarvisCenter: JarvisCenterNode,
@@ -54,10 +56,39 @@ function buildInitialEdges() {
   }))
 }
 
-export default function WorkflowCanvas() {
-  const [nodes, , onNodesChange] = useNodesState(useMemo(buildInitialNodes, []))
+export default function WorkflowCanvas({ userId }) {
+  const [nodes, setNodes, onNodesChange] = useNodesState(useMemo(buildInitialNodes, []))
   const [edges, , onEdgesChange] = useEdgesState(useMemo(buildInitialEdges, []))
   const [selectedAgent, setSelectedAgent] = useState(null)
+  const [agentActivity, setAgentActivity] = useState({})
+  const [activityLoading, setActivityLoading] = useState(false)
+
+  // Fetch agent activity on mount (and when userId changes)
+  useEffect(() => {
+    if (!userId) return
+    setActivityLoading(true)
+    fetch(`${BACKEND}/api/business/agents/activity?user_id=${encodeURIComponent(userId)}`)
+      .then(r => r.json())
+      .then(data => {
+        const activity = data.agents || {}
+        setAgentActivity(activity)
+        // Update node statuses from activity data
+        setNodes(prev => prev.map(n => {
+          if (n.id === 'jarvis-center') return n
+          const a = activity[n.id]
+          if (!a) return n
+          return {
+            ...n,
+            data: {
+              ...n.data,
+              agent: { ...n.data.agent, status: a.status || 'idle' },
+            },
+          }
+        }))
+      })
+      .catch(() => {})
+      .finally(() => setActivityLoading(false))
+  }, [userId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const onNodeClick = useCallback((_, node) => {
     if (node.id === 'jarvis-center') return
@@ -128,6 +159,8 @@ export default function WorkflowCanvas() {
 
       <AgentInspectorPanel
         agent={selectedAgent}
+        agentActivity={agentActivity[selectedAgent?.id]}
+        activityLoading={activityLoading}
         onClose={() => setSelectedAgent(null)}
       />
     </div>

@@ -15,6 +15,7 @@ import WelcomeState from './WelcomeState'
 import JarvisAvatar from './JarvisAvatar'
 import { PromptInputBox } from '@/components/ui/ai-prompt-box'
 import { supabase } from '../../lib/supabase'
+import TetrisLoader from '../ui/TetrisLoader'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
@@ -114,6 +115,7 @@ export default function ChatCanvas({
   onConversationsUpdated,
 }) {
   const [messages, setMessages] = useState([])
+  const [messagesLoading, setMessagesLoading] = useState(false)
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [briefing, setBriefing] = useState(null)
@@ -130,13 +132,24 @@ export default function ChatCanvas({
     activeConvRef.current = activeConversationId
   }, [activeConversationId])
 
+  // Check sessionStorage for prefill from workflow canvas "Open in Chat"
+  useEffect(() => {
+    const prefill = sessionStorage.getItem('jarvis_prefill')
+    if (prefill) {
+      setInput(prefill)
+      sessionStorage.removeItem('jarvis_prefill')
+    }
+  }, [])
+
   // Load messages when conversation changes
   useEffect(() => {
     if (activeConversationId === null || activeConversationId === undefined) {
       setMessages([])
+      setMessagesLoading(false)
       return
     }
     if (!supabase) return
+    setMessagesLoading(true)
     const load = async () => {
       const { data: msgs } = await supabase
         .from('business_messages')
@@ -149,8 +162,9 @@ export default function ChatCanvas({
         streaming: false,
         chunks: [],
       })))
+      setMessagesLoading(false)
     }
-    load().catch(console.error)
+    load().catch(e => { console.error(e); setMessagesLoading(false) })
   }, [activeConversationId])
 
   useEffect(() => {
@@ -429,7 +443,7 @@ export default function ChatCanvas({
 
   const handleSuggestion = (text) => sendMessage(text)
 
-  const hasMessages = messages.length > 0
+  const hasMessages = messages.length > 0 || messagesLoading
 
   return (
     <motion.div
@@ -467,6 +481,16 @@ export default function ChatCanvas({
               )}
               <WelcomeState onSuggestion={handleSuggestion} isStreaming={loading} />
             </motion.div>
+          ) : messagesLoading ? (
+            <div
+              key="loading"
+              style={{
+                position: 'absolute', inset: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <TetrisLoader size="sm" speed="fast" loadingText="Loading conversation..." />
+            </div>
           ) : (
             <div
               key="messages"

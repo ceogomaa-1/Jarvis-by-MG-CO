@@ -13,6 +13,7 @@ const STATUS_COLOR = {
   idle:   'rgba(243,234,217,0.3)',
   active: '#c84b31',
   done:   '#7fb069',
+  error:  '#ef4444',
 }
 
 export default function AgentNode({ data, selected }) {
