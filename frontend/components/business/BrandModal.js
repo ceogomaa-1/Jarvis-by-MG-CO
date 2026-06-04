@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
+import TetrisLoader from '../ui/TetrisLoader'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
@@ -265,7 +266,9 @@ export default function BrandModal({ open, onClose, userId }) {
 
         <div style={{ overflowY: 'auto', flex: 1, paddingRight: 4 }}>
           {loading ? (
-            <div style={{ color: 'rgba(243,234,217,0.5)', fontSize: 13 }}>Loading…</div>
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0' }}>
+              <TetrisLoader size="sm" speed="fast" loadingText="Loading..." />
+            </div>
           ) : (
             <>
               {/* Identity */}
@@ -448,9 +451,12 @@ export default function BrandModal({ open, onClose, userId }) {
               fontFamily: 'system-ui, sans-serif',
               cursor: saving ? 'default' : 'pointer',
               transition: 'background 200ms ease',
+              display: 'flex', alignItems: 'center', gap: 8, minWidth: 80, justifyContent: 'center',
             }}
           >
-            {saving ? 'Saving…' : 'Save'}
+            {saving ? (
+              <TetrisLoader size="sm" speed="normal" showLoadingText={false} />
+            ) : 'Save'}
           </button>
         </div>
       </div>

@@ -6,18 +6,39 @@ import {
   Brain, Search, Sparkles, Package, Compass,
   PenTool, Palette, Telescope, BarChart3, FileText,
 } from 'lucide-react'
+import TetrisLoader from '../../ui/TetrisLoader'
 
 const ICONS = { Brain, Search, Sparkles, Package, Compass, PenTool, Palette, Telescope, BarChart3, FileText }
 
-const MOCK_ACTIVITY = [
-  { time: '2h ago',    summary: 'Drafted Q3 outreach sequence (3 emails)' },
-  { time: 'Yesterday', summary: 'Generated weekly newsletter — 680 words' },
-  { time: '2 days ago', summary: 'Analyzed competitor pricing from 4 sources' },
-]
+function relativeTime(isoStr) {
+  if (!isoStr) return ''
+  const date = new Date(isoStr)
+  const now = new Date()
+  const diffMs = now - date
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMs / 3600000)
+  const diffDays = Math.floor(diffMs / 86400000)
+  if (diffMins < 1) return 'just now'
+  if (diffMins < 60) return `${diffMins}m ago`
+  if (diffHours < 24) return `${diffHours}h ago`
+  if (diffDays === 1) return 'Yesterday'
+  if (diffDays < 7) return `${diffDays}d ago`
+  return date.toLocaleDateString()
+}
 
-export default function AgentInspectorPanel({ agent, onClose }) {
+export default function AgentInspectorPanel({ agent, agentActivity, activityLoading, onClose }) {
   const router = useRouter()
   const Icon = agent ? (ICONS[agent.icon] || Brain) : null
+
+  const activity = agentActivity || {}
+  const recentActivity = activity.recent_activity || []
+  const lastOutput = activity.last_output || null
+
+  function handleOpenInChat() {
+    const msg = `Show me the latest output from the ${agent.name} agent`
+    sessionStorage.setItem('jarvis_prefill', msg)
+    router.push('/business/chat')
+  }
 
   return (
     <AnimatePresence>
@@ -99,59 +120,72 @@ export default function AgentInspectorPanel({ agent, onClose }) {
           {/* Divider */}
           <div style={{ height: 1, background: 'rgba(243,234,217,0.07)', margin: '0 24px' }} />
 
-          {/* Recent Activity */}
-          <div style={{ padding: '20px 24px' }}>
-            <div style={{
-              fontSize: 10, fontWeight: 700, letterSpacing: '0.12em',
-              color: 'rgba(243,234,217,0.4)', textTransform: 'uppercase',
-              marginBottom: 12,
-            }}>
-              Recent Activity
+          {activityLoading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '32px 0' }}>
+              <TetrisLoader size="sm" speed="fast" loadingText="Loading activity..." />
             </div>
-            {MOCK_ACTIVITY.map((item, i) => (
-              <div
-                key={i}
-                style={{
-                  padding: '10px 0',
-                  borderBottom: i < MOCK_ACTIVITY.length - 1 ? '1px solid rgba(243,234,217,0.06)' : 'none',
-                }}
-              >
-                <div style={{ fontSize: 10, color: 'rgba(243,234,217,0.35)', marginBottom: 3 }}>
-                  {item.time}
+          ) : (
+            <>
+              {/* Recent Activity */}
+              <div style={{ padding: '20px 24px' }}>
+                <div style={{
+                  fontSize: 10, fontWeight: 700, letterSpacing: '0.12em',
+                  color: 'rgba(243,234,217,0.4)', textTransform: 'uppercase',
+                  marginBottom: 12,
+                }}>
+                  Recent Activity
                 </div>
-                <div style={{ fontSize: 13, color: '#f3ead9' }}>
-                  {item.summary}
+                {recentActivity.length === 0 ? (
+                  <div style={{ fontSize: 12, color: 'rgba(243,234,217,0.3)', lineHeight: 1.6 }}>
+                    No activity yet. This agent activates when you trigger an Operator cycle or Creation task.
+                  </div>
+                ) : recentActivity.map((item, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      padding: '10px 0',
+                      borderBottom: i < recentActivity.length - 1 ? '1px solid rgba(243,234,217,0.06)' : 'none',
+                    }}
+                  >
+                    <div style={{ fontSize: 10, color: 'rgba(243,234,217,0.35)', marginBottom: 3 }}>
+                      {item.time ? (item.time.includes('T') ? relativeTime(item.time) : item.time) : ''}
+                    </div>
+                    <div style={{ fontSize: 13, color: '#f3ead9' }}>
+                      {item.summary}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Last Output */}
+              <div style={{ padding: '0 24px 20px' }}>
+                <div style={{
+                  fontSize: 10, fontWeight: 700, letterSpacing: '0.12em',
+                  color: 'rgba(243,234,217,0.4)', textTransform: 'uppercase',
+                  marginBottom: 10,
+                }}>
+                  Last Output
+                </div>
+                <div style={{
+                  minHeight: 80, maxHeight: 140,
+                  background: 'rgba(243,234,217,0.03)',
+                  border: '1px solid rgba(243,234,217,0.08)',
+                  borderRadius: 8, padding: '12px 14px',
+                  fontSize: 12,
+                  color: lastOutput ? 'rgba(243,234,217,0.7)' : 'rgba(243,234,217,0.3)',
+                  lineHeight: 1.6, overflow: 'hidden',
+                  fontFamily: lastOutput ? 'system-ui, sans-serif' : 'ui-monospace, monospace',
+                }}>
+                  {lastOutput || 'No output yet. Trigger an Operator run or a Creation 1.0 task to see live output from this agent here.'}
                 </div>
               </div>
-            ))}
-          </div>
-
-          {/* Last Output */}
-          <div style={{ padding: '0 24px 20px' }}>
-            <div style={{
-              fontSize: 10, fontWeight: 700, letterSpacing: '0.12em',
-              color: 'rgba(243,234,217,0.4)', textTransform: 'uppercase',
-              marginBottom: 10,
-            }}>
-              Last Output
-            </div>
-            <div style={{
-              height: 120,
-              background: 'rgba(243,234,217,0.03)',
-              border: '1px solid rgba(243,234,217,0.08)',
-              borderRadius: 8, padding: '12px 14px',
-              fontSize: 12, color: 'rgba(243,234,217,0.35)',
-              lineHeight: 1.6, overflow: 'hidden',
-              fontFamily: 'ui-monospace, monospace',
-            }}>
-              No output yet. Trigger an Operator run or a Creation 1.0 task to see live output from this agent here.
-            </div>
-          </div>
+            </>
+          )}
 
           {/* CTA */}
           <div style={{ padding: '0 24px 32px', marginTop: 'auto' }}>
             <button
-              onClick={() => router.push('/business/chat')}
+              onClick={handleOpenInChat}
               style={{
                 width: '100%',
                 background: '#c84b31',

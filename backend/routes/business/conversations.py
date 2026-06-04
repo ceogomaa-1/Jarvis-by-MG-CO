@@ -159,6 +159,58 @@ def save_message_to_conversation(conv_id: str, req: SaveMessageRequest):
         return {"ok": False}
 
 
+@router.get("/business/agents/activity")
+def get_agents_activity(user_id: str = ""):
+    """Return recent activity for all 10 workflow agents."""
+    sb = _get_supabase()
+
+    AGENT_IDS = [
+        "operator-strategist", "operator-researcher",
+        "operator-creator", "operator-packager",
+        "creation-strategist", "creation-copywriter",
+        "creation-designer", "creation-researcher",
+        "creation-analyst", "creation-reporter",
+    ]
+    agents: dict = {aid: {"status": "idle", "last_run": None, "recent_activity": [], "last_output": None} for aid in AGENT_IDS}
+
+    if not sb or not user_id:
+        return {"agents": agents}
+
+    uuid = user_id_to_uuid(user_id)
+
+    # Query operator runs
+    try:
+        res = (
+            sb.table("business_operator_runs")
+            .select("agent_id, status, created_at, summary, output")
+            .eq("user_id", uuid)
+            .order("created_at", desc=True)
+            .limit(20)
+            .execute()
+        )
+        runs = res.data or []
+        seen: dict[str, list] = {}
+        for run in runs:
+            aid = run.get("agent_id", "")
+            if aid not in agents:
+                continue
+            if aid not in seen:
+                seen[aid] = []
+                agents[aid]["last_run"] = run.get("created_at")
+                agents[aid]["status"] = run.get("status", "idle")
+                agents[aid]["last_output"] = run.get("output")
+            if len(seen[aid]) < 3:
+                seen[aid].append({
+                    "time": run.get("created_at", ""),
+                    "summary": run.get("summary", ""),
+                })
+                agents[aid]["recent_activity"] = seen[aid]
+    except Exception:
+        pass
+
+    return {"agents": agents}
+
+
 @router.get("/business/memories/count")
 def get_memory_count(user_id: str):
     sb = _get_supabase()

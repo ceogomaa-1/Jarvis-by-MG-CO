@@ -1,6 +1,7 @@
 'use client'
 import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import TetrisLoader from '../ui/TetrisLoader'
 
 const SIDEBAR_WIDTH = 280
 
@@ -114,6 +115,7 @@ function ConversationItem({ conv, isActive, onSelect, onDelete }) {
 
 export default function ChatSidebar({
   conversations = [],
+  loading = false,
   activeConversationId,
   onSelectConversation,
   onNewChat,
@@ -213,7 +215,11 @@ export default function ChatSidebar({
       <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}
         className="biz-chat-scroll"
       >
-        {filtered.length === 0 ? (
+        {loading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 32 }}>
+            <TetrisLoader size="sm" speed="fast" showLoadingText={false} />
+          </div>
+        ) : filtered.length === 0 ? (
           <div style={{
             padding: '24px 16px',
             color: 'rgba(243,234,217,0.2)',

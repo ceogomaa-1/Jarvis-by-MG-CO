@@ -51,7 +51,7 @@ export default function WorkflowPage() {
       </div>
 
       {/* Canvas */}
-      <WorkflowCanvas />
+      <WorkflowCanvas userId={userId} />
 
       {/* Floating UI */}
       <ViewToggle />

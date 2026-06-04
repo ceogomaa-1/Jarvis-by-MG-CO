@@ -6,6 +6,8 @@ import ChatCanvas from '../../../components/business/ChatCanvas'
 import ChatSidebar from '../../../components/business/ChatSidebar'
 import ModeToggle from '../../../components/shared/ModeToggle'
 import { setJarvisMode, createBusinessUser } from '../../../lib/userPreferences'
+import ChatBackground from '../../../components/business/ChatBackground'
+import TetrisLoader from '../../../components/ui/TetrisLoader'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
@@ -15,6 +17,7 @@ export default function BusinessChatPage() {
 
   // Conversation state — lifted so sidebar + canvas share it
   const [conversations, setConversations] = useState([])
+  const [conversationsLoading, setConversationsLoading] = useState(false)
   const [activeConversationId, setActiveConversationId] = useState(null)
   const [memoryCount, setMemoryCount] = useState(0)
   const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false)
@@ -22,6 +25,7 @@ export default function BusinessChatPage() {
   const loadConversations = useCallback(async (uid) => {
     const id = uid || userId
     if (!id) return
+    setConversationsLoading(true)
     try {
       const res = await fetch(`${BACKEND}/api/business/conversations?user_id=${encodeURIComponent(id)}`)
       const data = await res.json()
@@ -34,6 +38,8 @@ export default function BusinessChatPage() {
       })
     } catch (e) {
       console.error('loadConversations failed', e)
+    } finally {
+      setConversationsLoading(false)
     }
   }, [userId])
 
@@ -128,9 +134,7 @@ export default function BusinessChatPage() {
         height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: '#0a0908',
       }}>
-        <div style={{ color: 'rgba(243,234,217,0.25)', fontFamily: 'system-ui, sans-serif', fontSize: 13, letterSpacing: '0.05em' }}>
-          Loading…
-        </div>
+        <TetrisLoader size="md" speed="normal" showLoadingText={true} loadingText="Starting Jarvis..." />
       </div>
     )
   }
@@ -138,13 +142,10 @@ export default function BusinessChatPage() {
   return (
     <div style={{
       height: '100vh', display: 'flex', flexDirection: 'column',
-      background: `
-        radial-gradient(ellipse 60% 50% at 50% 40%, rgba(200,75,49,0.03) 0%, transparent 70%),
-        radial-gradient(ellipse 80% 60% at 50% 100%, rgba(243,234,217,0.02) 0%, transparent 50%),
-        #0a0908
-      `,
+      background: '#0a0908',
       position: 'relative',
     }}>
+      <ChatBackground />
       {/* Noise grain overlay */}
       <div style={{
         position: 'fixed', inset: 0, opacity: 0.015, pointerEvents: 'none', zIndex: 0,
@@ -218,6 +219,7 @@ export default function BusinessChatPage() {
       <div style={{ flex: 1, minHeight: 0, display: 'flex', position: 'relative', zIndex: 1 }}>
         <ChatSidebar
           conversations={conversations}
+          loading={conversationsLoading}
           activeConversationId={activeConversationId}
           onSelectConversation={handleSelectConversation}
           onNewChat={handleNewChat}
