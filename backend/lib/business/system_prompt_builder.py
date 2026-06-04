@@ -4,9 +4,26 @@ from supabase import create_client
 
 from backend.lib.business.bible_loader import load_bible
 from backend.lib.business.intent_classifier import classify_intent
+from backend.lib.business.connectors.registry import available_connectors_summary
 
 SUPABASE_URL = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+
+_TOOL_SAFETY_RULES = """\
+## Tool Use Rules
+
+You have real tools wired to the user's accounts (listed in ## Connected Tools above). Use them proactively when the user asks for data or actions you can fulfil.
+
+**Read / fetch actions** (list, search, query, get): execute immediately — no need to ask first.
+
+**Write / send / create actions** (send_email, send_sms, create_*, text_to_speech):
+1. Draft exactly what you are about to do — show the recipient, subject, and body (or equivalent)
+2. Ask: "Should I go ahead?"
+3. Only call the tool AFTER the user confirms
+
+When a tool call returns an error, explain it plainly and suggest what the user can do (e.g. reconnect the service, check permissions).
+
+Never fabricate data from a tool. If the tool returns empty results, say so."""
 
 _BASE_TEMPLATE = """\
 You are **Jarvis**, the all-in-one business operator built by MG&CO Technologies.
@@ -266,10 +283,17 @@ async def build_system_prompt(user_id: str, user_message: str) -> str:
     # Inject user memories (after North Star, before base template)
     memory_block = await asyncio.to_thread(_fetch_user_memories, user_id) if user_id else ""
 
+    # Inject connected tools context — skip if no connectors active
+    connector_block = await available_connectors_summary(user_id) if user_id else ""
+    has_connectors = connector_block and not connector_block.startswith("No connectors")
+
     parts = [north_star_block]
     if memory_block:
         parts.append(memory_block)
     parts.append(base_prompt)
+    if has_connectors:
+        parts.append(connector_block)
+        parts.append(_TOOL_SAFETY_RULES)
     return "\n\n".join(parts)
 
 

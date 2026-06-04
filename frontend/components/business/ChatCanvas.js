@@ -55,7 +55,42 @@ function ThinkingDots() {
   )
 }
 
-function AssistantBubble({ content, chunks, streaming }) {
+function ToolStatusPill({ toolName }) {
+  // Format "google__list_calendar_events" → "google → list calendar events"
+  const pretty = toolName
+    .replace('__', ' → ')
+    .replace(/_/g, ' ')
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -4 }}
+      transition={{ duration: 0.2 }}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6,
+        padding: '4px 10px', marginBottom: 8,
+        borderRadius: 20,
+        background: 'rgba(200,75,49,0.08)',
+        border: '1px solid rgba(200,75,49,0.18)',
+      }}
+    >
+      <motion.div
+        style={{ width: 6, height: 6, borderRadius: '50%', background: '#c84b31', flexShrink: 0 }}
+        animate={{ opacity: [0.4, 1, 0.4] }}
+        transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
+      />
+      <span style={{
+        fontFamily: 'var(--font-arcade), monospace',
+        fontSize: 7, letterSpacing: '0.08em',
+        color: 'rgba(200,75,49,0.8)', textTransform: 'uppercase',
+      }}>
+        {pretty}…
+      </span>
+    </motion.div>
+  )
+}
+
+function AssistantBubble({ content, chunks, streaming, toolStatus }) {
   const hasChunks = chunks && chunks.length > 0
 
   return (
@@ -65,6 +100,11 @@ function AssistantBubble({ content, chunks, streaming }) {
       transition={{ duration: 0.3, ease: 'easeOut' }}
       style={{ marginBottom: 28, maxWidth: '85%' }}
     >
+      <AnimatePresence>
+        {streaming && toolStatus && (
+          <ToolStatusPill key={toolStatus} toolName={toolStatus} />
+        )}
+      </AnimatePresence>
       <div
         className="biz-markdown"
         style={{ fontSize: 15, color: 'rgba(243,234,217,0.9)', lineHeight: 1.7, fontFamily: 'system-ui, sans-serif' }}
@@ -118,6 +158,7 @@ export default function ChatCanvas({
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [briefing, setBriefing] = useState(null)
+  const [toolStatus, setToolStatus] = useState(null)  // active tool name during execution
   const msgIdRef = useRef(1)
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
@@ -398,12 +439,18 @@ export default function ChatCanvas({
           try {
             const chunk = JSON.parse(raw)
 
-            // Handle special event objects (conv_id, etc.)
+            // Handle special event objects
             if (typeof chunk === 'object' && chunk !== null) {
               if (chunk.type === 'conv_id' && chunk.value) {
                 if (!activeConvRef.current) {
                   activeConvRef.current = chunk.value
                   onConversationCreated?.(chunk.value)
+                }
+              } else if (chunk.type === 'tool_call') {
+                if (chunk.status === 'executing') {
+                  setToolStatus(chunk.name)
+                } else if (chunk.status === 'complete') {
+                  setToolStatus(null)
                 }
               }
               continue
@@ -424,6 +471,7 @@ export default function ChatCanvas({
       if (pendingBatch) {
         allChunks.push({ text: pendingBatch, key: Date.now() + Math.random() })
       }
+      setToolStatus(null)
       setMessages(prev => prev.map(m =>
         m.id === aId ? { ...m, content: acc, chunks: [...allChunks], streaming: false } : m
       ))
@@ -526,6 +574,7 @@ export default function ChatCanvas({
                       content={m.content}
                       chunks={m.chunks}
                       streaming={m.streaming}
+                      toolStatus={m.streaming ? toolStatus : null}
                     />
                   )
                 })}
