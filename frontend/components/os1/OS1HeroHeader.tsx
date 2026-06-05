@@ -46,8 +46,8 @@ export default function OS1HeroHeader() {
         </div>
 
         <h1
+          className="font-arcade"
           style={{
-            fontFamily: "'Press Start 2P', monospace",
             fontSize: "clamp(20px, 4vw, 48px)",
             color: "#f3ead9",
             letterSpacing: "0.08em",
@@ -61,8 +61,8 @@ export default function OS1HeroHeader() {
         </h1>
 
         <p
+          className="font-arcade"
           style={{
-            fontFamily: "'Press Start 2P', monospace",
             fontSize: "clamp(7px, 1vw, 10px)",
             color: "rgba(243,234,217,0.45)",
             letterSpacing: "0.3em",
@@ -80,8 +80,8 @@ export default function OS1HeroHeader() {
         style={{ transform: "translateX(-50%)" }}
       >
         <p
+          className="font-arcade"
           style={{
-            fontFamily: "'Press Start 2P', monospace",
             fontSize: "7px",
             color: "rgba(243,234,217,0.3)",
             letterSpacing: "0.35em",
