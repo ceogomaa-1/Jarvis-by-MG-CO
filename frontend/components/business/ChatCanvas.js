@@ -12,6 +12,9 @@ import ProactiveBanner from './ProactiveBanner'
 import ChatHeaderMenu from './ChatHeaderMenu'
 import WelcomeState from './WelcomeState'
 import JarvisAvatar from './JarvisAvatar'
+import ReadinessBar from './ReadinessBar'
+import AutonomousToggle from './AutonomousToggle'
+import ConfirmActionButton from './ConfirmActionButton'
 import { PromptInputBox } from '@/components/ui/ai-prompt-box'
 import { supabase } from '../../lib/supabase'
 import TetrisLoader from '../ui/TetrisLoader'
@@ -173,6 +176,8 @@ export default function ChatCanvas({
   const [loading, setLoading] = useState(false)
   const [briefing, setBriefing] = useState(null)
   const [toolStatus, setToolStatus] = useState(null)  // active tool name during execution
+  const [readiness, setReadiness] = useState(null)
+  const [autonomousEnabled, setAutonomousEnabled] = useState(false)
   const msgIdRef = useRef(1)
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
@@ -237,6 +242,33 @@ export default function ChatCanvas({
     return () => { cancelled = true }
   }, [userId])
 
+  // Poll for proactive insights when autonomous mode is on
+  useEffect(() => {
+    if (!autonomousEnabled || !userId) return
+    const pollProactive = async () => {
+      try {
+        const res = await fetch(`${BACKEND}/api/business/proactive/unread?user_id=${encodeURIComponent(userId)}`)
+        const data = await res.json()
+        if (data.messages && data.messages.length > 0) {
+          const msg = data.messages[0]
+          msgIdRef.current += 1
+          setMessages(prev => [...prev, {
+            id: msgIdRef.current,
+            role: 'assistant',
+            content: msg.message,
+            is_proactive: true,
+            streaming: false,
+            chunks: [],
+          }])
+          await fetch(`${BACKEND}/api/business/proactive/${msg.id}/read`, { method: 'PATCH' })
+        }
+      } catch {}
+    }
+    const interval = setInterval(pollProactive, 60000)
+    pollProactive()
+    return () => clearInterval(interval)
+  }, [autonomousEnabled, userId])
+
   const dismissBriefing = async (briefingId) => {
     setBriefing(null)
     if (!briefingId || !userId) return
@@ -253,6 +285,14 @@ export default function ChatCanvas({
     if (!actionText) return
     dismissBriefing(briefingId)
     sendMessage(actionText)
+  }
+
+  const updateMessage = (id, updates) => {
+    setMessages(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m))
+  }
+
+  const handleActionConfirm = () => {
+    sendMessage('Yes, please go ahead.')
   }
 
   async function fileToAttachment(file) {
@@ -491,6 +531,10 @@ export default function ChatCanvas({
                 } else if (chunk.status === 'complete') {
                   setToolStatus(null)
                 }
+              } else if (chunk.type === 'pending_action') {
+                setMessages(prev => prev.map(m =>
+                  m.id === aId ? { ...m, pending_action: chunk.action, action_resolved: false } : m
+                ))
               }
               continue
             }
@@ -540,6 +584,8 @@ export default function ChatCanvas({
       style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
     >
       <ChatHeaderMenu userId={userId} onBrandSaved={() => {}} />
+
+      <ReadinessBar userId={userId} apiUrl={BACKEND} onReadinessUpdate={setReadiness} />
 
       {/* Messages or Welcome */}
       <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
@@ -608,13 +654,40 @@ export default function ChatCanvas({
                     />
                   )
                   return (
-                    <AssistantBubble
-                      key={m.id ?? i}
-                      content={m.content}
-                      chunks={m.chunks}
-                      streaming={m.streaming}
-                      toolStatus={m.streaming ? toolStatus : null}
-                    />
+                    <div key={m.id ?? i}>
+                      {m.is_proactive && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
+                          <span style={{ fontSize: 10, color: '#c84b31' }}>⚡</span>
+                          <span style={{
+                            fontFamily: 'var(--font-arcade), monospace',
+                            fontSize: 5,
+                            letterSpacing: '0.1em',
+                            textTransform: 'uppercase',
+                            color: 'rgba(200,75,49,0.55)',
+                          }}>
+                            Proactive Insight
+                          </span>
+                        </div>
+                      )}
+                      <AssistantBubble
+                        content={m.content}
+                        chunks={m.chunks}
+                        streaming={m.streaming}
+                        toolStatus={m.streaming ? toolStatus : null}
+                      />
+                      {m.pending_action && !m.action_resolved && (
+                        <ConfirmActionButton
+                          action={m.pending_action.description || m.pending_action}
+                          onConfirm={() => {
+                            handleActionConfirm(m.pending_action)
+                            updateMessage(m.id, { action_resolved: true, action_status: 'confirmed' })
+                          }}
+                          onCancel={() => {
+                            updateMessage(m.id, { action_resolved: true, action_status: 'cancelled' })
+                          }}
+                        />
+                      )}
+                    </div>
                   )
                 })}
               </div>
@@ -651,13 +724,23 @@ export default function ChatCanvas({
       {/* Input area */}
       <div style={{ padding: '8px 40px 24px', flexShrink: 0 }}>
         <div style={{ maxWidth: 760, margin: '0 auto' }}>
-          <PromptInputBox
-            onSend={(message, files) => sendMessage(message, files)}
-            isLoading={loading}
-            placeholder="Message Jarvis..."
-            enableVoice={false}
-            enableUpload={true}
-          />
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
+            <AutonomousToggle
+              userId={userId}
+              apiUrl={BACKEND}
+              isReady={readiness?.is_ready === true}
+              onToggle={setAutonomousEnabled}
+            />
+            <div style={{ flex: 1 }}>
+              <PromptInputBox
+                onSend={(message, files) => sendMessage(message, files)}
+                isLoading={loading}
+                placeholder="Message Jarvis..."
+                enableVoice={false}
+                enableUpload={true}
+              />
+            </div>
+          </div>
         </div>
       </div>
     </motion.div>

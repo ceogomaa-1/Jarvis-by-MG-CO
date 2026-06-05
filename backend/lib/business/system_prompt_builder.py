@@ -5,6 +5,7 @@ from supabase import create_client
 from backend.lib.business.bible_loader import load_bible
 from backend.lib.business.intent_classifier import classify_intent
 from backend.lib.business.connectors.registry import available_connectors_summary
+from backend.lib.business.brand_config import get_brand_config
 
 SUPABASE_URL = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
@@ -178,6 +179,13 @@ Tone guidelines:
 - Artifacts (HTML/SVG/code) for any visual or runnable deliverable
 - Never end with "Let me know if you have any other questions!" — end with the next concrete move."""
 
+_AUTONOMOUS_MODE_NOTE = """\
+## Autonomous Mode
+
+Autonomous mode is **active**. In addition to responding to direct messages, Jarvis proactively surfaces insights and recommendations based on accumulated business context. These appear as "Proactive Insights" in the chat.
+
+When the user references or continues a proactive insight, engage with full context and depth."""
+
 _GENERIC_SYSTEM = """\
 You are **Jarvis**, the all-in-one business operator built by MG&CO Technologies.
 
@@ -299,6 +307,10 @@ async def build_system_prompt(user_id: str, user_message: str) -> str:
     connector_block = await available_connectors_summary(user_id) if user_id else ""
     has_connectors = connector_block and not connector_block.startswith("No connectors")
 
+    # Inject autonomous mode note if enabled
+    brand_config = await get_brand_config(user_id) if user_id else {}
+    autonomous_enabled = brand_config.get("operator_enabled", False)
+
     parts = [north_star_block]
     if memory_block:
         parts.append(memory_block)
@@ -306,6 +318,8 @@ async def build_system_prompt(user_id: str, user_message: str) -> str:
     if has_connectors:
         parts.append(connector_block)
         parts.append(_TOOL_SAFETY_RULES)
+    if autonomous_enabled:
+        parts.append(_AUTONOMOUS_MODE_NOTE)
     return "\n\n".join(parts)
 
 
