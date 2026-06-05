@@ -63,14 +63,14 @@ export default function ProfileModal({ open, onClose }) {
       <div onClick={e => e.stopPropagation()} style={GLASS_PANEL}>
         <div style={{
           fontFamily: 'var(--font-arcade), monospace',
-          fontSize: 7, letterSpacing: '0.12em',
+          fontSize: 10, letterSpacing: '0.12em',
           color: '#c84b31', marginBottom: 8, textTransform: 'uppercase',
         }}>
           👤 ACCOUNT
         </div>
         <div style={{
           fontFamily: 'var(--font-arcade), monospace',
-          fontSize: 11, color: '#f3ead9', marginBottom: 22, lineHeight: 1.5,
+          fontSize: 13, color: '#f3ead9', marginBottom: 22, lineHeight: 1.5,
         }}>
           Signed in to Jarvis
         </div>

@@ -154,14 +154,14 @@ export default function MorningQueueModal({ open, onClose, userId }) {
       <div onClick={e => e.stopPropagation()} style={GLASS_PANEL}>
         <div style={{
           fontFamily: 'var(--font-arcade), monospace',
-          fontSize: 7, letterSpacing: '0.12em',
+          fontSize: 10, letterSpacing: '0.12em',
           color: '#c84b31', marginBottom: 8, textTransform: 'uppercase',
         }}>
           📋 MORNING QUEUE
         </div>
         <div style={{
           fontFamily: 'var(--font-arcade), monospace',
-          fontSize: 11, color: '#f3ead9', marginBottom: 6, lineHeight: 1.5,
+          fontSize: 13, color: '#f3ead9', marginBottom: 6, lineHeight: 1.5,
         }}>
           {loading ? 'Loading…' : actions.length === 0 ? 'Inbox zero' : `${actions.length} pending action${actions.length === 1 ? '' : 's'}`}
         </div>

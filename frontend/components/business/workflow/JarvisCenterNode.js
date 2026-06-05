@@ -92,7 +92,7 @@ export default function JarvisCenterNode() {
           </span>
           <span style={{
             fontFamily: 'var(--font-arcade), monospace',
-            fontSize: 8, color: '#c84b31',
+            fontSize: 11, color: '#c84b31',
             letterSpacing: '0.1em',
           }}>
             OS1

@@ -253,7 +253,7 @@ function ConnectorCard({ manifest, connection, userId, onSave, onDelete, onTest,
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
             <span style={{
               fontFamily: 'var(--font-arcade), monospace',
-              fontSize: 8, letterSpacing: '0.1em',
+              fontSize: 11, letterSpacing: '0.1em',
               color: '#f3ead9', textTransform: 'uppercase',
             }}>
               {manifest.display_name}
@@ -268,7 +268,7 @@ function ConnectorCard({ manifest, connection, userId, onSave, onDelete, onTest,
                 <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#7fb069' }} />
                 <span style={{
                   fontFamily: 'var(--font-arcade), monospace',
-                  fontSize: 5, letterSpacing: '0.08em', color: '#7fb069',
+                  fontSize: 8, letterSpacing: '0.08em', color: '#7fb069',
                 }}>Connected</span>
               </span>
             )}
@@ -282,7 +282,7 @@ function ConnectorCard({ manifest, connection, userId, onSave, onDelete, onTest,
                 <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#ef4444' }} />
                 <span style={{
                   fontFamily: 'var(--font-arcade), monospace',
-                  fontSize: 5, letterSpacing: '0.08em', color: '#ef4444',
+                  fontSize: 8, letterSpacing: '0.08em', color: '#ef4444',
                 }}>Invalid</span>
               </span>
             )}
@@ -300,7 +300,7 @@ function ConnectorCard({ manifest, connection, userId, onSave, onDelete, onTest,
                 background: '#c84b31', border: 'none', borderRadius: 8,
                 padding: '6px 13px',
                 fontFamily: 'var(--font-arcade), monospace',
-                fontSize: 6, letterSpacing: '0.1em', textTransform: 'uppercase',
+                fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase',
                 color: '#0a0a0a', cursor: 'pointer', transition: 'opacity 200ms',
               }}
             >
@@ -523,7 +523,7 @@ export default function ConnectionsModal({ open, onClose, userId }) {
             <div>
               <div style={{
                 fontFamily: 'var(--font-arcade), monospace',
-                fontSize: 7, letterSpacing: '0.14em',
+                fontSize: 10, letterSpacing: '0.14em',
                 color: '#c84b31', textTransform: 'uppercase', marginBottom: 4,
               }}>
                 Connections

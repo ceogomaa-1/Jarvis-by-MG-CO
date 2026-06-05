@@ -13,7 +13,7 @@ export default function ArcadeToggle() {
 
   return (
     <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[45] flex items-center gap-3">
-      <span className={`font-arcade text-[7px] tracking-wider uppercase transition-colors duration-300 ${
+      <span className={`font-arcade text-[10px] tracking-wider uppercase transition-colors duration-300 ${
         !isWorkflow ? 'text-[#c84b31]' : 'text-[rgba(243,234,217,0.25)]'
       }`}>
         Chat
@@ -37,7 +37,7 @@ export default function ArcadeToggle() {
         </motion.div>
       </button>
 
-      <span className={`font-arcade text-[7px] tracking-wider uppercase transition-colors duration-300 ${
+      <span className={`font-arcade text-[10px] tracking-wider uppercase transition-colors duration-300 ${
         isWorkflow ? 'text-[#c84b31]' : 'text-[rgba(243,234,217,0.25)]'
       }`}>
         Canvas

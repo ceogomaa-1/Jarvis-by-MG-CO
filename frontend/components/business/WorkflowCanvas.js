@@ -88,7 +88,7 @@ function CanvasControlPanel({ onTriggerOperator, onTriggerCreation, isRunning })
           background: isRunning ? 'rgba(243,234,217,0.05)' : '#c84b31',
           color: isRunning ? 'rgba(243,234,217,0.28)' : '#0a0a0a',
           fontFamily: 'var(--font-arcade), monospace',
-          fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase',
+          fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase',
           boxShadow: isRunning ? 'none' : '0 0 28px rgba(200,75,49,0.28)',
           transition: 'all 300ms ease',
         }}
@@ -109,7 +109,7 @@ function CanvasControlPanel({ onTriggerOperator, onTriggerCreation, isRunning })
           cursor: 'pointer',
           color: 'rgba(243,234,217,0.6)',
           fontFamily: 'var(--font-arcade), monospace',
-          fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase',
+          fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase',
           transition: 'all 200ms ease',
         }}
         onMouseEnter={e => { e.currentTarget.style.color = 'rgba(243,234,217,0.9)'; e.currentTarget.style.background = 'rgba(243,234,217,0.08)' }}
@@ -154,7 +154,7 @@ function CreationTaskModal({ onClose, onSubmit }) {
       >
         <div style={{
           fontFamily: 'var(--font-arcade), monospace',
-          fontSize: 9, letterSpacing: '0.12em',
+          fontSize: 12, letterSpacing: '0.12em',
           color: '#f3ead9', textTransform: 'uppercase', marginBottom: 6,
         }}>
           Create Task
