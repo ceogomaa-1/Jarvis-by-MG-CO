@@ -88,41 +88,44 @@ async def calculate_readiness(user_id: str) -> dict:
                 score += 10
                 checkpoints["deep_knowledge"] = True
 
-            # 2. Name known (10 pts)
-            if any("name" in t or "called" in t for t in texts):
+            # 2. Name known (10 pts) — flexible matching
+            _name_kw = ["name is", "called", "i am", "my name", "goes by", "known as"]
+            if any(any(w in t for w in _name_kw) for t in texts) or memory_count >= 3:
                 score += 10
                 checkpoints["name_known"] = True
 
-            # 3. Business type/industry (10 pts)
+            # 3. Business type/industry (10 pts) — broad industry + generic business words
             _industries = [
                 "restaurant", "dental", "salon", "real estate", "trades",
-                "retail", "law", "clinic", "contractor",
+                "retail", "law", "clinic", "contractor", "agency", "startup",
+                "firm", "shop", "store", "practice", "tech", "software",
+                "consulting", "freelance", "ecommerce", "coaching",
             ]
             if any(any(ind in t for ind in _industries) for t in texts):
                 score += 10
                 checkpoints["business_known"] = True
 
-            # 4. Business name (10 pts)
-            if any(
-                "business" in t and ("called" in t or "named" in t or "runs" in t)
-                for t in texts
-            ):
+            # 4. Business name (10 pts) — any memory mentioning a business by name
+            _biz_name_kw = ["business", "company", "called", "named", "runs", "founded", "co.", "llc", "inc", "&"]
+            if any(any(w in t for w in _biz_name_kw) for t in texts):
                 score += 10
                 checkpoints["business_name"] = True
 
             # 5. Revenue/goals context (10 pts)
-            _revenue_kw = ["revenue", "target", "goal", "arr", "$", "monthly", "annual"]
+            _revenue_kw = ["revenue", "target", "goal", "arr", "$", "monthly", "annual", "profit", "income", "sales", "pricing", "charge", "earn"]
             if any(any(w in t for w in _revenue_kw) for t in texts):
                 score += 10
                 checkpoints["revenue_context"] = True
 
             # 6. Connectors (10 pts for ≥1, another 10 pts for ≥3)
+            # Table is business_connections (not business_connectors); active rows have status='active'
             conn_resp = await client.get(
-                f"{SUPABASE_URL}/rest/v1/business_connectors",
+                f"{SUPABASE_URL}/rest/v1/business_connections",
                 headers=_headers(),
-                params={"select": "id", "user_id": f"eq.{user_uuid}", "is_active": "eq.true"},
+                params={"select": "id", "user_id": f"eq.{user_uuid}", "status": "eq.active"},
                 timeout=10.0,
             )
+            print(f"READINESS: connectors query status={conn_resp.status_code} body={conn_resp.text[:200]}")
             connectors = conn_resp.json() if conn_resp.status_code == 200 else []
             connector_count = len(connectors)
 

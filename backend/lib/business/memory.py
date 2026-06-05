@@ -57,8 +57,11 @@ def _store_memory_if_new(sb, user_uuid: str, memory_text: str, conversation_id: 
                 "source_conversation_id": conversation_id,
                 "category": "general",
             }).execute()
+            print(f"MEMORY_EXTRACT: saved memory: {memory_text[:100]}")
+        else:
+            print(f"MEMORY_EXTRACT: duplicate, skipped: {memory_text[:60]}")
     except Exception as e:
-        print(f"store_memory error: {e}")
+        print(f"MEMORY_EXTRACT: SAVE FAILED: {e}")
 
 
 async def extract_and_store_memories(
@@ -72,7 +75,9 @@ async def extract_and_store_memories(
     Use Haiku to extract key facts from the exchange and store as discrete memories.
     Called as a background task after each chat exchange — never blocks the response stream.
     """
+    print(f"MEMORY_EXTRACT: called for user {user_id}, conv {conversation_id}")
     if not ANTHROPIC_API_KEY or not sb or not user_id:
+        print(f"MEMORY_EXTRACT: aborting — missing api_key={bool(ANTHROPIC_API_KEY)} sb={bool(sb)} user_id={bool(user_id)}")
         return
 
     user_uuid = _user_id_to_uuid(user_id)
@@ -99,19 +104,36 @@ async def extract_and_store_memories(
             )
 
         if resp.status_code != 200:
+            print(f"MEMORY_EXTRACT: Haiku API error {resp.status_code}: {resp.text[:200]}")
             return
 
         raw = resp.json().get("content", [{}])[0].get("text", "").strip()
-        memories = json.loads(raw)
-        if not isinstance(memories, list):
+        print(f"MEMORY_EXTRACT: Haiku returned: {raw[:300]}")
+
+        # Strip markdown code fences if Haiku wrapped the JSON
+        if raw.startswith("```"):
+            lines = raw.split("\n")
+            # drop first line (```json or ```) and last line (```)
+            inner_lines = lines[1:] if len(lines) > 1 else lines
+            if inner_lines and inner_lines[-1].strip() == "```":
+                inner_lines = inner_lines[:-1]
+            raw = "\n".join(inner_lines).strip()
+
+        try:
+            memories = json.loads(raw)
+        except json.JSONDecodeError:
+            print(f"MEMORY_EXTRACT: JSON parse failed on: {raw[:300]}")
             return
 
+        if not isinstance(memories, list):
+            print(f"MEMORY_EXTRACT: unexpected response type: {type(memories)}")
+            return
+
+        print(f"MEMORY_EXTRACT: extracted {len(memories)} memories")
         for memory_text in memories:
             if not isinstance(memory_text, str) or len(memory_text) < 10:
                 continue
             await asyncio.to_thread(_store_memory_if_new, sb, user_uuid, memory_text, conversation_id)
 
-    except (json.JSONDecodeError, KeyError):
-        pass
     except Exception as e:
-        print(f"extract_and_store_memories error: {e}")
+        print(f"MEMORY_EXTRACT: error: {e}")

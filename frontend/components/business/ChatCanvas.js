@@ -723,24 +723,24 @@ export default function ChatCanvas({
 
       {/* Input area */}
       <div style={{ padding: '8px 40px 24px', flexShrink: 0 }}>
-        <div style={{ maxWidth: 760, margin: '0 auto' }}>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
+        {/* position:relative so the toggle can anchor left without shifting input */}
+        <div style={{ maxWidth: 760, margin: '0 auto', position: 'relative' }}>
+          {/* Toggle floats to the left, outside layout flow, keeping input centered */}
+          <div style={{ position: 'absolute', left: -68, bottom: 12 }}>
             <AutonomousToggle
               userId={userId}
               apiUrl={BACKEND}
               isReady={readiness?.is_ready === true}
               onToggle={setAutonomousEnabled}
             />
-            <div style={{ flex: 1 }}>
-              <PromptInputBox
-                onSend={(message, files) => sendMessage(message, files)}
-                isLoading={loading}
-                placeholder="Message Jarvis..."
-                enableVoice={false}
-                enableUpload={true}
-              />
-            </div>
           </div>
+          <PromptInputBox
+            onSend={(message, files) => sendMessage(message, files)}
+            isLoading={loading}
+            placeholder="Message Jarvis..."
+            enableVoice={false}
+            enableUpload={true}
+          />
         </div>
       </div>
     </motion.div>

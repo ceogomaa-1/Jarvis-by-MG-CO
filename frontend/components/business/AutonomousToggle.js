@@ -1,104 +1,52 @@
 'use client'
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Lock, Zap } from 'lucide-react'
+import { Lock } from 'lucide-react'
 
 export default function AutonomousToggle({ userId, apiUrl, isReady, onToggle }) {
   const [isEnabled, setIsEnabled] = useState(false)
   const [showTooltip, setShowTooltip] = useState(false)
 
-  async function handleToggle() {
+  function handleClick() {
     if (!isReady) {
       setShowTooltip(true)
       setTimeout(() => setShowTooltip(false), 3000)
       return
     }
-
     const newState = !isEnabled
     setIsEnabled(newState)
     onToggle?.(newState)
-
-    try {
-      await fetch(`${apiUrl}/api/business/autonomous/toggle`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, enabled: newState }),
-      })
-    } catch (e) {
-      console.error('Autonomous toggle failed:', e)
-    }
+    fetch(`${apiUrl}/api/business/autonomous/toggle`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, enabled: newState }),
+    }).catch(console.error)
   }
 
-  const knobLeft = isEnabled && isReady ? 'calc(100% - 26px)' : '2px'
+  const containerClass = [
+    'lever-toggle',
+    isEnabled && isReady ? 'enabled' : '',
+    !isReady ? 'locked' : '',
+  ].filter(Boolean).join(' ')
 
   return (
-    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-      {/* Toggle switch */}
-      <button
-        onClick={handleToggle}
-        title={!isReady ? 'Complete the readiness bar to unlock autonomous mode' : 'Toggle autonomous mode'}
-        style={{
-          position: 'relative',
-          width: 52,
-          height: 26,
-          borderRadius: 13,
-          border: `1px solid ${
-            !isReady
-              ? 'rgba(243,234,217,0.06)'
-              : isEnabled
-                ? 'rgba(200,75,49,0.3)'
-                : 'rgba(243,234,217,0.1)'
-          }`,
-          background: !isReady
-            ? 'rgba(243,234,217,0.02)'
-            : isEnabled
-              ? 'rgba(200,75,49,0.12)'
-              : 'rgba(243,234,217,0.04)',
-          cursor: !isReady ? 'not-allowed' : 'pointer',
-          opacity: !isReady ? 0.45 : 1,
-          transition: 'all 0.3s ease',
-          overflow: 'hidden',
-          padding: 0,
-        }}
-      >
-        {/* Glow ring when enabled */}
-        {isEnabled && isReady && (
-          <div style={{
-            position: 'absolute',
-            inset: 0,
-            borderRadius: 13,
-            boxShadow: '0 0 10px rgba(200,75,49,0.2)',
-            animation: 'pulse 2s infinite',
-          }} />
-        )}
-
-        {/* Knob */}
-        <motion.div
-          animate={{ left: knobLeft }}
-          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-          style={{
-            position: 'absolute',
-            top: 1,
-            width: 22,
-            height: 22,
-            borderRadius: 11,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: isEnabled && isReady
-              ? '#c84b31'
-              : 'rgba(243,234,217,0.15)',
-            boxShadow: isEnabled && isReady ? '0 0 8px rgba(200,75,49,0.4)' : 'none',
-            transition: 'background 0.2s ease',
-          }}
-        >
-          {!isReady ? (
-            <Lock size={9} color="rgba(243,234,217,0.3)" />
-          ) : (
-            <Zap size={9} color={isEnabled ? '#0a0a0a' : 'rgba(243,234,217,0.4)'} />
-          )}
-        </motion.div>
-      </button>
+    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+      {/* Lever switch */}
+      <div className={containerClass} onClick={handleClick} title={!isReady ? 'Complete the readiness bar to unlock' : undefined}>
+        <div className="lever-toggle-handle-wrapper">
+          <div className="lever-toggle-handle">
+            <div className="lever-toggle-knob">
+              {!isReady && <Lock size={6} color="rgba(243,234,217,0.35)" />}
+            </div>
+            <div className="lever-toggle-bar-wrapper">
+              <div className="lever-toggle-bar" />
+            </div>
+          </div>
+        </div>
+        <div className="lever-toggle-base">
+          <div className="lever-toggle-base-inside" />
+        </div>
+      </div>
 
       {/* Label */}
       <span style={{
@@ -122,7 +70,8 @@ export default function AutonomousToggle({ userId, apiUrl, isReady, onToggle }) 
           style={{
             position: 'absolute',
             bottom: '100%',
-            left: 0,
+            left: '50%',
+            transform: 'translateX(-50%)',
             marginBottom: 8,
             padding: '8px 12px',
             borderRadius: 10,
