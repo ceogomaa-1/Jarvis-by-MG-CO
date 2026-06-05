@@ -127,6 +127,17 @@ async def _dispatch(connector, connector_type: str, action_name: str, inp: dict)
             return await connector.list_calendar_events(max_results=int(inp.get("max_results", 10)))
         if action_name == "create_calendar_event":
             return await connector.create_calendar_event(event_body=inp["event_body"])
+        if action_name == "update_calendar_event":
+            return await connector.update_calendar_event(
+                event_id=inp["event_id"],
+                summary=inp.get("summary"),
+                description=inp.get("description"),
+                start=inp.get("start"),
+                end=inp.get("end"),
+                location=inp.get("location"),
+            )
+        if action_name == "delete_calendar_event":
+            return await connector.delete_calendar_event(event_id=inp["event_id"])
         if action_name == "list_emails":
             return await connector.list_emails(
                 max_results=int(inp.get("max_results", 10)),

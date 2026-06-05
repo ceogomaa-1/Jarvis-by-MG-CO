@@ -23,6 +23,36 @@ SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 
 MAX_TOOL_ROUNDS = 5  # Safety limit on tool-use iterations per request
 
+_CONFIRMATION_TRIGGERS = [
+    "should i go ahead", "want me to proceed", "shall i", "go ahead?",
+    "want me to go ahead", "proceed?", "ready to proceed", "confirm this",
+]
+
+_ACTION_PATTERNS = [
+    ("send", "email", "Send email"),
+    ("create", "event", "Create calendar event"),
+    ("schedule", "event", "Schedule event"),
+    ("update", "event", "Update calendar event"),
+    ("move", "event", "Move calendar event"),
+    ("delete", "event", "Delete calendar event"),
+    ("send", "sms", "Send SMS"),
+    ("create", "page", "Create Notion page"),
+    ("create", "database", "Create Notion database"),
+    ("create", "agent", "Create ElevenLabs agent"),
+    ("update", "agent", "Update ElevenLabs agent"),
+    ("delete", "agent", "Delete ElevenLabs agent"),
+]
+
+
+def _detect_pending_action(text: str) -> str | None:
+    lower = text.lower()
+    if not any(t in lower for t in _CONFIRMATION_TRIGGERS):
+        return None
+    for w1, w2, label in _ACTION_PATTERNS:
+        if w1 in lower and w2 in lower:
+            return label
+    return "Proceed"
+
 
 def _get_supabase():
     if not SUPABASE_URL or not SUPABASE_KEY:
@@ -224,6 +254,10 @@ async def business_chat_stream(request: BusinessChatRequest):
                         )
                         for char in final_text:
                             yield f"data: {json.dumps(char)}\n\n"
+                        # Emit pending_action before DONE if Jarvis asked for confirmation
+                        pending_label = _detect_pending_action(final_text)
+                        if pending_label:
+                            yield f'data: {json.dumps({"type": "pending_action", "action": {"description": pending_label}})}\n\n'
                         yield "data: [DONE]\n\n"
                         got_final_response = True
                         break

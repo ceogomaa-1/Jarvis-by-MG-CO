@@ -183,6 +183,69 @@ class GoogleConnector(BaseConnector):
         except Exception as e:
             return ConnectorResult(ok=False, error=f"Create event failed: {e}")
 
+    async def update_calendar_event(
+        self, event_id: str, summary: str | None = None, description: str | None = None,
+        start: dict | None = None, end: dict | None = None, location: str | None = None,
+    ) -> ConnectorResult:
+        access_token = await self._get_fresh_access_token()
+        if not access_token:
+            return ConnectorResult(ok=False, error="Could not get Google access token.")
+        try:
+            async with httpx.AsyncClient() as client:
+                # Fetch existing event
+                get_resp = await client.get(
+                    f"https://www.googleapis.com/calendar/v3/calendars/primary/events/{event_id}",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                    timeout=15.0,
+                )
+                get_resp.raise_for_status()
+                event = get_resp.json()
+                # Apply only the provided fields
+                if summary is not None:
+                    event["summary"] = summary
+                if description is not None:
+                    event["description"] = description
+                if start is not None:
+                    event["start"] = start
+                if end is not None:
+                    event["end"] = end
+                if location is not None:
+                    event["location"] = location
+                put_resp = await client.put(
+                    f"https://www.googleapis.com/calendar/v3/calendars/primary/events/{event_id}",
+                    headers={"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"},
+                    json=event,
+                    timeout=15.0,
+                )
+                put_resp.raise_for_status()
+                updated = put_resp.json()
+            return ConnectorResult(ok=True, data={
+                "event_id": updated["id"],
+                "summary": updated.get("summary"),
+                "start": updated.get("start"),
+                "end": updated.get("end"),
+                "link": updated.get("htmlLink"),
+                "status": "updated",
+            })
+        except Exception as e:
+            return ConnectorResult(ok=False, error=f"Update event failed: {e}")
+
+    async def delete_calendar_event(self, event_id: str) -> ConnectorResult:
+        access_token = await self._get_fresh_access_token()
+        if not access_token:
+            return ConnectorResult(ok=False, error="Could not get Google access token.")
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.delete(
+                    f"https://www.googleapis.com/calendar/v3/calendars/primary/events/{event_id}",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                    timeout=15.0,
+                )
+                resp.raise_for_status()
+            return ConnectorResult(ok=True, data={"event_id": event_id, "status": "deleted"})
+        except Exception as e:
+            return ConnectorResult(ok=False, error=f"Delete event failed: {e}")
+
     async def list_emails(self, max_results: int = 10, query: str = "") -> ConnectorResult:
         access_token = await self._get_fresh_access_token()
         if not access_token:

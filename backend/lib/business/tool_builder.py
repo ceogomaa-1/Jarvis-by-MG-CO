@@ -254,6 +254,31 @@ _TOOLS: dict[str, dict] = {
             "required": ["event_body"],
         },
     },
+    "google__update_calendar_event": {
+        "description": "[Google Calendar] Update an existing calendar event (title, time, description, location). Confirm with user before calling.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "event_id": {"type": "string", "description": "Event ID from list_calendar_events"},
+                "summary": {"type": "string", "description": "New event title (optional)"},
+                "description": {"type": "string", "description": "New description (optional)"},
+                "start": {"type": "object", "description": "New start: {dateTime: ISO8601, timeZone: string} (optional)"},
+                "end": {"type": "object", "description": "New end: {dateTime: ISO8601, timeZone: string} (optional)"},
+                "location": {"type": "string", "description": "New location (optional)"},
+            },
+            "required": ["event_id"],
+        },
+    },
+    "google__delete_calendar_event": {
+        "description": "[Google Calendar] Delete a calendar event permanently. ALWAYS confirm with user first — irreversible.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "event_id": {"type": "string", "description": "Event ID from list_calendar_events"},
+            },
+            "required": ["event_id"],
+        },
+    },
     "google__list_emails": {
         "description": "[Gmail] List recent emails. Optionally filter with a Gmail search query.",
         "input_schema": {
