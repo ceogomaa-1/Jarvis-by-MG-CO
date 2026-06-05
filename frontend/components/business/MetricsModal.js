@@ -94,14 +94,14 @@ export default function MetricsModal({ open, onClose, userId }) {
       >
         <div style={{
           fontFamily: 'var(--font-arcade), monospace',
-          fontSize: 7, letterSpacing: '0.12em',
+          fontSize: 10, letterSpacing: '0.12em',
           color: '#c84b31', marginBottom: 8, textTransform: 'uppercase',
         }}>
           YOUR NUMBERS
         </div>
         <div style={{
           fontFamily: 'var(--font-arcade), monospace',
-          fontSize: 11, color: '#f3ead9', marginBottom: 6, lineHeight: 1.5,
+          fontSize: 13, color: '#f3ead9', marginBottom: 6, lineHeight: 1.5,
         }}>
           Update your current metrics
         </div>

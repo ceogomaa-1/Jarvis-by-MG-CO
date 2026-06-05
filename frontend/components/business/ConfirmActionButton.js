@@ -61,7 +61,7 @@ export default function ConfirmActionButton({ action, onConfirm, onCancel }) {
           <Check size={11} color="#7fb069" />
           <span style={{
             fontFamily: 'var(--font-arcade), monospace',
-            fontSize: 7,
+            fontSize: 10,
             letterSpacing: '0.08em',
             color: '#7fb069',
           }}>

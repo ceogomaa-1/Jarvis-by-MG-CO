@@ -37,7 +37,7 @@ function SuggestionCard({ icon: Icon, text, onClick }) {
       }}
     >
       <Icon size={20} color="rgba(243,234,217,0.3)" />
-      <span className="font-arcade text-[7px] tracking-wider text-[rgba(243,234,217,0.6)]" style={{ lineHeight: 1.6 }}>
+      <span className="font-arcade text-[10px] tracking-wider text-[rgba(243,234,217,0.6)]" style={{ lineHeight: 1.6 }}>
         {text}
       </span>
     </button>
@@ -81,7 +81,7 @@ export default function WelcomeState({ onSuggestion, isStreaming = false }) {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, ease: 'easeOut', delay: 0.35 }}
-        className="font-arcade text-[9px] tracking-wider text-[rgba(243,234,217,0.4)]"
+        className="font-arcade text-[12px] tracking-wider text-[rgba(243,234,217,0.4)]"
         style={{ marginTop: 16, marginBottom: 0 }}
       >
         What should we work on?

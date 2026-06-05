@@ -103,7 +103,7 @@ export default function AutonomousToggle({ userId, apiUrl, isReady, onToggle }) 
       {/* Label */}
       <span style={{
         fontFamily: 'var(--font-arcade), monospace',
-        fontSize: 6,
+        fontSize: 9,
         letterSpacing: '0.1em',
         textTransform: 'uppercase',
         color: isEnabled && isReady ? '#c84b31' : 'rgba(243,234,217,0.2)',
@@ -135,7 +135,7 @@ export default function AutonomousToggle({ userId, apiUrl, isReady, onToggle }) 
         >
           <div style={{
             fontFamily: 'var(--font-arcade), monospace',
-            fontSize: 6,
+            fontSize: 9,
             letterSpacing: '0.08em',
             color: '#c84b31',
             marginBottom: 3,
@@ -144,7 +144,7 @@ export default function AutonomousToggle({ userId, apiUrl, isReady, onToggle }) 
           </div>
           <div style={{
             fontFamily: 'var(--font-arcade), monospace',
-            fontSize: 5,
+            fontSize: 8,
             letterSpacing: '0.08em',
             color: 'rgba(243,234,217,0.35)',
           }}>

@@ -98,7 +98,7 @@ function ToolStatusPill({ toolName }) {
       />
       <span style={{
         fontFamily: 'var(--font-arcade), monospace',
-        fontSize: 7, letterSpacing: '0.08em',
+        fontSize: 10, letterSpacing: '0.08em',
         color: 'rgba(200,75,49,0.8)', textTransform: 'uppercase',
       }}>
         {pretty}…
@@ -660,7 +660,7 @@ export default function ChatCanvas({
                           <span style={{ fontSize: 10, color: '#c84b31' }}>⚡</span>
                           <span style={{
                             fontFamily: 'var(--font-arcade), monospace',
-                            fontSize: 5,
+                            fontSize: 8,
                             letterSpacing: '0.1em',
                             textTransform: 'uppercase',
                             color: 'rgba(200,75,49,0.55)',

@@ -130,7 +130,7 @@ export default function AgentInspectorPanel({ agent, agentActivity, activityLoad
               <div style={{ padding: '20px 24px' }}>
                 <div style={{
                   fontFamily: 'var(--font-arcade), monospace',
-                  fontSize: 6, letterSpacing: '0.2em',
+                  fontSize: 9, letterSpacing: '0.2em',
                   color: 'rgba(243,234,217,0.4)', textTransform: 'uppercase',
                   marginBottom: 12,
                 }}>
@@ -162,7 +162,7 @@ export default function AgentInspectorPanel({ agent, agentActivity, activityLoad
               <div style={{ padding: '0 24px 20px' }}>
                 <div style={{
                   fontFamily: 'var(--font-arcade), monospace',
-                  fontSize: 6, letterSpacing: '0.2em',
+                  fontSize: 9, letterSpacing: '0.2em',
                   color: 'rgba(243,234,217,0.4)', textTransform: 'uppercase',
                   marginBottom: 10,
                 }}>
@@ -193,7 +193,7 @@ export default function AgentInspectorPanel({ agent, agentActivity, activityLoad
                 background: '#c84b31',
                 border: 'none', borderRadius: 10,
                 padding: '14px 0',
-                color: 'white', fontSize: 7,
+                color: 'white', fontSize: 10,
                 fontFamily: 'var(--font-arcade), monospace',
                 cursor: 'pointer', letterSpacing: '0.1em', textTransform: 'uppercase',
                 transition: 'brightness 150ms',

@@ -53,7 +53,7 @@ export default function ReadinessBar({ userId, apiUrl, onReadinessUpdate }) {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
             <span style={{
               fontFamily: 'var(--font-arcade), monospace',
-              fontSize: 6,
+              fontSize: 9,
               letterSpacing: '0.12em',
               color: 'rgba(243,234,217,0.3)',
               textTransform: 'uppercase',
@@ -62,7 +62,7 @@ export default function ReadinessBar({ userId, apiUrl, onReadinessUpdate }) {
             </span>
             <span style={{
               fontFamily: 'var(--font-arcade), monospace',
-              fontSize: 7,
+              fontSize: 10,
               letterSpacing: '0.1em',
               color: '#c84b31',
             }}>
@@ -158,7 +158,7 @@ export default function ReadinessBar({ userId, apiUrl, onReadinessUpdate }) {
                   <span style={{ fontSize: 9 }}>{checkpoints[item.key] ? '✅' : '⬜'}</span>
                   <span style={{
                     fontFamily: 'var(--font-arcade), monospace',
-                    fontSize: 5,
+                    fontSize: 8,
                     letterSpacing: '0.08em',
                     color: checkpoints[item.key] ? 'rgba(243,234,217,0.55)' : 'rgba(243,234,217,0.2)',
                   }}>

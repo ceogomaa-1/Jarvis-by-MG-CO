@@ -71,7 +71,7 @@ export default function AgentNode({ data, selected }) {
         <Icon size={24} color="#f3ead9" />
         <span style={{
           fontFamily: 'var(--font-arcade), monospace',
-          fontSize: 7, textTransform: 'uppercase', letterSpacing: '0.08em',
+          fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em',
           color: 'rgba(243,234,217,0.8)', textAlign: 'center',
           lineHeight: 1.2, padding: '0 6px',
         }}>
