@@ -31,6 +31,7 @@ from backend.cron.business_risk_cron import run_business_risk_briefings
 from backend.routes.user_preferences import router as user_preferences_router
 from backend.routes.export import router as export_router
 from backend.routes.documents import router as documents_router
+from backend.routes.business.readiness_routes import router as business_readiness_router
 
 if not ANTHROPIC_API_KEY:
     raise RuntimeError(
@@ -117,6 +118,7 @@ app.include_router(business_conversations_router, prefix="/api")
 app.include_router(user_preferences_router, prefix="/api")
 app.include_router(export_router, prefix="/api")
 app.include_router(documents_router, prefix="/api")
+app.include_router(business_readiness_router, prefix="/api")
 
 
 @app.on_event("startup")
