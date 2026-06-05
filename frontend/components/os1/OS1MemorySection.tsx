@@ -101,13 +101,13 @@ export default function OS1MemorySection() {
 
         <div className="os1-fade-up os1-fade-up-delay-2 max-w-2xl mx-auto space-y-3">
           {[
-            "Mo is the founder of MG&CO Technologies Inc.",
-            "Business is an AI automation agency based in Toronto/Oshawa",
-            "Currently pre-revenue, first paying client is top priority",
-            "North Star target: $1M ARR",
-            "Upcoming pitch with Jon for restaurant vertical",
-            "Stripe connected — live account, monitoring revenue",
-            "16 waitlist form submissions tracked in Notion",
+            "Owner prefers follow-up emails sent before 9 AM on weekdays",
+            "Business has 3 active service packages — Premium is top seller",
+            "Q4 revenue target: increase repeat bookings by 22%",
+            "Stripe shows Tuesday and Thursday as highest-grossing days",
+            "Team lead Sarah handles all enterprise client onboarding",
+            "Preferred tone for client emails: warm, professional, no jargon",
+            "Seasonal discount campaign planned for first week of December",
           ].map((memory, i) => (
             <div
               key={i}
@@ -124,7 +124,7 @@ export default function OS1MemorySection() {
             className="font-arcade text-center pt-4"
             style={{ fontSize: "7px", color: "rgba(243,234,217,0.2)", letterSpacing: "0.2em" }}
           >
-            REAL MEMORIES FROM A LIVE JARVIS INSTANCE
+            EXAMPLE MEMORIES FROM A LIVE JARVIS INSTANCE
           </p>
         </div>
       </div>

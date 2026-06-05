@@ -44,7 +44,7 @@ export default function OS1CTASection() {
 
         <div className="os1-fade-up os1-fade-up-delay-2 flex flex-col sm:flex-row items-center justify-center gap-4">
           <a
-            href="/business/chat"
+            href="#waitlist"
             className="font-arcade inline-flex items-center gap-2 px-8 py-4 rounded-xl"
             style={{
               fontSize: "10px",
@@ -54,22 +54,7 @@ export default function OS1CTASection() {
               transition: "opacity 0.2s",
             }}
           >
-            START NOW →
-          </a>
-
-          <a
-            href="#pricing"
-            className="font-arcade inline-flex items-center gap-2 px-8 py-4 rounded-xl"
-            style={{
-              fontSize: "10px",
-              letterSpacing: "0.1em",
-              backgroundColor: "transparent",
-              color: "#f3ead9",
-              border: "1px solid rgba(243,234,217,0.15)",
-              transition: "opacity 0.2s",
-            }}
-          >
-            SEE PRICING
+            JOIN THE WAITLIST →
           </a>
         </div>
 

@@ -90,9 +90,10 @@ const CpuArchitecture = ({
         )}
         <rect x="85" y="40" width="30" height="20" rx="2" fill="#181818" filter="url(#cpu-light-shadow)" />
         <text
-          x={text.length <= 3 ? "92" : text.length <= 6 ? "88" : "86"}
+          x="100"
           y="52.5"
-          fontSize={text.length <= 3 ? "7" : text.length <= 6 ? "5.5" : "4"}
+          textAnchor="middle"
+          fontSize={text.length <= 3 ? "7" : text.length <= 6 ? "5.5" : "4.2"}
           fill={animateText ? "url(#cpu-text-gradient)" : "white"}
           fontWeight="600"
           letterSpacing="0.05em"
