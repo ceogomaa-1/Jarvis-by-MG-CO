@@ -169,6 +169,7 @@ export default function ChatCanvas({
   activeConversationId,
   onConversationCreated,
   onConversationsUpdated,
+  onMemoryCountUpdate,
 }) {
   const [messages, setMessages] = useState([])
   const [messagesLoading, setMessagesLoading] = useState(false)
@@ -585,7 +586,14 @@ export default function ChatCanvas({
     >
       <ChatHeaderMenu userId={userId} onBrandSaved={() => {}} />
 
-      <ReadinessBar userId={userId} apiUrl={BACKEND} onReadinessUpdate={setReadiness} />
+      <ReadinessBar
+        userId={userId}
+        apiUrl={BACKEND}
+        onReadinessUpdate={(data) => {
+          setReadiness(data)
+          if (data?.memory_count != null) onMemoryCountUpdate?.(data.memory_count)
+        }}
+      />
 
       {/* Messages or Welcome */}
       <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>

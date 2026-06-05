@@ -48,9 +48,12 @@ export default function BusinessChatPage() {
     if (!id) return
     try {
       const res = await fetch(`${BACKEND}/api/business/memories/count?user_id=${encodeURIComponent(id)}`)
+      if (!res.ok) { console.error('loadMemoryCount HTTP error:', res.status); return }
       const data = await res.json()
-      setMemoryCount(data.count || 0)
-    } catch {}
+      if (data.count != null) setMemoryCount(data.count)
+    } catch (e) {
+      console.error('loadMemoryCount failed:', e)
+    }
   }, [userId])
 
   useEffect(() => {
@@ -235,6 +238,7 @@ export default function BusinessChatPage() {
             activeConversationId={activeConversationId}
             onConversationCreated={handleConversationCreated}
             onConversationsUpdated={handleConversationsUpdated}
+            onMemoryCountUpdate={(count) => setMemoryCount(c => Math.max(c, count))}
           />
         </div>
       </div>

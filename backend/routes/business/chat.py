@@ -274,7 +274,9 @@ async def business_chat_stream(request: BusinessChatRequest):
             yield "data: [DONE]\n\n"
             return
 
-        # Post-stream: persist assistant message + fire background tasks
+        # Post-stream: persist assistant message + memory extraction
+        # await instead of create_task so extraction runs even if the client
+        # closes the SSE connection immediately after receiving [DONE]
         if sb and conv_id and final_text:
             try:
                 await asyncio.to_thread(_save_assistant_message, sb, conv_id, final_text)
@@ -282,10 +284,8 @@ async def business_chat_stream(request: BusinessChatRequest):
                 if is_new_conv:
                     asyncio.create_task(_auto_title(sb, conv_id, request.message))
 
-                asyncio.create_task(
-                    extract_and_store_memories(
-                        request.user_id, conv_id, request.message, final_text, sb
-                    )
+                await extract_and_store_memories(
+                    request.user_id, conv_id, request.message, final_text, sb
                 )
             except Exception as e:
                 print(f"Post-stream persistence error: {e}")
