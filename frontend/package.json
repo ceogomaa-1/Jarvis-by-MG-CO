@@ -36,6 +36,7 @@
     "tailwindcss-animate": "^1.0.7",
     "three": "^0.170.0",
     "typescript": "^5.9.3",
+    "unicornstudio-react": "^2.1.9",
     "uuid": "^14.0.0"
   },
   "devDependencies": {
