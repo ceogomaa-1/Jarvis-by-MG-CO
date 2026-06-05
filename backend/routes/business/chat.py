@@ -23,35 +23,53 @@ SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 
 MAX_TOOL_ROUNDS = 5  # Safety limit on tool-use iterations per request
 
-_CONFIRMATION_TRIGGERS = [
-    "should i go ahead", "want me to proceed", "shall i", "go ahead?",
-    "want me to go ahead", "proceed?", "ready to proceed", "confirm this",
-]
-
-_ACTION_PATTERNS = [
-    ("send", "email", "Send email"),
-    ("create", "event", "Create calendar event"),
-    ("schedule", "event", "Schedule event"),
-    ("update", "event", "Update calendar event"),
-    ("move", "event", "Move calendar event"),
-    ("delete", "event", "Delete calendar event"),
-    ("send", "sms", "Send SMS"),
-    ("create", "page", "Create Notion page"),
-    ("create", "database", "Create Notion database"),
-    ("create", "agent", "Create ElevenLabs agent"),
-    ("update", "agent", "Update ElevenLabs agent"),
-    ("delete", "agent", "Delete ElevenLabs agent"),
-]
+# Write actions that require user confirmation before execution.
+# When Claude generates tool_use for any of these, the backend intercepts it,
+# emits a pending_action SSE event, and waits for explicit hold-to-confirm.
+WRITE_ACTIONS = frozenset({
+    "google__send_email",
+    "google__create_calendar_event",
+    "google__update_calendar_event",
+    "google__delete_calendar_event",
+    "twilio__send_sms",
+    "smtp__send_email",
+    "notion__create_page",
+    "notion__create_database",
+    "elevenlabs__create_agent",
+    "elevenlabs__update_agent",
+    "elevenlabs__delete_agent",
+    "gohighlevel__create_contact",
+})
 
 
-def _detect_pending_action(text: str) -> str | None:
-    lower = text.lower()
-    if not any(t in lower for t in _CONFIRMATION_TRIGGERS):
-        return None
-    for w1, w2, label in _ACTION_PATTERNS:
-        if w1 in lower and w2 in lower:
-            return label
-    return "Proceed"
+def _describe_action(tool_name: str, tool_input: dict) -> str:
+    """Human-readable label for a pending write action."""
+    if "send_email" in tool_name:
+        return f"Send email to {tool_input.get('to', '?')}"
+    if "create_calendar_event" in tool_name:
+        event = tool_input.get("event_body", {})
+        return f"Create event: {event.get('summary', '?')}"
+    if "update_calendar_event" in tool_name:
+        return f"Update event: {tool_input.get('event_id', '?')}"
+    if "delete_calendar_event" in tool_name:
+        return f"Delete event: {tool_input.get('event_id', '?')}"
+    if "send_sms" in tool_name:
+        return f"Send SMS to {tool_input.get('to', '?')}"
+    if "create_page" in tool_name:
+        return "Create Notion page"
+    if "create_database" in tool_name:
+        return f"Create Notion database: {tool_input.get('title', '?')}"
+    if "create_agent" in tool_name:
+        return f"Create agent: {tool_input.get('name', '?')}"
+    if "update_agent" in tool_name:
+        return f"Update agent: {tool_input.get('agent_id', '?')}"
+    if "delete_agent" in tool_name:
+        return f"Delete agent: {tool_input.get('agent_id', '?')}"
+    if "create_contact" in tool_name:
+        first = tool_input.get("firstName", "")
+        last = tool_input.get("lastName", "")
+        return f"Create contact: {(first + ' ' + last).strip() or '?'}"
+    return tool_name.replace("__", " → ").replace("_", " ").title()
 
 
 def _get_supabase():
@@ -254,30 +272,45 @@ async def business_chat_stream(request: BusinessChatRequest):
                         )
                         for char in final_text:
                             yield f"data: {json.dumps(char)}\n\n"
-                        # Emit pending_action before DONE if Jarvis asked for confirmation
-                        pending_label = _detect_pending_action(final_text)
-                        if pending_label:
-                            yield f'data: {json.dumps({"type": "pending_action", "action": {"description": pending_label}})}\n\n'
                         yield "data: [DONE]\n\n"
                         got_final_response = True
                         break
 
                     # ── Tool use round ─────────────────────────────────────────
-                    # Accumulate any text Claude emitted alongside the tool call
+                    # Stream any text Claude emitted alongside the tool call
                     round_text = "".join(
                         b.get("text", "") for b in content_blocks if b.get("type") == "text"
                     )
                     final_text += round_text
+                    for char in round_text:
+                        yield f"data: {json.dumps(char)}\n\n"
 
-                    # Add assistant message (with tool_use blocks) to history
+                    tool_use_blocks = [b for b in content_blocks if b.get("type") == "tool_use"]
+                    write_blocks = [b for b in tool_use_blocks if b["name"] in WRITE_ACTIONS]
+
+                    if write_blocks:
+                        # Intercept: pause before any write action and ask for confirmation.
+                        # Do NOT execute the tool or add to conversation history.
+                        w = write_blocks[0]
+                        pending_event = {
+                            "type": "pending_action",
+                            "action": {
+                                "tool_name": w["name"],
+                                "tool_input": w.get("input", {}),
+                                "tool_id": w["id"],
+                                "description": _describe_action(w["name"], w.get("input", {})),
+                            },
+                        }
+                        yield f'data: {json.dumps(pending_event)}\n\n'
+                        yield "data: [DONE]\n\n"
+                        got_final_response = True
+                        break
+
+                    # No write actions — execute all tools and continue the loop
                     current_messages.append({"role": "assistant", "content": content_blocks})
 
-                    # Execute each tool call, emitting status events for the frontend
                     tool_results = []
-                    for block in content_blocks:
-                        if block.get("type") != "tool_use":
-                            continue
-
+                    for block in tool_use_blocks:
                         tool_name = block["name"]
                         tool_id = block["id"]
                         tool_inp = block.get("input", {})
@@ -329,3 +362,79 @@ async def business_chat_stream(request: BusinessChatRequest):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
     )
+
+
+class ConfirmActionRequest(BaseModel):
+    user_id: str
+    tool_name: str
+    tool_input: dict
+    conversation_id: str | None = None
+
+
+@router.post("/business/chat/confirm-action")
+async def confirm_action(request: ConfirmActionRequest):
+    """Execute a write action that was deferred for user confirmation."""
+    result_str = await execute_tool(request.tool_name, request.tool_input, request.user_id)
+
+    try:
+        result_data = json.loads(result_str) if isinstance(result_str, str) else result_str
+    except Exception:
+        result_data = {}
+
+    # Generate a natural language confirmation via a fast model
+    confirmation_text = _make_fallback_confirmation(request.tool_name, result_data)
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": ANTHROPIC_API_KEY,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                },
+                json={
+                    "model": "claude-haiku-4-5-20251001",
+                    "max_tokens": 150,
+                    "messages": [{
+                        "role": "user",
+                        "content": (
+                            f"The action '{request.tool_name}' was just executed with result: "
+                            f"{json.dumps(result_data)[:400]}. "
+                            "Write a brief 1-2 sentence natural confirmation of what was done. "
+                            "Be specific and direct. No pleasantries."
+                        ),
+                    }],
+                },
+                timeout=30.0,
+            )
+        if resp.status_code == 200:
+            text = resp.json().get("content", [{}])[0].get("text", "").strip()
+            if text:
+                confirmation_text = text
+    except Exception as e:
+        print(f"confirm-action: LLM fallback error: {e}")
+
+    # Persist the confirmation message to conversation history
+    if request.conversation_id and request.user_id:
+        sb = _get_supabase()
+        if sb:
+            try:
+                await asyncio.to_thread(_save_assistant_message, sb, request.conversation_id, confirmation_text)
+            except Exception as e:
+                print(f"confirm-action: DB save error: {e}")
+
+    return {"response": confirmation_text, "tool_result": result_data}
+
+
+def _make_fallback_confirmation(tool_name: str, result_data: dict) -> str:
+    if "error" in result_data:
+        return f"Action failed: {result_data['error']}"
+    if result_data.get("status") == "deleted":
+        return "Deleted successfully."
+    if result_data.get("status") == "updated":
+        return "Updated successfully."
+    if result_data.get("status") == "sent":
+        return "Sent successfully."
+    if "event_id" in result_data:
+        return f"Event created. Link: {result_data.get('link', 'N/A')}"
+    return "Done."

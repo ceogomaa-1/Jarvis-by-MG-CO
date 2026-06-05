@@ -296,6 +296,42 @@ export default function ChatCanvas({
     sendMessage('Yes, please go ahead.')
   }
 
+  const executeConfirmedAction = async (pendingAction, msgId) => {
+    if (!pendingAction?.tool_name) {
+      // Legacy text-only pending_action — fall back to re-sending "Yes"
+      handleActionConfirm()
+      updateMessage(msgId, { action_resolved: true, action_status: 'confirmed' })
+      return
+    }
+    updateMessage(msgId, { action_resolved: true, action_status: 'confirmed' })
+    try {
+      const res = await fetch(`${BACKEND}/api/business/chat/confirm-action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: userId || '',
+          tool_name: pendingAction.tool_name,
+          tool_input: pendingAction.tool_input,
+          conversation_id: activeConvRef.current || null,
+        }),
+      })
+      const result = await res.json()
+      msgIdRef.current += 1
+      setMessages(prev => [...prev, {
+        id: msgIdRef.current,
+        role: 'assistant',
+        content: result.response || 'Done.',
+        streaming: false,
+        chunks: [],
+      }])
+      onConversationsUpdated?.()
+    } catch (err) {
+      console.error('Confirm action failed:', err)
+      // Fallback: send as a new chat message so Claude can retry
+      handleActionConfirm()
+    }
+  }
+
   async function fileToAttachment(file) {
     return new Promise((resolve) => {
       const reader = new FileReader()
@@ -686,10 +722,7 @@ export default function ChatCanvas({
                       {m.pending_action && !m.action_resolved && (
                         <ConfirmActionButton
                           action={m.pending_action.description || m.pending_action}
-                          onConfirm={() => {
-                            handleActionConfirm(m.pending_action)
-                            updateMessage(m.id, { action_resolved: true, action_status: 'confirmed' })
-                          }}
+                          onConfirm={() => executeConfirmedAction(m.pending_action, m.id)}
                           onCancel={() => {
                             updateMessage(m.id, { action_resolved: true, action_status: 'cancelled' })
                           }}
