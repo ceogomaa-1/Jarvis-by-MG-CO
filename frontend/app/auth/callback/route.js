@@ -32,7 +32,13 @@ export async function GET(request) {
 
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
-      return NextResponse.redirect(`${origin}${next}`)
+      const redirectUrl = new URL(`${origin}${next}`)
+      for (const [key, value] of searchParams.entries()) {
+        if (key !== 'code' && key !== 'next') {
+          redirectUrl.searchParams.set(key, value)
+        }
+      }
+      return NextResponse.redirect(redirectUrl.toString())
     }
     console.error('Auth callback error:', error)
   }

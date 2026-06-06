@@ -94,7 +94,7 @@ export default function BusinessChatPage() {
     if (!supabase) return
     await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/business/chat` },
+      options: { redirectTo: `${window.location.origin}/auth/callback?next=/business/chat` },
     })
   }
 
