@@ -1365,6 +1365,7 @@ export default function Home() {
   const [usage, setUsage] = useState(null)
   const mobileScrollRef = useRef(null)
   const isVoiceEnabledRef = useRef(false)
+  const justOnboardedRef = useRef(false)
   const MAX_RECONNECT = 5
 
   // Flush voice transcript every 30s so memory saves even on short sessions
@@ -1399,17 +1400,24 @@ export default function Home() {
     if (!userId) return
     const params = new URLSearchParams(window.location.search)
     if (params.get('onboard') === 'personal') {
+      justOnboardedRef.current = true
       setJarvisMode(userId, 'personal').catch(() => {})
       window.history.replaceState({}, '', '/')
       return  // stay at / — skip mode-check
     }
+    // If the user just completed onboarding in this session, skip the mode-check.
+    // Supabase can fire SIGNED_OUT + SIGNED_IN during PKCE exchange, causing this
+    // effect to run again after the ?onboard=personal URL param has been cleared.
+    if (justOnboardedRef.current) return
     getJarvisMode(userId).then(mode => {
       if (mode === 'business') {
         router.replace('/business/chat')
-      } else if (!mode) {
+      } else if (mode === null) {
+        // Only redirect on definitive null (no mode set). undefined means fetch error
+        // (e.g. Render cold-start) — stay on page rather than false-redirecting.
         router.replace('/welcome')
       }
-      // mode === 'personal' → stay here
+      // mode === 'personal' or undefined (error) → stay here
     }).catch(() => {})
   }, [userId])
 

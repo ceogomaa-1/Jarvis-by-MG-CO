@@ -4,11 +4,11 @@ export async function getJarvisMode(userId) {
   if (!userId) return null
   try {
     const res = await fetch(`${BACKEND}/api/user-preferences/${userId}`)
-    if (!res.ok) return null
+    if (!res.ok) return undefined  // server error — caller treats as unknown, not "no mode"
     const data = await res.json()
     return data.jarvis_mode || null
   } catch {
-    return null
+    return undefined  // network error — same
   }
 }
 
