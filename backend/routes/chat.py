@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import os
 import re
 import time
 import traceback
@@ -8,8 +9,9 @@ from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, BackgroundTasks, Request
+from fastapi.responses import JSONResponse, StreamingResponse
+from supabase import create_client
 from backend.models.schemas import ChatRequest, ChatResponse
 from backend.llm import jarvis_think
 from backend.memory import get_relevant_memories, save_interaction
@@ -22,19 +24,62 @@ from backend.lib.sessions import format_session_context
 from backend.routes.documents import search_user_documents
 from backend.tools.citation_context import init_collector, add_source, get_sources
 from backend.tools.url_fetch import extract_urls, fetch_url_content
+from backend.usage_limits import check_limit, increment_usage, get_usage
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+_SUPABASE_URL = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
+_SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+
+
+def _get_supabase():
+    if not _SUPABASE_URL or not _SUPABASE_KEY:
+        return None
+    return create_client(_SUPABASE_URL, _SUPABASE_KEY)
+
 
 def _build_multimodal_content(message: str, attachments: list[dict]) -> list | str:
-    """Build Anthropic multimodal content blocks from URL-based attachment dicts."""
+    """Build Anthropic multimodal content blocks from attachment dicts.
+
+    Supports two formats:
+    - New:  {base64: str, type: mime_type, name: str}
+    - Legacy: {url: data_url, file_type: mime_type}
+    """
+    import base64 as _b64
     content = []
-    for att in attachments:
+    for att in attachments[:5]:
+        # ── New format: {base64, type (MIME), name} ──────────────────────────
+        if "base64" in att:
+            media_type = att.get("type", "image/jpeg")
+            b64_data = att["base64"]
+            name = att.get("name", "file")
+
+            if media_type.startswith("image/"):
+                content.append({
+                    "type": "image",
+                    "source": {"type": "base64", "media_type": media_type, "data": b64_data},
+                })
+                print(f"VISION: inline image media_type={media_type} b64_len={len(b64_data)}")
+            elif media_type == "application/pdf":
+                content.append({
+                    "type": "document",
+                    "source": {"type": "base64", "media_type": "application/pdf", "data": b64_data},
+                })
+                print(f"VISION: inline PDF name={name} b64_len={len(b64_data)}")
+            else:
+                try:
+                    decoded = _b64.b64decode(b64_data).decode("utf-8", errors="replace")
+                    content.append({"type": "text", "text": f"[Attached file: {name}]\n{decoded[:8000]}"})
+                    print(f"VISION: inline text file name={name} decoded_len={len(decoded)}")
+                except Exception as exc:
+                    print(f"VISION: failed to decode text file name={name}: {exc}")
+            continue
+
+        # ── Legacy format: {url (data URL), file_type} ───────────────────────
         url = att.get("url", "")
         file_type = att.get("file_type", "")
         if file_type.startswith("image/") and url:
-            # Support data URLs directly (no server fetch needed)
             if url.startswith("data:"):
                 raw_b64 = url.split(",")[1] if "," in url else url
             else:
@@ -45,6 +90,7 @@ def _build_multimodal_content(message: str, attachments: list[dict]) -> list | s
                 "source": {"type": "base64", "media_type": file_type, "data": raw_b64},
             })
             print(f"VISION: attached image file_type={file_type} b64_len={len(raw_b64)}")
+
     if not content:
         return message
     content.append({"type": "text", "text": message or "What do you see?"})
@@ -156,8 +202,20 @@ async def _get_context(user_id: str, message: str):
 
 # ─── Regular endpoint ─────────────────────────────────────────────────────────
 
-@router.post("/chat", response_model=ChatResponse)
+@router.post("/chat", response_model=None)
 async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
+    # ── Usage limit check ─────────────────────────────────────────────────────
+    sb = _get_supabase()
+    if sb and request.user_id:
+        allowed, usage_info = await asyncio.to_thread(check_limit, request.user_id, sb)
+        if not allowed:
+            limit_msg = (
+                f"You've reached your daily message limit of {usage_info['limit']} messages. "
+                f"Your limit resets in {usage_info['resets_in']}. "
+                f"Come back then — Jarvis will be here."
+            )
+            return JSONResponse({"response": limit_msg, "user_id": request.user_id, "usage": usage_info})
+
     # Gather context + history snapshot BEFORE saving user message to avoid duplication
     (
         (memory_context, user_model_context, skills_summary),
@@ -235,13 +293,41 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
     background_tasks.add_task(
         analyze_conversation_for_insight, request.user_id, request.message, response_text
     )
-    return ChatResponse(response=response_text, user_id=request.user_id, _debug=debug_str)
+    # Increment usage after successful response
+    if sb and request.user_id:
+        updated_usage = await asyncio.to_thread(increment_usage, request.user_id, sb)
+    else:
+        updated_usage = None
+    resp = {"response": response_text, "user_id": request.user_id}
+    if updated_usage:
+        resp["usage"] = updated_usage
+    if debug_str:
+        resp["_debug"] = debug_str
+    return JSONResponse(resp)
 
 
 # ─── Streaming endpoint ───────────────────────────────────────────────────────
 
 @router.post("/chat/stream")
 async def chat_stream(request: ChatRequest):
+    # ── Usage limit check ─────────────────────────────────────────────────────
+    sb = _get_supabase()
+    if sb and request.user_id:
+        allowed, usage_info = await asyncio.to_thread(check_limit, request.user_id, sb)
+        if not allowed:
+            limit_msg = (
+                f"You've reached your daily message limit of {usage_info['limit']} messages. "
+                f"Your limit resets in {usage_info['resets_in']}. "
+                f"Come back then — Jarvis will be here."
+            )
+            async def _limit_stream():
+                for char in limit_msg:
+                    yield f"data: {json.dumps(char)}\n\n"
+                yield f"data: {json.dumps({'type': 'usage', 'data': usage_info})}\n\n"
+                yield "data: [DONE]\n\n"
+            return StreamingResponse(_limit_stream(), media_type="text/event-stream",
+                                     headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"})
+
     # Gather context + history snapshot BEFORE saving user message
     (
         (memory_context, user_model_context, skills_summary),
@@ -376,6 +462,10 @@ async def chat_stream(request: ChatRequest):
         final_sources = get_sources()
         if final_sources:
             yield f"data: {json.dumps({'__sources': final_sources})}\n\n"
+        # Increment usage and emit usage event
+        if sb and request.user_id:
+            updated_usage = await asyncio.to_thread(increment_usage, request.user_id, sb)
+            yield f"data: {json.dumps({'type': 'usage', 'data': updated_usage})}\n\n"
         done_ms = int((time.time() - voice_t0) * 1000)
         print(f"CHAT_DONE: {done_ms}ms")
         yield "data: [DONE]\n\n"
@@ -461,6 +551,20 @@ async def generate_artifact(request: ChatRequest):
         html = html.split("```")[0]
 
     return {"artifact": html}
+
+
+# ─── Usage endpoint ───────────────────────────────────────────────────────────
+
+@router.get("/usage")
+async def get_personal_usage(user_id: str = ""):
+    """Return today's usage info for the given Personal user."""
+    if not user_id:
+        return JSONResponse({"error": "user_id required"}, status_code=400)
+    sb = _get_supabase()
+    if not sb:
+        return JSONResponse({"used": 0, "limit": 15, "remaining": 15, "is_admin": False, "resets_in": ""})
+    usage = await asyncio.to_thread(get_usage, user_id, sb)
+    return JSONResponse(usage)
 
 
 # ─── Debug endpoint ───────────────────────────────────────────────────────────

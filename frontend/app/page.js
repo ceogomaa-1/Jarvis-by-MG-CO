@@ -12,6 +12,7 @@ import TimezoneStep from '../components/onboarding/TimezoneStep'
 import { JarvisVoice } from '../lib/jarvisVoice'
 import { playSound, preloadSounds } from '../lib/soundPlayer'
 import { LandingPage } from '../components/landing/LandingPage'
+import UsageCounter from '../components/business/UsageCounter'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 const DEV_MODE = true
@@ -864,7 +865,7 @@ function Conversation({ messages, loading, onRetry }) {
 
 // ─── Input bar ────────────────────────────────────────────────────────────────
 
-function InputBar({ orbState, input, setInput, onSend, onMicClick, voiceMode, voiceConnecting, loading, disabled, fileInputRef, uploadingFile, onFileSelect, pendingFiles, onRemoveFile, mobile, pastedImage, onPastedImageChange }) {
+function InputBar({ orbState, input, setInput, onSend, onMicClick, voiceMode, voiceConnecting, loading, disabled, fileInputRef, uploadingFile, onFileSelect, pendingFiles, onRemoveFile, mobile, pastedImage, onPastedImageChange, usage }) {
   const isListening = orbState === 'listening'
   const textareaRef = useRef(null)
   const hasContent = input.trim() || !!pastedImage || (pendingFiles || []).some(f => f.status === 'ready')
@@ -930,6 +931,11 @@ function InputBar({ orbState, input, setInput, onSend, onMicClick, voiceMode, vo
 
   return (
     <div style={{ padding: mobile ? '12px 16px 20px' : '20px 40px 32px', display: 'flex', justifyContent: 'center', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+      {usage && (
+        <div style={{ width: '100%', maxWidth: 720, display: 'flex', justifyContent: 'flex-end' }}>
+          <UsageCounter usage={usage} />
+        </div>
+      )}
       {(pendingFiles || []).length > 0 && (
         <div style={{
           width: '100%', maxWidth: 720,
@@ -1322,6 +1328,7 @@ export default function Home() {
   const [toast, setToast] = useState(null)
   const [isMobile, setIsMobile] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [usage, setUsage] = useState(null)
   const mobileScrollRef = useRef(null)
   const isVoiceEnabledRef = useRef(false)
   const MAX_RECONNECT = 5
@@ -1648,12 +1655,27 @@ export default function Home() {
     }
   }
 
+  const fetchUsage = async (uid) => {
+    try {
+      const res = await fetch(`${BACKEND}/api/usage?user_id=${uid}`)
+      if (res.ok) setUsage(await res.json())
+    } catch (e) {
+      console.error('fetchUsage error:', e)
+    }
+  }
+
+  useEffect(() => {
+    if (userId) fetchUsage(userId)
+  }, [userId])
+
   function _inferMime(file) {
     if (file.type) return file.type
     const ext = (file.name || '').split('.').pop().toLowerCase()
     const map = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp', svg: 'image/svg+xml', pdf: 'application/pdf', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', doc: 'application/msword', txt: 'text/plain', csv: 'text/csv', md: 'text/plain' }
     return map[ext] || 'application/octet-stream'
   }
+
+  const MAX_ATTACHMENTS = 5
 
   async function handleFileSelect(source) {
     const files = Array.isArray(source)
@@ -1666,7 +1688,14 @@ export default function Home() {
     if (!files.length || !userId) return
     if (source?.target) source.target.value = ''
 
-    for (const file of files) {
+    // Enforce max 5 total attachments
+    const remaining = MAX_ATTACHMENTS - pendingFiles.length
+    const newFiles = files.slice(0, remaining)
+    if (files.length > remaining) {
+      setToast({ message: `Max ${MAX_ATTACHMENTS} files — ${files.length - remaining} skipped` })
+    }
+
+    for (const file of newFiles) {
       if (file.size > 25 * 1024 * 1024) {
         setToast({ message: `${file.name} is over the 25 MB limit` })
         continue
@@ -1675,43 +1704,23 @@ export default function Home() {
       const mime = _inferMime(file)
       console.log(`FILE_SELECT: name=${file.name} declared_type=${file.type || '(empty)'} resolved_mime=${mime}`)
 
-      if (mime.startsWith('image/')) {
-        const reader = new FileReader()
-        reader.onload = (ev) => {
-          const dataUrl = ev.target.result
-          console.log(`FILE_SELECT: image ready name=${file.name} preview_length=${dataUrl?.length}`)
-          setPendingFiles(prev => [...prev, {
-            id, name: file.name, type: mime, size: file.size,
-            preview: dataUrl, status: 'ready',
-          }])
-        }
-        reader.onerror = (ev) => {
-          console.error('FILE_SELECT: FileReader error', ev)
-          setPendingFiles(prev => prev.filter(f => f.id !== id))
-        }
-        reader.readAsDataURL(file)
-      } else {
-        setPendingFiles(prev => [...prev, {
-          id, name: file.name, type: file.type, size: file.size, status: 'uploading',
-        }])
-        setUploadingFile(true)
-        try {
-          const form = new FormData()
-          form.append('file', file)
-          form.append('user_id', userId)
-          const res = await fetch(`${BACKEND}/api/documents/upload`, { method: 'POST', body: form })
-          if (!res.ok) throw new Error(`Upload failed: ${res.status}`)
-          const data = await res.json()
-          setPendingFiles(prev => prev.map(f => f.id === id
-            ? { ...f, docId: data.document_id, chunkCount: data.chunk_count, status: 'ready' }
-            : f))
-        } catch (err) {
-          console.error('File upload error:', err)
-          setPendingFiles(prev => prev.map(f => f.id === id ? { ...f, status: 'error', errorMsg: err.message } : f))
-        } finally {
-          setUploadingFile(false)
-        }
+      // All files: read as DataURL for inline sending to Claude
+      setPendingFiles(prev => [...prev, {
+        id, name: file.name, type: mime, size: file.size, status: 'reading',
+      }])
+      const reader = new FileReader()
+      reader.onload = (ev) => {
+        const dataUrl = ev.target.result
+        console.log(`FILE_SELECT: ready name=${file.name} mime=${mime} preview_length=${dataUrl?.length}`)
+        setPendingFiles(prev => prev.map(f => f.id === id
+          ? { ...f, preview: dataUrl, status: 'ready' }
+          : f))
       }
+      reader.onerror = (ev) => {
+        console.error('FILE_SELECT: FileReader error', ev)
+        setPendingFiles(prev => prev.map(f => f.id === id ? { ...f, status: 'error', errorMsg: 'Read failed' } : f))
+      }
+      reader.readAsDataURL(file)
     }
   }
 
@@ -1796,24 +1805,32 @@ export default function Home() {
     const displayText = (override?.displayText ?? apiText)
 
     // Collect pending file attachments (only when not an override call)
-    const pendingImg = !override
-      ? pendingFiles.find(f => f.type?.startsWith('image/') && f.preview && f.status === 'ready')
-      : null
-    const readyDocs = !override
-      ? pendingFiles.filter(f => f.docId && f.status === 'ready')
+    const allReadyFiles = !override
+      ? pendingFiles.filter(f => f.status === 'ready' && f.preview)
       : []
 
-    const imageB64 = override?.imageBase64 ?? (pendingImg?.preview ?? (pastedImage ? pastedImage.preview : null))
-    const imageType = override?.imageType ?? (pendingImg?.type ?? (pastedImage ? pastedImage.type : null))
-    const imagePreview = pendingImg?.preview ?? pastedImage?.preview ?? null
-    const attachment = override?.attachment ?? (readyDocs.length > 0
-      ? { name: readyDocs.map(f => f.name).join(', '), type: 'docs', size: 0 }
+    // Pasted image goes via image_base64; pending files go via attachments array
+    const imageB64 = override?.imageBase64 ?? (pastedImage ? pastedImage.preview : null)
+    const imageType = override?.imageType ?? (pastedImage ? pastedImage.type : null)
+    const imagePreview = pastedImage?.preview ?? null
+    const firstImage = allReadyFiles.find(f => f.type?.startsWith('image/'))
+    const attachment = override?.attachment ?? (allReadyFiles.length > 0
+      ? { name: allReadyFiles.map(f => f.name).join(', '), type: 'files', size: 0 }
       : null)
 
     console.log('SEND: pendingFiles state', pendingFiles)
-    console.log('SEND: pendingImg found', !!pendingImg, 'imageB64 present', !!imageB64, 'imageType', imageType)
+    console.log('SEND: allReadyFiles', allReadyFiles.length, 'imageB64 present', !!imageB64)
     console.log('sendMessage called with:', apiText.slice(0, 80))
-    if ((!apiText && !imageB64 && readyDocs.length === 0) || loading || isStreaming) return
+
+    // Client-side usage guard
+    if (usage && !usage.is_admin && usage.remaining <= 0) {
+      const limitMsg = `You've reached your daily limit of ${usage.limit} messages. Resets in ${usage.resets_in}. Jarvis will be here when you're back.`
+      msgIdRef.current += 1
+      setMessages(prev => [...prev, { id: msgIdRef.current, role: 'assistant', content: limitMsg }])
+      return
+    }
+
+    if ((!apiText && !imageB64 && allReadyFiles.length === 0) || loading || isStreaming) return
     if (!override) {
       setInput('')
       setPastedImage(null)
@@ -1836,13 +1853,7 @@ export default function Home() {
     setMessages(prev => [...prev, { id: userMsgId, role: 'user', content: displayText, attachment, imagePreview, pending: true }])
     setLoading(true)
 
-    // Inject doc references into the message so Jarvis knows to search them
     let messageText = apiText || ''
-    if (readyDocs.length > 0 && messageText) {
-      messageText += `\n\n[Attached docs: ${readyDocs.map(f => `${f.name} (${f.chunkCount} sections indexed)`).join(', ')}]`
-    } else if (readyDocs.length > 0) {
-      messageText = `[Attached docs: ${readyDocs.map(f => `${f.name} (${f.chunkCount} sections indexed)`).join(', ')}]`
-    }
 
     const bodyPayload = { user_id: userId, message: messageText, conversation_history: historyForApi }
     if (imageB64) {
@@ -1853,14 +1864,15 @@ export default function Home() {
     if (isVoiceMessage) {
       bodyPayload.voice_mode = true
     }
-    // Also include all ready images as attachments (belt-and-suspenders for drag-drop)
-    const readyImages = !override
-      ? pendingFiles.filter(f => f.type?.startsWith('image/') && f.preview && f.status === 'ready')
-      : []
-    if (readyImages.length > 0) {
-      bodyPayload.attachments = readyImages.map(f => ({ url: f.preview, file_type: f.type }))
+    // Send all ready pending files as inline base64 attachments
+    if (allReadyFiles.length > 0) {
+      bodyPayload.attachments = allReadyFiles.map(f => ({
+        base64: f.preview.includes(',') ? f.preview.split(',')[1] : f.preview,
+        type: f.type,
+        name: f.name,
+      }))
     }
-    console.log('SEND: payload keys', Object.keys(bodyPayload), 'image_base64 present', !!bodyPayload.image_base64, 'image_base64 length', bodyPayload.image_base64?.length ?? 0, 'attachments', bodyPayload.attachments?.length ?? 0)
+    console.log('SEND: payload keys', Object.keys(bodyPayload), 'image_base64 present', !!bodyPayload.image_base64, 'attachments count', bodyPayload.attachments?.length ?? 0)
 
     const MAX_RETRIES = 2
     let streamMsgId = null
@@ -1948,6 +1960,11 @@ export default function Home() {
                   if (idx !== -1) updated[idx] = { ...updated[idx], sources: chunk.__sources }
                   return updated
                 })
+                continue
+              }
+              // Usage event — update counter
+              if (chunk && typeof chunk === 'object' && chunk.type === 'usage' && chunk.data) {
+                setUsage(chunk.data)
                 continue
               }
               accumulated += chunk
@@ -2234,6 +2251,7 @@ export default function Home() {
               onRemoveFile={(id) => setPendingFiles(prev => prev.filter(f => f.id !== id))}
               pastedImage={pastedImage}
               onPastedImageChange={setPastedImage}
+              usage={usage}
               mobile
             />
           </div>
@@ -2393,6 +2411,7 @@ export default function Home() {
               onRemoveFile={(id) => setPendingFiles(prev => prev.filter(f => f.id !== id))}
               pastedImage={pastedImage}
               onPastedImageChange={setPastedImage}
+              usage={usage}
             />
           </div>
         </div>
