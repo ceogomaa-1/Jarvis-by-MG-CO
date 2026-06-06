@@ -68,7 +68,11 @@ function StatusPill({ agent, status }) {
 }
 
 export default function CreationCanvas({ msg, onArtifactUpdate }) {
-  const { title, intro, agents = [], statuses = {}, artifact: streamedArtifact, error, complete, creationId } = msg
+  const {
+    title, intro, agents = [], statuses = {}, artifact: streamedArtifact,
+    error, complete, creationId,
+    deploying, deploymentStatus, liveUrl, repoUrl, deploymentMessage, deploymentError,
+  } = msg
   const [localArtifact, setLocalArtifact] = useState(null)
   const [showRefine, setShowRefine] = useState(false)
   const [downloading, setDownloading] = useState(false)
@@ -213,6 +217,94 @@ export default function CreationCanvas({ msg, onArtifactUpdate }) {
           >
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayArtifact}</ReactMarkdown>
           </div>
+        </div>
+      )}
+
+      {/* Deployment phase */}
+      {(deploying || liveUrl || deploymentError) && (
+        <div style={{
+          marginTop: 16,
+          background: liveUrl ? 'rgba(34,197,94,0.05)' : deploymentError ? 'rgba(239,68,68,0.05)' : 'rgba(200,75,49,0.05)',
+          border: `1px solid ${liveUrl ? 'rgba(34,197,94,0.25)' : deploymentError ? 'rgba(239,68,68,0.25)' : 'rgba(200,75,49,0.2)'}`,
+          borderRadius: 12,
+          padding: '14px 18px',
+        }}>
+          {deploying && !liveUrl && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{
+                width: 8, height: 8, borderRadius: '50%',
+                background: '#c84b31',
+                animation: 'pulseDot 1.2s ease-in-out infinite',
+                flexShrink: 0,
+              }} />
+              <span style={{
+                fontSize: 12, color: 'rgba(243,234,217,0.75)',
+                fontFamily: 'system-ui, sans-serif',
+              }}>
+                {deploymentStatus || 'Deploying...'}
+              </span>
+            </div>
+          )}
+
+          {liveUrl && (
+            <div>
+              <div style={{
+                fontSize: 10, fontWeight: 600, letterSpacing: '0.12em',
+                color: '#22c55e', textTransform: 'uppercase', marginBottom: 10,
+              }}>
+                DEPLOYED
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                <a
+                  href={liveUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    padding: '7px 14px', borderRadius: 8,
+                    background: '#22c55e', color: '#0a0a0a',
+                    fontSize: 12, fontWeight: 600,
+                    textDecoration: 'none', fontFamily: 'system-ui, sans-serif',
+                  }}
+                >
+                  🚀 Open live site
+                </a>
+                {repoUrl && (
+                  <a
+                    href={repoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      padding: '7px 14px', borderRadius: 8,
+                      background: 'rgba(243,234,217,0.07)',
+                      border: '1px solid rgba(243,234,217,0.15)',
+                      color: 'rgba(243,234,217,0.8)',
+                      fontSize: 12, fontWeight: 500,
+                      textDecoration: 'none', fontFamily: 'system-ui, sans-serif',
+                    }}
+                  >
+                    GitHub repo →
+                  </a>
+                )}
+              </div>
+              {liveUrl && (
+                <div style={{
+                  marginTop: 8, fontSize: 11,
+                  color: 'rgba(243,234,217,0.4)',
+                  fontFamily: 'system-ui, sans-serif',
+                }}>
+                  {liveUrl}
+                </div>
+              )}
+            </div>
+          )}
+
+          {deploymentError && (
+            <div style={{ fontSize: 12, color: 'rgba(239,68,68,0.85)', fontFamily: 'system-ui, sans-serif' }}>
+              Deployment failed: {deploymentError}
+            </div>
+          )}
         </div>
       )}
 

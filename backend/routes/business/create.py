@@ -4,6 +4,7 @@ from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from backend.lib.business.creation.deployment_phase import deploy_project_after_creation
 from backend.lib.business.creation.orchestrator import orchestrate_creation
 from backend.lib.business.creation.persistence import (
     complete_creation_row,
@@ -67,6 +68,15 @@ async def business_create(request: CreateRequest):
                         await fail_creation_row(creation_id, error_msg or "No artifact generated")
 
                 yield f"data: {json.dumps(event)}\n\n"
+
+            # Deployment phase — runs after creation completes, before [DONE]
+            if artifact and not has_error and request.user_id:
+                async for deploy_event in deploy_project_after_creation(
+                    user_id=request.user_id,
+                    artifact_markdown=artifact,
+                    user_message=request.message,
+                ):
+                    yield f"data: {json.dumps(deploy_event)}\n\n"
 
             yield "data: [DONE]\n\n"
 
