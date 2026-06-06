@@ -188,6 +188,9 @@ export default function ChatCanvas({
   const inputRef = useRef(null)
   // Track current conversation ID in a ref so the send handler always has the latest value
   const activeConvRef = useRef(activeConversationId)
+  // Scroll-to-bottom anchor and initial-load flag
+  const messagesEndRef = useRef(null)
+  const didInitialScroll = useRef(false)
 
   const isActivelyStreaming = messages.some(m => m.streaming === true)
 
@@ -232,9 +235,15 @@ export default function ChatCanvas({
   }, [activeConversationId])
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
+    if (messages.length === 0) {
+      didInitialScroll.current = false
+      return
     }
+    const behavior = didInitialScroll.current ? 'smooth' : 'auto'
+    didInitialScroll.current = true
+    requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior })
+    })
   }, [messages])
 
   // Fetch usage on mount and on userId change
@@ -483,7 +492,7 @@ export default function ChatCanvas({
         const res = await fetch(`${BACKEND}/api/business/create`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: text, user_id: userId || '' }),
+          body: JSON.stringify({ message: text, user_id: userId || '', conversation_id: activeConvRef.current || null }),
         })
         const reader = res.body.getReader()
         const decoder = new TextDecoder()
@@ -502,6 +511,11 @@ export default function ChatCanvas({
             if (raw === '[DONE]') break
             try {
               const ev = JSON.parse(raw)
+              // Link this creation session to the conversation (new or existing)
+              if (ev.type === 'conv_id' && ev.value && !activeConvRef.current) {
+                activeConvRef.current = ev.value
+                onConversationCreated?.(ev.value)
+              }
               setMessages(prev => prev.map(m => {
                 if (m.id !== cId) return m
                 if (ev.type === 'plan') {
@@ -529,6 +543,7 @@ export default function ChatCanvas({
           m.id === cId ? { ...m, error: 'Creation failed. Please try again.', complete: true } : m
         ))
       }
+      onConversationsUpdated?.()
       setLoading(false)
       return
     }
@@ -773,6 +788,7 @@ export default function ChatCanvas({
                   )
                 })}
                 {isThinking && <ThinkingIndicator />}
+                <div ref={messagesEndRef} />
               </div>
             </div>
           )}

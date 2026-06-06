@@ -179,6 +179,38 @@ Be ruthless about cutting fluff. If a sub-agent didn't run, just skip its sectio
 
 
 # ════════════════════════════════════════════════════════════════════
+# DEPLOY-MODE PROMPT ADDONS
+# Applied when GitHub + Vercel are both connected so that:
+#   - Designer wraps output in file markers (parsed by deployment agent)
+#   - Reporter omits raw code (shown in chat; deployment gets code separately)
+# ════════════════════════════════════════════════════════════════════
+
+_DESIGNER_DEPLOY_ADDON = """
+
+DEPLOYMENT MODE: This project will be automatically deployed to GitHub and Vercel.
+Wrap every file in markers so the deployment system can parse and push them:
+
+--- FILE: index.html ---
+[complete HTML here]
+--- END FILE ---
+
+Output ONLY the file markers with their content. No commentary, no explanation.
+"""
+
+_REPORTER_DEPLOY_ADDON = """
+
+DEPLOYMENT MODE: GitHub and Vercel are connected — the website code will be deployed automatically.
+Do NOT paste raw HTML, CSS, or JavaScript in your output.
+Instead:
+1. Present the strategy summary (target audience, core offer, key channels).
+2. Present the copy in copy-paste-ready form (email, SMS, headlines).
+3. Write exactly: "The website has been designed and is queued for deployment to GitHub and Vercel — a live URL is coming."
+4. Describe the design in plain language (sections, layout, key features) — no code.
+Skip the "Design Assets" section entirely.
+"""
+
+
+# ════════════════════════════════════════════════════════════════════
 # RUNNER — calls Claude Sonnet 4.6 with the specialized prompt
 # ════════════════════════════════════════════════════════════════════
 
@@ -197,6 +229,14 @@ async def run_sub_agent(
         return {"role": role, "task": task, "output": "", "ok": False, "error": f"Unknown role: {role}"}
 
     system_prompt = SUB_AGENT_PROMPTS[role]
+
+    # Suppress code from chat output when GitHub + Vercel are connected
+    has_deploy = bool(context.get("has_deploy_connectors")) if context else False
+    if has_deploy:
+        if role == "designer":
+            system_prompt = system_prompt + _DESIGNER_DEPLOY_ADDON
+        elif role == "reporter":
+            system_prompt = system_prompt + _REPORTER_DEPLOY_ADDON
 
     user_message_parts = [f"Task: {task}"]
     if context:

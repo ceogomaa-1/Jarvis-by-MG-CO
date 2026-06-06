@@ -147,6 +147,15 @@ async def orchestrate_creation(
                 "output_preview": preview,
             }
 
+        # When deploying: emit designer's raw code separately so the reporter can
+        # omit it from chat output and the deployment phase still gets the actual code.
+        if context.get("has_deploy_connectors"):
+            designer_item = next((a for a in parallel_agents if a["role"] == "designer"), None)
+            if designer_item:
+                designer_raw = outputs_by_id[designer_item["id"]].get("output", "")
+                if designer_raw:
+                    yield {"type": "code_artifact", "content": designer_raw}
+
         # PHASE 3: REPORTER AGGREGATION
         if reporter_agent:
             yield {"type": "agent_status", "id": reporter_agent["id"], "status": "started"}
