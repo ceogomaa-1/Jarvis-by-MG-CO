@@ -457,9 +457,10 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
     enableUpload = true,
   } = props
 
+  const MAX_FILES = 5
+
   const [input, setInput] = React.useState('')
-  const [files, setFiles] = React.useState<File[]>([])
-  const [filePreviews, setFilePreviews] = React.useState<Record<string, string>>({})
+  const [fileEntries, setFileEntries] = React.useState<Array<{id: string; file: File; preview: string}>>([])
   const [selectedImage, setSelectedImage] = React.useState<string | null>(null)
   const [isRecording, setIsRecording] = React.useState(false)
   const [showSearch, setShowSearch] = React.useState(false)
@@ -483,35 +484,63 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
   }
 
   const isImageFile = (file: File) => file.type.startsWith('image/')
+  const isSupportedFile = (file: File) =>
+    file.type.startsWith('image/') ||
+    file.type === 'application/pdf' ||
+    file.type === 'text/plain' ||
+    file.type === 'text/csv' ||
+    file.name.endsWith('.csv') ||
+    file.name.endsWith('.txt') ||
+    file.name.endsWith('.md')
 
-  const processFile = (file: File) => {
-    if (!isImageFile(file) || file.size > 10 * 1024 * 1024) return
-    setFiles([file])
-    const reader = new FileReader()
-    reader.onload = e => setFilePreviews({ [file.name]: e.target?.result as string })
-    reader.readAsDataURL(file)
+  const addFiles = React.useCallback((newFiles: File[]) => {
+    setFileEntries(prev => {
+      const available = MAX_FILES - prev.length
+      if (available <= 0) return prev
+      const toAdd = newFiles.filter(f => isSupportedFile(f) && f.size <= 20 * 1024 * 1024).slice(0, available)
+      const nextEntries = [...prev]
+      toAdd.forEach(file => {
+        const id = Math.random().toString(36).slice(2)
+        if (isImageFile(file)) {
+          nextEntries.push({ id, file, preview: '' })
+          const reader = new FileReader()
+          reader.onload = (e) => {
+            const preview = e.target?.result as string
+            setFileEntries(cur => cur.map(entry => entry.id === id ? { ...entry, preview } : entry))
+          }
+          reader.readAsDataURL(file)
+        } else {
+          nextEntries.push({ id, file, preview: 'file:' + file.name })
+        }
+      })
+      return nextEntries
+    })
+  }, [])
+
+  const removeFileEntry = (id: string) => {
+    setFileEntries(prev => prev.filter(e => e.id !== id))
   }
 
   const handleDragOver = React.useCallback((e: React.DragEvent) => { e.preventDefault(); e.stopPropagation() }, [])
   const handleDragLeave = React.useCallback((e: React.DragEvent) => { e.preventDefault(); e.stopPropagation() }, [])
   const handleDrop = React.useCallback((e: React.DragEvent) => {
     e.preventDefault(); e.stopPropagation()
-    const images = Array.from(e.dataTransfer.files).filter(f => isImageFile(f))
-    if (images.length > 0) processFile(images[0])
-  }, [])
-
-  const handleRemoveFile = () => { setFiles([]); setFilePreviews({}) }
+    const dropped = Array.from(e.dataTransfer.files)
+    if (dropped.length > 0) addFiles(dropped)
+  }, [addFiles])
 
   const handlePaste = React.useCallback((e: ClipboardEvent) => {
     const items = e.clipboardData?.items
     if (!items) return
+    const pastedFiles: File[] = []
     for (let i = 0; i < items.length; i++) {
       if (items[i].type.indexOf('image') !== -1) {
         const file = items[i].getAsFile()
-        if (file) { e.preventDefault(); processFile(file); break }
+        if (file) pastedFiles.push(file)
       }
     }
-  }, [])
+    if (pastedFiles.length > 0) { e.preventDefault(); addFiles(pastedFiles) }
+  }, [addFiles])
 
   React.useEffect(() => {
     document.addEventListener('paste', handlePaste)
@@ -519,19 +548,18 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
   }, [handlePaste])
 
   const handleSubmit = () => {
-    if (!input.trim() && files.length === 0) return
+    if (!input.trim() && fileEntries.length === 0) return
     let prefix = ''
     if (showSearch) prefix = '[Search: '
     else if (showOperator) prefix = '[Operator: '
     else if (showShowMe) prefix = '[ShowMe: '
     const formatted = prefix ? `${prefix}${input}]` : input
-    onSend(formatted, files)
+    onSend(formatted, fileEntries.map(e => e.file))
     setInput('')
-    setFiles([])
-    setFilePreviews({})
+    setFileEntries([])
   }
 
-  const hasContent = input.trim() !== '' || files.length > 0
+  const hasContent = input.trim() !== '' || fileEntries.length > 0
 
   return (
     <>
@@ -547,26 +575,53 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        {files.length > 0 && !isRecording && (
+        {fileEntries.length > 0 && !isRecording && (
           <div className="flex flex-wrap gap-2 p-0 pb-1">
-            {files.map((file, i) => (
-              <div key={i} className="relative group">
-                {file.type.startsWith('image/') && filePreviews[file.name] && (
-                  <div
-                    className="w-16 h-16 rounded-xl overflow-hidden cursor-pointer"
-                    onClick={() => setSelectedImage(filePreviews[file.name])}
-                  >
-                    <img src={filePreviews[file.name]} alt={file.name} className="h-full w-full object-cover" />
-                    <button
-                      onClick={e => { e.stopPropagation(); handleRemoveFile() }}
-                      className="absolute top-1 right-1 rounded-full bg-black/70 p-0.5"
-                    >
-                      <X className="h-3 w-3 text-white" />
-                    </button>
+            {fileEntries.map((entry) => (
+              <div key={entry.id} className="relative group w-16 h-16 rounded-xl overflow-hidden flex-shrink-0"
+                style={{ backgroundColor: 'rgba(243,234,217,0.06)', border: '1px solid rgba(243,234,217,0.1)' }}>
+                {isImageFile(entry.file) && entry.preview ? (
+                  <div className="w-full h-full cursor-pointer" onClick={() => setSelectedImage(entry.preview)}>
+                    <img src={entry.preview} alt={entry.file.name} className="h-full w-full object-cover" />
+                  </div>
+                ) : isImageFile(entry.file) && !entry.preview ? (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <span className="text-xs" style={{ color: 'rgba(243,234,217,0.3)' }}>…</span>
+                  </div>
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center p-1 gap-0.5">
+                    <span className="text-sm">{entry.file.type === 'application/pdf' ? '📄' : '📝'}</span>
+                    <span className="text-center w-full truncate px-0.5"
+                      style={{ fontFamily: 'system-ui', fontSize: '6px', color: 'rgba(243,234,217,0.5)' }}>
+                      {entry.file.name}
+                    </span>
                   </div>
                 )}
+                <button
+                  type="button"
+                  onClick={e => { e.stopPropagation(); removeFileEntry(entry.id) }}
+                  className="absolute top-0.5 right-0.5 w-4 h-4 flex items-center justify-center rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                  style={{ backgroundColor: 'rgba(0,0,0,0.75)' }}
+                >
+                  <X className="h-2.5 w-2.5 text-white" />
+                </button>
               </div>
             ))}
+            {fileEntries.length < MAX_FILES && (
+              <button
+                type="button"
+                onClick={() => uploadInputRef.current?.click()}
+                className="w-16 h-16 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{
+                  backgroundColor: 'rgba(243,234,217,0.02)',
+                  border: '1px dashed rgba(243,234,217,0.12)',
+                  color: 'rgba(243,234,217,0.25)',
+                  fontSize: '20px', cursor: 'pointer',
+                }}
+              >
+                +
+              </button>
+            )}
           </div>
         )}
 
@@ -606,12 +661,14 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
                   <input
                     ref={uploadInputRef}
                     type="file"
+                    multiple
                     className="hidden"
                     onChange={e => {
-                      if (e.target.files && e.target.files.length > 0) processFile(e.target.files[0])
+                      if (e.target.files && e.target.files.length > 0)
+                        addFiles(Array.from(e.target.files))
                       if (e.target) e.target.value = ''
                     }}
-                    accept="image/*"
+                    accept="image/*,application/pdf,.pdf,.txt,.csv,.md"
                   />
                 </button>
               </PromptInputAction>

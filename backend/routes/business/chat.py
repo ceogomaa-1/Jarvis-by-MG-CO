@@ -14,6 +14,7 @@ from backend.lib.business.model_router import select_model, OPUS
 from backend.lib.business.memory import extract_and_store_memories
 from backend.lib.business.tool_builder import build_tools_for_user
 from backend.lib.business.tool_executor import execute_tool
+from backend.usage_limits import check_limit, increment_usage, get_usage
 
 router = APIRouter()
 
@@ -160,9 +161,10 @@ async def _auto_title(sb, conv_id: str, first_user_message: str) -> None:
 
 
 class AttachmentItem(BaseModel):
-    type: str = "image"
+    type: str = "image"          # "image" | "document" | "text_file"
     media_type: str = "image/jpeg"
-    data: str  # base64-encoded
+    data: str                    # base64-encoded
+    name: str = ""               # original filename (for text_file fallback label)
 
 
 class BusinessChatRequest(BaseModel):
@@ -174,22 +176,44 @@ class BusinessChatRequest(BaseModel):
 
 
 def _build_user_content(text: str, attachments: list[AttachmentItem]) -> list | str:
-    """Build Anthropic content block(s) for a user turn, including any images."""
+    """Build Anthropic content block(s) for a user turn, including images/PDFs/text."""
     if not attachments:
         return text
+    import base64
     blocks: list = []
-    for att in attachments:
-        if att.type == "image":
+    for att in attachments[:5]:  # enforce max 5 server-side
+        if att.type == "image" or att.media_type.startswith("image/"):
             blocks.append({
                 "type": "image",
-                "source": {
-                    "type": "base64",
-                    "media_type": att.media_type,
-                    "data": att.data,
-                },
+                "source": {"type": "base64", "media_type": att.media_type, "data": att.data},
             })
+        elif att.media_type == "application/pdf" or att.type == "document":
+            blocks.append({
+                "type": "document",
+                "source": {"type": "base64", "media_type": "application/pdf", "data": att.data},
+            })
+        else:
+            # Text/CSV/plain — decode and inject as labelled text block
+            try:
+                decoded = base64.b64decode(att.data).decode("utf-8", errors="replace")
+                label = att.name or "file"
+                blocks.append({"type": "text", "text": f"[File: {label}]\n{decoded[:8000]}"})
+            except Exception:
+                pass
     blocks.append({"type": "text", "text": text})
     return blocks
+
+
+@router.get("/business/usage")
+async def get_user_usage(user_id: str = ""):
+    """Return today's usage info for the given user."""
+    if not user_id:
+        return {"error": "user_id required"}
+    sb = _get_supabase()
+    if not sb:
+        return {"used": 0, "limit": 15, "remaining": 15, "is_admin": False, "resets_in": ""}
+    usage = await asyncio.to_thread(get_usage, user_id, sb)
+    return usage
 
 
 @router.post("/business/chat/stream")
@@ -209,12 +233,19 @@ async def business_chat_stream(request: BusinessChatRequest):
     model = select_model(request.message)
     max_tokens = 4096 if model == OPUS else 2048
 
-    # Set up conversation and save user message before streaming
     sb = _get_supabase() if request.user_id else None
     conv_id = request.conversation_id
     is_new_conv = False
 
+    # Check usage limit before creating conversation or calling Anthropic
+    limit_exceeded = False
+    limit_usage_info: dict = {}
     if sb and request.user_id:
+        allowed, limit_usage_info = await asyncio.to_thread(check_limit, request.user_id, sb)
+        if not allowed:
+            limit_exceeded = True
+
+    if not limit_exceeded and sb and request.user_id:
         try:
             conv_id, is_new_conv = await asyncio.to_thread(
                 _setup_conversation, sb, request.user_id, conv_id, request.message
@@ -224,6 +255,19 @@ async def business_chat_stream(request: BusinessChatRequest):
             conv_id = request.conversation_id
 
     async def generate():
+        # Limit check — yield friendly message and bail
+        if limit_exceeded:
+            limit = limit_usage_info.get("limit", 15)
+            resets = limit_usage_info.get("resets_in", "tomorrow")
+            msg = (
+                f"You've reached your daily limit of {limit} messages. "
+                f"Your limit resets in {resets}. Come back then — Jarvis will be here."
+            )
+            yield f"data: {json.dumps(msg)}\n\n"
+            yield f'data: {json.dumps({"type": "usage", "data": limit_usage_info})}\n\n'
+            yield "data: [DONE]\n\n"
+            return
+
         # Emit conversation ID first so frontend can associate messages
         if conv_id:
             yield f'data: {json.dumps({"type": "conv_id", "value": conv_id})}\n\n'
@@ -272,6 +316,10 @@ async def business_chat_stream(request: BusinessChatRequest):
                         )
                         for char in final_text:
                             yield f"data: {json.dumps(char)}\n\n"
+                        # Increment usage and emit updated counter
+                        if request.user_id and sb:
+                            updated_usage = await asyncio.to_thread(increment_usage, request.user_id, sb)
+                            yield f'data: {json.dumps({"type": "usage", "data": updated_usage})}\n\n'
                         yield "data: [DONE]\n\n"
                         got_final_response = True
                         break

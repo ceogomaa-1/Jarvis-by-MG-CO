@@ -16,6 +16,7 @@ import ReadinessBar from './ReadinessBar'
 import AutonomousToggle from './AutonomousToggle'
 import ConfirmActionButton from './ConfirmActionButton'
 import { PromptInputBox } from '@/components/ui/ai-prompt-box'
+import UsageCounter from './UsageCounter'
 import { supabase } from '../../lib/supabase'
 import TetrisLoader from '../ui/TetrisLoader'
 
@@ -179,6 +180,7 @@ export default function ChatCanvas({
   const [toolStatus, setToolStatus] = useState(null)  // active tool name during execution
   const [readiness, setReadiness] = useState(null)
   const [autonomousEnabled, setAutonomousEnabled] = useState(false)
+  const [usage, setUsage] = useState(null)
   const msgIdRef = useRef(1)
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
@@ -232,6 +234,17 @@ export default function ChatCanvas({
       scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
     }
   }, [messages])
+
+  // Fetch usage on mount and on userId change
+  useEffect(() => {
+    if (!userId) return
+    let cancelled = false
+    fetch(`${BACKEND}/api/business/usage?user_id=${encodeURIComponent(userId)}`)
+      .then(r => r.json())
+      .then(d => { if (!cancelled) setUsage(d) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [userId])
 
   useEffect(() => {
     if (!userId) return
@@ -338,11 +351,14 @@ export default function ChatCanvas({
       reader.onload = (e) => {
         const dataUrl = e.target.result
         const base64 = dataUrl.split(',')[1]
+        const isImage = file.type.startsWith('image/')
+        const isPdf = file.type === 'application/pdf'
         resolve({
-          type: 'image',
-          media_type: file.type || 'image/jpeg',
+          type: isImage ? 'image' : isPdf ? 'document' : 'text_file',
+          media_type: file.type || 'application/octet-stream',
           data: base64,
-          preview_url: dataUrl,
+          name: file.name,
+          preview_url: isImage ? dataUrl : null,
         })
       }
       reader.readAsDataURL(file)
@@ -368,6 +384,18 @@ export default function ChatCanvas({
     const files = overrideFiles || []
     if (!text && files.length === 0) return
     if (loading) return
+
+    // Client-side limit guard (backend also enforces this)
+    if (usage && !usage.is_admin && usage.remaining <= 0) {
+      msgIdRef.current += 1
+      setMessages(prev => [...prev, {
+        id: msgIdRef.current,
+        role: 'assistant',
+        content: `You've reached your daily limit of ${usage.limit} messages. Come back in ${usage.resets_in} — Jarvis will be here.`,
+        streaming: false, chunks: [],
+      }])
+      return
+    }
     if (overrideText === null) setInput('')
     inputRef.current?.focus()
 
@@ -572,6 +600,8 @@ export default function ChatCanvas({
                 setMessages(prev => prev.map(m =>
                   m.id === aId ? { ...m, pending_action: chunk.action, action_resolved: false } : m
                 ))
+              } else if (chunk.type === 'usage') {
+                setUsage(chunk.data)
               }
               continue
             }
@@ -764,8 +794,13 @@ export default function ChatCanvas({
 
       {/* Input area */}
       <div style={{ padding: '8px 40px 24px', flexShrink: 0 }}>
-        {/* position:relative so the toggle can anchor left without shifting input */}
         <div style={{ maxWidth: 760, margin: '0 auto', position: 'relative' }}>
+          {/* Usage counter — top-right of input area */}
+          {usage && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4 }}>
+              <UsageCounter usage={usage} />
+            </div>
+          )}
           {/* Toggle floats to the left, outside layout flow, keeping input centered */}
           <div style={{ position: 'absolute', left: -68, bottom: 12 }}>
             <AutonomousToggle
