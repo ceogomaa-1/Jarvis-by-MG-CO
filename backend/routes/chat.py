@@ -282,9 +282,9 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
         allowed, usage_info = await asyncio.to_thread(check_limit, request.user_id, sb)
         if not allowed:
             limit_msg = (
-                f"You've reached your daily message limit of {usage_info['limit']} messages. "
-                f"Your limit resets in {usage_info['resets_in']}. "
-                f"Come back then — Jarvis will be here."
+                f"You've hit your limit for now — {usage_info['limit']} messages per {usage_info.get('window_minutes', 90)} minutes. "
+                f"Your next slot opens in {usage_info['resets_in']}. "
+                f"Jarvis will be here."
             )
             return JSONResponse({"response": limit_msg, "user_id": request.user_id, "usage": usage_info})
 
@@ -404,9 +404,9 @@ async def chat_stream(request: ChatRequest):
         allowed, usage_info = await asyncio.to_thread(check_limit, request.user_id, sb)
         if not allowed:
             limit_msg = (
-                f"You've reached your daily message limit of {usage_info['limit']} messages. "
-                f"Your limit resets in {usage_info['resets_in']}. "
-                f"Come back then — Jarvis will be here."
+                f"You've hit your limit for now — {usage_info['limit']} messages per {usage_info.get('window_minutes', 90)} minutes. "
+                f"Your next slot opens in {usage_info['resets_in']}. "
+                f"Jarvis will be here."
             )
             async def _limit_stream():
                 for char in limit_msg:

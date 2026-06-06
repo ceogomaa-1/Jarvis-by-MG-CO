@@ -47,7 +47,7 @@ export default function UsageCounter({ usage }: UsageCounterProps) {
           color: isOut ? "#f43f5e" : isLow ? "#c84b31" : "rgba(243,234,217,0.35)",
         }}
       >
-        {isOut ? `RESETS ${usage.resets_in}` : `${usage.remaining}/${usage.limit}`}
+        {isOut ? `NEXT SLOT IN ${usage.resets_in || "~90 MIN"}` : `${usage.remaining} LEFT`}
       </span>
     </div>
   )

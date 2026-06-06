@@ -211,7 +211,7 @@ async def get_user_usage(user_id: str = ""):
         return {"error": "user_id required"}
     sb = _get_supabase()
     if not sb:
-        return {"used": 0, "limit": 15, "remaining": 15, "is_admin": False, "resets_in": ""}
+        return {"used": 0, "limit": 32, "remaining": 32, "is_admin": False, "resets_in": "", "window_minutes": 90}
     usage = await asyncio.to_thread(get_usage, user_id, sb)
     return usage
 
@@ -257,11 +257,12 @@ async def business_chat_stream(request: BusinessChatRequest):
     async def generate():
         # Limit check — yield friendly message and bail
         if limit_exceeded:
-            limit = limit_usage_info.get("limit", 15)
-            resets = limit_usage_info.get("resets_in", "tomorrow")
+            limit = limit_usage_info.get("limit", 32)
+            window = limit_usage_info.get("window_minutes", 90)
+            resets = limit_usage_info.get("resets_in", "soon")
             msg = (
-                f"You've reached your daily limit of {limit} messages. "
-                f"Your limit resets in {resets}. Come back then — Jarvis will be here."
+                f"You've hit your limit for now — {limit} messages per {window} minutes. "
+                f"Your next slot opens in {resets}. Jarvis will be here."
             )
             yield f"data: {json.dumps(msg)}\n\n"
             yield f'data: {json.dumps({"type": "usage", "data": limit_usage_info})}\n\n'
