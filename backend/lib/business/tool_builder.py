@@ -359,6 +359,127 @@ _TOOLS: dict[str, dict] = {
         "description": "[GoHighLevel] List upcoming appointments.",
         "input_schema": {"type": "object", "properties": {}, "required": []},
     },
+
+    # ── GitHub ────────────────────────────────────────────────────────────────
+    "github__list_repos": {
+        "description": "[GitHub] List the user's GitHub repositories, sorted by last updated.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "limit": {"type": "integer", "description": "Max repos to return (default 10)", "default": 10},
+            },
+            "required": [],
+        },
+    },
+    "github__create_repo": {
+        "description": "[GitHub] Create a new GitHub repository. Always confirm name with user before calling.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Repository name (lowercase, hyphens ok)"},
+                "description": {"type": "string", "description": "Short repo description"},
+                "private": {"type": "boolean", "description": "Private repo? Default false", "default": False},
+            },
+            "required": ["name"],
+        },
+    },
+    "github__push_files": {
+        "description": "[GitHub] Push multiple files to a GitHub repository in a single atomic commit. Use this to push an entire project (all source files) at once.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "repo": {"type": "string", "description": "Full repo name: owner/repo-name"},
+                "files": {
+                    "type": "array",
+                    "description": "Array of files to push",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "path": {"type": "string", "description": "File path in repo (e.g. src/app/page.tsx)"},
+                            "content": {"type": "string", "description": "Full file content as string"},
+                        },
+                        "required": ["path", "content"],
+                    },
+                },
+                "message": {"type": "string", "description": "Commit message", "default": "Jarvis OS1: project files"},
+                "branch": {"type": "string", "description": "Branch name", "default": "main"},
+            },
+            "required": ["repo", "files"],
+        },
+    },
+
+    # ── Vercel ────────────────────────────────────────────────────────────────
+    "vercel__list_projects": {
+        "description": "[Vercel] List the user's Vercel projects.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "limit": {"type": "integer", "description": "Max projects to return (default 10)", "default": 10},
+            },
+            "required": [],
+        },
+    },
+    "vercel__create_project": {
+        "description": "[Vercel] Create a new Vercel project, optionally linked to a GitHub repo for auto-deploy.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Project name (lowercase, hyphens ok)"},
+                "github_repo": {"type": "string", "description": "GitHub repo to link: owner/repo-name"},
+                "framework": {"type": "string", "description": "Framework: nextjs, vite, etc.", "default": "nextjs"},
+            },
+            "required": ["name"],
+        },
+    },
+    "vercel__trigger_deploy": {
+        "description": "[Vercel] Trigger a production deployment for a Vercel project from a GitHub repo.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "project_name": {"type": "string", "description": "Vercel project name"},
+                "github_repo": {"type": "string", "description": "owner/repo"},
+                "branch": {"type": "string", "description": "Branch to deploy", "default": "main"},
+            },
+            "required": ["project_name"],
+        },
+    },
+    "vercel__get_deployment": {
+        "description": "[Vercel] Check the status of a Vercel deployment.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "deployment_id": {"type": "string", "description": "Deployment ID from trigger_deploy"},
+            },
+            "required": ["deployment_id"],
+        },
+    },
+
+    # ── Supabase (user projects) ──────────────────────────────────────────────
+    "supabase_project__list_projects": {
+        "description": "[Supabase] List the user's Supabase projects.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    "supabase_project__get_project_keys": {
+        "description": "[Supabase] Get API keys for a Supabase project (truncated for security — full keys visible in dashboard).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "project_id": {"type": "string", "description": "Supabase project ID (from list_projects)"},
+            },
+            "required": ["project_id"],
+        },
+    },
+    "supabase_project__run_sql": {
+        "description": "[Supabase] Run SQL on a Supabase project — create tables, insert data, alter schema. Confirm with user before running schema changes.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "project_id": {"type": "string", "description": "Supabase project ID (from list_projects)"},
+                "sql": {"type": "string", "description": "SQL query to execute"},
+            },
+            "required": ["project_id", "sql"],
+        },
+    },
 }
 
 # Maps each tool name to its connector_type

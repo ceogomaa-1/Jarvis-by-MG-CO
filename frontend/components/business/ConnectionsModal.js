@@ -14,7 +14,10 @@ const ICON_CONFIG = {
   notion:       { text: 'N',   bg: '#ffffff', color: '#000' },
   google:       { text: 'G',   bg: '#4285F4', color: '#fff' },
   canva:        { text: 'C',   bg: '#00C4CC', color: '#fff' },
-  gohighlevel:  { text: 'GHL', bg: '#FF6B35', color: '#fff', small: true },
+  gohighlevel:     { text: 'GHL', bg: '#FF6B35', color: '#fff', small: true },
+  github:          { text: 'G',   bg: '#24292e', color: '#fff' },
+  vercel:          { text: 'V',   bg: '#000000', color: '#fff', border: '1px solid rgba(255,255,255,0.15)' },
+  supabase_project: { text: 'S',  bg: '#3ECF8E', color: '#1a1a1a' },
 }
 
 function ConnectorIcon({ name, size = 40 }) {

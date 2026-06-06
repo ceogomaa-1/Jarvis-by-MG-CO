@@ -801,14 +801,48 @@ function Message({ msg, isLatest, onRetry }) {
   )
 }
 
+const _THINKING_PHRASES = ["thinking", "processing", "analyzing", "working on it", "on it", "cooking"]
+
 function ThinkingIndicator() {
+  const [dots, setDots] = useState("")
+  const [phraseIndex, setPhraseIndex] = useState(0)
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setDots((prev) => (prev.length >= 3 ? "" : prev + "."))
+    }, 400)
+    return () => clearInterval(interval)
+  }, [])
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPhraseIndex((prev) => (prev + 1) % _THINKING_PHRASES.length)
+    }, 4000)
+    return () => clearInterval(interval)
+  }, [])
+
   return (
-    <div style={{ marginBottom: 22, maxWidth: '78%' }}>
-      <div style={{ display: 'flex', gap: 6, alignItems: 'center', paddingTop: 4 }}>
-        <span className="thinking-dot" style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: 'var(--accent)' }} />
-        <span className="thinking-dot" style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: 'var(--accent)' }} />
-        <span className="thinking-dot" style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: 'var(--accent)' }} />
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 22, maxWidth: '78%' }}>
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28 }}>
+        <div style={{
+          position: 'absolute', width: 28, height: 28, borderRadius: '50%',
+          backgroundColor: 'rgba(255,144,114,0.15)',
+          animation: 'thinkPulseOuter 1.5s ease-in-out infinite',
+        }} />
+        <div style={{
+          position: 'relative', width: 10, height: 10, borderRadius: '50%',
+          backgroundColor: 'var(--accent)',
+          boxShadow: '0 0 12px rgba(255,144,114,0.5)',
+          animation: 'thinkPulseInner 1.5s ease-in-out infinite',
+        }} />
       </div>
+      <span style={{
+        fontFamily: 'var(--font-arcade), monospace',
+        fontSize: 8, color: 'rgba(243,234,217,0.4)',
+        letterSpacing: '0.12em', minWidth: 120,
+      }}>
+        {_THINKING_PHRASES[phraseIndex]}{dots}
+      </span>
     </div>
   )
 }

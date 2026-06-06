@@ -165,4 +165,50 @@ async def _dispatch(connector, connector_type: str, action_name: str, inp: dict)
         if action_name == "list_appointments":
             return await connector.list_appointments()
 
+    # ── GitHub ────────────────────────────────────────────────────────────────
+    if connector_type == "github":
+        if action_name == "list_repos":
+            return await connector.list_repos(limit=int(inp.get("limit", 10)))
+        if action_name == "create_repo":
+            return await connector.create_repo(
+                name=inp["name"],
+                description=inp.get("description", ""),
+                private=bool(inp.get("private", False)),
+            )
+        if action_name == "push_files":
+            return await connector.push_files(
+                repo=inp["repo"],
+                files=inp["files"],
+                message=inp.get("message", "Jarvis OS1: automated commit"),
+                branch=inp.get("branch", "main"),
+            )
+
+    # ── Vercel ────────────────────────────────────────────────────────────────
+    if connector_type == "vercel":
+        if action_name == "list_projects":
+            return await connector.list_projects(limit=int(inp.get("limit", 10)))
+        if action_name == "create_project":
+            return await connector.create_project(
+                name=inp["name"],
+                github_repo=inp.get("github_repo", ""),
+                framework=inp.get("framework", "nextjs"),
+            )
+        if action_name == "trigger_deploy":
+            return await connector.trigger_deploy(
+                project_name=inp["project_name"],
+                github_repo=inp.get("github_repo", ""),
+                branch=inp.get("branch", "main"),
+            )
+        if action_name == "get_deployment":
+            return await connector.get_deployment(deployment_id=inp["deployment_id"])
+
+    # ── Supabase (user projects) ──────────────────────────────────────────────
+    if connector_type == "supabase_project":
+        if action_name == "list_projects":
+            return await connector.list_projects()
+        if action_name == "get_project_keys":
+            return await connector.get_project_keys(project_id=inp["project_id"])
+        if action_name == "run_sql":
+            return await connector.run_sql(project_id=inp["project_id"], sql=inp["sql"])
+
     return ConnectorResult(ok=False, error=f"Unknown action: {connector_type}__{action_name}")

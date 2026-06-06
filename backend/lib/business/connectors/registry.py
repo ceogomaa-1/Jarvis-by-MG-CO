@@ -17,6 +17,9 @@ from backend.lib.business.connectors.notion_conn import NotionConnector
 from backend.lib.business.connectors.google_conn import GoogleConnector
 from backend.lib.business.connectors.canva_conn import CanvaConnector
 from backend.lib.business.connectors.gohighlevel_conn import GoHighLevelConnector
+from backend.lib.business.connectors.github_connector import GitHubConnector
+from backend.lib.business.connectors.vercel_connector import VercelConnector
+from backend.lib.business.connectors.supabase_project_connector import SupabaseProjectConnector
 
 
 SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL", "")
@@ -41,6 +44,9 @@ _CONNECTOR_REGISTRY: dict[str, type[BaseConnector]] = {
     GoogleConnector.CONNECTOR_TYPE: GoogleConnector,
     CanvaConnector.CONNECTOR_TYPE: CanvaConnector,
     GoHighLevelConnector.CONNECTOR_TYPE: GoHighLevelConnector,
+    GitHubConnector.CONNECTOR_TYPE: GitHubConnector,
+    VercelConnector.CONNECTOR_TYPE: VercelConnector,
+    SupabaseProjectConnector.CONNECTOR_TYPE: SupabaseProjectConnector,
 }
 
 
@@ -230,6 +236,9 @@ _CONNECTOR_ACTIONS: dict[str, list[str]] = {
     "google": ["list_calendar_events", "create_calendar_event", "list_emails", "send_email"],
     "canva": ["list_designs", "create_design"],
     "gohighlevel": ["list_contacts", "search_contacts", "create_contact", "list_pipelines", "list_opportunities", "list_appointments"],
+    "github": ["list_repos", "create_repo", "push_files"],
+    "vercel": ["list_projects", "create_project", "trigger_deploy", "get_deployment"],
+    "supabase_project": ["list_projects", "get_project_keys", "run_sql"],
 }
 
 _CONNECTOR_LABELS: dict[str, str] = {
@@ -241,6 +250,9 @@ _CONNECTOR_LABELS: dict[str, str] = {
     "google": "Google Calendar + Gmail",
     "canva": "Canva (design)",
     "gohighlevel": "GoHighLevel (CRM)",
+    "github": "GitHub (code repos)",
+    "vercel": "Vercel (deployments)",
+    "supabase_project": "Supabase (user projects)",
 }
 
 

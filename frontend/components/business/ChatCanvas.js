@@ -19,6 +19,7 @@ import { PromptInputBox } from '@/components/ui/ai-prompt-box'
 import UsageCounter from './UsageCounter'
 import { supabase } from '../../lib/supabase'
 import TetrisLoader from '../ui/TetrisLoader'
+import ThinkingIndicator from './ThinkingIndicator'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
@@ -181,6 +182,7 @@ export default function ChatCanvas({
   const [readiness, setReadiness] = useState(null)
   const [autonomousEnabled, setAutonomousEnabled] = useState(false)
   const [usage, setUsage] = useState(null)
+  const [isThinking, setIsThinking] = useState(false)
   const msgIdRef = useRef(1)
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
@@ -534,6 +536,7 @@ export default function ChatCanvas({
     msgIdRef.current += 1
     const aId = msgIdRef.current
     setMessages(prev => [...prev, { id: aId, role: 'assistant', content: '', streaming: true, chunks: [] }])
+    setIsThinking(true)
 
     try {
       const res = await fetch(`${BACKEND}/api/business/chat/stream`, {
@@ -607,6 +610,7 @@ export default function ChatCanvas({
             }
 
             // Regular text chunk
+            setIsThinking(false)
             acc += chunk
             pendingBatch += chunk
             if (!batchTimer) {
@@ -622,6 +626,7 @@ export default function ChatCanvas({
         allChunks.push({ text: pendingBatch, key: Date.now() + Math.random() })
       }
       setToolStatus(null)
+      setIsThinking(false)
       setMessages(prev => prev.map(m =>
         m.id === aId ? { ...m, content: acc, chunks: [...allChunks], streaming: false } : m
       ))
@@ -631,6 +636,7 @@ export default function ChatCanvas({
 
     } catch (err) {
       console.error('Chat failed:', err)
+      setIsThinking(false)
       setMessages(prev => prev.map(m =>
         m.id === aId ? { ...m, content: 'Something went wrong. Please try again.', streaming: false } : m
       ))
@@ -761,6 +767,7 @@ export default function ChatCanvas({
                     </div>
                   )
                 })}
+                {isThinking && <ThinkingIndicator />}
               </div>
             </div>
           )}
