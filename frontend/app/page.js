@@ -1413,11 +1413,12 @@ export default function Home() {
       if (mode === 'business') {
         router.replace('/business/chat')
       } else if (mode === null) {
-        // Only redirect on definitive null (no mode set). undefined means fetch error
-        // (e.g. Render cold-start) — stay on page rather than false-redirecting.
-        router.replace('/welcome')
+        // Authenticated user with no mode (e.g. setJarvisMode failed on first sign-in).
+        // Default to personal and stay on page so the timezone/onboarding screen shows.
+        // Redirecting to /welcome would restart OAuth for an already-authenticated user.
+        setJarvisMode(userId, 'personal').catch(() => {})
       }
-      // mode === 'personal' or undefined (error) → stay here
+      // mode === 'personal' or undefined (fetch error) → stay here
     }).catch(() => {})
   }, [userId])
 
@@ -1618,6 +1619,14 @@ export default function Home() {
     if (userId) fetchUsage(userId)
   }, [userId])
 
+  // Redirect unauthenticated users to /welcome once auth check is complete.
+  // Skip if the URL still has ?onboard=* (OAuth callback hasn't resolved yet).
+  useEffect(() => {
+    if (authLoading || userId) return
+    const params = new URLSearchParams(window.location.search)
+    if (!params.get('onboard')) router.replace('/welcome')
+  }, [authLoading, userId, router])
+
   if (authLoading) {
     return (
       <div style={{ background: 'var(--bg)', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1628,7 +1637,7 @@ export default function Home() {
     )
   }
 
-  if (!userId) return <LandingPage />
+  if (!userId) return null  // unauthenticated — effect above redirects to /welcome
 
   if (userId && timezoneConfirmed === false) {
     return (
