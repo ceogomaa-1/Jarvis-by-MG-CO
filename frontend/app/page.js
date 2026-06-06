@@ -1563,6 +1563,19 @@ export default function Home() {
   // Voice cleanup on unmount — must be before any conditional return
   useEffect(() => () => voiceManagerRef.current?.destroy(), [])
 
+  // Fetch usage — must be before any conditional return (Rules of Hooks)
+  const fetchUsage = async (uid) => {
+    try {
+      const res = await fetch(`${BACKEND}/api/usage?user_id=${uid}`)
+      if (res.ok) setUsage(await res.json())
+    } catch (e) {
+      console.error('fetchUsage error:', e)
+    }
+  }
+  useEffect(() => {
+    if (userId) fetchUsage(userId)
+  }, [userId])
+
   if (authLoading) {
     return (
       <div style={{ background: 'var(--bg)', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1654,19 +1667,6 @@ export default function Home() {
       setVoiceConnecting(false)
     }
   }
-
-  const fetchUsage = async (uid) => {
-    try {
-      const res = await fetch(`${BACKEND}/api/usage?user_id=${uid}`)
-      if (res.ok) setUsage(await res.json())
-    } catch (e) {
-      console.error('fetchUsage error:', e)
-    }
-  }
-
-  useEffect(() => {
-    if (userId) fetchUsage(userId)
-  }, [userId])
 
   function _inferMime(file) {
     if (file.type) return file.type
