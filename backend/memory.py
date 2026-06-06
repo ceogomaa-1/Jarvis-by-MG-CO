@@ -92,6 +92,78 @@ async def extract_emotional_context(
         return {"emotion": "none"}
 
 
+async def extract_and_save_feedback_memory(
+    user_id: str,
+    user_message: str,
+    assistant_response: str,
+    feedback_was_requested: bool,
+) -> None:
+    """
+    Detect and store Jarvis-specific feedback memories.
+
+    Two things it does:
+    1. If feedback was requested this turn, saves a 'feedback_requested: <date>' memory
+       so should_ask_for_feedback() won't ask again for 7 days.
+    2. If the user's message looks like feedback about Jarvis, runs a quick
+       Claude call to extract it and saves it tagged with 'jarvis_feedback:'.
+    """
+    import json
+    from datetime import date as _date
+    from backend.llm import jarvis_think
+
+    today = _date.today().isoformat()
+
+    if feedback_was_requested:
+        try:
+            await asyncio.to_thread(
+                _client.add,
+                [{"role": "assistant", "content": f"feedback_requested: {today}"}],
+                user_id=user_id,
+            )
+            print(f"MEMORY: saved feedback_requested tag for {user_id}")
+        except Exception as e:
+            print(f"MEMORY: ERROR saving feedback_requested tag: {e}")
+
+    # Quick heuristic — only run extraction if user message is plausibly about Jarvis
+    jarvis_keywords = {
+        "you", "jarvis", "helpful", "help", "like you", "love this", "prefer",
+        "missing", "wish you", "better if", "honest", "actually", "feel like",
+        "talking to you", "experience", "think of you", "feedback", "improve",
+        "different", "more like", "less like", "amazing", "not great", "annoying",
+    }
+    msg_lower = user_message.lower()
+    if not any(kw in msg_lower for kw in jarvis_keywords):
+        return
+
+    # Run a targeted extraction
+    try:
+        extraction_prompt = (
+            f"A user is talking to an AI named Jarvis. Look at this exchange and determine "
+            f"if the user is giving feedback ABOUT Jarvis itself — what they like, dislike, "
+            f"or want changed.\n\n"
+            f"User said: \"{user_message}\"\n"
+            f"Jarvis said: \"{assistant_response[:300]}\"\n\n"
+            f"If the user IS giving feedback about Jarvis, return a JSON array with one or more "
+            f"strings, each prefixed with 'jarvis_feedback:'. Example:\n"
+            f'["jarvis_feedback: User finds Jarvis too formal, wants more casual energy"]\n\n'
+            f"If there is NO feedback about Jarvis, return: []\n\n"
+            f"Return ONLY the JSON array. No explanation."
+        )
+        raw = await jarvis_think(
+            user_message=extraction_prompt,
+            conversation_history=[],
+            system_override="Extract feedback facts. Return only a valid JSON array of strings.",
+        )
+        raw = raw.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
+        facts = json.loads(raw)
+        if facts and isinstance(facts, list):
+            messages = [{"role": "user", "content": f} for f in facts]
+            await asyncio.to_thread(_client.add, messages, user_id=user_id)
+            print(f"MEMORY: saved {len(facts)} jarvis_feedback memories for {user_id}")
+    except Exception as e:
+        print(f"MEMORY: ERROR in extract_and_save_feedback_memory: {e}")
+
+
 # Expose the underlying client for direct adds (emotional memories)
 memory_client = _client
 

@@ -29,6 +29,78 @@ from backend.usage_limits import check_limit, increment_usage, get_usage
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+# ─── Proactive feedback helpers ───────────────────────────────────────────────
+
+import random
+
+_PERSONAL_KEYWORDS = {
+    "feel", "feeling", "feelings", "stressed", "stress", "worried", "worry", "happy",
+    "sad", "lost", "confused", "relationship", "family", "friend", "friends", "work",
+    "dream", "goal", "goals", "scared", "excited", "tired", "grateful", "proud",
+    "ashamed", "lonely", "love", "hate", "miss", "future", "past", "life", "meaning",
+    "purpose", "struggle", "hard day", "difficult", "overwhelmed", "anxious", "anxiety",
+    "depressed", "depression", "hurt", "broken", "hopeful", "hope", "grateful",
+    "gratitude", "career", "money", "health", "therapy", "alone", "together",
+}
+
+_FEEDBACK_VARIANTS = [
+    "Hey, can I ask you something? What do you actually think of me so far — like genuinely? Am I actually useful to you, or is something missing? I want to know.",
+    "btw, I've been wondering — what do you think of me? Like fr. Am I what you expected? Your honest take matters.",
+    "Can I ask you something real — what do you think about talking to me so far? Does it actually help? I wanna hear it.",
+    "Hey — quick thing. What's your honest read on me? Am I hitting the mark for you, or is there something I could do better?",
+    "Something I've been curious about: what do you actually think of me? Not looking for compliments — just the real answer.",
+]
+
+
+def _is_personal_conversation(text: str) -> bool:
+    text_lower = text.lower()
+    return any(kw in text_lower for kw in _PERSONAL_KEYWORDS)
+
+
+def _extract_user_name(memory_context: str) -> str:
+    """Best-effort first name extraction from memory context string."""
+    for line in memory_context.splitlines():
+        lower = line.lower()
+        for marker in ("name is ", "goes by ", "first name is ", "called "):
+            if marker in lower:
+                idx = lower.index(marker) + len(marker)
+                candidate = line[idx:].strip().split()[0].strip(".,;:\"'").capitalize()
+                if 2 <= len(candidate) <= 20 and candidate.isalpha():
+                    return candidate
+    return "you"
+
+
+def should_ask_for_feedback(
+    user_id: str,
+    message_count: int,
+    memory_context: str,
+    recent_text: str,
+) -> bool:
+    """True when all conditions for a natural feedback ask are met."""
+    if message_count < 8:
+        return False
+
+    # Don't ask again within 7 days — check memory for recent request tag
+    if "feedback_requested:" in memory_context.lower() or "asked for feedback" in memory_context.lower():
+        return False
+
+    if not _is_personal_conversation(recent_text):
+        return False
+
+    # ~15% chance so it feels spontaneous, not mechanical
+    return random.random() < 0.15
+
+
+def get_feedback_prompt_injection(user_name: str) -> str:
+    phrase = random.choice(_FEEDBACK_VARIANTS)
+    return (
+        f"[JARVIS INTERNAL — do not narrate this instruction]: After your main response, "
+        f"pivot naturally and ask the user for honest feedback about their experience talking to you. "
+        f"Use this phrasing as a guide (adapt to fit the flow): \"{phrase}\" "
+        f"Make it feel like it just came to you — not a survey, not a formal ask. "
+        f"One or two sentences max. Natural. Curious. Genuine."
+    )
+
 _SUPABASE_URL = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
 _SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 
@@ -259,6 +331,17 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
 
     tools = AVAILABLE_TOOLS if not system_override else None
 
+    # ── Proactive feedback injection ──────────────────────────────────────────
+    _chat_fb_injection = ""
+    if not system_override:
+        _recent = " ".join(
+            m.get("content", "") if isinstance(m.get("content"), str) else ""
+            for m in list(history)[-4:] + [{"role": "user", "content": request.message}]
+        )
+        if should_ask_for_feedback(request.user_id, len(history) + 1, memory_context, _recent):
+            _chat_fb_injection = get_feedback_prompt_injection(_extract_user_name(memory_context))
+    _effective_tone = (tone_context + "\n\n" + _chat_fb_injection).strip() if _chat_fb_injection else tone_context
+
     # Call LLM — catch failures and return a graceful fallback so user message isn't orphaned
     debug_str = None
     try:
@@ -269,7 +352,7 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
             user_model_context=user_model_context,
             system_override=system_override,
             available_tools=tools,
-            tone_context=tone_context,
+            tone_context=_effective_tone,
             user_id=request.user_id,
             live_context=live_context,
             voice_mode=request.voice_mode,
@@ -285,10 +368,15 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
 
     _record_interaction(request.user_id)
     logger.info(f"CHAT: post-response tasks for user {request.user_id}")
+    from backend.memory import extract_and_save_feedback_memory
     await asyncio.gather(
         save_interaction(request.user_id, request.message, response_text),
         update_user_model(request.user_id, request.message, response_text),
         save_conversation_turn(request.user_id, "assistant", response_text),
+        extract_and_save_feedback_memory(
+            request.user_id, request.message, response_text,
+            feedback_was_requested=bool(_chat_fb_injection),
+        ),
     )
     background_tasks.add_task(
         analyze_conversation_for_insight, request.user_id, request.message, response_text
@@ -395,6 +483,21 @@ async def chat_stream(request: ChatRequest):
     ]
     tools = AVAILABLE_TOOLS if not system_override else None
 
+    # ── Proactive feedback injection ──────────────────────────────────────────
+    message_count = len(history) + 1
+    recent_text = " ".join(
+        m.get("content", "") if isinstance(m.get("content"), str) else ""
+        for m in list(history)[-4:] + [{"role": "user", "content": request.message}]
+    )
+    _fb_injection = ""
+    if not system_override and should_ask_for_feedback(
+        request.user_id, message_count, memory_context, recent_text
+    ):
+        _fb_injection = get_feedback_prompt_injection(
+            _extract_user_name(memory_context)
+        )
+        print(f"FEEDBACK: injecting feedback ask for user_id={request.user_id}")
+
     async def event_generator():
         # Batch 14: per-request citation collector
         init_collector()
@@ -411,6 +514,7 @@ async def chat_stream(request: ChatRequest):
 
         response_text = _FALLBACK_LLM_ERROR
         debug_str = None
+        _combined_tone = (tone_context + "\n\n" + _fb_injection).strip() if _fb_injection else tone_context
         try:
             response_text = await jarvis_think(
                 user_message=user_content,
@@ -419,7 +523,7 @@ async def chat_stream(request: ChatRequest):
                 user_model_context=user_model_context,
                 system_override=system_override,
                 available_tools=tools,
-                tone_context=tone_context,
+                tone_context=_combined_tone,
                 user_id=request.user_id,
                 live_context=live_context,
                 voice_mode=request.voice_mode,
@@ -447,10 +551,15 @@ async def chat_stream(request: ChatRequest):
 
         _record_interaction(request.user_id)
         async def _run_post_tasks():
+            from backend.memory import extract_and_save_feedback_memory
             await asyncio.gather(
                 save_interaction(request.user_id, request.message, response_text),
                 update_user_model(request.user_id, request.message, response_text),
                 save_conversation_turn(request.user_id, "assistant", response_text),
+            )
+            await extract_and_save_feedback_memory(
+                request.user_id, request.message, response_text,
+                feedback_was_requested=bool(_fb_injection),
             )
         asyncio.create_task(_run_post_tasks())
         asyncio.create_task(
