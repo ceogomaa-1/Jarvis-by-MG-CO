@@ -428,6 +428,7 @@ export default function ChatCanvas({
         title: '', intro: '', steps: [], loading: true, complete: false,
         walkthroughData: null, sources: [],
       }])
+      setIsThinking(true)
 
       try {
         const res = await fetch(`${BACKEND}/api/business/show-me-how`, {
@@ -438,6 +439,7 @@ export default function ChatCanvas({
         const reader = res.body.getReader()
         const decoder = new TextDecoder()
         let buf = ''
+        let smhFirstContent = false
 
         while (true) {
           const { done, value } = await reader.read()
@@ -452,6 +454,11 @@ export default function ChatCanvas({
             if (raw === '[DONE]') break
             try {
               const ev = JSON.parse(raw)
+              // Dismiss thinking indicator on first real content
+              if (!smhFirstContent && ev.type !== 'status') {
+                smhFirstContent = true
+                setIsThinking(false)
+              }
               setMessages(prev => prev.map(m => {
                 if (m.id !== wId) return m
                 if (ev.type === 'title') return { ...m, title: ev.value }
@@ -474,6 +481,7 @@ export default function ChatCanvas({
           m.id === wId ? { ...m, loading: false, intro: 'Could not generate walkthrough. Please try again.' } : m
         ))
       }
+      setIsThinking(false)
       setLoading(false)
       return
     }
@@ -487,6 +495,7 @@ export default function ChatCanvas({
         artifact: '', error: '', complete: false,
         deploying: false, deploymentStages: [], deploymentStatus: null, liveUrl: null, repoUrl: null, dbUrl: null, deploymentMessage: null, deploymentError: null,
       }])
+      setIsThinking(true)
 
       try {
         const res = await fetch(`${BACKEND}/api/business/create`, {
@@ -516,6 +525,8 @@ export default function ChatCanvas({
                 activeConvRef.current = ev.value
                 onConversationCreated?.(ev.value)
               }
+              // Dismiss thinking indicator once the plan (real content) arrives
+              if (ev.type === 'plan') setIsThinking(false)
               setMessages(prev => prev.map(m => {
                 if (m.id !== cId) return m
                 if (ev.type === 'plan') {
@@ -543,6 +554,7 @@ export default function ChatCanvas({
           m.id === cId ? { ...m, error: 'Creation failed. Please try again.', complete: true } : m
         ))
       }
+      setIsThinking(false)
       onConversationsUpdated?.()
       setLoading(false)
       return
@@ -634,7 +646,7 @@ export default function ChatCanvas({
             acc += chunk
             pendingBatch += chunk
             if (!batchTimer) {
-              batchTimer = setTimeout(flushBatch, 50)
+              batchTimer = setTimeout(flushBatch, 30)
             }
           } catch {}
         }
@@ -787,7 +799,7 @@ export default function ChatCanvas({
                     </div>
                   )
                 })}
-                {isThinking && <ThinkingIndicator />}
+                {isThinking && !isActivelyStreaming && <ThinkingIndicator />}
                 <div ref={messagesEndRef} />
               </div>
             </div>

@@ -27,6 +27,9 @@ async def show_me_how(request: ShowMeHowRequest):
 
     async def generate():
         try:
+            # Immediate thinking signal — arrives before generate_walkthrough blocks (3-5s)
+            yield f"data: {json.dumps({'type': 'status', 'value': 'thinking'})}\n\n"
+
             industry_note = get_industry_context_note(request.user_id)
             enriched_query = f"{request.query}\n\n{industry_note}" if industry_note else request.query
             walkthrough = await generate_walkthrough(enriched_query)

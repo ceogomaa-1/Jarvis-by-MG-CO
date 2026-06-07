@@ -273,6 +273,10 @@ async def business_chat_stream(request: BusinessChatRequest):
         if conv_id:
             yield f'data: {json.dumps({"type": "conv_id", "value": conv_id})}\n\n'
 
+        # Immediate "thinking" signal — arrives within ~100ms of user sending,
+        # guarantees the UI indicator is on before the first model token.
+        yield f'data: {json.dumps({"type": "status", "value": "thinking"})}\n\n'
+
         current_messages = messages.copy()
         final_text = ""
         got_final_response = False
@@ -285,12 +289,22 @@ async def business_chat_stream(request: BusinessChatRequest):
                         "max_tokens": max_tokens,
                         "system": system_prompt,
                         "messages": current_messages,
+                        "stream": True,
                     }
-                    # Only include tools param when the user has active connectors
                     if tools:
                         request_body["tools"] = tools
 
-                    resp = await client.post(
+                    # ── True streaming Anthropic call ─────────────────────────
+                    # Tokens arrive and are forwarded to the client as they're
+                    # generated — no buffering of the entire completion.
+                    content_blocks_map: dict[int, dict] = {}
+                    tool_input_buf: dict[int, str] = {}
+                    stop_reason = "end_turn"
+                    per_round_text = ""
+                    stream_api_error: str | None = None
+
+                    async with client.stream(
+                        "POST",
                         "https://api.anthropic.com/v1/messages",
                         headers={
                             "x-api-key": ANTHROPIC_API_KEY,
@@ -299,47 +313,110 @@ async def business_chat_stream(request: BusinessChatRequest):
                         },
                         json=request_body,
                         timeout=120.0,
-                    )
+                    ) as stream_resp:
+                        if stream_resp.status_code != 200:
+                            err_bytes = await stream_resp.aread()
+                            print(f"Anthropic error {stream_resp.status_code}: {err_bytes[:300]}")
+                            yield f'data: {json.dumps("Error connecting to AI. Please try again.")}\n\n'
+                            yield "data: [DONE]\n\n"
+                            return
 
-                    if resp.status_code != 200:
+                        async for raw_line in stream_resp.aiter_lines():
+                            if not raw_line.startswith("data: "):
+                                continue
+                            raw = raw_line[6:]
+                            try:
+                                ev = json.loads(raw)
+                            except Exception:
+                                continue
+
+                            ev_type = ev.get("type", "")
+
+                            if ev_type == "content_block_start":
+                                idx = ev["index"]
+                                blk = ev["content_block"]
+                                btype = blk["type"]
+                                if btype == "text":
+                                    content_blocks_map[idx] = {"type": "text", "text": ""}
+                                elif btype == "tool_use":
+                                    content_blocks_map[idx] = {
+                                        "type": "tool_use",
+                                        "id": blk["id"],
+                                        "name": blk["name"],
+                                        "input": {},
+                                    }
+                                    tool_input_buf[idx] = ""
+
+                            elif ev_type == "content_block_delta":
+                                idx = ev["index"]
+                                delta = ev["delta"]
+                                dtype = delta["type"]
+
+                                if dtype == "text_delta":
+                                    text = delta.get("text", "")
+                                    if text:
+                                        # Forward token to client immediately
+                                        yield f"data: {json.dumps(text)}\n\n"
+                                        per_round_text += text
+                                        if idx in content_blocks_map:
+                                            content_blocks_map[idx]["text"] += text
+
+                                elif dtype == "input_json_delta":
+                                    tool_input_buf[idx] = (
+                                        tool_input_buf.get(idx, "") + delta.get("partial_json", "")
+                                    )
+
+                            elif ev_type == "content_block_stop":
+                                idx = ev["index"]
+                                if idx in tool_input_buf:
+                                    raw_inp = tool_input_buf.pop(idx)
+                                    try:
+                                        parsed = json.loads(raw_inp) if raw_inp else {}
+                                    except Exception:
+                                        parsed = {}
+                                    if idx in content_blocks_map:
+                                        content_blocks_map[idx]["input"] = parsed
+
+                            elif ev_type == "message_delta":
+                                stop_reason = (
+                                    ev.get("delta", {}).get("stop_reason") or stop_reason
+                                )
+
+                            elif ev_type == "error":
+                                stream_api_error = ev.get("error", {}).get("message", "API error")
+                                print(f"Anthropic stream error event: {stream_api_error}")
+                                break
+
+                    # ── Post-stream: handle API-level error ───────────────────
+                    if stream_api_error:
                         yield f'data: {json.dumps("Error connecting to AI. Please try again.")}\n\n'
                         yield "data: [DONE]\n\n"
                         return
 
-                    data = resp.json()
-                    stop_reason = data.get("stop_reason", "end_turn")
-                    content_blocks = data.get("content", [])
+                    # ── Reconstruct content_blocks list for message history ────
+                    content_blocks = [
+                        content_blocks_map[i] for i in sorted(content_blocks_map.keys())
+                    ]
 
                     if stop_reason != "tool_use":
-                        # Final response — stream it character by character
-                        final_text = "".join(
-                            b.get("text", "") for b in content_blocks if b.get("type") == "text"
-                        )
-                        for char in final_text:
-                            yield f"data: {json.dumps(char)}\n\n"
-                        # Increment usage and emit updated counter
+                        # Final response — text was already streamed token-by-token above
+                        final_text = per_round_text
                         if request.user_id and sb:
-                            updated_usage = await asyncio.to_thread(increment_usage, request.user_id, sb)
+                            updated_usage = await asyncio.to_thread(
+                                increment_usage, request.user_id, sb
+                            )
                             yield f'data: {json.dumps({"type": "usage", "data": updated_usage})}\n\n'
                         yield "data: [DONE]\n\n"
                         got_final_response = True
                         break
 
-                    # ── Tool use round ─────────────────────────────────────────
-                    # Stream any text Claude emitted alongside the tool call
-                    round_text = "".join(
-                        b.get("text", "") for b in content_blocks if b.get("type") == "text"
-                    )
-                    final_text += round_text
-                    for char in round_text:
-                        yield f"data: {json.dumps(char)}\n\n"
-
+                    # ── Tool use round ────────────────────────────────────────
+                    # Text alongside the tool call was already streamed above.
                     tool_use_blocks = [b for b in content_blocks if b.get("type") == "tool_use"]
                     write_blocks = [b for b in tool_use_blocks if b["name"] in WRITE_ACTIONS]
 
                     if write_blocks:
-                        # Intercept: pause before any write action and ask for confirmation.
-                        # Do NOT execute the tool or add to conversation history.
+                        # Intercept: pause before write action and ask for confirmation.
                         w = write_blocks[0]
                         pending_event = {
                             "type": "pending_action",
@@ -365,9 +442,7 @@ async def business_chat_stream(request: BusinessChatRequest):
                         tool_inp = block.get("input", {})
 
                         yield f'data: {json.dumps({"type": "tool_call", "name": tool_name, "status": "executing"})}\n\n'
-
                         result_str = await execute_tool(tool_name, tool_inp, request.user_id)
-
                         yield f'data: {json.dumps({"type": "tool_call", "name": tool_name, "status": "complete"})}\n\n'
 
                         tool_results.append({
@@ -376,23 +451,21 @@ async def business_chat_stream(request: BusinessChatRequest):
                             "content": result_str,
                         })
 
-                    # Feed tool results back as user message for next round
                     current_messages.append({"role": "user", "content": tool_results})
 
             if not got_final_response:
-                # Hit MAX_TOOL_ROUNDS without a final text response
                 yield f'data: {json.dumps("I hit a processing limit on that request. Please try a simpler query.")}\n\n'
                 yield "data: [DONE]\n\n"
 
         except Exception as e:
+            import traceback
             print(f"BUSINESS CHAT: Error: {e}")
+            traceback.print_exc()
             yield f'data: {json.dumps("Something went wrong. Please try again.")}\n\n'
             yield "data: [DONE]\n\n"
             return
 
         # Post-stream: persist assistant message + memory extraction
-        # await instead of create_task so extraction runs even if the client
-        # closes the SSE connection immediately after receiving [DONE]
         if sb and conv_id and final_text:
             try:
                 await asyncio.to_thread(_save_assistant_message, sb, conv_id, final_text)

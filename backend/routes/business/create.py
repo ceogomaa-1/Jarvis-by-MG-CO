@@ -143,6 +143,9 @@ async def business_create(request: CreateRequest):
         saved_msg_id: str | None = None
 
         try:
+            # Immediate signal so UI shows activity during the 2-4s planning gap
+            yield f'data: {json.dumps({"type": "status", "value": "spinning up"})}\n\n'
+
             async for event in orchestrate_creation(request.message, context):
                 if event["type"] == "plan":
                     creation_id = await create_creation_row(
