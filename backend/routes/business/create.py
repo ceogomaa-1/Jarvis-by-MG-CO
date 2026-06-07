@@ -32,10 +32,24 @@ _WEBSITE_BUILD_RE = re.compile(
     r"|create\s+(a\s+)?(site|web)",
     re.IGNORECASE,
 )
+_DEPLOY_CONFIRM_RE = re.compile(
+    r"^\s*(yes|yeah|yep|please|yes please|do it|go ahead|ship it|deploy it|deploy|push it|"
+    r"launch it|make it live|sounds good|ok|okay|sure)\s*[.!?]*\s*$",
+    re.IGNORECASE,
+)
+_DEPLOY_OFFER_RE = re.compile(
+    r"(github\s*\+\s*vercel|vercel.*github|github.*vercel|trigger live url|live url generation|"
+    r"push all files|spawn a sub-agent.*deploy|deployment)",
+    re.IGNORECASE | re.DOTALL,
+)
 
 
 def _is_website_build(message: str) -> bool:
     return bool(_WEBSITE_BUILD_RE.search(message))
+
+
+def _is_deploy_confirmation(message: str) -> bool:
+    return bool(_DEPLOY_CONFIRM_RE.search(message or ""))
 
 SUPABASE_URL = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
@@ -93,6 +107,38 @@ def _update_message(sb, message_id: str, content: str) -> None:
     sb.table("business_messages").update({
         "content": content,
     }).eq("id", message_id).execute()
+
+
+def _load_deploy_confirmation_artifact(sb, user_id: str, conv_id: str | None) -> str:
+    """Find the recent assistant artifact that offered GitHub + Vercel deployment."""
+    if not sb or not user_id or not conv_id:
+        return ""
+    user_uuid = _user_id_to_uuid(user_id)
+    conv = (
+        sb.table("business_conversations")
+        .select("id")
+        .eq("id", conv_id)
+        .eq("user_id", user_uuid)
+        .maybe_single()
+        .execute()
+    )
+    if not conv.data:
+        return ""
+    msgs = (
+        sb.table("business_messages")
+        .select("role, content, created_at")
+        .eq("conversation_id", conv_id)
+        .order("created_at", desc=True)
+        .limit(8)
+        .execute()
+    )
+    for msg in msgs.data or []:
+        if msg.get("role") != "assistant":
+            continue
+        content = msg.get("content") or ""
+        if _DEPLOY_OFFER_RE.search(content):
+            return content
+    return ""
 
 
 async def _collect_deploy_events(user_id: str, deploy_content: str, user_message: str) -> list[dict]:
@@ -195,6 +241,87 @@ async def business_create(request: CreateRequest):
         try:
             # Immediate signal so UI shows activity during the 2-4s planning gap
             yield f'data: {json.dumps({"type": "status", "value": "spinning up"})}\n\n'
+
+            if _is_deploy_confirmation(request.message) and has_deploy_connectors:
+                try:
+                    sb = _get_supabase()
+                    previous_artifact = ""
+                    if sb:
+                        conv_id, is_new = await asyncio.to_thread(
+                            _ensure_conversation, sb, request.user_id, conv_id, request.message
+                        )
+                        if conv_id and is_new:
+                            yield f'data: {json.dumps({"type": "conv_id", "value": conv_id})}\n\n'
+                        previous_artifact = await asyncio.to_thread(
+                            _load_deploy_confirmation_artifact, sb, request.user_id, conv_id
+                        )
+
+                    if not previous_artifact:
+                        yield f'data: {json.dumps({"type": "deployment_error", "value": "I could not find the previous website artifact to deploy. Send the website request again or say exactly what site to build."})}\n\n'
+                        yield "data: [DONE]\n\n"
+                        return
+
+                    deploy_plan = [
+                        {"id": "a1", "role": "designer", "task": "Generate the deployable Next.js website codebase from the approved website brief."},
+                        {"id": "a2", "role": "publisher", "task": "Push the generated files to GitHub and trigger a Vercel production build."},
+                    ]
+                    creation_id = await create_creation_row(
+                        user_id=request.user_id,
+                        title="Website Deployment",
+                        intro="Deploying the approved website to GitHub and Vercel.",
+                        user_message=request.message,
+                        plan=deploy_plan,
+                        industry=context.get("industry", ""),
+                        company_name=context.get("company_name", ""),
+                    )
+                    if creation_id:
+                        yield f'data: {json.dumps({"type": "creation_id", "id": creation_id})}\n\n'
+                    yield f'data: {json.dumps({"type": "plan", "title": "Website Deployment", "intro": "Deploying the approved website to GitHub and Vercel.", "agents": deploy_plan})}\n\n'
+                    yield f'data: {json.dumps({"type": "agent_status", "id": "a1", "status": "started"})}\n\n'
+                    yield f'data: {json.dumps({"type": "deployment_status", "message": "Generating Next.js codebase from the approved website brief…"})}\n\n'
+
+                    site = None
+                    site_prompt = f"Deploy this approved website brief as a production Next.js site.\n\nUser confirmation: {request.message}"
+                    async for result in _await_with_status(
+                        generate_site(site_prompt, {**context, "artifact": previous_artifact}),
+                        "Still generating the Next.js codebase…",
+                    ):
+                        if isinstance(result, dict) and "files" in result:
+                            site = result
+                        else:
+                            yield f"data: {json.dumps(result)}\n\n"
+
+                    if not site:
+                        raise RuntimeError("site generator returned no files")
+
+                    await complete_creation_row(creation_id, previous_artifact) if creation_id else None
+                    yield f'data: {json.dumps({"type": "agent_status", "id": "a1", "status": "complete"})}\n\n'
+                    yield f'data: {json.dumps({"type": "artifact", "format": "markdown", "content": previous_artifact})}\n\n'
+                    yield f'data: {json.dumps({"type": "complete"})}\n\n'
+                    yield f'data: {json.dumps({"type": "agent_status", "id": "a2", "status": "started"})}\n\n'
+                    yield f'data: {json.dumps({"type": "deployment_status", "message": f"Generated {len(site.get('files', []))} files — starting deploy pipeline…"})}\n\n'
+
+                    async for dev in run_deploy_pipeline(request.user_id, site, request.message, creation_id):
+                        yield f"data: {json.dumps(dev)}\n\n"
+                        if dev.get("type") == "deployment_pending":
+                            await mark_deployment_pending(
+                                creation_id,
+                                dev.get("deployment_id", ""),
+                                repo_url=dev.get("repo_url", ""),
+                                expected_url=dev.get("expected_url", ""),
+                            )
+                            yield f'data: {json.dumps({"type": "agent_status", "id": "a2", "status": "complete"})}\n\n'
+                        elif dev.get("type") == "deployment_error":
+                            yield f'data: {json.dumps({"type": "agent_status", "id": "a2", "status": "failed"})}\n\n'
+
+                    yield "data: [DONE]\n\n"
+                    return
+
+                except Exception as dep_err:
+                    print(f"[CREATE] Confirmed website deploy failed: {dep_err}")
+                    yield f'data: {json.dumps({"type": "deployment_error", "value": "Website deployment failed before the Vercel build could be triggered. The previous design is still saved; retry deployment after checking the logs."})}\n\n'
+                    yield "data: [DONE]\n\n"
+                    return
 
             async for event in orchestrate_creation(request.message, context):
                 if event["type"] == "plan":

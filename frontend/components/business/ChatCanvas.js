@@ -39,6 +39,17 @@ function isActiveCreationMessage(message) {
   )
 }
 
+function isDeployConfirmation(text, messages) {
+  if (!/^\s*(yes|yeah|yep|please|yes please|do it|go ahead|ship it|deploy it|deploy|push it|launch it|make it live|sounds good|ok|okay|sure)\s*[.!?]*\s*$/i.test(text || '')) {
+    return false
+  }
+  const recent = [...(messages || [])].reverse().slice(0, 8)
+  return recent.some(m => {
+    if (m.role !== 'assistant' || typeof m.content !== 'string') return false
+    return /(github\s*\+\s*vercel|vercel.*github|github.*vercel|trigger live url|live url generation|push all files|spawn a sub-agent.*deploy|deployment)/is.test(m.content)
+  })
+}
+
 function UserBubble({ content, attachments }) {
   return (
     <motion.div
@@ -636,7 +647,7 @@ export default function ChatCanvas({
       return
     }
 
-    if (detectCreation(text)) {
+    if (detectCreation(text) || isDeployConfirmation(text, messages)) {
       msgIdRef.current += 1
       const cId = msgIdRef.current
       setMessages(prev => [...prev, {
