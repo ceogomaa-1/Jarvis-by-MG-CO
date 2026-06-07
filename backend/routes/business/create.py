@@ -107,6 +107,21 @@ async def _collect_deploy_events(user_id: str, deploy_content: str, user_message
     return events
 
 
+async def _await_with_status(coro, status_message: str, interval: float = 8.0):
+    """Run a slow coroutine while keeping the SSE stream alive with status events."""
+    task = asyncio.create_task(coro)
+    elapsed = 0
+    while not task.done():
+        await asyncio.sleep(interval)
+        elapsed += int(interval)
+        if not task.done():
+            yield {
+                "type": "deployment_status",
+                "message": f"{status_message} ({elapsed}s elapsed)",
+            }
+    yield await task
+
+
 class CreateRequest(BaseModel):
     message: str
     user_id: str = ""
@@ -240,10 +255,18 @@ async def business_create(request: CreateRequest):
                     # ── NEW PATH: deterministic Next.js build + real URL ──────────
                     try:
                         yield f'data: {json.dumps({"type": "deployment_status", "message": "Generating Next.js codebase…"})}\n\n'
-                        site = await generate_site(
-                            request.message,
-                            {**context, "artifact": artifact},
-                        )
+                        site = None
+                        async for result in _await_with_status(
+                            generate_site(request.message, {**context, "artifact": artifact}),
+                            "Still generating the Next.js codebase…",
+                        ):
+                            if isinstance(result, dict) and "files" in result:
+                                site = result
+                            else:
+                                yield f"data: {json.dumps(result)}\n\n"
+
+                        if not site:
+                            raise RuntimeError("site generator returned no files")
                         file_count = len(site.get("files", []))
                         yield f'data: {json.dumps({"type": "deployment_status", "message": f"Generated {file_count} files — starting deploy pipeline…"})}\n\n'
 
