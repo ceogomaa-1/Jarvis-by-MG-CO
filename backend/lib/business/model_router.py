@@ -2,7 +2,7 @@ import re
 
 HAIKU = "claude-haiku-4-5-20251001"
 SONNET = "claude-sonnet-4-6"
-OPUS = "claude-opus-4-7"
+OPUS = "claude-opus-4-8"
 
 # Short greetings and simple acks → Haiku (fast, cheap)
 _HAIKU_PATTERNS = [

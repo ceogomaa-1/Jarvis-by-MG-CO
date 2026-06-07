@@ -90,6 +90,34 @@ class SupabaseProjectConnector(BaseConnector):
         except Exception as e:
             return ConnectorResult(ok=False, error=f"Get project keys failed: {e}")
 
+    async def get_project_keys_internal(self, project_id: str) -> ConnectorResult:
+        """
+        Return the FULL (untruncated) anon key and URL for env wiring.
+        Never log or return to the user — only for internal Vercel env injection.
+        """
+        try:
+            async with httpx.AsyncClient() as client:
+                res = await client.get(
+                    f"{SUPABASE_MGMT_API}/projects/{project_id}/api-keys",
+                    headers=self._headers(),
+                    timeout=10.0,
+                )
+            if res.status_code == 200:
+                keys = res.json()
+                anon_key = next(
+                    (k["api_key"] for k in keys if k.get("name") == "anon"),
+                    None,
+                )
+                if not anon_key:
+                    return ConnectorResult(ok=False, error="anon key not found in project API keys")
+                return ConnectorResult(ok=True, data={
+                    "anon_key": anon_key,
+                    "project_url": f"https://{project_id}.supabase.co",
+                })
+            return ConnectorResult(ok=False, error=f"Failed to get keys: {res.status_code}")
+        except Exception as e:
+            return ConnectorResult(ok=False, error=f"Get project keys internal failed: {e}")
+
     async def run_sql(self, project_id: str, sql: str) -> ConnectorResult:
         """Execute SQL on a Supabase project via the Management API."""
         try:

@@ -1,6 +1,6 @@
 // Patterns that strongly indicate a Creation request
 const CREATION_TRIGGERS = [
-  /\b(build|generate|create|design|draft|produce|write|make|launch|put together)\b.{0,40}\b(campaign|landing page|landing-page|website|funnel|email sequence|drip|sms sequence|cold email|ad set|ads?|creative|copy|report|analysis|audit|deck|presentation|proposal|pitch|one[- ]?pager|brochure|menu|flyer|signage|poster|post|carousel|content calendar|brand|persona|playbook|sop|standard operating procedure)\b/i,
+  /\b(build|generate|create|design|draft|produce|write|make|launch|put together)\b.{0,40}\b(campaign|landing page|landing-page|website|web\s*site|web\s*page|webpage|site|funnel|email sequence|drip|sms sequence|cold email|ad set|ads?|creative|copy|report|analysis|audit|deck|presentation|proposal|pitch|one[- ]?pager|brochure|menu|flyer|signage|poster|post|carousel|content calendar|brand|persona|playbook|sop|standard operating procedure)\b/i,
   /^\s*(build|generate|create|design|draft|produce|write|make)\s+(me\s+|us\s+)?(a|an|the|some)\s+/i,
   /\brun (a|an|the) (competitor|market|swot|customer|brand) (analysis|audit|scan|research)\b/i,
   /\bspin up\b/i,

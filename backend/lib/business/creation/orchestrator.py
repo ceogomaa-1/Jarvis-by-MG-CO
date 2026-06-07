@@ -6,9 +6,10 @@ from typing import AsyncIterator
 import httpx
 
 from backend.lib.business.creation.sub_agents import run_sub_agent
+from backend.lib.business.model_router import OPUS
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-ORCHESTRATOR_MODEL = "claude-opus-4-7"
+ORCHESTRATOR_MODEL = OPUS
 ORCHESTRATOR_TIMEOUT = 60.0
 
 _ORCHESTRATOR_SYSTEM = """\

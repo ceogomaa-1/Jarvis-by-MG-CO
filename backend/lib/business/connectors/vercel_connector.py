@@ -2,6 +2,7 @@
 Vercel Connector for Jarvis OS1.
 Auth: API Token from vercel.com/account/tokens.
 """
+import base64
 import httpx
 
 from backend.lib.business.connectors.base import BaseConnector, ConnectorResult
@@ -74,7 +75,7 @@ class VercelConnector(BaseConnector):
             return ConnectorResult(ok=False, error=f"List projects failed: {e}")
 
     async def create_project(self, name: str, github_repo: str = "", framework: str = "nextjs") -> ConnectorResult:
-        """Create a new Vercel project, optionally linked to a GitHub repo."""
+        """Create a new Vercel project."""
         try:
             body: dict = {"name": name, "framework": framework}
             if github_repo:
@@ -94,12 +95,138 @@ class VercelConnector(BaseConnector):
                     "id": proj["id"],
                     "url": f"https://{proj['name']}.vercel.app",
                 })
+            # 409 = project already exists — fetch it
+            if res.status_code == 409:
+                async with httpx.AsyncClient() as client:
+                    get_res = await client.get(
+                        f"{VERCEL_API}/v9/projects/{name}",
+                        headers=self._headers(),
+                        timeout=10.0,
+                    )
+                if get_res.status_code == 200:
+                    proj = get_res.json()
+                    return ConnectorResult(ok=True, data={
+                        "name": proj["name"],
+                        "id": proj["id"],
+                        "url": f"https://{proj['name']}.vercel.app",
+                    })
             return ConnectorResult(ok=False, error=f"Project creation failed: {res.status_code} — {res.text[:200]}")
         except Exception as e:
             return ConnectorResult(ok=False, error=f"Create project failed: {e}")
 
+    async def set_env(
+        self,
+        project_name: str,
+        key: str,
+        value: str,
+        targets: list[str] | None = None,
+    ) -> ConnectorResult:
+        """Set an environment variable on a Vercel project."""
+        if targets is None:
+            targets = ["production", "preview", "development"]
+        try:
+            async with httpx.AsyncClient() as client:
+                res = await client.post(
+                    f"{VERCEL_API}/v10/projects/{project_name}/env",
+                    headers=self._headers(),
+                    json={"key": key, "value": value, "type": "plain", "target": targets},
+                    timeout=15.0,
+                )
+            if res.status_code in (200, 201):
+                return ConnectorResult(ok=True, data={"key": key})
+            # 409 = already exists — update it
+            if res.status_code == 409:
+                data = res.json()
+                env_id = None
+                if "error" in data and "existing" in str(data):
+                    # Try to find and update the existing env var
+                    list_res = await httpx.AsyncClient().get(
+                        f"{VERCEL_API}/v10/projects/{project_name}/env",
+                        headers=self._headers(),
+                        timeout=10.0,
+                    )
+                    if list_res.status_code == 200:
+                        for env in list_res.json().get("envs", []):
+                            if env.get("key") == key:
+                                env_id = env["id"]
+                                break
+                if env_id:
+                    async with httpx.AsyncClient() as client:
+                        patch_res = await client.patch(
+                            f"{VERCEL_API}/v10/projects/{project_name}/env/{env_id}",
+                            headers=self._headers(),
+                            json={"value": value, "target": targets},
+                            timeout=10.0,
+                        )
+                    if patch_res.status_code == 200:
+                        return ConnectorResult(ok=True, data={"key": key, "updated": True})
+            return ConnectorResult(ok=False, error=f"Set env failed: {res.status_code} — {res.text[:200]}")
+        except Exception as e:
+            return ConnectorResult(ok=False, error=f"Set env failed: {e}")
+
+    async def deploy_files(
+        self,
+        project_name: str,
+        files: list[dict],
+        env: dict | None = None,
+        framework: str = "nextjs",
+    ) -> ConnectorResult:
+        """
+        Deploy a project by uploading source files directly to Vercel.
+        No GitHub App integration required — Vercel builds from the provided files.
+        `files`: list of {"path": "...", "content": "..."} dicts.
+        `env`: optional dict of env vars to inject into this deployment.
+        """
+        try:
+            vercel_files = []
+            for f in files:
+                content = f.get("content", "")
+                vercel_files.append({
+                    "file": f["path"],
+                    "data": content,
+                    "encoding": "utf-8",
+                })
+
+            body: dict = {
+                "name": project_name,
+                "files": vercel_files,
+                "projectSettings": {
+                    "framework": framework,
+                    "installCommand": "npm ci",
+                    "buildCommand": "npm run build",
+                    "outputDirectory": ".next",
+                },
+                "target": "production",
+            }
+            if env:
+                body["env"] = env
+
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                res = await client.post(
+                    f"{VERCEL_API}/v13/deployments",
+                    headers=self._headers(),
+                    json=body,
+                )
+
+            if res.status_code in (200, 201):
+                dep = res.json()
+                dep_url = dep.get("url", "")
+                if dep_url and not dep_url.startswith("http"):
+                    dep_url = f"https://{dep_url}"
+                return ConnectorResult(ok=True, data={
+                    "deployment_id": dep.get("id"),
+                    "url": dep_url,
+                    "readyState": dep.get("readyState", dep.get("status", "BUILDING")),
+                })
+            return ConnectorResult(
+                ok=False,
+                error=f"Deploy failed: {res.status_code} — {res.text[:400]}",
+            )
+        except Exception as e:
+            return ConnectorResult(ok=False, error=f"Deploy files failed: {e}")
+
     async def trigger_deploy(self, project_name: str, github_repo: str = "", branch: str = "main") -> ConnectorResult:
-        """Trigger a production deployment for a Vercel project."""
+        """Trigger a deployment via git source (requires GitHub App integration)."""
         try:
             body: dict = {"name": project_name, "target": "production"}
             if github_repo:
@@ -114,17 +241,20 @@ class VercelConnector(BaseConnector):
                 )
             if res.status_code in (200, 201):
                 dep = res.json()
+                dep_url = dep.get("url", "")
+                if dep_url and not dep_url.startswith("http"):
+                    dep_url = f"https://{dep_url}"
                 return ConnectorResult(ok=True, data={
                     "deployment_id": dep.get("id"),
-                    "url": dep.get("url"),
-                    "status": dep.get("readyState", dep.get("status")),
+                    "url": dep_url,
+                    "readyState": dep.get("readyState", dep.get("status")),
                 })
             return ConnectorResult(ok=False, error=f"Deploy failed: {res.status_code} — {res.text[:200]}")
         except Exception as e:
             return ConnectorResult(ok=False, error=f"Trigger deploy failed: {e}")
 
     async def get_deployment(self, deployment_id: str) -> ConnectorResult:
-        """Check the status of a Vercel deployment."""
+        """Check the status of a Vercel deployment. Returns readyState, url, alias."""
         try:
             async with httpx.AsyncClient() as client:
                 res = await client.get(
@@ -134,11 +264,43 @@ class VercelConnector(BaseConnector):
                 )
             if res.status_code == 200:
                 dep = res.json()
+                raw_url = dep.get("url", "")
+                # Vercel returns bare domain without scheme
+                url = f"https://{raw_url}" if raw_url and not raw_url.startswith("http") else raw_url
+                # Prefer alias (production URL) over deployment URL
+                aliases = dep.get("alias", [])
+                alias_url = f"https://{aliases[0]}" if aliases else url
                 return ConnectorResult(ok=True, data={
-                    "status": dep.get("readyState"),
-                    "url": dep.get("url"),
+                    "readyState": dep.get("readyState"),
+                    "url": url,
+                    "alias": alias_url,
+                    "error_message": dep.get("errorMessage"),
                     "created": dep.get("createdAt"),
                 })
             return ConnectorResult(ok=False, error=f"Deployment lookup failed: {res.status_code}")
         except Exception as e:
             return ConnectorResult(ok=False, error=f"Get deployment failed: {e}")
+
+    async def get_deployment_build_logs(self, deployment_id: str) -> str:
+        """Fetch build logs for a failed deployment. Returns a summary string."""
+        try:
+            async with httpx.AsyncClient() as client:
+                res = await client.get(
+                    f"{VERCEL_API}/v2/deployments/{deployment_id}/events",
+                    headers=self._headers(),
+                    timeout=15.0,
+                )
+            if res.status_code == 200:
+                events = res.json()
+                # Extract error lines
+                error_lines = []
+                for ev in events:
+                    text = ev.get("text", ev.get("payload", {}).get("text", ""))
+                    if text and ("error" in text.lower() or "failed" in text.lower()):
+                        error_lines.append(text.strip())
+                if error_lines:
+                    return " | ".join(error_lines[:5])
+                return "Build failed — check the Vercel dashboard for full logs."
+            return f"Could not fetch logs: {res.status_code}"
+        except Exception as e:
+            return f"Log fetch error: {e}"

@@ -118,37 +118,42 @@ class GitHubConnector(BaseConnector):
         pushed = []
         errors = []
 
+        async def _put_file(client: httpx.AsyncClient, file_path: str, content: str, attempt: int = 1) -> bool:
+            encoded = base64.b64encode(content.encode("utf-8")).decode("utf-8")
+            sha = None
+            check = await client.get(
+                f"{GITHUB_API}/repos/{repo}/contents/{file_path}",
+                headers=self._headers(),
+                params={"ref": branch},
+            )
+            if check.status_code == 200:
+                sha = check.json().get("sha")
+
+            body: dict = {"message": message, "content": encoded, "branch": branch}
+            if sha:
+                body["sha"] = sha
+
+            res = await client.put(
+                f"{GITHUB_API}/repos/{repo}/contents/{file_path}",
+                headers=self._headers(),
+                json=body,
+            )
+            if res.status_code in (200, 201):
+                return True
+            # 409/422: SHA conflict — refetch and retry once
+            if res.status_code in (409, 422) and attempt == 1:
+                return await _put_file(client, file_path, content, attempt=2)
+            errors.append(f"{file_path}: {res.status_code} {res.text[:120]}")
+            return False
+
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
-                for f in files[:20]:  # safety cap
+                for f in files[:60]:  # raised cap: Next.js projects routinely exceed 20
                     file_path = f["path"]
                     content = f.get("content", "")
-                    encoded = base64.b64encode(content.encode("utf-8")).decode("utf-8")
-
-                    # Check if file already exists (need its SHA to update)
-                    sha = None
-                    check = await client.get(
-                        f"{GITHUB_API}/repos/{repo}/contents/{file_path}",
-                        headers=self._headers(),
-                        params={"ref": branch},
-                    )
-                    if check.status_code == 200:
-                        sha = check.json().get("sha")
-
-                    body: dict = {"message": message, "content": encoded, "branch": branch}
-                    if sha:
-                        body["sha"] = sha
-
-                    res = await client.put(
-                        f"{GITHUB_API}/repos/{repo}/contents/{file_path}",
-                        headers=self._headers(),
-                        json=body,
-                    )
-
-                    if res.status_code in (200, 201):
+                    ok = await _put_file(client, file_path, content)
+                    if ok:
                         pushed.append(file_path)
-                    else:
-                        errors.append(f"{file_path}: {res.status_code} {res.text[:120]}")
 
         except Exception as e:
             return ConnectorResult(ok=False, error=f"Push files failed: {e}")

@@ -71,7 +71,8 @@ export default function CreationCanvas({ msg, onArtifactUpdate }) {
   const {
     title, intro, agents = [], statuses = {}, artifact: streamedArtifact,
     error, complete, creationId,
-    deploying, deploymentStatus, liveUrl, repoUrl, deploymentMessage, deploymentError,
+    deploying, deploymentStages = [], deploymentStatus, liveUrl, repoUrl, dbUrl,
+    deploymentMessage, deploymentError,
   } = msg
   const [localArtifact, setLocalArtifact] = useState(null)
   const [showRefine, setShowRefine] = useState(false)
@@ -230,19 +231,37 @@ export default function CreationCanvas({ msg, onArtifactUpdate }) {
           padding: '14px 18px',
         }}>
           {deploying && !liveUrl && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{
-                width: 8, height: 8, borderRadius: '50%',
-                background: '#c84b31',
-                animation: 'pulseDot 1.2s ease-in-out infinite',
-                flexShrink: 0,
-              }} />
-              <span style={{
-                fontSize: 12, color: 'rgba(243,234,217,0.75)',
-                fontFamily: 'system-ui, sans-serif',
-              }}>
-                {deploymentStatus || 'Deploying...'}
-              </span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {deploymentStages.length > 0 ? (
+                deploymentStages.map((stage, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{
+                      width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                      background: i === deploymentStages.length - 1 ? '#c84b31' : '#22c55e',
+                      animation: i === deploymentStages.length - 1 ? 'pulseDot 1.2s ease-in-out infinite' : 'none',
+                    }} />
+                    <span style={{
+                      fontSize: 12,
+                      color: i === deploymentStages.length - 1 ? 'rgba(243,234,217,0.85)' : 'rgba(243,234,217,0.45)',
+                      fontFamily: 'system-ui, sans-serif',
+                    }}>
+                      {stage}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{
+                    width: 8, height: 8, borderRadius: '50%',
+                    background: '#c84b31',
+                    animation: 'pulseDot 1.2s ease-in-out infinite',
+                    flexShrink: 0,
+                  }} />
+                  <span style={{ fontSize: 12, color: 'rgba(243,234,217,0.75)', fontFamily: 'system-ui, sans-serif' }}>
+                    {deploymentStatus || 'Deploying…'}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
@@ -285,6 +304,24 @@ export default function CreationCanvas({ msg, onArtifactUpdate }) {
                     }}
                   >
                     GitHub repo →
+                  </a>
+                )}
+                {dbUrl && (
+                  <a
+                    href={dbUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      padding: '7px 14px', borderRadius: 8,
+                      background: 'rgba(62,207,142,0.08)',
+                      border: '1px solid rgba(62,207,142,0.25)',
+                      color: 'rgba(62,207,142,0.9)',
+                      fontSize: 12, fontWeight: 500,
+                      textDecoration: 'none', fontFamily: 'system-ui, sans-serif',
+                    }}
+                  >
+                    Supabase →
                   </a>
                 )}
               </div>

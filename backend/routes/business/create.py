@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import re
 from datetime import datetime, timezone
 
 from fastapi import APIRouter
@@ -9,6 +10,7 @@ from pydantic import BaseModel
 from supabase import create_client
 
 from backend.lib.business.connectors.registry import list_user_connections
+from backend.lib.business.creation.deploy_pipeline import run_deploy_pipeline
 from backend.lib.business.creation.deployment_phase import deploy_project_after_creation
 from backend.lib.business.creation.orchestrator import orchestrate_creation
 from backend.lib.business.creation.persistence import (
@@ -16,9 +18,21 @@ from backend.lib.business.creation.persistence import (
     create_creation_row,
     fail_creation_row,
 )
+from backend.lib.business.creation.site_generator import generate_site
 from backend.lib.business.system_prompt_builder import _fetch_user_profile
 
 router = APIRouter()
+
+_WEBSITE_BUILD_RE = re.compile(
+    r"\b(website|web\s*site|web\s*page|webpage|landing\s*page)\b"
+    r"|build\s+(me\s+)?(a\s+)?(site|web)"
+    r"|create\s+(a\s+)?(site|web)",
+    re.IGNORECASE,
+)
+
+
+def _is_website_build(message: str) -> bool:
+    return bool(_WEBSITE_BUILD_RE.search(message))
 
 SUPABASE_URL = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
@@ -180,46 +194,80 @@ async def business_create(request: CreateRequest):
 
                 yield f"data: {json.dumps(event)}\n\n"
 
-            # ── DEPLOYMENT PHASE — isolated try/except + 60s timeout ──
-            # The creation output is already persisted above, so a crash here is non-fatal.
+            # ── DEPLOYMENT PHASE — isolated try/except ──
+            # Creation output is already persisted above; a crash here is non-fatal.
             if artifact and not has_error and request.user_id:
-                deploy_content = (
-                    code_for_deployment
-                    if (has_deploy_connectors and code_for_deployment)
-                    else artifact
-                )
 
-                try:
-                    deploy_events = await asyncio.wait_for(
-                        _collect_deploy_events(request.user_id, deploy_content, request.message),
-                        timeout=45.0,
+                if _is_website_build(request.message) and has_deploy_connectors:
+                    # ── NEW PATH: deterministic Next.js build + real URL ──────────
+                    try:
+                        yield f'data: {json.dumps({"type": "deployment_status", "message": "Generating Next.js codebase…"})}\n\n'
+                        site = await generate_site(
+                            request.message,
+                            {**context, "artifact": artifact},
+                        )
+                        file_count = len(site.get("files", []))
+                        yield f'data: {json.dumps({"type": "deployment_status", "message": f"Generated {file_count} files — starting deploy pipeline…"})}\n\n'
+
+                        deploy_url: str | None = None
+                        deploy_msg: str | None = None
+                        async for dev in run_deploy_pipeline(request.user_id, site, request.message):
+                            yield f"data: {json.dumps(dev)}\n\n"
+                            if dev.get("type") == "deployment_complete":
+                                deploy_url = dev.get("url")
+                                deploy_msg = dev.get("message", "")
+
+                        if saved_msg_id and deploy_url and conv_id:
+                            try:
+                                sb = _get_supabase()
+                                if sb:
+                                    updated = artifact + "\n\n---\n\n" + (deploy_msg or f"🚀 Deployed: {deploy_url}")
+                                    await asyncio.to_thread(_update_message, sb, saved_msg_id, updated)
+                            except Exception as upd_err:
+                                print(f"[CREATE] DB update post-deploy failed (non-fatal): {upd_err}")
+
+                    except Exception as dep_err:
+                        print(f"[CREATE] Website build failed: {dep_err}")
+                        yield f'data: {json.dumps({"type": "deployment_error", "value": "⚠️ Website build hit an error. The design was saved — say \'deploy the last project\' to retry."})}\n\n'
+
+                else:
+                    # ── OLD PATH: LLM tool-loop deployment (non-website creations) ──
+                    deploy_content = (
+                        code_for_deployment
+                        if (has_deploy_connectors and code_for_deployment)
+                        else artifact
                     )
 
-                    deploy_url: str | None = None
-                    deploy_msg: str | None = None
-                    for dev in deploy_events:
-                        yield f"data: {json.dumps(dev)}\n\n"
-                        if dev.get("type") == "deployment_complete":
-                            deploy_url = dev.get("url")
-                            deploy_msg = dev.get("message", "")
+                    try:
+                        deploy_events = await asyncio.wait_for(
+                            _collect_deploy_events(request.user_id, deploy_content, request.message),
+                            timeout=45.0,
+                        )
 
-                    # Append live URL to the saved message
-                    if saved_msg_id and deploy_url and conv_id:
-                        try:
-                            sb = _get_supabase()
-                            if sb:
-                                updated = artifact + "\n\n---\n\n" + (deploy_msg or f"🚀 Deployed: {deploy_url}")
-                                await asyncio.to_thread(_update_message, sb, saved_msg_id, updated)
-                        except Exception as upd_err:
-                            print(f"[CREATE] DB update post-deploy failed (non-fatal): {upd_err}")
+                        deploy_url = None
+                        deploy_msg = None
+                        for dev in deploy_events:
+                            yield f"data: {json.dumps(dev)}\n\n"
+                            if dev.get("type") == "deployment_complete":
+                                deploy_url = dev.get("url")
+                                deploy_msg = dev.get("message", "")
 
-                except asyncio.TimeoutError:
-                    print("[CREATE] Deployment timed out after 45s")
-                    yield f'data: {json.dumps({"type": "deployment_error", "value": "⚠️ Deployment timed out after 45s. The code was saved — say \'deploy the last project\' to retry."})}\n\n'
+                        if saved_msg_id and deploy_url and conv_id:
+                            try:
+                                sb = _get_supabase()
+                                if sb:
+                                    updated = artifact + "\n\n---\n\n" + (deploy_msg or f"🚀 Deployed: {deploy_url}")
+                                    await asyncio.to_thread(_update_message, sb, saved_msg_id, updated)
+                            except Exception as upd_err:
+                                print(f"[CREATE] DB update post-deploy failed (non-fatal): {upd_err}")
 
-                except Exception as dep_err:
-                    print(f"[CREATE] Deployment phase failed: {dep_err}")
-                    yield f'data: {json.dumps({"type": "deployment_error", "value": "⚠️ The website was designed, but deployment hit an error. Say \'deploy the last project\' to retry."})}\n\n'
+                    except asyncio.TimeoutError:
+                        print("[CREATE] Deployment timed out after 45s")
+                        yield f'data: {json.dumps({"type": "deployment_error", "value": "⚠️ Deployment timed out after 45s. The code was saved — say \'deploy the last project\' to retry."})}\n\n'
+
+                    except Exception as dep_err:
+                        print(f"[CREATE] Deployment phase failed: {dep_err}")
+                        yield f'data: {json.dumps({"type": "deployment_error", "value": "⚠️ The website was designed, but deployment hit an error. Say \'deploy the last project\' to retry."})}\n\n'
 
             yield "data: [DONE]\n\n"
 

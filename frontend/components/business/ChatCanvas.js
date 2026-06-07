@@ -485,7 +485,7 @@ export default function ChatCanvas({
         id: cId, role: 'creation',
         title: '', intro: '', agents: [], statuses: {},
         artifact: '', error: '', complete: false,
-        deploying: false, deploymentStatus: null, liveUrl: null, repoUrl: null, deploymentMessage: null, deploymentError: null,
+        deploying: false, deploymentStages: [], deploymentStatus: null, liveUrl: null, repoUrl: null, dbUrl: null, deploymentMessage: null, deploymentError: null,
       }])
 
       try {
@@ -528,9 +528,9 @@ export default function ChatCanvas({
                 if (ev.type === 'artifact') return { ...m, artifact: ev.content }
                 if (ev.type === 'complete') return { ...m, complete: true }
                 if (ev.type === 'error') return { ...m, error: ev.value, complete: true }
-                if (ev.type === 'deployment_started') return { ...m, deploying: true, deploymentStatus: 'Deploying your project...' }
-                if (ev.type === 'deployment_status') return { ...m, deploying: true, deploymentStatus: ev.message }
-                if (ev.type === 'deployment_complete') return { ...m, deploying: false, deploymentStatus: null, liveUrl: ev.url, repoUrl: ev.repo_url, deploymentMessage: ev.message }
+                if (ev.type === 'deployment_started') return { ...m, deploying: true, deploymentStages: ['Starting deploy pipeline…'], deploymentStatus: 'Starting deploy pipeline…' }
+                if (ev.type === 'deployment_status') return { ...m, deploying: true, deploymentStatus: ev.message, deploymentStages: [...(m.deploymentStages || []), ev.message] }
+                if (ev.type === 'deployment_complete') return { ...m, deploying: false, deploymentStatus: null, liveUrl: ev.url, repoUrl: ev.repo_url, dbUrl: ev.db_url || null, deploymentMessage: ev.message }
                 if (ev.type === 'deployment_error') return { ...m, deploying: false, deploymentStatus: null, deploymentError: ev.value }
                 return m
               }))
