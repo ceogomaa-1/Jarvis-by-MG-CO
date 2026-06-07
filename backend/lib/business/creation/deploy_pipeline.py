@@ -13,9 +13,14 @@ Steps:
 
 Yields SSE event dicts throughout (same format as deployment_phase.py).
 """
+import asyncio
 from typing import AsyncIterator
 
+from backend.lib.business.connectors.base import ConnectorResult
 from backend.lib.business.connectors.registry import get_connector_for_user
+
+_EXTERNAL_STATUS_INTERVAL = 8.0
+_EXTERNAL_CALL_TIMEOUT = 90.0
 
 
 async def run_deploy_pipeline(
@@ -56,11 +61,20 @@ async def run_deploy_pipeline(
 
     # ── 1. GitHub: create repo ────────────────────────────────────────────────
     yield {"type": "deployment_status", "message": "Creating GitHub repository…"}
-    repo_res = await gh.create_repo(
-        name=project_name,
-        description=f"Built with Jarvis OS1 — {site.get('summary', '')[:120]}",
-        private=False,
-    )
+    repo_res = None
+    async for event in _await_connector_call(
+        gh.create_repo(
+            name=project_name,
+            description=f"Built with Jarvis OS1 — {site.get('summary', '')[:120]}",
+            private=False,
+        ),
+        "Still creating the GitHub repository…",
+        "GitHub repo creation timed out",
+    ):
+        if event.get("type") == "_connector_result":
+            repo_res = event["result"]
+        else:
+            yield event
     if not repo_res.ok:
         yield {
             "type": "deployment_error",
@@ -74,12 +88,22 @@ async def run_deploy_pipeline(
 
     # ── 2. GitHub: push all files ─────────────────────────────────────────────
     yield {"type": "deployment_status", "message": f"Pushing {len(files)} files to GitHub…"}
-    push_res = await gh.push_files(
-        repo=full_name,
-        files=files,
-        message="Initial commit — shipped by Jarvis OS1",
-        branch="main",
-    )
+    push_res = None
+    async for event in _await_connector_call(
+        gh.push_files(
+            repo=full_name,
+            files=files,
+            message="Initial commit — shipped by Jarvis OS1",
+            branch="main",
+        ),
+        "Still pushing files to GitHub…",
+        "GitHub push timed out",
+        timeout=120.0,
+    ):
+        if event.get("type") == "_connector_result":
+            push_res = event["result"]
+        else:
+            yield event
     if not push_res.ok:
         yield {
             "type": "deployment_error",
@@ -144,11 +168,20 @@ async def run_deploy_pipeline(
 
     # ── 4. Vercel: create project ─────────────────────────────────────────────
     yield {"type": "deployment_status", "message": "Creating Vercel project…"}
-    proj_res = await vc.create_project(
-        name=project_name,
-        github_repo=full_name,
-        framework="nextjs",
-    )
+    proj_res = None
+    async for event in _await_connector_call(
+        vc.create_project(
+            name=project_name,
+            github_repo=full_name,
+            framework="nextjs",
+        ),
+        "Still creating the Vercel project…",
+        "Vercel project creation timed out",
+    ):
+        if event.get("type") == "_connector_result":
+            proj_res = event["result"]
+        else:
+            yield event
     # Non-fatal if project already existed — we'll still deploy
     vercel_project_name = project_name
     if proj_res.ok:
@@ -162,12 +195,22 @@ async def run_deploy_pipeline(
 
     # ── 6. Vercel: deploy files directly ─────────────────────────────────────
     yield {"type": "deployment_status", "message": "Uploading project to Vercel and triggering build…"}
-    deploy_res = await vc.deploy_files(
-        project_name=vercel_project_name,
-        files=files,
-        env=env_vars if env_vars else None,
-        framework="nextjs",
-    )
+    deploy_res = None
+    async for event in _await_connector_call(
+        vc.deploy_files(
+            project_name=vercel_project_name,
+            files=files,
+            env=env_vars if env_vars else None,
+            framework="nextjs",
+        ),
+        "Still uploading project to Vercel…",
+        "Vercel deployment trigger timed out",
+        timeout=120.0,
+    ):
+        if event.get("type") == "_connector_result":
+            deploy_res = event["result"]
+        else:
+            yield event
     if not deploy_res.ok:
         yield {
             "type": "deployment_error",
@@ -206,3 +249,44 @@ def _normalise_url(url: str) -> str:
     if not url.startswith("http"):
         return f"https://{url}"
     return url
+
+
+async def _await_connector_call(
+    coro,
+    waiting_message: str,
+    timeout_message: str,
+    *,
+    interval: float | None = None,
+    timeout: float | None = None,
+) -> AsyncIterator[dict]:
+    if interval is None:
+        interval = _EXTERNAL_STATUS_INTERVAL
+    if timeout is None:
+        timeout = _EXTERNAL_CALL_TIMEOUT
+
+    task = asyncio.create_task(coro)
+    elapsed = 0.0
+
+    try:
+        while not task.done():
+            remaining = timeout - elapsed
+            if remaining <= 0:
+                task.cancel()
+                return_result = ConnectorResult(ok=False, error=f"{timeout_message} after {int(timeout)}s")
+                yield {"type": "_connector_result", "result": return_result}
+                return
+
+            await asyncio.sleep(min(interval, remaining))
+            elapsed += min(interval, remaining)
+            if not task.done():
+                yield {
+                    "type": "deployment_status",
+                    "message": f"{waiting_message} ({int(elapsed)}s elapsed)",
+                }
+
+        yield {"type": "_connector_result", "result": await task}
+
+    except Exception as exc:
+        if not task.done():
+            task.cancel()
+        yield {"type": "_connector_result", "result": ConnectorResult(ok=False, error=str(exc))}

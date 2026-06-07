@@ -109,62 +109,108 @@ class GitHubConnector(BaseConnector):
         branch: str = "main",
     ) -> ConnectorResult:
         """
-        Push files to a repo using the Contents API (one PUT per file).
-        Much faster and more reliable than the Git Trees API for small projects:
-        no blob→tree→commit→ref chain, each file is independent.
+        Push files in one commit using GitHub's Git Data API.
+        The older Contents API path did one GET+PUT per file, which could leave
+        the SSE stream silent for minutes. This creates blobs, one tree, one
+        commit, then moves the branch ref atomically.
         """
-        import base64
-
-        pushed = []
-        errors = []
-
-        async def _put_file(client: httpx.AsyncClient, file_path: str, content: str, attempt: int = 1) -> bool:
-            encoded = base64.b64encode(content.encode("utf-8")).decode("utf-8")
-            sha = None
-            check = await client.get(
-                f"{GITHUB_API}/repos/{repo}/contents/{file_path}",
-                headers=self._headers(),
-                params={"ref": branch},
-            )
-            if check.status_code == 200:
-                sha = check.json().get("sha")
-
-            body: dict = {"message": message, "content": encoded, "branch": branch}
-            if sha:
-                body["sha"] = sha
-
-            res = await client.put(
-                f"{GITHUB_API}/repos/{repo}/contents/{file_path}",
-                headers=self._headers(),
-                json=body,
-            )
-            if res.status_code in (200, 201):
-                return True
-            # 409/422: SHA conflict — refetch and retry once
-            if res.status_code in (409, 422) and attempt == 1:
-                return await _put_file(client, file_path, content, attempt=2)
-            errors.append(f"{file_path}: {res.status_code} {res.text[:120]}")
-            return False
+        upload_files = files[:60]
+        if not upload_files:
+            return ConnectorResult(ok=False, error="No files to push.")
 
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                for f in files[:60]:  # raised cap: Next.js projects routinely exceed 20
-                    file_path = f["path"]
-                    content = f.get("content", "")
-                    ok = await _put_file(client, file_path, content)
-                    if ok:
-                        pushed.append(file_path)
+            async with httpx.AsyncClient(timeout=httpx.Timeout(20.0, connect=10.0)) as client:
+                ref_res = await client.get(
+                    f"{GITHUB_API}/repos/{repo}/git/ref/heads/{branch}",
+                    headers=self._headers(),
+                )
+                if ref_res.status_code != 200:
+                    return ConnectorResult(
+                        ok=False,
+                        error=f"Read branch ref failed: {ref_res.status_code} — {ref_res.text[:200]}",
+                    )
+
+                base_commit_sha = ref_res.json()["object"]["sha"]
+                commit_res = await client.get(
+                    f"{GITHUB_API}/repos/{repo}/git/commits/{base_commit_sha}",
+                    headers=self._headers(),
+                )
+                if commit_res.status_code != 200:
+                    return ConnectorResult(
+                        ok=False,
+                        error=f"Read base commit failed: {commit_res.status_code} — {commit_res.text[:200]}",
+                    )
+                base_tree_sha = commit_res.json()["tree"]["sha"]
+
+                tree_items = []
+                for f in upload_files:
+                    blob_res = await client.post(
+                        f"{GITHUB_API}/repos/{repo}/git/blobs",
+                        headers=self._headers(),
+                        json={
+                            "content": f.get("content", ""),
+                            "encoding": "utf-8",
+                        },
+                    )
+                    if blob_res.status_code != 201:
+                        return ConnectorResult(
+                            ok=False,
+                            error=f"Create blob failed for {f.get('path')}: {blob_res.status_code} — {blob_res.text[:200]}",
+                        )
+                    tree_items.append({
+                        "path": f["path"],
+                        "mode": "100644",
+                        "type": "blob",
+                        "sha": blob_res.json()["sha"],
+                    })
+
+                tree_res = await client.post(
+                    f"{GITHUB_API}/repos/{repo}/git/trees",
+                    headers=self._headers(),
+                    json={"base_tree": base_tree_sha, "tree": tree_items},
+                )
+                if tree_res.status_code != 201:
+                    return ConnectorResult(
+                        ok=False,
+                        error=f"Create tree failed: {tree_res.status_code} — {tree_res.text[:200]}",
+                    )
+
+                new_tree_sha = tree_res.json()["sha"]
+                new_commit_res = await client.post(
+                    f"{GITHUB_API}/repos/{repo}/git/commits",
+                    headers=self._headers(),
+                    json={
+                        "message": message,
+                        "tree": new_tree_sha,
+                        "parents": [base_commit_sha],
+                    },
+                )
+                if new_commit_res.status_code != 201:
+                    return ConnectorResult(
+                        ok=False,
+                        error=f"Create commit failed: {new_commit_res.status_code} — {new_commit_res.text[:200]}",
+                    )
+
+                new_commit_sha = new_commit_res.json()["sha"]
+                update_ref_res = await client.patch(
+                    f"{GITHUB_API}/repos/{repo}/git/refs/heads/{branch}",
+                    headers=self._headers(),
+                    json={"sha": new_commit_sha, "force": False},
+                )
+                if update_ref_res.status_code != 200:
+                    return ConnectorResult(
+                        ok=False,
+                        error=f"Update branch failed: {update_ref_res.status_code} — {update_ref_res.text[:200]}",
+                    )
 
         except Exception as e:
             return ConnectorResult(ok=False, error=f"Push files failed: {e}")
 
-        if pushed:
-            return ConnectorResult(ok=True, data={
-                "success": True,
-                "files_pushed": len(pushed),
-                "files": pushed,
-                "errors": errors or None,
-                "url": f"https://github.com/{repo}",
-                "message": message,
-            })
-        return ConnectorResult(ok=False, error=f"No files pushed. Errors: {errors}")
+        pushed = [f["path"] for f in upload_files]
+        return ConnectorResult(ok=True, data={
+            "success": True,
+            "files_pushed": len(pushed),
+            "files": pushed,
+            "url": f"https://github.com/{repo}",
+            "message": message,
+        })
