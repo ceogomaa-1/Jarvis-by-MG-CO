@@ -2,6 +2,7 @@
 GitHub Connector for Jarvis OS1.
 Auth: Personal Access Token (PAT) with repo scope.
 """
+import asyncio
 import httpx
 
 from backend.lib.business.connectors.base import BaseConnector, ConnectorResult
@@ -120,10 +121,19 @@ class GitHubConnector(BaseConnector):
 
         try:
             async with httpx.AsyncClient(timeout=httpx.Timeout(20.0, connect=10.0)) as client:
-                ref_res = await client.get(
-                    f"{GITHUB_API}/repos/{repo}/git/ref/heads/{branch}",
-                    headers=self._headers(),
-                )
+                ref_res = None
+                for attempt in range(5):
+                    ref_res = await client.get(
+                        f"{GITHUB_API}/repos/{repo}/git/ref/heads/{branch}",
+                        headers=self._headers(),
+                    )
+                    if ref_res.status_code == 200:
+                        break
+                    if ref_res.status_code == 404 and attempt < 4:
+                        await asyncio.sleep(1.0)
+                        continue
+                    break
+
                 if ref_res.status_code != 200:
                     return ConnectorResult(
                         ok=False,
