@@ -9,16 +9,11 @@ Steps:
   2. GitHub — create_repo → push_files (up to 60 files).
   3. Supabase (optional) — reuse existing project, run migration, fetch keys.
   4. Vercel — create_project → set_env (if Supabase) → deploy_files directly.
-  5. Poll Vercel until readyState == READY (max 180 s, every 5 s).
-  6. Verify URL is reachable; emit deployment_complete with real URL.
+  5. Emit deployment_pending with the Vercel deployment ID and close the SSE stream.
 
 Yields SSE event dicts throughout (same format as deployment_phase.py).
 """
-import asyncio
-import re
 from typing import AsyncIterator
-
-import httpx
 
 from backend.lib.business.connectors.registry import get_connector_for_user
 
@@ -27,6 +22,7 @@ async def run_deploy_pipeline(
     user_id: str,
     site: dict,
     user_message: str = "",
+    creation_id: str | None = None,
 ) -> AsyncIterator[dict]:
     """
     Async generator yielding SSE event dicts.
@@ -191,75 +187,16 @@ async def run_deploy_pipeline(
         }
         return
 
-    # ── 7. Poll until READY ───────────────────────────────────────────────────
-    yield {"type": "deployment_status", "message": "Building… Next.js builds typically take 60–120 s"}
-
-    final_url: str | None = None
-    poll_seconds = 0
-    max_poll = 180
-
-    for tick in range(max_poll // 5):
-        await asyncio.sleep(5)
-        poll_seconds += 5
-
-        status_res = await vc.get_deployment(deployment_id)
-        if not status_res.ok:
-            # Transient polling error — keep going
-            continue
-
-        state = status_res.data.get("readyState", "")
-        alias = status_res.data.get("alias") or status_res.data.get("url") or initial_url
-
-        if state == "READY":
-            final_url = _normalise_url(alias or initial_url)
-            break
-
-        if state in ("ERROR", "CANCELED", "FAILED"):
-            logs = await vc.get_deployment_build_logs(deployment_id)
-            yield {
-                "type": "deployment_error",
-                "value": f"Build failed ({state}): {logs} — Say 'deploy the last project' to retry.",
-                "stage": "vercel_build",
-            }
-            return
-
-        # Periodic progress update every 30 s
-        if poll_seconds % 30 == 0:
-            yield {
-                "type": "deployment_status",
-                "message": f"Still building… ({poll_seconds}s elapsed, state: {state or 'BUILDING'})",
-            }
-
-    if not final_url:
-        yield {
-            "type": "deployment_error",
-            "value": "Deployment timed out after 180 s. The code is on GitHub — say 'deploy the last project' to retry.",
-            "stage": "timeout",
-        }
-        return
-
-    # ── 8. Best-effort reachability check ────────────────────────────────────
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            check = await client.get(final_url, follow_redirects=True)
-            if check.status_code >= 500:
-                yield {
-                    "type": "deployment_status",
-                    "message": f"⚠️ URL responded {check.status_code} — may still be warming up.",
-                }
-    except Exception:
-        pass  # best-effort only
-
+    expected_url = _normalise_url(initial_url) or f"https://{vercel_project_name}.vercel.app"
+    yield {"type": "deployment_status", "message": "Build triggered — polling Vercel status…"}
     yield {
-        "type": "deployment_complete",
-        "url": final_url,
+        "type": "deployment_pending",
+        "deployment_id": deployment_id,
+        "creation_id": creation_id,
+        "expected_url": expected_url,
         "repo_url": repo_url,
         "db_url": db_url,
-        "message": (
-            f"🚀 Live at **{final_url}**\n"
-            f"Repo: **{repo_url}**"
-            + (f"\nSupabase: **{db_url}**" if db_url else "")
-        ),
+        "message": "Build is running on Vercel. I'll keep this card updated.",
     }
 
 

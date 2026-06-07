@@ -72,7 +72,7 @@ export default function CreationCanvas({ msg, onArtifactUpdate }) {
     title, intro, agents = [], statuses = {}, artifact: streamedArtifact,
     error, complete, creationId,
     deploying, deploymentStages = [], deploymentStatus, liveUrl, repoUrl, dbUrl,
-    deploymentMessage, deploymentError,
+    deploymentMessage, deploymentError, deploymentId, expectedUrl,
   } = msg
   const [localArtifact, setLocalArtifact] = useState(null)
   const [showRefine, setShowRefine] = useState(false)
@@ -232,6 +232,12 @@ export default function CreationCanvas({ msg, onArtifactUpdate }) {
         }}>
           {deploying && !liveUrl && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{
+                fontSize: 10, fontWeight: 600, letterSpacing: '0.12em',
+                color: '#c84b31', textTransform: 'uppercase', marginBottom: 4,
+              }}>
+                BUILDING
+              </div>
               {deploymentStages.length > 0 ? (
                 deploymentStages.map((stage, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -260,6 +266,46 @@ export default function CreationCanvas({ msg, onArtifactUpdate }) {
                   <span style={{ fontSize: 12, color: 'rgba(243,234,217,0.75)', fontFamily: 'system-ui, sans-serif' }}>
                     {deploymentStatus || 'Deploying…'}
                   </span>
+                </div>
+              )}
+              {(repoUrl || expectedUrl || deploymentId) && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                  {repoUrl && (
+                    <a
+                      href={repoUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: 'inline-flex', alignItems: 'center',
+                        padding: '6px 12px', borderRadius: 8,
+                        background: 'rgba(243,234,217,0.07)',
+                        border: '1px solid rgba(243,234,217,0.15)',
+                        color: 'rgba(243,234,217,0.8)',
+                        fontSize: 12, fontWeight: 500,
+                        textDecoration: 'none', fontFamily: 'system-ui, sans-serif',
+                      }}
+                    >
+                      GitHub repo
+                    </a>
+                  )}
+                  {expectedUrl && (
+                    <a
+                      href={expectedUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: 'inline-flex', alignItems: 'center',
+                        padding: '6px 12px', borderRadius: 8,
+                        background: 'rgba(200,75,49,0.08)',
+                        border: '1px solid rgba(200,75,49,0.2)',
+                        color: '#c84b31',
+                        fontSize: 12, fontWeight: 500,
+                        textDecoration: 'none', fontFamily: 'system-ui, sans-serif',
+                      }}
+                    >
+                      Expected URL
+                    </a>
+                  )}
                 </div>
               )}
             </div>
@@ -338,8 +384,48 @@ export default function CreationCanvas({ msg, onArtifactUpdate }) {
           )}
 
           {deploymentError && (
-            <div style={{ fontSize: 12, color: 'rgba(239,68,68,0.85)', fontFamily: 'system-ui, sans-serif' }}>
-              Deployment failed: {deploymentError}
+            <div style={{ fontFamily: 'system-ui, sans-serif' }}>
+              <div style={{ fontSize: 12, color: 'rgba(239,68,68,0.85)', marginBottom: 8 }}>
+                Deployment failed: {deploymentError}
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {repoUrl && (
+                  <a
+                    href={repoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'inline-flex', alignItems: 'center',
+                      padding: '6px 12px', borderRadius: 8,
+                      background: 'rgba(243,234,217,0.07)',
+                      border: '1px solid rgba(243,234,217,0.15)',
+                      color: 'rgba(243,234,217,0.8)',
+                      fontSize: 12, fontWeight: 500,
+                      textDecoration: 'none',
+                    }}
+                  >
+                    Open GitHub repo
+                  </a>
+                )}
+                {expectedUrl && (
+                  <a
+                    href={expectedUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'inline-flex', alignItems: 'center',
+                      padding: '6px 12px', borderRadius: 8,
+                      background: 'rgba(200,75,49,0.08)',
+                      border: '1px solid rgba(200,75,49,0.2)',
+                      color: '#c84b31',
+                      fontSize: 12, fontWeight: 500,
+                      textDecoration: 'none',
+                    }}
+                  >
+                    Try expected URL
+                  </a>
+                )}
+              </div>
             </div>
           )}
         </div>

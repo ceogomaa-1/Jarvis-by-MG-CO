@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from supabase import create_client
 
 from backend.lib.business.connectors.registry import list_user_connections
+from backend.lib.business.connectors.registry import get_connector_for_user
 from backend.lib.business.creation.deploy_pipeline import run_deploy_pipeline
 from backend.lib.business.creation.deployment_phase import deploy_project_after_creation
 from backend.lib.business.creation.orchestrator import orchestrate_creation
@@ -17,6 +18,8 @@ from backend.lib.business.creation.persistence import (
     complete_creation_row,
     create_creation_row,
     fail_creation_row,
+    mark_deployment_pending,
+    update_deployment_by_id,
 )
 from backend.lib.business.creation.site_generator import generate_site
 from backend.lib.business.system_prompt_builder import _fetch_user_profile
@@ -108,6 +111,38 @@ class CreateRequest(BaseModel):
     message: str
     user_id: str = ""
     conversation_id: str | None = None
+
+
+@router.get("/business/deploy-status")
+async def business_deploy_status(user_id: str = "", deployment_id: str = ""):
+    if not user_id or not deployment_id:
+        return {"state": "ERROR", "url": None, "error": "user_id and deployment_id are required", "logs": None}
+
+    vc = await get_connector_for_user(user_id, "vercel")
+    if not vc:
+        return {"state": "ERROR", "url": None, "error": "Vercel connector not connected", "logs": None}
+
+    status_res = await vc.get_deployment(deployment_id)
+    if not status_res.ok:
+        return {"state": "BUILDING", "url": None, "error": status_res.error, "logs": None}
+
+    state = status_res.data.get("readyState") or "BUILDING"
+    url = status_res.data.get("alias") or status_res.data.get("url")
+    error = status_res.data.get("error_message")
+    logs = None
+
+    if state in ("ERROR", "FAILED", "CANCELED"):
+        logs = await vc.get_deployment_build_logs(deployment_id)
+        error = error or f"Vercel deployment ended with state {state}"
+
+    if state == "READY" and url:
+        await update_deployment_by_id(deployment_id, "READY", live_url=url)
+    elif state in ("ERROR", "FAILED", "CANCELED"):
+        await update_deployment_by_id(deployment_id, state, error=logs or error)
+    else:
+        await update_deployment_by_id(deployment_id, state)
+
+    return {"state": state, "url": url if state == "READY" else None, "error": error, "logs": logs}
 
 
 @router.post("/business/create")
@@ -214,11 +249,18 @@ async def business_create(request: CreateRequest):
 
                         deploy_url: str | None = None
                         deploy_msg: str | None = None
-                        async for dev in run_deploy_pipeline(request.user_id, site, request.message):
+                        async for dev in run_deploy_pipeline(request.user_id, site, request.message, creation_id):
                             yield f"data: {json.dumps(dev)}\n\n"
                             if dev.get("type") == "deployment_complete":
                                 deploy_url = dev.get("url")
                                 deploy_msg = dev.get("message", "")
+                            elif dev.get("type") == "deployment_pending":
+                                await mark_deployment_pending(
+                                    creation_id,
+                                    dev.get("deployment_id", ""),
+                                    repo_url=dev.get("repo_url", ""),
+                                    expected_url=dev.get("expected_url", ""),
+                                )
 
                         if saved_msg_id and deploy_url and conv_id:
                             try:

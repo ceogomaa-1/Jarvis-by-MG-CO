@@ -22,6 +22,12 @@ import TetrisLoader from '../ui/TetrisLoader'
 import ThinkingIndicator from './ThinkingIndicator'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
+const DEPLOY_POLL_MS = 5000
+const DEPLOY_POLL_MAX_MS = 6 * 60 * 1000
+
+function pendingDeployStorageKey(userId) {
+  return `jarvis_pending_deploys_${userId || 'anon'}`
+}
 
 function UserBubble({ content, attachments }) {
   return (
@@ -191,6 +197,7 @@ export default function ChatCanvas({
   // Scroll-to-bottom anchor and initial-load flag
   const messagesEndRef = useRef(null)
   const didInitialScroll = useRef(false)
+  const deployPollersRef = useRef({})
 
   const isActivelyStreaming = messages.some(m => m.streaming === true)
 
@@ -198,6 +205,31 @@ export default function ChatCanvas({
   useEffect(() => {
     activeConvRef.current = activeConversationId
   }, [activeConversationId])
+
+  useEffect(() => {
+    return () => {
+      Object.values(deployPollersRef.current).forEach(clearInterval)
+      deployPollersRef.current = {}
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!userId || typeof window === 'undefined') return
+    try {
+      const saved = JSON.parse(localStorage.getItem(pendingDeployStorageKey(userId)) || '[]')
+      if (!Array.isArray(saved) || saved.length === 0) return
+      setMessages(prev => {
+        const existing = new Set(prev.map(m => m.deploymentId).filter(Boolean))
+        const restored = saved
+          .filter(m => m.deploymentId && !existing.has(m.deploymentId))
+          .map(m => ({ ...m, id: `deploy-${m.deploymentId}`, role: 'creation' }))
+        return restored.length ? [...prev, ...restored] : prev
+      })
+      for (const msg of saved) {
+        if (msg.deploymentId) startDeployPolling(`deploy-${msg.deploymentId}`, msg)
+      }
+    } catch {}
+  }, [userId])
 
   // Check sessionStorage for prefill from workflow canvas "Open in Chat"
   useEffect(() => {
@@ -314,6 +346,107 @@ export default function ChatCanvas({
 
   const updateMessage = (id, updates) => {
     setMessages(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m))
+  }
+
+  const savePendingDeploy = (deployMsg) => {
+    if (!userId || typeof window === 'undefined' || !deployMsg?.deploymentId) return
+    try {
+      const key = pendingDeployStorageKey(userId)
+      const saved = JSON.parse(localStorage.getItem(key) || '[]')
+      const rest = Array.isArray(saved)
+        ? saved.filter(m => m.deploymentId !== deployMsg.deploymentId)
+        : []
+      localStorage.setItem(key, JSON.stringify([...rest, deployMsg]))
+    } catch {}
+  }
+
+  const removePendingDeploy = (deploymentId) => {
+    if (!userId || typeof window === 'undefined' || !deploymentId) return
+    try {
+      const key = pendingDeployStorageKey(userId)
+      const saved = JSON.parse(localStorage.getItem(key) || '[]')
+      localStorage.setItem(
+        key,
+        JSON.stringify((Array.isArray(saved) ? saved : []).filter(m => m.deploymentId !== deploymentId))
+      )
+    } catch {}
+  }
+
+  const startDeployPolling = (messageId, deployMsg) => {
+    const deploymentId = deployMsg?.deploymentId || deployMsg?.deployment_id
+    if (!deploymentId || deployPollersRef.current[messageId]) return
+
+    const startedAt = Date.now()
+    const poll = async () => {
+      try {
+        const res = await fetch(`${BACKEND}/api/business/deploy-status?user_id=${encodeURIComponent(userId || '')}&deployment_id=${encodeURIComponent(deploymentId)}`)
+        const data = await res.json()
+        const state = data.state || 'BUILDING'
+
+        if (state === 'READY' && data.url) {
+          clearInterval(deployPollersRef.current[messageId])
+          delete deployPollersRef.current[messageId]
+          removePendingDeploy(deploymentId)
+          setMessages(prev => prev.map(m => m.id === messageId ? {
+            ...m,
+            deploying: false,
+            deploymentStatus: null,
+            liveUrl: data.url,
+            deploymentError: null,
+            deploymentMessage: `Live at ${data.url}`,
+          } : m))
+          onConversationsUpdated?.()
+          return
+        }
+
+        if (['ERROR', 'FAILED', 'CANCELED'].includes(state)) {
+          clearInterval(deployPollersRef.current[messageId])
+          delete deployPollersRef.current[messageId]
+          removePendingDeploy(deploymentId)
+          setMessages(prev => prev.map(m => m.id === messageId ? {
+            ...m,
+            deploying: false,
+            deploymentStatus: null,
+            deploymentError: data.logs || data.error || `Build ended with state ${state}`,
+          } : m))
+          return
+        }
+
+        const elapsed = Math.round((Date.now() - startedAt) / 1000)
+        const status = `Building on Vercel… (${elapsed}s, ${state})`
+        setMessages(prev => prev.map(m => {
+          if (m.id !== messageId) return m
+          const updated = {
+            ...m,
+            deploying: true,
+            deploymentStatus: status,
+            deploymentStages: [...(m.deploymentStages || []).slice(-8), status],
+          }
+          savePendingDeploy(updated)
+          return updated
+        }))
+
+        if (Date.now() - startedAt > DEPLOY_POLL_MAX_MS) {
+          clearInterval(deployPollersRef.current[messageId])
+          delete deployPollersRef.current[messageId]
+          setMessages(prev => prev.map(m => m.id === messageId ? {
+            ...m,
+            deploying: false,
+            deploymentStatus: null,
+            deploymentError: 'Still building after 6 minutes. The repo and expected URL are saved below.',
+          } : m))
+        }
+      } catch {
+        setMessages(prev => prev.map(m => m.id === messageId ? {
+          ...m,
+          deploying: true,
+          deploymentStatus: 'Still building — reconnecting to Vercel status…',
+        } : m))
+      }
+    }
+
+    poll()
+    deployPollersRef.current[messageId] = setInterval(poll, DEPLOY_POLL_MS)
   }
 
   const handleActionConfirm = () => {
@@ -494,6 +627,7 @@ export default function ChatCanvas({
         title: '', intro: '', agents: [], statuses: {},
         artifact: '', error: '', complete: false,
         deploying: false, deploymentStages: [], deploymentStatus: null, liveUrl: null, repoUrl: null, dbUrl: null, deploymentMessage: null, deploymentError: null,
+        deploymentId: null, expectedUrl: null,
       }])
       setIsThinking(true)
 
@@ -527,6 +661,24 @@ export default function ChatCanvas({
               }
               // Dismiss thinking indicator once the plan (real content) arrives
               if (ev.type === 'plan') setIsThinking(false)
+              if (ev.type === 'deployment_pending') {
+                const pendingMsg = {
+                  id: cId,
+                  role: 'creation',
+                  creationId: ev.creation_id,
+                  complete: true,
+                  deploying: true,
+                  deploymentId: ev.deployment_id,
+                  repoUrl: ev.repo_url || null,
+                  expectedUrl: ev.expected_url || null,
+                  dbUrl: ev.db_url || null,
+                  deploymentStatus: ev.message || 'Building on Vercel…',
+                  deploymentStages: ['Build triggered on Vercel…'],
+                  deploymentError: null,
+                }
+                savePendingDeploy(pendingMsg)
+                startDeployPolling(cId, pendingMsg)
+              }
               setMessages(prev => prev.map(m => {
                 if (m.id !== cId) return m
                 if (ev.type === 'plan') {
@@ -541,6 +693,7 @@ export default function ChatCanvas({
                 if (ev.type === 'error') return { ...m, error: ev.value, complete: true }
                 if (ev.type === 'deployment_started') return { ...m, deploying: true, deploymentStages: ['Starting deploy pipeline…'], deploymentStatus: 'Starting deploy pipeline…' }
                 if (ev.type === 'deployment_status') return { ...m, deploying: true, deploymentStatus: ev.message, deploymentStages: [...(m.deploymentStages || []), ev.message] }
+                if (ev.type === 'deployment_pending') return { ...m, complete: true, deploying: true, deploymentStatus: ev.message || 'Building on Vercel…', deploymentStages: [...(m.deploymentStages || []), 'Build triggered on Vercel…'], deploymentId: ev.deployment_id, repoUrl: ev.repo_url || m.repoUrl, expectedUrl: ev.expected_url || m.expectedUrl, dbUrl: ev.db_url || m.dbUrl || null, deploymentError: null }
                 if (ev.type === 'deployment_complete') return { ...m, deploying: false, deploymentStatus: null, liveUrl: ev.url, repoUrl: ev.repo_url, dbUrl: ev.db_url || null, deploymentMessage: ev.message }
                 if (ev.type === 'deployment_error') return { ...m, deploying: false, deploymentStatus: null, deploymentError: ev.value }
                 return m
@@ -551,7 +704,11 @@ export default function ChatCanvas({
       } catch (err) {
         console.error('Creation failed:', err)
         setMessages(prev => prev.map(m =>
-          m.id === cId ? { ...m, error: 'Creation failed. Please try again.', complete: true } : m
+          m.id === cId
+            ? deployPollersRef.current[cId]
+              ? { ...m, deploying: true, deploymentStatus: 'Build is still running — polling Vercel status…' }
+              : { ...m, error: 'Creation failed. Please try again.', complete: true }
+            : m
         ))
       }
       setIsThinking(false)

@@ -20,6 +20,13 @@ def _is_valid_uuid(value: str) -> bool:
     return bool(value and _UUID_RE.match(value.strip()))
 
 
+def _user_id_to_uuid(user_id: str) -> str:
+    hex_id = (user_id or "").removeprefix("user_")
+    if len(hex_id) == 32 and all(c in "0123456789abcdef" for c in hex_id.lower()):
+        return f"{hex_id[:8]}-{hex_id[8:12]}-{hex_id[12:16]}-{hex_id[16:20]}-{hex_id[20:]}"
+    return user_id
+
+
 async def create_creation_row(
     user_id: str,
     title: str,
@@ -30,6 +37,7 @@ async def create_creation_row(
     company_name: str = "",
 ) -> str | None:
     """Insert a 'running' creation row. Returns the new UUID or None."""
+    user_id = _user_id_to_uuid(user_id)
     if not _is_valid_uuid(user_id):
         return None
     try:
@@ -94,3 +102,48 @@ async def update_artifact(creation_id: str, artifact_markdown: str) -> None:
         }).eq("id", creation_id).execute()
     except Exception as e:
         print(f"PERSISTENCE: update_artifact failed: {e}")
+
+
+async def mark_deployment_pending(
+    creation_id: str | None,
+    deployment_id: str,
+    repo_url: str = "",
+    expected_url: str = "",
+) -> None:
+    if not creation_id or not _is_valid_uuid(creation_id):
+        return
+    try:
+        _client().table("business_creations").update({
+            "status": "building",
+            "deployment_id": deployment_id,
+            "repo_url": repo_url,
+            "expected_url": expected_url,
+            "deployment_status": "BUILDING",
+            "deployment_error": None,
+        }).eq("id", creation_id).execute()
+    except Exception as e:
+        print(f"PERSISTENCE: mark_deployment_pending failed: {e}")
+
+
+async def update_deployment_by_id(
+    deployment_id: str,
+    state: str,
+    live_url: str | None = None,
+    error: str | None = None,
+) -> None:
+    if not deployment_id:
+        return
+    status = "complete" if state == "READY" else "failed" if state in {"ERROR", "FAILED", "CANCELED"} else "building"
+    data = {
+        "status": status,
+        "deployment_status": state,
+        "deployment_error": error,
+    }
+    if live_url:
+        data["live_url"] = live_url
+    if status in {"complete", "failed"}:
+        data["completed_at"] = datetime.now(timezone.utc).isoformat()
+    try:
+        _client().table("business_creations").update(data).eq("deployment_id", deployment_id).execute()
+    except Exception as e:
+        print(f"PERSISTENCE: update_deployment_by_id failed: {e}")
