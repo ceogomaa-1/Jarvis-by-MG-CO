@@ -192,7 +192,7 @@ async def business_create(request: CreateRequest):
                 try:
                     deploy_events = await asyncio.wait_for(
                         _collect_deploy_events(request.user_id, deploy_content, request.message),
-                        timeout=60.0,
+                        timeout=45.0,
                     )
 
                     deploy_url: str | None = None
@@ -214,8 +214,8 @@ async def business_create(request: CreateRequest):
                             print(f"[CREATE] DB update post-deploy failed (non-fatal): {upd_err}")
 
                 except asyncio.TimeoutError:
-                    print("[CREATE] Deployment timed out after 60s")
-                    yield f'data: {json.dumps({"type": "deployment_error", "value": "⚠️ Deployment timed out. The code was generated — say \'deploy the last project\' to retry."})}\n\n'
+                    print("[CREATE] Deployment timed out after 45s")
+                    yield f'data: {json.dumps({"type": "deployment_error", "value": "⚠️ Deployment timed out after 45s. The code was saved — say \'deploy the last project\' to retry."})}\n\n'
 
                 except Exception as dep_err:
                     print(f"[CREATE] Deployment phase failed: {dep_err}")

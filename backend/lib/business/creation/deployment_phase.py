@@ -20,7 +20,7 @@ from backend.lib.business.tool_executor import execute_tool
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 DEPLOYMENT_MODEL = "claude-sonnet-4-6"
-DEPLOYMENT_TIMEOUT = 120.0
+DEPLOYMENT_TIMEOUT = 40.0
 
 _CODE_INDICATORS = [
     "<!DOCTYPE", "<html", "export default function", "export default class",

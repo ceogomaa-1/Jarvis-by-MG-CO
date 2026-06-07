@@ -108,77 +108,58 @@ class GitHubConnector(BaseConnector):
         message: str = "Jarvis OS1: automated commit",
         branch: str = "main",
     ) -> ConnectorResult:
-        """Push multiple files to a repo in a single atomic commit via the Git Trees API."""
+        """
+        Push files to a repo using the Contents API (one PUT per file).
+        Much faster and more reliable than the Git Trees API for small projects:
+        no blob→tree→commit→ref chain, each file is independent.
+        """
+        import base64
+
+        pushed = []
+        errors = []
+
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                # 1. Get current branch SHA
-                ref_res = await client.get(
-                    f"{GITHUB_API}/repos/{repo}/git/ref/heads/{branch}",
-                    headers=self._headers(),
-                )
-                if ref_res.status_code != 200:
-                    return ConnectorResult(ok=False, error=f"Could not get branch ref: {ref_res.status_code}")
-                current_sha = ref_res.json()["object"]["sha"]
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                for f in files[:20]:  # safety cap
+                    file_path = f["path"]
+                    content = f.get("content", "")
+                    encoded = base64.b64encode(content.encode("utf-8")).decode("utf-8")
 
-                # 2. Get current tree SHA
-                commit_res = await client.get(
-                    f"{GITHUB_API}/repos/{repo}/git/commits/{current_sha}",
-                    headers=self._headers(),
-                )
-                base_tree_sha = commit_res.json()["tree"]["sha"]
-
-                # 3. Create blobs for each file
-                tree_items = []
-                for f in files:
-                    blob_res = await client.post(
-                        f"{GITHUB_API}/repos/{repo}/git/blobs",
+                    # Check if file already exists (need its SHA to update)
+                    sha = None
+                    check = await client.get(
+                        f"{GITHUB_API}/repos/{repo}/contents/{file_path}",
                         headers=self._headers(),
-                        json={"content": f["content"], "encoding": "utf-8"},
+                        params={"ref": branch},
                     )
-                    if blob_res.status_code != 201:
-                        return ConnectorResult(ok=False, error=f"Blob creation failed for {f['path']}: {blob_res.text[:200]}")
-                    tree_items.append({
-                        "path": f["path"],
-                        "mode": "100644",
-                        "type": "blob",
-                        "sha": blob_res.json()["sha"],
-                    })
+                    if check.status_code == 200:
+                        sha = check.json().get("sha")
 
-                # 4. Create new tree
-                tree_res = await client.post(
-                    f"{GITHUB_API}/repos/{repo}/git/trees",
-                    headers=self._headers(),
-                    json={"base_tree": base_tree_sha, "tree": tree_items},
-                )
-                if tree_res.status_code != 201:
-                    return ConnectorResult(ok=False, error=f"Tree creation failed: {tree_res.text[:200]}")
-                new_tree_sha = tree_res.json()["sha"]
+                    body: dict = {"message": message, "content": encoded, "branch": branch}
+                    if sha:
+                        body["sha"] = sha
 
-                # 5. Create commit
-                commit_create_res = await client.post(
-                    f"{GITHUB_API}/repos/{repo}/git/commits",
-                    headers=self._headers(),
-                    json={"message": message, "tree": new_tree_sha, "parents": [current_sha]},
-                )
-                if commit_create_res.status_code != 201:
-                    return ConnectorResult(ok=False, error=f"Commit failed: {commit_create_res.text[:200]}")
-                new_commit_sha = commit_create_res.json()["sha"]
+                    res = await client.put(
+                        f"{GITHUB_API}/repos/{repo}/contents/{file_path}",
+                        headers=self._headers(),
+                        json=body,
+                    )
 
-                # 6. Update branch ref
-                update_res = await client.patch(
-                    f"{GITHUB_API}/repos/{repo}/git/ref/heads/{branch}",
-                    headers=self._headers(),
-                    json={"sha": new_commit_sha},
-                )
-                if update_res.status_code != 200:
-                    return ConnectorResult(ok=False, error=f"Ref update failed: {update_res.text[:200]}")
+                    if res.status_code in (200, 201):
+                        pushed.append(file_path)
+                    else:
+                        errors.append(f"{file_path}: {res.status_code} {res.text[:120]}")
 
-                return ConnectorResult(ok=True, data={
-                    "success": True,
-                    "commit_sha": new_commit_sha,
-                    "files_pushed": len(files),
-                    "message": message,
-                    "url": f"https://github.com/{repo}/commit/{new_commit_sha}",
-                })
         except Exception as e:
             return ConnectorResult(ok=False, error=f"Push files failed: {e}")
+
+        if pushed:
+            return ConnectorResult(ok=True, data={
+                "success": True,
+                "files_pushed": len(pushed),
+                "files": pushed,
+                "errors": errors or None,
+                "url": f"https://github.com/{repo}",
+                "message": message,
+            })
+        return ConnectorResult(ok=False, error=f"No files pushed. Errors: {errors}")
