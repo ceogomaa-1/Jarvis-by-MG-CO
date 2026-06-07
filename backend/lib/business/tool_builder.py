@@ -454,6 +454,125 @@ _TOOLS: dict[str, dict] = {
         },
     },
 
+    # ── Metricool ────────────────────────────────────────────────────────────
+    "metricool__list_brands": {
+        "description": "[Metricool] List available Metricool brands/profiles and brand IDs for the connected account.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    "metricool__get_profile": {
+        "description": "[Metricool] Get brand settings/profile context for a Metricool brand, including connected networks where exposed.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "blog_id": {"type": "string", "description": "Optional Metricool brand/blog ID. Defaults to saved default brand."},
+            },
+            "required": [],
+        },
+    },
+    "metricool__get_recent_posts": {
+        "description": "[Metricool] Get recent published social posts/reels and available per-post metrics. Use before judging content performance.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "blog_id": {"type": "string", "description": "Optional Metricool brand/blog ID."},
+                "network": {"type": "string", "description": "Optional network: instagram, facebook, linkedin, tiktok, youtube, pinterest."},
+                "limit": {"type": "integer", "description": "Max posts per network, default 20."},
+                "start": {"type": "string", "description": "Start date YYYY-MM-DD, optional."},
+                "end": {"type": "string", "description": "End date YYYY-MM-DD, optional."},
+                "timezone_name": {"type": "string", "description": "Timezone, default America/Toronto."},
+            },
+            "required": [],
+        },
+    },
+    "metricool__get_scheduled_posts": {
+        "description": "[Metricool] List queued/scheduled posts for a brand over a date range.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "blog_id": {"type": "string", "description": "Optional Metricool brand/blog ID."},
+                "start": {"type": "string", "description": "Start date YYYY-MM-DD, default today."},
+                "end": {"type": "string", "description": "End date YYYY-MM-DD, default 30 days out."},
+                "timezone_name": {"type": "string", "description": "Timezone, default America/Toronto."},
+                "extended_range": {"type": "boolean", "description": "Whether Metricool should expand the range by one day."},
+            },
+            "required": [],
+        },
+    },
+    "metricool__get_available_metrics": {
+        "description": "[Metricool] Return available analytics metrics by network/subject. Call this when unsure which Metricool metrics can be queried.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "blog_id": {"type": "string", "description": "Optional Metricool brand/blog ID."},
+                "network": {"type": "string", "description": "Optional network: instagram, facebook, linkedin, tiktok, youtube, etc."},
+            },
+            "required": [],
+        },
+    },
+    "metricool__get_metrics": {
+        "description": "[Metricool] Pull real analytics timeline data for a network and metric(s). Never invent social numbers; call this before reporting followers, impressions, reach, engagement, or growth.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "blog_id": {"type": "string", "description": "Optional Metricool brand/blog ID."},
+                "network": {"type": "string", "description": "Network to analyze, e.g. instagram, facebook, linkedin, tiktok, youtube."},
+                "metric": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Metric names. If omitted, connector uses default account metrics.",
+                },
+                "subject": {"type": "string", "description": "Optional Metricool subject/metricType such as account, posts, reels, videos."},
+                "start": {"type": "string", "description": "Start date YYYY-MM-DD, default 30 days ago."},
+                "end": {"type": "string", "description": "End date YYYY-MM-DD, default today."},
+                "timezone_name": {"type": "string", "description": "Timezone, default America/Toronto."},
+            },
+            "required": ["network"],
+        },
+    },
+    "metricool__get_best_time_to_post": {
+        "description": "[Metricool] Get best posting times for a network. Higher returned value means stronger posting window.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "blog_id": {"type": "string", "description": "Optional Metricool brand/blog ID."},
+                "network": {"type": "string", "description": "Network/provider: instagram, facebook, linkedin, youtube, tiktok, twitter."},
+                "start": {"type": "string", "description": "Start date YYYY-MM-DD, default today."},
+                "end": {"type": "string", "description": "End date YYYY-MM-DD, default 7 days out."},
+                "timezone_name": {"type": "string", "description": "Timezone, default America/Toronto."},
+            },
+            "required": ["network"],
+        },
+    },
+    "metricool__schedule_post": {
+        "description": "[Metricool] WRITE: Schedule a social post across one or more networks. Show exact text, networks, media, and publish time before calling; the system will require hold-to-confirm.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "blog_id": {"type": "string", "description": "Optional Metricool brand/blog ID."},
+                "text": {"type": "string", "description": "Post caption/text."},
+                "networks": {"type": "array", "items": {"type": "string"}, "description": "Networks, e.g. instagram, facebook, linkedin, twitter."},
+                "media_urls": {"type": "array", "items": {"type": "string"}, "description": "Public media URLs, optional."},
+                "publish_at": {"type": "string", "description": "ISO datetime without timezone, e.g. 2026-06-08T09:00:00."},
+                "timezone_name": {"type": "string", "description": "Timezone, default America/Toronto."},
+                "info": {"type": "object", "description": "Advanced raw Metricool scheduler body. Optional."},
+            },
+            "required": ["text", "networks", "publish_at"],
+        },
+    },
+    "metricool__update_scheduled_post": {
+        "description": "[Metricool] WRITE: Update a scheduled post. Fetch scheduled posts first, show exactly what changes, then call; the system will require hold-to-confirm.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "blog_id": {"type": "string", "description": "Optional Metricool brand/blog ID."},
+                "post_id": {"type": "string", "description": "Scheduled post ID from get_scheduled_posts."},
+                "changes": {"type": "object", "description": "Fields to change."},
+                "info": {"type": "object", "description": "Full Metricool scheduler body when available."},
+            },
+            "required": ["post_id"],
+        },
+    },
+
     # ── Supabase (user projects) ──────────────────────────────────────────────
     "supabase_project__list_projects": {
         "description": "[Supabase] List the user's Supabase projects.",

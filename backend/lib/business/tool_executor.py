@@ -202,6 +202,70 @@ async def _dispatch(connector, connector_type: str, action_name: str, inp: dict)
         if action_name == "get_deployment":
             return await connector.get_deployment(deployment_id=inp["deployment_id"])
 
+    # ── Metricool ────────────────────────────────────────────────────────────
+    if connector_type == "metricool":
+        if action_name == "list_brands":
+            return await connector.list_brands()
+        if action_name == "get_profile":
+            return await connector.get_profile(blog_id=inp.get("blog_id"))
+        if action_name == "get_recent_posts":
+            return await connector.get_recent_posts(
+                blog_id=inp.get("blog_id"),
+                network=inp.get("network"),
+                limit=int(inp.get("limit", 20)),
+                start=inp.get("start"),
+                end=inp.get("end"),
+                timezone_name=inp.get("timezone_name", "America/Toronto"),
+            )
+        if action_name == "get_scheduled_posts":
+            return await connector.get_scheduled_posts(
+                blog_id=inp.get("blog_id"),
+                start=inp.get("start"),
+                end=inp.get("end"),
+                timezone_name=inp.get("timezone_name", "America/Toronto"),
+                extended_range=bool(inp.get("extended_range", False)),
+            )
+        if action_name == "get_available_metrics":
+            return await connector.get_available_metrics(
+                blog_id=inp.get("blog_id"),
+                network=inp.get("network"),
+            )
+        if action_name == "get_metrics":
+            return await connector.get_metrics(
+                blog_id=inp.get("blog_id"),
+                network=inp.get("network"),
+                metric=inp.get("metric"),
+                start=inp.get("start"),
+                end=inp.get("end"),
+                timezone_name=inp.get("timezone_name", "America/Toronto"),
+                subject=inp.get("subject"),
+            )
+        if action_name == "get_best_time_to_post":
+            return await connector.get_best_time_to_post(
+                blog_id=inp.get("blog_id"),
+                network=inp.get("network"),
+                start=inp.get("start"),
+                end=inp.get("end"),
+                timezone_name=inp.get("timezone_name", "America/Toronto"),
+            )
+        if action_name == "schedule_post":
+            return await connector.schedule_post(
+                blog_id=inp.get("blog_id"),
+                text=inp.get("text", ""),
+                networks=inp.get("networks", []),
+                media_urls=inp.get("media_urls", []),
+                publish_at=inp.get("publish_at"),
+                timezone_name=inp.get("timezone_name", "America/Toronto"),
+                info=inp.get("info"),
+            )
+        if action_name == "update_scheduled_post":
+            return await connector.update_scheduled_post(
+                blog_id=inp.get("blog_id"),
+                post_id=inp.get("post_id", inp.get("id", "")),
+                changes=inp.get("changes"),
+                info=inp.get("info"),
+            )
+
     # ── Supabase (user projects) ──────────────────────────────────────────────
     if connector_type == "supabase_project":
         if action_name == "list_projects":
