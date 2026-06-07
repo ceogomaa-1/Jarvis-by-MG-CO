@@ -29,6 +29,16 @@ function pendingDeployStorageKey(userId) {
   return `jarvis_pending_deploys_${userId || 'anon'}`
 }
 
+function isActiveCreationMessage(message) {
+  return message?.role === 'creation' && (
+    message.deploying ||
+    message.deploymentStatus ||
+    message.deploymentId ||
+    (message.deploymentStages && message.deploymentStages.length > 0) ||
+    (!message.liveUrl && !message.deploymentError)
+  )
+}
+
 function UserBubble({ content, attachments }) {
   return (
     <motion.div
@@ -256,11 +266,18 @@ export default function ChatCanvas({
         .eq('conversation_id', activeConversationId)
         .order('created_at', { ascending: true })
       // Normalize DB messages to match in-memory format
-      setMessages((msgs || []).map(m => ({
+      const dbMessages = (msgs || []).map(m => ({
         ...m,
         streaming: false,
         chunks: [],
-      })))
+      }))
+      setMessages(prev => {
+        const activeCreations = prev.filter(isActiveCreationMessage)
+        if (activeCreations.length === 0) return dbMessages
+        const dbIds = new Set(dbMessages.map(m => String(m.id)))
+        const preserved = activeCreations.filter(m => !dbIds.has(String(m.id)))
+        return [...dbMessages, ...preserved]
+      })
       setMessagesLoading(false)
     }
     load().catch(e => { console.error(e); setMessagesLoading(false) })
@@ -630,6 +647,7 @@ export default function ChatCanvas({
         deploymentId: null, expectedUrl: null,
       }])
       setIsThinking(true)
+      let createdConversationId = null
 
       try {
         const res = await fetch(`${BACKEND}/api/business/create`, {
@@ -657,7 +675,7 @@ export default function ChatCanvas({
               // Link this creation session to the conversation (new or existing)
               if (ev.type === 'conv_id' && ev.value && !activeConvRef.current) {
                 activeConvRef.current = ev.value
-                onConversationCreated?.(ev.value)
+                createdConversationId = ev.value
               }
               // Dismiss thinking indicator once the plan (real content) arrives
               if (ev.type === 'plan') setIsThinking(false)
@@ -712,7 +730,11 @@ export default function ChatCanvas({
         ))
       }
       setIsThinking(false)
-      onConversationsUpdated?.()
+      if (createdConversationId) {
+        onConversationCreated?.(createdConversationId)
+      } else {
+        onConversationsUpdated?.()
+      }
       setLoading(false)
       return
     }
