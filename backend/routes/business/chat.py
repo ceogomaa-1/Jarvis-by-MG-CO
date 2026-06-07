@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from supabase import create_client
 
 from backend.lib.business.system_prompt_builder import build_system_prompt
+from backend.lib.business.farida_loader import FARIDA_USER_ID, load_greeting as _load_farida_greeting
 from backend.lib.business.model_router import select_model, OPUS
 from backend.lib.business.memory import extract_and_store_memories
 from backend.lib.business.tool_builder import build_tools_for_user
@@ -245,6 +246,23 @@ async def business_chat_stream(request: BusinessChatRequest):
         if not allowed:
             limit_exceeded = True
 
+    # Detect Farida's first-ever conversation BEFORE setup creates the first row.
+    farida_greeting = ""
+    if not limit_exceeded and sb and request.user_id:
+        if _user_id_to_uuid(request.user_id) == FARIDA_USER_ID and not conv_id:
+            try:
+                _check = await asyncio.to_thread(
+                    lambda: sb.table("business_conversations")
+                    .select("id")
+                    .eq("user_id", FARIDA_USER_ID)
+                    .limit(1)
+                    .execute()
+                )
+                if not _check.data:
+                    farida_greeting = _load_farida_greeting()
+            except Exception:
+                pass
+
     if not limit_exceeded and sb and request.user_id:
         try:
             conv_id, is_new_conv = await asyncio.to_thread(
@@ -272,6 +290,21 @@ async def business_chat_stream(request: BusinessChatRequest):
         # Emit conversation ID first so frontend can associate messages
         if conv_id:
             yield f'data: {json.dumps({"type": "conv_id", "value": conv_id})}\n\n'
+
+        # Farida's first-conversation surprise — stream verbatim and return.
+        # Fires exactly once: only when no prior conversations existed before this request.
+        if farida_greeting:
+            yield f'data: {json.dumps({"type": "status", "value": "thinking"})}\n\n'
+            yield f"data: {json.dumps(farida_greeting)}\n\n"
+            yield f'data: {json.dumps({"type": "usage", "data": {}})}\n\n'
+            yield "data: [DONE]\n\n"
+            if sb and conv_id:
+                try:
+                    await asyncio.to_thread(_save_assistant_message, sb, conv_id, farida_greeting)
+                    asyncio.create_task(_auto_title(sb, conv_id, request.message))
+                except Exception:
+                    pass
+            return
 
         # Immediate "thinking" signal — arrives within ~100ms of user sending,
         # guarantees the UI indicator is on before the first model token.

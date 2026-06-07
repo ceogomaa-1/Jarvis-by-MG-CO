@@ -2,6 +2,13 @@ import asyncio
 import os
 from supabase import create_client
 
+# ── Private per-user configuration (pure functions live in farida_loader) ────
+from backend.lib.business.farida_loader import (
+    FARIDA_USER_ID,
+    load_greeting as _load_farida_greeting,
+    load_persona_block as _load_farida_persona_block,
+)
+
 from backend.lib.business.bible_loader import load_bible
 from backend.lib.business.intent_classifier import classify_intent
 from backend.lib.business.connectors.registry import available_connectors_summary
@@ -360,7 +367,14 @@ async def build_system_prompt(user_id: str, user_message: str) -> str:
     brand_config = await get_brand_config(user_id) if user_id else {}
     autonomous_enabled = brand_config.get("operator_enabled", False)
 
+    # Inject private Farida persona block — only for her exact user ID.
+    farida_block = ""
+    if user_id and _user_id_to_uuid(user_id) == FARIDA_USER_ID:
+        farida_block = _load_farida_persona_block()
+
     parts = [north_star_block]
+    if farida_block:
+        parts.append(farida_block)
     if memory_block:
         parts.append(memory_block)
     parts.append(base_prompt)
