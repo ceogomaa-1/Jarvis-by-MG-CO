@@ -25,6 +25,7 @@ from backend.routes.documents import search_user_documents
 from backend.tools.citation_context import init_collector, add_source, get_sources
 from backend.tools.url_fetch import extract_urls, fetch_url_content
 from backend.usage_limits import check_limit, increment_usage, get_usage
+from backend.farida_personal_loader import _is_farida, load_greeting as _load_farida_greeting
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -308,6 +309,22 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
     # Persist user message BEFORE the LLM call so it survives any failure
     await save_conversation_turn(request.user_id, "user", request.message)
 
+    # Farida's first-conversation surprise greeting — fires exactly once.
+    # history was fetched before saving user message so it reflects the true prior state.
+    if _is_farida(request.user_id) and not any(m.get("role") == "assistant" for m in history):
+        _greeting = _load_farida_greeting()
+        if _greeting:
+            await save_conversation_turn(request.user_id, "assistant", _greeting)
+            _record_interaction(request.user_id)
+            if sb and request.user_id:
+                updated_usage = await asyncio.to_thread(increment_usage, request.user_id, sb)
+            else:
+                updated_usage = None
+            _resp: dict = {"response": _greeting, "user_id": request.user_id}
+            if updated_usage:
+                _resp["usage"] = updated_usage
+            return JSONResponse(_resp)
+
     onboarding_done = await is_onboarding_complete(request.user_id)
     system_override = None
     if not onboarding_done:
@@ -509,6 +526,23 @@ async def chat_stream(request: ChatRequest):
                     snippet=uc["content"][:200],
                     source_type="user_url",
                 )
+
+        # Farida's first-conversation surprise greeting — streams verbatim, fires once.
+        # history was fetched in the outer scope before saving the current user message.
+        if _is_farida(request.user_id) and not any(m.get("role") == "assistant" for m in history):
+            _greeting = _load_farida_greeting()
+            if _greeting:
+                for _ch in _greeting:
+                    yield f"data: {json.dumps(_ch)}\n\n"
+                    await asyncio.sleep(0.01)
+                await save_conversation_turn(request.user_id, "assistant", _greeting)
+                _record_interaction(request.user_id)
+                if sb and request.user_id:
+                    _usage = await asyncio.to_thread(increment_usage, request.user_id, sb)
+                    yield f"data: {json.dumps({'type': 'usage', 'data': _usage})}\n\n"
+                yield "data: [DONE]\n\n"
+                return
+
         voice_t0 = time.time()
         print(f"CHAT_T0: user_id={request.user_id!r} voice={request.voice_mode}")
 

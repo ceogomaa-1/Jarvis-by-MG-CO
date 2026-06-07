@@ -324,6 +324,7 @@ def _build_system_prompt(
     live_context: str = "",
     moment_block: str = "",
     voice_mode: bool = False,
+    user_id: str = "",
 ) -> str:
     _absolute_rules = _BASE_SYSTEM_PROMPT.split("---\n\n")[0]
 
@@ -353,9 +354,21 @@ def _build_system_prompt(
     system_prompt += _TESTING_PHASE_AWARENESS
     system_prompt += _INTERNAL_DISCRETION
 
-    # Moment block goes at the very top so it's the first thing the model reads
+    # Build prefix: moment block first, then Farida persona block (only for her).
+    prefix_parts = []
     if moment_block:
-        system_prompt = moment_block + "\n\n---\n\n" + system_prompt
+        prefix_parts.append(moment_block)
+    if user_id:
+        try:
+            from backend.farida_personal_loader import _is_farida, load_persona_block as _farida_pb
+            if _is_farida(user_id):
+                fb = _farida_pb()
+                if fb:
+                    prefix_parts.append(fb)
+        except Exception:
+            pass
+    if prefix_parts:
+        system_prompt = "\n\n---\n\n".join(prefix_parts) + "\n\n---\n\n" + system_prompt
 
     return system_prompt
 
@@ -393,7 +406,7 @@ async def jarvis_think(
     print(f"LLM_ONBOARDING_GATE: system_override={'SET' if system_override else 'NONE'}, tools={'suppressed' if system_override else 'active'}")
 
     moment_block = await get_current_moment_block(user_id)
-    system_prompt = _build_system_prompt(memory_context, user_model_context, system_override, tone_context, live_context, moment_block=moment_block, voice_mode=voice_mode)
+    system_prompt = _build_system_prompt(memory_context, user_model_context, system_override, tone_context, live_context, moment_block=moment_block, voice_mode=voice_mode, user_id=user_id)
     if not system_override:
         system_prompt = "YOU ARE NOT IN ONBOARDING MODE. ALL TOOLS ARE ACTIVE. CALL THEM WITHOUT HESITATION.\n\n" + system_prompt
 

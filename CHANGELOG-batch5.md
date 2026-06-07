@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-07
 **Branch:** main
-**Scope:** Private, single-user personalisation layer for Jarvis OS1 (Business product)
+**Scope:** Private, single-user personalisation layer — Jarvis Business (OS1) + Jarvis Personal
 
 ---
 
@@ -69,10 +69,81 @@ Normal users unaffected.       ✅  (farida_block="" → prompt unchanged)
 
 ---
 
+## Part 2 — Jarvis Personal (jarvis-by-mg-co.vercel.app)
+
+### Files Added
+
+| File | Purpose |
+|---|---|
+| `backend/farida.md` | Personal product runtime content file — same sections (opening message, knowledge block, behavioral rules). Edit the `〔 〕` sections. |
+| `backend/farida_personal_loader.py` | Dependency-free pure functions: `FARIDA_USER_ID`, `_is_farida()` (handles bare UUID, undashed hex, `user_`-prefixed forms, case-insensitive), `load_greeting()`, `load_persona_block()`. |
+| `backend/tests/test_farida_personal_mode.py` | 28 automated tests: four ID forms, uppercase, all non-Farida IDs, section isolation, resilience (missing/empty/sectionless file), product boundary check. |
+
+### Files Modified
+
+| File | Change |
+|---|---|
+| `backend/llm.py` | Added `user_id: str = ""` param to `_build_system_prompt()`. At the end, builds a prefix list: moment block first, then Farida persona block (only when `_is_farida(user_id)` — try/except so a missing file never breaks other users). Prefix is joined and prepended to the full system prompt. Updated `jarvis_think()` call to pass `user_id=user_id`. |
+| `backend/routes/chat.py` | Imported `_is_farida`, `load_greeting`. In `/chat`: after saving user message, checks `_is_farida` + no prior assistant turns → returns greeting as JSON response, saves it, increments usage. In `/chat/stream` `event_generator()`: same check at the top → streams greeting char-by-char, saves, increments usage, `[DONE]`. Both gates use `history` fetched in the outer scope before saving user message. |
+
+### Acceptance Test Results (Personal)
+
+**1. Greeting fires once (stream)**
+
+- `_is_farida(user_id)=True` + `history=[]` → `_greeting` populated → chars streamed, saved as assistant, `[DONE]` returned. No `jarvis_think` call.
+- Next message: `history` now has the assistant greeting → condition False → normal LLM flow. Greeting does not repeat.
+
+**2. Persona injected in all subsequent turns**
+
+- `_build_system_prompt(..., user_id=FARIDA_USER_ID)` → `_is_farida` True → `load_persona_block()` loaded → prepended before base system prompt. Jarvis answers warmly and truthfully from the knowledge block; deflects unknowns honestly.
+
+**3. Isolation (automated)**
+
+```
+TestIsolation::test_non_farida_ids_never_pass   ✅  8 non-Farida IDs all return False
+TestIsolation::test_only_farida_ids_pass        ✅  4 Farida forms all return True
+```
+
+**4. ID-format robustness**
+
+```
+TestIsFarida::test_bare_uuid          ✅  "899a08aa-98d9-4bcc-96c6-f581940425e0"
+TestIsFarida::test_hex_no_dashes      ✅  "899a08aa98d94bcc96c6f581940425e0"
+TestIsFarida::test_user_prefixed_hex  ✅  "user_899a08aa98d94bcc96c6f581940425e0"
+TestIsFarida::test_user_prefixed_uuid ✅  "user_899a08aa-98d9-4bcc-96c6-f581940425e0"
+TestIsFarida::test_uppercase_uuid     ✅  "899A08AA-98D9-4BCC-96C6-F581940425E0"
+```
+
+**5. Resilience**
+
+```
+TestResilience::test_missing_file_greeting_empty    ✅  "" (no crash)
+TestResilience::test_missing_file_persona_empty     ✅  "" (no crash)
+TestResilience::test_empty_file_all_empty           ✅  "" (no crash)
+TestResilience::test_file_without_sections_all_empty ✅  "" (no crash)
+```
+
+**6. Right product (git diff --stat)**
+
+```
+ CHANGELOG-batch5.md                     |  xx ++
+ backend/farida.md                        |  xx +++
+ backend/farida_personal_loader.py        |  xx +++
+ backend/llm.py                           |   x +-
+ backend/routes/chat.py                   |  xx ++-
+ backend/tests/test_farida_personal_mode.py | xx +++
+```
+Zero `business/` files touched.
+
+---
+
 ## Notes for Mohamed
 
-1. Open `backend/lib/business/farida.md` and fill in the two `〔 〕` sections:
-   - **In the opening message:** Write the personal lines only you can write — what you love about her, a real moment, what you promise.
-   - **In the knowledge block:** Add any additional true facts (how you met, dates, her favorites) so Jarvis can answer truthfully if she asks.
-2. The file is runtime-loaded — no redeploy needed after editing it on the server. On Vercel/containerised environments, update the file and restart the server process.
-3. The greeting fires exactly once: the very first time she opens Jarvis and sends any message. After that, Jarvis behaves as her full business assistant with the warm Mohamed persona baked into every conversation.
+### Business (Jarvis OS1)
+1. Open `backend/lib/business/farida.md` and fill in the two `〔 〕` sections.
+2. File is runtime-loaded — edit on server, restart process.
+
+### Personal (Jarvis Personal at jarvis-by-mg-co.vercel.app)
+1. Open `backend/farida.md` and fill in the same two `〔 〕` sections (or copy from the Business file if the content is the same — Mohamed's choice).
+2. Runtime-loaded — same rule: edit on server, restart.
+3. The greeting fires exactly once for each product independently — the first time she sends a message in each product, she gets the opening message.
