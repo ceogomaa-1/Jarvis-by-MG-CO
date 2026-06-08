@@ -27,6 +27,13 @@ const pressStart = Press_Start_2P({
 export const metadata = {
   title: 'Jarvis — Your Personal AI',
   description: 'The first AI that actually gets to know you. Built by MG&CO Technologies.',
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/favicon.png', type: 'image/png' },
+    ],
+    apple: [{ url: '/apple-icon.png', sizes: '180x180', type: 'image/png' }],
+  },
 }
 
 export default function RootLayout({ children }) {
