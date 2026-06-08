@@ -403,3 +403,522 @@ html, body {
   pointer-events: none;
   z-index: 1;
 }
+
+/* === Jarvis OS1 Business Preview UI === */
+.os1-business-root {
+  --os1-bg: #242424;
+  --os1-black: #000000;
+  --os1-panel: #010101;
+  --os1-ink: #ffffff;
+  --os1-muted: #b9b9b9;
+  --os1-soft: #8d8d8d;
+  --os1-line: #f2f2f2;
+  --os1-command: #101017;
+  --os1-blue: #0588f9;
+  color: var(--os1-ink);
+  font-family: var(--font-arcade), monospace;
+}
+
+.os1-stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  background: var(--os1-black);
+  border: 1px dashed rgba(137, 62, 255, 0.75);
+  overflow: hidden;
+}
+
+.os1-chat-stage {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+  background: #000;
+}
+
+.os1-signin {
+  position: fixed;
+  top: 18px;
+  right: 84px;
+  z-index: 80;
+  border: 1px solid #fff;
+  border-radius: 10px;
+  background: #000;
+  color: #fff;
+  padding: 8px 14px;
+  font-family: var(--font-arcade), monospace;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.os1-mobile-left-toggle {
+  display: none;
+  position: fixed;
+  top: 42px;
+  left: 23px;
+  z-index: 90;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 3px solid #bdbdbd;
+  border-radius: 3px;
+  background: transparent;
+  color: #fff;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.os1-mobile-left-toggle span {
+  display: block;
+  width: 5px;
+  height: 17px;
+  background: #bdbdbd;
+}
+
+.os1-left-panel {
+  height: calc(100vh - 38px);
+  margin: 19px 0 19px 18px;
+  border: 2px solid #f2f2f2;
+  border-radius: 22px;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex-shrink: 0;
+  color: #fff;
+}
+.os1-sidebar-top {
+  height: 91px;
+  display: flex;
+  align-items: flex-start;
+  padding: 21px 23px 0;
+  color: #cfcfcf;
+}
+.os1-search-shell {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 17px 25px;
+  height: 31px;
+  padding: 0 12px;
+  border-radius: 17px;
+  background: #eeeeee;
+  color: #555;
+}
+.os1-search-shell input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #333;
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+}
+.os1-new-session-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px 8px 16px;
+  color: #fff;
+}
+.os1-new-session-row button {
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font-family: var(--font-arcade), monospace;
+  font-size: 11px;
+  cursor: pointer;
+}
+.os1-session-rule {
+  height: 1px;
+  background: #fff;
+  opacity: 0.9;
+  margin: 0 10px 34px;
+}
+.os1-conversation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 0 7px;
+  overflow: hidden auto;
+  flex: 1;
+}
+.os1-conversation-card {
+  min-height: 48px;
+  width: 100%;
+  border: 2px solid #fff;
+  border-radius: 10px;
+  background: #000;
+  color: #fff;
+  padding: 8px 7px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  text-align: left;
+  cursor: pointer;
+}
+.os1-conversation-card.is-active {
+  background: #101010;
+}
+.os1-conversation-title {
+  font-size: 10px;
+  line-height: 1.25;
+  margin-bottom: 7px;
+}
+.os1-conversation-time {
+  font-size: 6px;
+  color: #fff;
+}
+.os1-conversation-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  padding: 0;
+  margin-top: 1px;
+}
+.os1-empty-card,
+.os1-sidebar-loader {
+  color: #fff;
+  font-size: 9px;
+  text-align: center;
+  padding: 20px 8px;
+}
+.os1-sidebar-footer {
+  height: 39px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 9px;
+  color: #fff;
+}
+
+.os1-chat-canvas {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.os1-memory-strip {
+  position: absolute;
+  top: 34px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 15;
+  width: min(430px, 42vw);
+}
+.os1-readiness {
+  width: 100%;
+  color: #fff;
+}
+.os1-readiness-label {
+  text-align: center;
+  font-size: 11px;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+.os1-readiness-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.os1-readiness-track {
+  position: relative;
+  height: 6px;
+  flex: 1;
+  background: #8d8d8d;
+  overflow: hidden;
+}
+.os1-readiness-fill {
+  height: 100%;
+  background: var(--os1-blue);
+  transition: width 0.6s ease;
+}
+.os1-readiness-row span {
+  font-size: 11px;
+}
+
+.os1-welcome {
+  height: 100%;
+  padding-bottom: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  text-align: center;
+}
+.os1-welcome-logo {
+  width: 112px;
+  height: 112px;
+  overflow: hidden;
+  margin-bottom: 22px;
+}
+.os1-welcome-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.2);
+}
+.os1-welcome-logo.is-thinking {
+  animation: os1SoftPulse 1.5s ease-in-out infinite;
+}
+.os1-welcome h1 {
+  margin: 0;
+  font-family: var(--font-arcade), monospace;
+  font-size: clamp(42px, 5.1vw, 68px);
+  line-height: 0.95;
+  color: #fff;
+}
+.os1-welcome p {
+  margin: 13px 0 0;
+  color: #fff;
+  font-size: 17px;
+  line-height: 1;
+}
+
+.os1-message-rail {
+  width: min(760px, 68vw);
+  margin: 0 auto;
+  padding-top: 40px;
+}
+.os1-assistant-message {
+  margin: 0 0 28px 70px;
+  max-width: 440px;
+  color: #fff;
+}
+.os1-user-bubble {
+  max-width: 300px;
+  padding: 23px 15px 43px;
+  border-radius: 17px;
+  background: #3b3b3b;
+  color: #e8e8e8;
+  font-family: var(--font-arcade), monospace;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.os1-input-dock {
+  position: relative;
+  z-index: 10;
+  padding: 8px 40px 54px;
+  flex-shrink: 0;
+}
+.os1-input-wrap {
+  width: min(750px, 67vw);
+  margin: 0 auto;
+  position: relative;
+}
+.os1-autonomous-lever {
+  position: absolute;
+  right: -145px;
+  bottom: 17px;
+  transform: rotate(-30deg);
+  transform-origin: center;
+}
+.os1-business-root .os1-command-box {
+  min-height: 104px;
+  border-radius: 16px;
+  border: 2px solid #f2f2f2;
+  background: #101017;
+  box-shadow: none;
+  padding: 12px 15px 9px;
+}
+.os1-business-root .os1-command-box textarea {
+  font-family: var(--font-arcade), monospace;
+  color: #fff;
+  font-size: 14px;
+  padding: 0 0 22px;
+}
+.os1-business-root .os1-command-box textarea::placeholder {
+  color: #a9a9b1;
+  opacity: 1;
+}
+.os1-business-root .os1-command-box button {
+  color: #c8c8d0;
+}
+.os1-business-root .os1-command-box [class*="rounded-full"] {
+  border-radius: 6px;
+}
+.os1-business-root .os1-command-box button:last-child {
+  border-radius: 50%;
+}
+
+.os1-right-menu-button {
+  position: fixed;
+  top: 50px;
+  right: 58px;
+  z-index: 70;
+  width: 38px;
+  height: 28px;
+  border: 0;
+  background: transparent;
+  color: #bdbdbd;
+  cursor: pointer;
+  padding: 0;
+}
+.os1-right-panel {
+  position: fixed;
+  top: 19px;
+  right: 36px;
+  bottom: 19px;
+  z-index: 90;
+  width: 222px;
+  border: 2px solid #fff;
+  border-radius: 23px;
+  background: #000;
+  color: #fff;
+  padding: 21px 11px 18px;
+  display: flex;
+  flex-direction: column;
+}
+.os1-right-panel-head,
+.os1-right-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.os1-right-panel-head button {
+  border: 0;
+  background: transparent;
+  color: #bdbdbd;
+  padding: 0;
+  cursor: pointer;
+}
+.os1-profile-copy {
+  margin-top: 15px;
+  padding: 0 6px;
+}
+.os1-profile-copy h2 {
+  margin: 0 0 7px;
+  font-size: 15px;
+}
+.os1-profile-copy p {
+  margin: 0 0 4px;
+  font-size: 6px;
+}
+.os1-right-divider {
+  height: 1px;
+  background: #fff;
+  margin: 56px 0 33px;
+}
+.os1-right-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+.os1-right-actions button {
+  height: 50px;
+  border: 2px solid #fff;
+  border-radius: 11px;
+  background: #000;
+  color: #fff;
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  align-items: center;
+  text-align: center;
+  padding: 0 13px;
+  font-family: var(--font-arcade), monospace;
+  font-size: 10px;
+  line-height: 1.25;
+  cursor: pointer;
+}
+.os1-right-footer {
+  margin-top: auto;
+  padding: 0 10px;
+  font-size: 11px;
+}
+
+.os1-mobile-overlay,
+.os1-mobile-sidebar {
+  display: none;
+}
+
+@keyframes os1SoftPulse {
+  0%, 100% { opacity: 0.85; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.04); }
+}
+
+@media (max-width: 1020px) {
+  .business-sidebar-desktop {
+    display: none;
+  }
+  .os1-mobile-left-toggle {
+    display: flex;
+  }
+  .os1-mobile-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    background: rgba(0,0,0,0.55);
+  }
+  .os1-mobile-sidebar {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 85;
+  }
+  .os1-chat-stage {
+    width: 100%;
+  }
+  .os1-memory-strip {
+    width: min(430px, 58vw);
+  }
+  .os1-input-wrap,
+  .os1-message-rail {
+    width: min(750px, 74vw);
+  }
+}
+
+@media (max-width: 760px) {
+  .os1-stage {
+    border: 0;
+  }
+  .os1-memory-strip {
+    top: 26px;
+    width: 70vw;
+  }
+  .os1-readiness-label {
+    font-size: 9px;
+  }
+  .os1-right-menu-button {
+    top: 38px;
+    right: 24px;
+  }
+  .os1-right-panel {
+    right: 12px;
+    width: min(222px, calc(100vw - 24px));
+  }
+  .os1-welcome {
+    padding: 0 20px 130px;
+  }
+  .os1-welcome h1 {
+    font-size: 38px;
+  }
+  .os1-welcome p {
+    font-size: 13px;
+  }
+  .os1-input-dock {
+    padding: 8px 16px 24px;
+  }
+  .os1-input-wrap,
+  .os1-message-rail {
+    width: 100%;
+  }
+  .os1-autonomous-lever {
+    display: none;
+  }
+  .os1-business-root .os1-command-box {
+    min-height: 98px;
+  }
+  .os1-user-bubble {
+    max-width: 82vw;
+  }
+  .os1-assistant-message {
+    margin-left: 0;
+    max-width: 90vw;
+  }
+}

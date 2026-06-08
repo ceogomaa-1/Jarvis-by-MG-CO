@@ -1,12 +1,9 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
-import Image from 'next/image'
 import { supabase } from '../../../lib/supabase'
 import ChatCanvas from '../../../components/business/ChatCanvas'
 import ChatSidebar from '../../../components/business/ChatSidebar'
-import ModeToggle from '../../../components/shared/ModeToggle'
 import { setJarvisMode, createBusinessUser } from '../../../lib/userPreferences'
-import ChatBackground from '../../../components/business/ChatBackground'
 import TetrisLoader from '../../../components/ui/TetrisLoader'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
@@ -57,6 +54,7 @@ export default function BusinessChatPage() {
   }, [userId])
 
   useEffect(() => {
+    const safety = setTimeout(() => setLoading(false), 4500)
     if (!supabase) { setLoading(false); return }
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
@@ -86,8 +84,13 @@ export default function BusinessChatPage() {
         await loadConversations(uid)
         await loadMemoryCount(uid)
       }
+      clearTimeout(safety)
       setLoading(false)
-    }).catch(() => setLoading(false))
+    }).catch(() => {
+      clearTimeout(safety)
+      setLoading(false)
+    })
+    return () => clearTimeout(safety)
   }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleGoogleSignIn = async () => {
@@ -135,7 +138,7 @@ export default function BusinessChatPage() {
     return (
       <div style={{
         height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: '#0a0908',
+        background: '#242424',
       }}>
         <TetrisLoader size="md" speed="normal" showLoadingText={true} loadingText="Starting Jarvis..." />
       </div>
@@ -143,83 +146,35 @@ export default function BusinessChatPage() {
   }
 
   return (
-    <div style={{
-      height: '100vh', display: 'flex', flexDirection: 'column',
-      background: '#0a0908',
-      position: 'relative',
-    }}>
-      <ChatBackground />
-      {/* Noise grain overlay */}
-      <div style={{
-        position: 'fixed', inset: 0, opacity: 0.015, pointerEvents: 'none', zIndex: 0,
-        backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
-      }} />
+    <div
+      className="os1-business-root"
+      style={{
+        height: '100vh',
+        background: '#242424',
+        position: 'relative',
+        overflow: 'hidden',
+        padding: 0,
+      }}
+    >
+      {!userId && (
+        <button
+          onClick={handleGoogleSignIn}
+          className="os1-signin"
+        >
+          Sign in
+        </button>
+      )}
 
-      {/* Header */}
-      <div style={{
-        height: 56, flexShrink: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 40px',
-        borderBottom: '1px solid rgba(243,234,217,0.06)',
-        background: 'rgba(10,9,8,0.8)',
-        backdropFilter: 'blur(20px) saturate(180%)',
-        WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-        position: 'relative', zIndex: 10,
-      }}>
-        {/* Left: hamburger (mobile) + logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {/* Mobile sidebar toggle */}
-          <button
-            onClick={() => setSidebarMobileOpen(o => !o)}
-            className="mobile-sidebar-toggle"
-            style={{
-              display: 'none',
-              background: 'transparent', border: 'none',
-              color: 'rgba(243,234,217,0.5)', cursor: 'pointer',
-              fontSize: 18, padding: '4px 8px', lineHeight: 1,
-            }}
-          >
-            ☰
-          </button>
-          <style>{`@media (max-width: 768px) { .mobile-sidebar-toggle { display: flex !important; } }`}</style>
+      <button
+        onClick={() => setSidebarMobileOpen(o => !o)}
+        className="os1-mobile-left-toggle"
+        aria-label="Toggle conversations"
+      >
+        <span />
+        <span />
+      </button>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginLeft: 60 }}
-            className="header-logo-offset">
-            <style>{`@media (max-width: 768px) { .header-logo-offset { margin-left: 0 !important; } }`}</style>
-            <Image src="/logo-transparent.png" alt="Jarvis" width={28} height={28} style={{ objectFit: 'contain' }} />
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-              <span style={{ fontFamily: 'var(--font-serif), Georgia, serif', fontSize: 16, letterSpacing: '0.2em', color: '#f3ead9', fontWeight: 400 }}>
-                JARVIS
-              </span>
-              <span style={{ fontFamily: 'system-ui, sans-serif', fontSize: 10, letterSpacing: '0.3em', textTransform: 'uppercase', color: '#c84b31', opacity: 0.8 }}>
-                OS1
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Right: mode toggle + sign in */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginRight: 60 }}>
-          {!userId && (
-            <button
-              onClick={handleGoogleSignIn}
-              style={{
-                background: 'rgba(200,75,49,0.08)', border: '1px solid rgba(200,75,49,0.2)',
-                borderRadius: 6, padding: '6px 14px',
-                color: '#c84b31', cursor: 'pointer',
-                fontFamily: 'system-ui, sans-serif', fontSize: 11,
-                letterSpacing: '0.08em', transition: 'all 200ms ease',
-              }}
-            >
-              Sign in
-            </button>
-          )}
-          <ModeToggle userId={userId} currentMode="business" />
-        </div>
-      </div>
-
-      {/* Body: sidebar + chat */}
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', position: 'relative', zIndex: 1 }}>
+      <div className="os1-stage">
         <ChatSidebar
           conversations={conversations}
           loading={conversationsLoading}
@@ -232,7 +187,7 @@ export default function BusinessChatPage() {
           onClose={() => setSidebarMobileOpen(false)}
         />
 
-        <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+        <div className="os1-chat-stage">
           <ChatCanvas
             userId={userId}
             activeConversationId={activeConversationId}

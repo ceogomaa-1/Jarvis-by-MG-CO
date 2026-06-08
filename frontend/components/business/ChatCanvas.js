@@ -71,14 +71,7 @@ function UserBubble({ content, attachments }) {
         </div>
       )}
       {content && (
-        <div style={{
-          maxWidth: '70%', padding: '12px 18px',
-          borderRadius: '20px 20px 4px 20px',
-          background: 'rgba(243,234,217,0.06)',
-          border: '1px solid rgba(243,234,217,0.04)',
-          color: '#f3ead9', fontSize: 15,
-          fontFamily: 'system-ui, sans-serif', lineHeight: 1.6,
-        }}>
+        <div className="os1-user-bubble">
           {content}
         </div>
       )}
@@ -144,7 +137,7 @@ function AssistantBubble({ content, chunks, streaming, toolStatus }) {
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: 'easeOut' }}
-      style={{ marginBottom: 28, maxWidth: '85%' }}
+      className="os1-assistant-message"
     >
       <AnimatePresence>
         {streaming && toolStatus && (
@@ -153,7 +146,7 @@ function AssistantBubble({ content, chunks, streaming, toolStatus }) {
       </AnimatePresence>
       <div
         className="biz-markdown"
-        style={{ fontSize: 15, color: 'rgba(243,234,217,0.9)', lineHeight: 1.7, fontFamily: 'system-ui, sans-serif' }}
+        style={{ fontSize: 15, color: '#ffffff', lineHeight: 1.35, fontFamily: 'var(--font-arcade), monospace' }}
       >
         {streaming && !hasChunks ? (
           <ThinkingDots />
@@ -876,18 +869,20 @@ export default function ChatCanvas({
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 1.04 }}
       transition={{ duration: 0.4, ease: 'easeOut' }}
-      style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
+      className="os1-chat-canvas"
     >
       <ChatHeaderMenu userId={userId} onBrandSaved={() => {}} />
 
-      <ReadinessBar
-        userId={userId}
-        apiUrl={BACKEND}
-        onReadinessUpdate={(data) => {
-          setReadiness(data)
-          if (data?.memory_count != null) onMemoryCountUpdate?.(data.memory_count)
-        }}
-      />
+      <div className="os1-memory-strip">
+        <ReadinessBar
+          userId={userId}
+          apiUrl={BACKEND}
+          onReadinessUpdate={(data) => {
+            setReadiness(data)
+            if (data?.memory_count != null) onMemoryCountUpdate?.(data.memory_count)
+          }}
+        />
+      </div>
 
       {/* Messages or Welcome */}
       <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
@@ -932,10 +927,10 @@ export default function ChatCanvas({
               style={{
                 position: 'absolute', inset: 0,
                 overflowY: 'auto',
-                padding: '64px 40px 12px',
+                padding: '112px 40px 12px',
               }}
             >
-              <div style={{ maxWidth: 760, margin: '0 auto' }}>
+              <div className="os1-message-rail">
                 {briefing && (
                   <ProactiveBanner
                     briefing={briefing}
@@ -999,7 +994,7 @@ export default function ChatCanvas({
         {/* Mini Jarvis avatar — persistent during conversation */}
         {hasMessages && (
           <div style={{
-            position: 'absolute', top: 12, left: 0, right: 0, zIndex: 3,
+            position: 'absolute', top: 82, left: 0, right: 0, zIndex: 3,
             display: 'flex', justifyContent: 'center',
             pointerEvents: 'none',
           }}>
@@ -1016,15 +1011,15 @@ export default function ChatCanvas({
         {hasMessages && (
           <div style={{
             position: 'absolute', bottom: 0, left: 0, right: 0, height: 56,
-            background: 'linear-gradient(to bottom, transparent, #0a0908)',
+            background: 'linear-gradient(to bottom, transparent, #000000)',
             pointerEvents: 'none', zIndex: 1,
           }} />
         )}
       </div>
 
       {/* Input area */}
-      <div style={{ padding: '8px 40px 24px', flexShrink: 0 }}>
-        <div style={{ maxWidth: 760, margin: '0 auto', position: 'relative' }}>
+      <div className="os1-input-dock">
+        <div className="os1-input-wrap">
           {/* Usage counter — top-right of input area */}
           {usage && (
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4 }}>
@@ -1032,7 +1027,7 @@ export default function ChatCanvas({
             </div>
           )}
           {/* Toggle floats to the left, outside layout flow, keeping input centered */}
-          <div style={{ position: 'absolute', left: -68, bottom: 12 }}>
+          <div className="os1-autonomous-lever">
             <AutonomousToggle
               userId={userId}
               apiUrl={BACKEND}
@@ -1043,7 +1038,8 @@ export default function ChatCanvas({
           <PromptInputBox
             onSend={(message, files) => sendMessage(message, files)}
             isLoading={loading}
-            placeholder="Message Jarvis..."
+            placeholder="Ask Jarvis..."
+            className="os1-command-box"
             enableVoice={false}
             enableUpload={true}
           />
