@@ -1,0 +1,8 @@
+tmp_pytest/
+.pytest_cache/
+.agents/
+.claude/
+.codex/
+frontend/.vercel/
+frontend/.next/
+frontend/tsconfig.tsbuildinfo
