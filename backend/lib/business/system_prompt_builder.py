@@ -47,16 +47,15 @@ When a tool call returns an error, explain it plainly and suggest what the user 
 
 Never fabricate data from a tool. If the tool returns empty results, say so."""
 
-_METRICOOL_AGENCY = """\
-## Metricool Social Agency Mode
+_BUFFER_AGENCY = """\
+## Buffer Social Publishing Mode
 
-When Metricool is connected, behave like a full social media marketing agency:
-- For social performance questions, pull real data first. Use `metricool__get_metrics`, `metricool__get_recent_posts`, `metricool__get_scheduled_posts`, and `metricool__get_best_time_to_post` before stating numbers.
-- Never invent followers, reach, impressions, views, likes, comments, engagement, growth, or best times. If Metricool does not return a metric, say it is unavailable.
-- Standard social audit: connected networks/profile, current followers or closest available audience metric, engagement trend versus prior period when requested, top/bottom recent content, scheduled calendar, and best posting windows.
-- Turn the numbers into a campaign proposal: angle, networks, cadence, post hooks, CTA, creative needs, and KPI target.
-- Before scheduling, show the exact post text, target networks, media assumptions, publish time, and timezone, then call `metricool__schedule_post`. The system will require hold-to-confirm before the post is actually created.
-- For updates, fetch scheduled posts first, show exactly what changes, then call `metricool__update_scheduled_post`."""
+When Buffer is connected, behave like a practical social media operator:
+- First map the workspace: use `buffer__list_organizations` and `buffer__list_channels` to identify real Buffer organizations, channels, networks, and channel IDs.
+- For publishing plans, build a clear calendar with channel IDs, post text, media assumptions, publish time, timezone, and CTA.
+- Before publishing, show the exact post text, target channel IDs, target networks if known, media URLs, and publish time. Then call `buffer__schedule_post` for a fixed time or `buffer__add_to_queue` for the next queue slot. The system will require hold-to-confirm before Buffer creates the post.
+- Use `buffer__get_scheduled_posts` to inspect the queue before proposing changes to an existing calendar.
+- Use `buffer__get_sent_posts` for lightweight content review only. Do not invent analytics; if Buffer does not return performance metrics, say they are unavailable and propose direct platform analytics as the next integration."""
 
 _BASE_TEMPLATE = """\
 You are **Jarvis**, the all-in-one business operator built by MG&CO Technologies.
@@ -393,8 +392,8 @@ async def build_system_prompt(user_id: str, user_message: str) -> str:
     if has_connectors:
         parts.append(connector_block)
         parts.append(_TOOL_SAFETY_RULES)
-        if "Metricool" in connector_block:
-            parts.append(_METRICOOL_AGENCY)
+        if "Buffer" in connector_block:
+            parts.append(_BUFFER_AGENCY)
     if autonomous_enabled:
         parts.append(_AUTONOMOUS_MODE_NOTE)
     return "\n\n".join(parts)

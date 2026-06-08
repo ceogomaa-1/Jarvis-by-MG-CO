@@ -202,68 +202,49 @@ async def _dispatch(connector, connector_type: str, action_name: str, inp: dict)
         if action_name == "get_deployment":
             return await connector.get_deployment(deployment_id=inp["deployment_id"])
 
-    # ── Metricool ────────────────────────────────────────────────────────────
-    if connector_type == "metricool":
-        if action_name == "list_brands":
-            return await connector.list_brands()
-        if action_name == "get_profile":
-            return await connector.get_profile(blog_id=inp.get("blog_id"))
-        if action_name == "get_recent_posts":
-            return await connector.get_recent_posts(
-                blog_id=inp.get("blog_id"),
-                network=inp.get("network"),
-                limit=int(inp.get("limit", 20)),
-                start=inp.get("start"),
-                end=inp.get("end"),
-                timezone_name=inp.get("timezone_name", "America/Toronto"),
-            )
+    # ── Buffer ───────────────────────────────────────────────────────────────
+    if connector_type == "buffer":
+        if action_name == "list_organizations":
+            return await connector.list_organizations()
+        if action_name == "list_channels":
+            return await connector.list_channels(organization_id=inp.get("organization_id"))
+        if action_name == "get_channel":
+            return await connector.get_channel(channel_id=inp["channel_id"])
         if action_name == "get_scheduled_posts":
             return await connector.get_scheduled_posts(
-                blog_id=inp.get("blog_id"),
-                start=inp.get("start"),
-                end=inp.get("end"),
-                timezone_name=inp.get("timezone_name", "America/Toronto"),
-                extended_range=bool(inp.get("extended_range", False)),
+                channel_ids=inp.get("channel_ids"),
+                limit=int(inp.get("limit", 20)),
+                organization_id=inp.get("organization_id"),
             )
-        if action_name == "get_available_metrics":
-            return await connector.get_available_metrics(
-                blog_id=inp.get("blog_id"),
-                network=inp.get("network"),
+        if action_name == "get_sent_posts":
+            return await connector.get_sent_posts(
+                channel_ids=inp.get("channel_ids"),
+                limit=int(inp.get("limit", 20)),
+                organization_id=inp.get("organization_id"),
             )
-        if action_name == "get_metrics":
-            return await connector.get_metrics(
-                blog_id=inp.get("blog_id"),
-                network=inp.get("network"),
-                metric=inp.get("metric"),
-                start=inp.get("start"),
-                end=inp.get("end"),
-                timezone_name=inp.get("timezone_name", "America/Toronto"),
-                subject=inp.get("subject"),
-            )
-        if action_name == "get_best_time_to_post":
-            return await connector.get_best_time_to_post(
-                blog_id=inp.get("blog_id"),
-                network=inp.get("network"),
-                start=inp.get("start"),
-                end=inp.get("end"),
-                timezone_name=inp.get("timezone_name", "America/Toronto"),
+        if action_name == "create_post":
+            return await connector.create_post(
+                text=inp.get("text", ""),
+                channel_ids=inp.get("channel_ids", []),
+                mode=inp.get("mode", "addToQueue"),
+                publish_at=inp.get("publish_at"),
+                media_urls=inp.get("media_urls", []),
+                networks=inp.get("networks", []),
             )
         if action_name == "schedule_post":
             return await connector.schedule_post(
-                blog_id=inp.get("blog_id"),
                 text=inp.get("text", ""),
-                networks=inp.get("networks", []),
+                channel_ids=inp.get("channel_ids", []),
+                publish_at=inp.get("publish_at", ""),
                 media_urls=inp.get("media_urls", []),
-                publish_at=inp.get("publish_at"),
-                timezone_name=inp.get("timezone_name", "America/Toronto"),
-                info=inp.get("info"),
+                networks=inp.get("networks", []),
             )
-        if action_name == "update_scheduled_post":
-            return await connector.update_scheduled_post(
-                blog_id=inp.get("blog_id"),
-                post_id=inp.get("post_id", inp.get("id", "")),
-                changes=inp.get("changes"),
-                info=inp.get("info"),
+        if action_name == "add_to_queue":
+            return await connector.add_to_queue(
+                text=inp.get("text", ""),
+                channel_ids=inp.get("channel_ids", []),
+                media_urls=inp.get("media_urls", []),
+                networks=inp.get("networks", []),
             )
 
     # ── Supabase (user projects) ──────────────────────────────────────────────

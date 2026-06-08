@@ -41,8 +41,9 @@ WRITE_ACTIONS = frozenset({
     "elevenlabs__update_agent",
     "elevenlabs__delete_agent",
     "gohighlevel__create_contact",
-    "metricool__schedule_post",
-    "metricool__update_scheduled_post",
+    "buffer__create_post",
+    "buffer__schedule_post",
+    "buffer__add_to_queue",
 })
 
 
@@ -73,13 +74,12 @@ def _describe_action(tool_name: str, tool_input: dict) -> str:
         first = tool_input.get("firstName", "")
         last = tool_input.get("lastName", "")
         return f"Create contact: {(first + ' ' + last).strip() or '?'}"
-    if tool_name == "metricool__schedule_post":
-        networks = ", ".join(tool_input.get("networks", []) or [p.get("network", "?") for p in (tool_input.get("info", {}).get("providers", []) if isinstance(tool_input.get("info"), dict) else [])])
-        publish_at = tool_input.get("publish_at") or (tool_input.get("info", {}).get("publicationDate", {}) if isinstance(tool_input.get("info"), dict) else {}).get("dateTime")
-        text = (tool_input.get("text") or (tool_input.get("info", {}).get("text", "") if isinstance(tool_input.get("info"), dict) else ""))[:80]
-        return f"Schedule Metricool post to {networks or '?'} at {publish_at or '?'}: {text or '?'}"
-    if tool_name == "metricool__update_scheduled_post":
-        return f"Update Metricool scheduled post: {tool_input.get('post_id', tool_input.get('id', '?'))}"
+    if tool_name in {"buffer__create_post", "buffer__schedule_post", "buffer__add_to_queue"}:
+        channels = ", ".join(tool_input.get("channel_ids", []) or [])
+        publish_at = tool_input.get("publish_at") or "next queue slot"
+        text = (tool_input.get("text") or "")[:80]
+        action = "Schedule" if tool_name == "buffer__schedule_post" else "Queue" if tool_name == "buffer__add_to_queue" else "Create"
+        return f"{action} Buffer post to {channels or '?'} at {publish_at}: {text or '?'}"
     return tool_name.replace("__", " → ").replace("_", " ").title()
 
 

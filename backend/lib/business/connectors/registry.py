@@ -20,7 +20,7 @@ from backend.lib.business.connectors.gohighlevel_conn import GoHighLevelConnecto
 from backend.lib.business.connectors.github_connector import GitHubConnector
 from backend.lib.business.connectors.vercel_connector import VercelConnector
 from backend.lib.business.connectors.supabase_project_connector import SupabaseProjectConnector
-from backend.lib.business.connectors.metricool_conn import MetricoolConnector
+from backend.lib.business.connectors.buffer_conn import BufferConnector
 
 
 SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL", "")
@@ -48,7 +48,7 @@ _CONNECTOR_REGISTRY: dict[str, type[BaseConnector]] = {
     GitHubConnector.CONNECTOR_TYPE: GitHubConnector,
     VercelConnector.CONNECTOR_TYPE: VercelConnector,
     SupabaseProjectConnector.CONNECTOR_TYPE: SupabaseProjectConnector,
-    MetricoolConnector.CONNECTOR_TYPE: MetricoolConnector,
+    BufferConnector.CONNECTOR_TYPE: BufferConnector,
 }
 
 
@@ -241,10 +241,10 @@ _CONNECTOR_ACTIONS: dict[str, list[str]] = {
     "github": ["list_repos", "create_repo", "push_files"],
     "vercel": ["list_projects", "create_project", "trigger_deploy", "get_deployment"],
     "supabase_project": ["list_projects", "get_project_keys", "run_sql"],
-    "metricool": [
-        "list_brands", "get_profile", "get_recent_posts", "get_scheduled_posts",
-        "get_available_metrics", "get_metrics", "get_best_time_to_post",
-        "schedule_post", "update_scheduled_post",
+    "buffer": [
+        "list_organizations", "list_channels", "get_channel",
+        "get_scheduled_posts", "get_sent_posts",
+        "create_post", "schedule_post", "add_to_queue",
     ],
 }
 
@@ -260,7 +260,7 @@ _CONNECTOR_LABELS: dict[str, str] = {
     "github": "GitHub (code repos)",
     "vercel": "Vercel (deployments)",
     "supabase_project": "Supabase (user projects)",
-    "metricool": "Metricool (social media agency)",
+    "buffer": "Buffer (social publishing)",
 }
 
 

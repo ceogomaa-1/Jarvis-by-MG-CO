@@ -454,122 +454,95 @@ _TOOLS: dict[str, dict] = {
         },
     },
 
-    # ── Metricool ────────────────────────────────────────────────────────────
-    "metricool__list_brands": {
-        "description": "[Metricool] List available Metricool brands/profiles and brand IDs for the connected account.",
+    # ── Buffer ───────────────────────────────────────────────────────────────
+    "buffer__list_organizations": {
+        "description": "[Buffer] List Buffer organizations available to the connected API key. Use this to find organization IDs.",
         "input_schema": {"type": "object", "properties": {}, "required": []},
     },
-    "metricool__get_profile": {
-        "description": "[Metricool] Get brand settings/profile context for a Metricool brand, including connected networks where exposed.",
+    "buffer__list_channels": {
+        "description": "[Buffer] List connected social channels/profiles for an organization. Use this before scheduling so you know the channel IDs.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "blog_id": {"type": "string", "description": "Optional Metricool brand/blog ID. Defaults to saved default brand."},
+                "organization_id": {"type": "string", "description": "Optional Buffer organization ID. Defaults to saved organization_id."},
             },
             "required": [],
         },
     },
-    "metricool__get_recent_posts": {
-        "description": "[Metricool] Get recent published social posts/reels and available per-post metrics. Use before judging content performance.",
+    "buffer__get_channel": {
+        "description": "[Buffer] Get details for a single Buffer social channel/profile.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "blog_id": {"type": "string", "description": "Optional Metricool brand/blog ID."},
-                "network": {"type": "string", "description": "Optional network: instagram, facebook, linkedin, tiktok, youtube, pinterest."},
-                "limit": {"type": "integer", "description": "Max posts per network, default 20."},
-                "start": {"type": "string", "description": "Start date YYYY-MM-DD, optional."},
-                "end": {"type": "string", "description": "End date YYYY-MM-DD, optional."},
-                "timezone_name": {"type": "string", "description": "Timezone, default America/Toronto."},
+                "channel_id": {"type": "string", "description": "Buffer channel/profile ID."},
+            },
+            "required": ["channel_id"],
+        },
+    },
+    "buffer__get_scheduled_posts": {
+        "description": "[Buffer] List scheduled/queued posts for selected channel IDs.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "organization_id": {"type": "string", "description": "Optional Buffer organization ID. Defaults to saved organization_id."},
+                "channel_ids": {"type": "array", "items": {"type": "string"}, "description": "Optional Buffer channel IDs to filter by."},
+                "limit": {"type": "integer", "description": "Max posts, default 20."},
             },
             "required": [],
         },
     },
-    "metricool__get_scheduled_posts": {
-        "description": "[Metricool] List queued/scheduled posts for a brand over a date range.",
+    "buffer__get_sent_posts": {
+        "description": "[Buffer] List recently sent/published posts for selected channel IDs. Use for lightweight content review; do not fabricate unavailable analytics.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "blog_id": {"type": "string", "description": "Optional Metricool brand/blog ID."},
-                "start": {"type": "string", "description": "Start date YYYY-MM-DD, default today."},
-                "end": {"type": "string", "description": "End date YYYY-MM-DD, default 30 days out."},
-                "timezone_name": {"type": "string", "description": "Timezone, default America/Toronto."},
-                "extended_range": {"type": "boolean", "description": "Whether Metricool should expand the range by one day."},
+                "organization_id": {"type": "string", "description": "Optional Buffer organization ID. Defaults to saved organization_id."},
+                "channel_ids": {"type": "array", "items": {"type": "string"}, "description": "Optional Buffer channel IDs to filter by."},
+                "limit": {"type": "integer", "description": "Max posts, default 20."},
             },
             "required": [],
         },
     },
-    "metricool__get_available_metrics": {
-        "description": "[Metricool] Return available analytics metrics by network/subject. Call this when unsure which Metricool metrics can be queried.",
+    "buffer__create_post": {
+        "description": "[Buffer] WRITE: Create a Buffer post. Use mode addToQueue for queue publishing or customScheduled with publish_at for a fixed time. Show exact text, channel IDs, media, and time first; the system will require hold-to-confirm.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "blog_id": {"type": "string", "description": "Optional Metricool brand/blog ID."},
-                "network": {"type": "string", "description": "Optional network: instagram, facebook, linkedin, tiktok, youtube, etc."},
-            },
-            "required": [],
-        },
-    },
-    "metricool__get_metrics": {
-        "description": "[Metricool] Pull real analytics timeline data for a network and metric(s). Never invent social numbers; call this before reporting followers, impressions, reach, engagement, or growth.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "blog_id": {"type": "string", "description": "Optional Metricool brand/blog ID."},
-                "network": {"type": "string", "description": "Network to analyze, e.g. instagram, facebook, linkedin, tiktok, youtube."},
-                "metric": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Metric names. If omitted, connector uses default account metrics.",
-                },
-                "subject": {"type": "string", "description": "Optional Metricool subject/metricType such as account, posts, reels, videos."},
-                "start": {"type": "string", "description": "Start date YYYY-MM-DD, default 30 days ago."},
-                "end": {"type": "string", "description": "End date YYYY-MM-DD, default today."},
-                "timezone_name": {"type": "string", "description": "Timezone, default America/Toronto."},
-            },
-            "required": ["network"],
-        },
-    },
-    "metricool__get_best_time_to_post": {
-        "description": "[Metricool] Get best posting times for a network. Higher returned value means stronger posting window.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "blog_id": {"type": "string", "description": "Optional Metricool brand/blog ID."},
-                "network": {"type": "string", "description": "Network/provider: instagram, facebook, linkedin, youtube, tiktok, twitter."},
-                "start": {"type": "string", "description": "Start date YYYY-MM-DD, default today."},
-                "end": {"type": "string", "description": "End date YYYY-MM-DD, default 7 days out."},
-                "timezone_name": {"type": "string", "description": "Timezone, default America/Toronto."},
-            },
-            "required": ["network"],
-        },
-    },
-    "metricool__schedule_post": {
-        "description": "[Metricool] WRITE: Schedule a social post across one or more networks. Show exact text, networks, media, and publish time before calling; the system will require hold-to-confirm.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "blog_id": {"type": "string", "description": "Optional Metricool brand/blog ID."},
                 "text": {"type": "string", "description": "Post caption/text."},
-                "networks": {"type": "array", "items": {"type": "string"}, "description": "Networks, e.g. instagram, facebook, linkedin, twitter."},
+                "channel_ids": {"type": "array", "items": {"type": "string"}, "description": "Buffer channel IDs to publish to."},
+                "mode": {"type": "string", "description": "Buffer posting mode: addToQueue or customScheduled."},
+                "publish_at": {"type": "string", "description": "ISO datetime for customScheduled mode, e.g. 2026-06-08T09:00:00Z."},
                 "media_urls": {"type": "array", "items": {"type": "string"}, "description": "Public media URLs, optional."},
-                "publish_at": {"type": "string", "description": "ISO datetime without timezone, e.g. 2026-06-08T09:00:00."},
-                "timezone_name": {"type": "string", "description": "Timezone, default America/Toronto."},
-                "info": {"type": "object", "description": "Advanced raw Metricool scheduler body. Optional."},
+                "networks": {"type": "array", "items": {"type": "string"}, "description": "Optional human labels for validation/confirmation, e.g. instagram, linkedin, x."},
             },
-            "required": ["text", "networks", "publish_at"],
+            "required": ["text", "channel_ids"],
         },
     },
-    "metricool__update_scheduled_post": {
-        "description": "[Metricool] WRITE: Update a scheduled post. Fetch scheduled posts first, show exactly what changes, then call; the system will require hold-to-confirm.",
+    "buffer__schedule_post": {
+        "description": "[Buffer] WRITE: Schedule a post at an exact publish time. Show exact text, channel IDs, media, and publish time first; the system will require hold-to-confirm.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "blog_id": {"type": "string", "description": "Optional Metricool brand/blog ID."},
-                "post_id": {"type": "string", "description": "Scheduled post ID from get_scheduled_posts."},
-                "changes": {"type": "object", "description": "Fields to change."},
-                "info": {"type": "object", "description": "Full Metricool scheduler body when available."},
+                "text": {"type": "string", "description": "Post caption/text."},
+                "channel_ids": {"type": "array", "items": {"type": "string"}, "description": "Buffer channel IDs to publish to."},
+                "publish_at": {"type": "string", "description": "ISO datetime, e.g. 2026-06-08T09:00:00Z."},
+                "media_urls": {"type": "array", "items": {"type": "string"}, "description": "Public media URLs, optional."},
+                "networks": {"type": "array", "items": {"type": "string"}, "description": "Optional human labels for validation/confirmation, e.g. instagram, linkedin, x."},
             },
-            "required": ["post_id"],
+            "required": ["text", "channel_ids", "publish_at"],
+        },
+    },
+    "buffer__add_to_queue": {
+        "description": "[Buffer] WRITE: Add a post to the next available slot in the Buffer queue. Show exact text, channel IDs, and media first; the system will require hold-to-confirm.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "text": {"type": "string", "description": "Post caption/text."},
+                "channel_ids": {"type": "array", "items": {"type": "string"}, "description": "Buffer channel IDs to publish to."},
+                "media_urls": {"type": "array", "items": {"type": "string"}, "description": "Public media URLs, optional."},
+                "networks": {"type": "array", "items": {"type": "string"}, "description": "Optional human labels for validation/confirmation, e.g. instagram, linkedin, x."},
+            },
+            "required": ["text", "channel_ids"],
         },
     },
 

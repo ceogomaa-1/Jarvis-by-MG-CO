@@ -1,27 +1,19 @@
-# Batch 2 - Metricool Social Media Agency Connector
+# Batch 2 - Buffer Social Publishing Connector
 
-## Added
-- Added native `metricool` connector with Metricool API auth via `X-Mc-Auth`, `user_id`, and optional `default_blog_id`.
-- Added read tools for brands, profile/settings, recent posts, scheduled posts, available metrics, analytics timelines, and best posting times.
-- Added write tools for scheduling and updating Metricool posts.
-- Routed Metricool write tools through the existing hold-to-confirm flow.
-- Added Metricool social agency instructions to Jarvis's system prompt so social advice is grounded in real Metricool data.
+## What changed
+- Replaced the Metricool connector with a native `buffer` connector using Buffer's GraphQL API and bearer-token auth.
+- Added Buffer tools for organizations, channels, scheduled posts, sent posts, queue posting, and exact-time scheduling.
+- Routed Buffer write tools through the existing hold-to-confirm flow.
+- Added Buffer social publishing instructions to Jarvis's system prompt so it asks for real channel IDs and does not invent unavailable analytics.
 
-## Verified API Notes
-- Official Metricool API docs state the base URL is `https://app.metricool.com/api`.
-- Official docs state the auth token is sent in the `X-Mc-Auth` header.
-- Official docs state API calls identify the account with `userId` and brand with `blogId`.
-- Metricool's public MCP tool docs confirm scheduler endpoints:
-  - `GET /v2/scheduler/posts`
-  - `POST /v2/scheduler/posts`
-  - `PUT /v2/scheduler/posts/{id}`
-  - `GET /v2/scheduler/besttimes/{provider}`
-- Metricool's public MCP tool docs confirm analytics timeline usage through `/v2/analytics/timelines`.
+## Why
+- Metricool API access is locked behind a much more expensive paid tier.
+- Buffer gives Jarvis the core social publishing workflow we need first: connect channels, build posts, schedule posts, and queue posts.
 
-## Guardrails
-- `metricool__schedule_post` and `metricool__update_scheduled_post` require explicit user confirmation before execution.
-- Jarvis is instructed not to fabricate social metrics and to call Metricool read tools before reporting performance numbers.
-- Connector responses strip token-like fields before returning payloads to the model.
+## Safety
+- `buffer__create_post`, `buffer__schedule_post`, and `buffer__add_to_queue` require explicit user confirmation before execution.
+- X/Twitter posts are locally rejected above 280 characters when Jarvis marks the target network as X/Twitter.
+- Jarvis is instructed to treat Buffer sent posts as lightweight content review only and not fabricate analytics.
 
 ## Tests
-- Added tests for Metricool manifest fields, tool visibility gating, write-action confirmation, and X/Twitter character-limit validation.
+- Added tests for Buffer manifest fields, tool visibility gating, write-action confirmation, Metricool removal from tools, missing channel validation, and X/Twitter character-limit validation.
