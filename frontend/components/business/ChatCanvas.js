@@ -576,12 +576,17 @@ export default function ChatCanvas({
       ? await Promise.all(files.map(fileToAttachment))
       : []
 
+    // When files are attached, always use the regular chat path — it has full
+    // image/PDF/text handling. The show-me-how and creation detectors only apply
+    // to text-only messages; attachments mean "look at this and respond".
+    const hasAttachments = attachments.length > 0
+
     msgIdRef.current += 1
     const userMsgId = msgIdRef.current
     setMessages(prev => [...prev, { id: userMsgId, role: 'user', content: text, attachments }])
     setLoading(true)
 
-    if (detectShowMeHow(text)) {
+    if (!hasAttachments && detectShowMeHow(text)) {
       msgIdRef.current += 1
       const wId = msgIdRef.current
       setMessages(prev => [...prev, {
@@ -647,7 +652,7 @@ export default function ChatCanvas({
       return
     }
 
-    if (detectCreation(text) || isDeployConfirmation(text, messages)) {
+    if (!hasAttachments && (detectCreation(text) || isDeployConfirmation(text, messages))) {
       msgIdRef.current += 1
       const cId = msgIdRef.current
       setMessages(prev => [...prev, {
@@ -769,7 +774,7 @@ export default function ChatCanvas({
           user_id: userId || '',
           conversation_history: history,
           conversation_id: activeConvRef.current || null,
-          attachments: attachments.map(a => ({ type: a.type, media_type: a.media_type, data: a.data })),
+          attachments: attachments.map(a => ({ type: a.type, media_type: a.media_type, data: a.data, name: a.name })),
         }),
       })
       const reader = res.body.getReader()
