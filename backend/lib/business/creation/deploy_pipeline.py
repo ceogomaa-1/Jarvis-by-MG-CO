@@ -60,31 +60,45 @@ async def run_deploy_pipeline(
     db_plan = site.get("db_plan") or {}
 
     # ── 1. GitHub: create repo ────────────────────────────────────────────────
+    # On a 422 "name already exists" collision, try up to 3 suffixed names before failing.
     yield {"type": "deployment_status", "message": "Creating GitHub repository…"}
     repo_res = None
-    async for event in _await_connector_call(
-        gh.create_repo(
-            name=project_name,
-            description=f"Built with Jarvis OS1 — {site.get('summary', '')[:120]}",
-            private=False,
-        ),
-        "Still creating the GitHub repository…",
-        "GitHub repo creation timed out",
-    ):
-        if event.get("type") == "_connector_result":
-            repo_res = event["result"]
-        else:
-            yield event
-    if not repo_res.ok:
+    _repo_candidates = [project_name, f"{project_name}-v2", f"{project_name}-v3", f"{project_name}-v4"]
+    for _candidate in _repo_candidates:
+        _is_retry = _candidate != project_name
+        if _is_retry:
+            yield {"type": "deployment_status", "message": f"Repository '{_candidate[:-3]}' already exists — trying '{_candidate}'…"}
+        async for event in _await_connector_call(
+            gh.create_repo(
+                name=_candidate,
+                description=f"Built with Jarvis OS1 — {site.get('summary', '')[:120]}",
+                private=False,
+            ),
+            f"Still creating the GitHub repository ({_candidate})…",
+            "GitHub repo creation timed out",
+        ):
+            if event.get("type") == "_connector_result":
+                repo_res = event["result"]
+            else:
+                yield event
+        if repo_res and repo_res.ok:
+            break
+        # Only retry on name-collision (422); any other error is terminal
+        if repo_res and "422" not in str(repo_res.error) and "already exists" not in str(repo_res.error).lower():
+            break
+
+    if not repo_res or not repo_res.ok:
         yield {
             "type": "deployment_error",
-            "value": f"GitHub repo creation failed: {repo_res.error}. Say 'deploy the last project' to retry.",
+            "value": f"GitHub repo creation failed: {repo_res.error if repo_res else 'unknown error'}. Say 'deploy the last project' to retry.",
             "stage": "github_create",
         }
         return
 
     full_name: str = repo_res.data["full_name"]  # "owner/repo-name"
     repo_url: str = repo_res.data["url"]
+    # Use the actual name GitHub accepted (may differ if we suffixed on collision)
+    project_name = repo_res.data.get("name", project_name)
 
     # ── 2. GitHub: push all files ─────────────────────────────────────────────
     yield {"type": "deployment_status", "message": f"Pushing {len(files)} files to GitHub…"}

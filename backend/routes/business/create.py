@@ -32,6 +32,17 @@ _WEBSITE_BUILD_RE = re.compile(
     r"|create\s+(a\s+)?(site|web)",
     re.IGNORECASE,
 )
+# Matches memory/ingest intents — user is sharing reference material, not requesting creation.
+# Mirror of INGEST_BLOCKLIST in frontend/lib/business/creationDetector.js.
+_INGEST_RE = re.compile(
+    r"\b(remember|memorize|save\s+(this|it)|keep\s+(this|it)|store\s+(this|it)|take\s+note)\b"
+    r"|\bfor\s+(your\s+)?(memory|reference|records|knowledge)\b"
+    r"|\b(bury|file|log)\s+(this|it)\b"
+    r"|\bhere'?s\s+(the|our|my)\s+(bible|info|knowledge|details|company|background|context)\b"
+    r"|\b(knowledge\s+base|master\s+(document|guide|playbook)|table\s+of\s+contents)\b"
+    r"|\bfyi[\s,:]|\bnote\s+this\b|\blearn\s+this\b",
+    re.IGNORECASE,
+)
 _DEPLOY_CONFIRM_RE = re.compile(
     r"^\s*(yes|yeah|yep|please|yes please|do it|go ahead|ship it|deploy it|deploy|push it|"
     r"launch it|make it live|sounds good|ok|okay|sure)\s*[.!?]*\s*$",
@@ -45,6 +56,16 @@ _DEPLOY_OFFER_RE = re.compile(
 
 
 def _is_website_build(message: str) -> bool:
+    if not message:
+        return False
+    # Memory/ingest intents are never website builds — user is sharing reference material
+    if _INGEST_RE.search(message):
+        return False
+    # Long messages (>600 chars or >6 line-breaks) are likely pasted docs.
+    # Only treat as a website build when the trigger appears on the very first line.
+    if len(message) > 600 or message.count("\n") > 6:
+        first_line = message.split("\n")[0][:120]
+        return bool(_WEBSITE_BUILD_RE.search(first_line))
     return bool(_WEBSITE_BUILD_RE.search(message))
 
 

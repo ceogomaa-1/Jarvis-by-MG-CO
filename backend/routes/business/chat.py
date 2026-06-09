@@ -241,7 +241,9 @@ async def business_chat_stream(request: BusinessChatRequest):
     messages = safe_history + [{"role": "user", "content": user_content}]
 
     model = select_model(request.message)
-    max_tokens = 4096 if model == OPUS else 2048
+    # 8192 for both Sonnet and Opus: enough headroom for tool call JSON without truncation.
+    # 2048 was too small for Sonnet — a mid-tool-call max_tokens hit caused silent tool drops.
+    max_tokens = 8192
 
     sb = _get_supabase() if request.user_id else None
     conv_id = request.conversation_id
@@ -439,6 +441,37 @@ async def business_chat_stream(request: BusinessChatRequest):
                     content_blocks = [
                         content_blocks_map[i] for i in sorted(content_blocks_map.keys())
                     ]
+
+                    # Explicit truncation guard: if the model hit max_tokens while a
+                    # tool_use block was in-flight, content_block_stop never fired and
+                    # the tool call silently vanished. Surface a clear error instead of
+                    # letting the model narrate fake success.
+                    if stop_reason == "max_tokens":
+                        in_flight_tools = [
+                            b for b in content_blocks_map.values()
+                            if b.get("type") == "tool_use" and not b.get("input")
+                        ]
+                        if in_flight_tools:
+                            tool_names = ", ".join(b.get("name", "?") for b in in_flight_tools)
+                            err_msg = (
+                                f"The request was too large for the tool call to complete "
+                                f"({tool_names}). Try splitting the request into smaller steps "
+                                f"or reduce the amount of data you are working with at once."
+                            )
+                            yield f"data: {json.dumps(err_msg)}\n\n"
+                            yield "data: [DONE]\n\n"
+                            got_final_response = True
+                            break
+                        # max_tokens on a pure text response — text already streamed, close gracefully
+                        final_text = per_round_text
+                        if request.user_id and sb:
+                            updated_usage = await asyncio.to_thread(
+                                increment_usage, request.user_id, sb
+                            )
+                            yield f'data: {json.dumps({"type": "usage", "data": updated_usage})}\n\n'
+                        yield "data: [DONE]\n\n"
+                        got_final_response = True
+                        break
 
                     if stop_reason != "tool_use":
                         # Final response — text was already streamed token-by-token above
