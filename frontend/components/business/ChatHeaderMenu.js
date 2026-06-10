@@ -1,8 +1,10 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Inbox, BarChart3, Wrench, Star, User } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import { setJarvisMode } from '../../lib/userPreferences'
 
 import MorningQueueModal from './MorningQueueModal'
 import BrandModal from './BrandModal'
@@ -66,6 +68,7 @@ function MenuItem({ icon, label, onClick }) {
 }
 
 export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, onClose }) {
+  const router = useRouter()
   const [openModal, setOpenModal] = useState(null)
   const [authUser, setAuthUser] = useState(null)
 
@@ -78,6 +81,11 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
 
   const close = () => setOpenModal(null)
   const openM = (key) => { setOpenModal(key); onClose?.() }
+
+  const switchToPersonal = async () => {
+    try { if (userId) await setJarvisMode(userId, 'personal') } catch {}
+    router.push('/')
+  }
 
   const displayName =
     authUser?.user_metadata?.full_name ||
@@ -168,6 +176,24 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
                   <MenuItem key={item.label} icon={item.icon} label={item.label} onClick={item.onClick} />
                 ))}
               </div>
+
+              {/* Switch to Personal Jarvis */}
+              <button
+                onClick={switchToPersonal}
+                style={{
+                  width: '100%', background: 'transparent', border: 'none',
+                  borderTop: '1px solid var(--os1-border-soft)',
+                  padding: '12px 2px 2px', marginTop: 6,
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  cursor: 'pointer', color: 'var(--os1-text-faint)',
+                  transition: 'color 150ms ease',
+                }}
+                onMouseEnter={e => e.currentTarget.style.color = 'var(--os1-text)'}
+                onMouseLeave={e => e.currentTarget.style.color = 'var(--os1-text-faint)'}
+              >
+                <span className="font-pixel" style={{ fontSize: 12 }}>Switch to Personal</span>
+                <span className="font-pixel" style={{ fontSize: 12 }}>→</span>
+              </button>
 
               {/* Footer: Pro Tier + invader */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 14 }}>
