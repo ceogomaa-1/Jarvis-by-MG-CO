@@ -111,6 +111,24 @@ async def set_preferred_name(body: PreferredNameUpdate):
         return {"ok": False, "error": str(e)}
 
 
+@router.get("/business-users/{user_id}")
+async def get_business_user(user_id: str):
+    try:
+        sb = _client()
+        res = (
+            sb.table("business_users")
+            .select("user_id, company_name, industry, custom_industry, role")
+            .eq("user_id", user_id)
+            .maybe_single()
+            .execute()
+        )
+        if res.data:
+            return {"exists": True, **res.data}
+        return {"exists": False}
+    except Exception as e:
+        return {"exists": False, "error": str(e)}
+
+
 @router.post("/business-users")
 async def create_business_user(body: BusinessUserCreate):
     try:

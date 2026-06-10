@@ -1,15 +1,17 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 import ChatCanvas from '../../../components/business/ChatCanvas'
 import ChatSidebar from '../../../components/business/ChatSidebar'
 import ChatHeaderMenu from '../../../components/business/ChatHeaderMenu'
-import { setJarvisMode, createBusinessUser } from '../../../lib/userPreferences'
+import { getBusinessUser } from '../../../lib/userPreferences'
 import TetrisLoader from '../../../components/ui/TetrisLoader'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
 export default function BusinessChatPage() {
+  const router = useRouter()
   const [userId, setUserId] = useState(null)       // 'user_' prefixed — for backend API calls
   const [loading, setLoading] = useState(true)
 
@@ -63,24 +65,10 @@ export default function BusinessChatPage() {
         const uid = 'user_' + session.user.id.replace(/-/g, '')
         setUserId(uid)
 
-        const params = new URLSearchParams(window.location.search)
-        if (params.get('onboard') === 'business') {
-          const saved = sessionStorage.getItem('jarvis_biz_onboard')
-          if (saved) {
-            try {
-              const form = JSON.parse(saved)
-              await createBusinessUser({
-                userId: uid,
-                email: session.user.email,
-                companyName: form.companyName,
-                industry: form.industry,
-                role: form.role,
-              })
-            } catch {}
-            sessionStorage.removeItem('jarvis_biz_onboard')
-          }
-          await setJarvisMode(uid, 'business').catch(() => {})
-          window.history.replaceState({}, '', '/business/chat')
+        const businessUser = await getBusinessUser(uid)
+        if (!businessUser.exists) {
+          router.replace('/business/onboarding')
+          return
         }
 
         await loadConversations(uid)

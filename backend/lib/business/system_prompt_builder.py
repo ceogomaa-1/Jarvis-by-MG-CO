@@ -313,14 +313,14 @@ def _fetch_user_memories(user_id: str) -> str:
 
 
 def _fetch_user_profile(user_id: str) -> dict:
-    """Fetch company_name, industry, role from business_users. Returns {} on miss."""
+    """Fetch company_name, industry, role, custom_industry from business_users. Returns {} on miss."""
     try:
         sb = _get_supabase()
         if not sb:
             return {}
         res = (
             sb.table("business_users")
-            .select("company_name, industry, role")
+            .select("company_name, industry, role, custom_industry")
             .eq("user_id", user_id)
             .maybe_single()
             .execute()
@@ -341,6 +341,7 @@ async def build_system_prompt(user_id: str, user_message: str) -> str:
     industry = profile.get("industry", "")
     company_name = profile.get("company_name", "your business")
     role = profile.get("role", "owner")
+    custom_industry = profile.get("custom_industry", "")
 
     # No industry → use the generic fallback
     if not industry:
@@ -350,6 +351,11 @@ async def build_system_prompt(user_id: str, user_message: str) -> str:
             "You are Jarvis for Business",
             f"You are Jarvis for Business, advising {company_name} ({industry}). You are Jarvis for Business",
         )
+        if custom_industry:
+            base_prompt += (
+                f"\n\nThe user's industry is \"{custom_industry}\". No specialized playbook exists — "
+                "adapt every insight, metric and recommendation to this industry specifically."
+            )
     else:
         bible = load_bible(industry)
         section_keys = classify_intent(user_message)

@@ -1,3 +1,5 @@
+// DEPRECATED (Batch 43): superseded by /business/onboarding (OS1Cinematic + OS1Questions).
+// No longer invoked anywhere — kept in place for reference only.
 'use client'
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'

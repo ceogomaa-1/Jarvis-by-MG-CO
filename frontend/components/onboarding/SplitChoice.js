@@ -1,8 +1,9 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { supabase } from '../../lib/supabase'
-import BusinessOnboardingModal from './BusinessOnboardingModal'
+import { getBusinessUser } from '../../lib/userPreferences'
 
 // ─── Minimal orb (self-contained, no props needed from page.js) ──────────────
 function MiniOrb({ size = 180, accent = '#ff9072' }) {
@@ -285,7 +286,7 @@ function ChoiceCard({ mode, onPersonalClick, onBusinessClick }) {
 
 // ─── SplitChoice ──────────────────────────────────────────────────────────────
 export default function SplitChoice() {
-  const [showBizModal, setShowBizModal] = useState(false)
+  const router = useRouter()
 
   const handlePersonalClick = async () => {
     if (!supabase) return
@@ -293,6 +294,18 @@ export default function SplitChoice() {
       provider: 'google',
       options: { redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent('/?onboard=personal')}` },
     })
+  }
+
+  const handleBusinessClick = async () => {
+    if (!supabase) { router.push('/business/onboarding'); return }
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session?.user) {
+      const uid = 'user_' + session.user.id.replace(/-/g, '')
+      const businessUser = await getBusinessUser(uid)
+      router.push(businessUser.exists ? '/business/chat' : '/business/onboarding')
+      return
+    }
+    router.push('/business/onboarding')
   }
 
   return (
@@ -341,13 +354,13 @@ export default function SplitChoice() {
           <ChoiceCard
             mode="personal"
             onPersonalClick={handlePersonalClick}
-            onBusinessClick={() => setShowBizModal(true)}
+            onBusinessClick={handleBusinessClick}
           />
           {false && (
             <ChoiceCard
               mode="business"
               onPersonalClick={handlePersonalClick}
-              onBusinessClick={() => setShowBizModal(true)}
+              onBusinessClick={handleBusinessClick}
             />
           )}
         </div>
@@ -368,10 +381,6 @@ export default function SplitChoice() {
           Choose your path. You can switch anytime.
         </motion.div>
       </motion.div>
-
-      {showBizModal && (
-        <BusinessOnboardingModal onClose={() => setShowBizModal(false)} />
-      )}
 
       <style>{`
         @media (max-width: 768px) {
