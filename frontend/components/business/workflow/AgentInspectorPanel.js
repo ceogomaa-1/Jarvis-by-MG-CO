@@ -55,7 +55,7 @@ export default function AgentInspectorPanel({ agent, agentActivity, activityLoad
             background: 'rgba(15,15,18,0.75)',
             backdropFilter: 'blur(28px) saturate(180%)',
             WebkitBackdropFilter: 'blur(28px) saturate(180%)',
-            borderLeft: '1px solid rgba(243,234,217,0.12)',
+            borderLeft: '1px solid rgba(232,232,232,0.12)',
             zIndex: 50,
             display: 'flex', flexDirection: 'column',
             fontFamily: 'var(--font-sans), system-ui, sans-serif',
@@ -67,10 +67,10 @@ export default function AgentInspectorPanel({ agent, agentActivity, activityLoad
             <button
               onClick={onClose}
               style={{
-                background: 'rgba(243,234,217,0.06)',
-                border: '1px solid rgba(243,234,217,0.12)',
+                background: 'rgba(232,232,232,0.06)',
+                border: '1px solid rgba(232,232,232,0.12)',
                 borderRadius: 8, padding: 8, cursor: 'pointer',
-                color: '#f3ead9', display: 'flex', alignItems: 'center',
+                color: '#e8e8e8', display: 'flex', alignItems: 'center',
               }}
             >
               <X size={16} />
@@ -81,17 +81,17 @@ export default function AgentInspectorPanel({ agent, agentActivity, activityLoad
           <div style={{ padding: '0 24px 24px' }}>
             <div style={{
               width: 56, height: 56, borderRadius: '50%',
-              background: 'rgba(200,75,49,0.1)',
-              border: '1px solid rgba(200,75,49,0.2)',
+              background: 'rgba(45,127,249,0.1)',
+              border: '1px solid rgba(45,127,249,0.2)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               marginBottom: 16,
             }}>
-              {Icon && <Icon size={28} color="#c84b31" />}
+              {Icon && <Icon size={28} color="#2d7ff9" />}
             </div>
 
             <div style={{
-              fontFamily: 'var(--font-arcade), monospace',
-              fontSize: 14, color: '#f3ead9',
+              fontFamily: 'var(--font-pixel), monospace',
+              fontSize: 14, color: '#e8e8e8',
               marginBottom: 10, lineHeight: 1.5,
             }}>
               {agent.name}
@@ -101,8 +101,8 @@ export default function AgentInspectorPanel({ agent, agentActivity, activityLoad
               display: 'inline-block',
               fontSize: 9, fontWeight: 700, letterSpacing: '0.12em',
               textTransform: 'uppercase',
-              color: '#c84b31',
-              background: 'rgba(200,75,49,0.15)',
+              color: '#2d7ff9',
+              background: 'rgba(45,127,249,0.15)',
               padding: '4px 10px', borderRadius: 4,
               marginBottom: 16,
             }}>
@@ -110,7 +110,7 @@ export default function AgentInspectorPanel({ agent, agentActivity, activityLoad
             </span>
 
             <p style={{
-              fontSize: 13, color: 'rgba(243,234,217,0.65)',
+              fontSize: 13, color: 'rgba(232,232,232,0.65)',
               lineHeight: 1.6, margin: 0,
             }}>
               {agent.role}
@@ -118,7 +118,7 @@ export default function AgentInspectorPanel({ agent, agentActivity, activityLoad
           </div>
 
           {/* Divider */}
-          <div style={{ height: 1, background: 'rgba(243,234,217,0.07)', margin: '0 24px' }} />
+          <div style={{ height: 1, background: 'rgba(232,232,232,0.07)', margin: '0 24px' }} />
 
           {activityLoading ? (
             <div style={{ display: 'flex', justifyContent: 'center', padding: '32px 0' }}>
@@ -129,15 +129,15 @@ export default function AgentInspectorPanel({ agent, agentActivity, activityLoad
               {/* Recent Activity */}
               <div style={{ padding: '20px 24px' }}>
                 <div style={{
-                  fontFamily: 'var(--font-arcade), monospace',
+                  fontFamily: 'var(--font-pixel), monospace',
                   fontSize: 9, letterSpacing: '0.2em',
-                  color: 'rgba(243,234,217,0.4)', textTransform: 'uppercase',
+                  color: 'rgba(232,232,232,0.4)', textTransform: 'uppercase',
                   marginBottom: 12,
                 }}>
                   Recent Activity
                 </div>
                 {recentActivity.length === 0 ? (
-                  <div style={{ fontSize: 12, color: 'rgba(243,234,217,0.3)', lineHeight: 1.6 }}>
+                  <div style={{ fontSize: 12, color: 'rgba(232,232,232,0.3)', lineHeight: 1.6 }}>
                     No activity yet. This agent activates when you trigger an Operator cycle or Creation task.
                   </div>
                 ) : recentActivity.map((item, i) => (
@@ -145,13 +145,13 @@ export default function AgentInspectorPanel({ agent, agentActivity, activityLoad
                     key={i}
                     style={{
                       padding: '10px 0',
-                      borderBottom: i < recentActivity.length - 1 ? '1px solid rgba(243,234,217,0.06)' : 'none',
+                      borderBottom: i < recentActivity.length - 1 ? '1px solid rgba(232,232,232,0.06)' : 'none',
                     }}
                   >
-                    <div style={{ fontSize: 10, color: 'rgba(243,234,217,0.35)', marginBottom: 3 }}>
+                    <div style={{ fontSize: 10, color: 'rgba(232,232,232,0.35)', marginBottom: 3 }}>
                       {item.time ? (item.time.includes('T') ? relativeTime(item.time) : item.time) : ''}
                     </div>
-                    <div style={{ fontSize: 13, color: '#f3ead9' }}>
+                    <div style={{ fontSize: 13, color: '#e8e8e8' }}>
                       {item.summary}
                     </div>
                   </div>
@@ -161,20 +161,20 @@ export default function AgentInspectorPanel({ agent, agentActivity, activityLoad
               {/* Last Output */}
               <div style={{ padding: '0 24px 20px' }}>
                 <div style={{
-                  fontFamily: 'var(--font-arcade), monospace',
+                  fontFamily: 'var(--font-pixel), monospace',
                   fontSize: 9, letterSpacing: '0.2em',
-                  color: 'rgba(243,234,217,0.4)', textTransform: 'uppercase',
+                  color: 'rgba(232,232,232,0.4)', textTransform: 'uppercase',
                   marginBottom: 10,
                 }}>
                   Last Output
                 </div>
                 <div style={{
                   minHeight: 80, maxHeight: 140,
-                  background: 'rgba(243,234,217,0.03)',
-                  border: '1px solid rgba(243,234,217,0.08)',
+                  background: 'rgba(232,232,232,0.03)',
+                  border: '1px solid rgba(232,232,232,0.08)',
                   borderRadius: 8, padding: '12px 14px',
                   fontSize: 12,
-                  color: lastOutput ? 'rgba(243,234,217,0.7)' : 'rgba(243,234,217,0.3)',
+                  color: lastOutput ? 'rgba(232,232,232,0.7)' : 'rgba(232,232,232,0.3)',
                   lineHeight: 1.6, overflow: 'hidden',
                   fontFamily: lastOutput ? 'system-ui, sans-serif' : 'ui-monospace, monospace',
                 }}>
@@ -190,11 +190,11 @@ export default function AgentInspectorPanel({ agent, agentActivity, activityLoad
               onClick={handleOpenInChat}
               style={{
                 width: '100%',
-                background: '#c84b31',
+                background: '#2d7ff9',
                 border: 'none', borderRadius: 10,
                 padding: '14px 0',
                 color: 'white', fontSize: 10,
-                fontFamily: 'var(--font-arcade), monospace',
+                fontFamily: 'var(--font-pixel), monospace',
                 cursor: 'pointer', letterSpacing: '0.1em', textTransform: 'uppercase',
                 transition: 'brightness 150ms',
               }}

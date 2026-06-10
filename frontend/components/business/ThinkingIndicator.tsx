@@ -38,7 +38,7 @@ export default function ThinkingIndicator() {
             width: 28,
             height: 28,
             borderRadius: "50%",
-            backgroundColor: "rgba(200,75,49,0.15)",
+            backgroundColor: "rgba(45,127,249,0.15)",
             animation: "thinkPulseOuter 1.5s ease-in-out infinite",
           }}
         />
@@ -48,17 +48,17 @@ export default function ThinkingIndicator() {
             width: 10,
             height: 10,
             borderRadius: "50%",
-            backgroundColor: "#c84b31",
-            boxShadow: "0 0 12px rgba(200,75,49,0.5)",
+            backgroundColor: "#2d7ff9",
+            boxShadow: "0 0 12px rgba(45,127,249,0.5)",
             animation: "thinkPulseInner 1.5s ease-in-out infinite",
           }}
         />
       </div>
       <span
         style={{
-          fontFamily: "'var(--font-arcade)', monospace",
+          fontFamily: "'var(--font-pixel)', monospace",
           fontSize: 8,
-          color: "rgba(243,234,217,0.4)",
+          color: "rgba(232,232,232,0.4)",
           letterSpacing: "0.12em",
           minWidth: 120,
         }}

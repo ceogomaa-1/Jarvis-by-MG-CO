@@ -16,11 +16,11 @@ const GLASS_PANEL = {
   background: 'rgba(15, 15, 18, 0.55)',
   backdropFilter: 'blur(28px) saturate(180%)',
   WebkitBackdropFilter: 'blur(28px) saturate(180%)',
-  border: '1px solid rgba(243,234,217,0.15)',
+  border: '1px solid rgba(232,232,232,0.15)',
   borderRadius: 20,
   padding: 28,
   fontFamily: 'system-ui, sans-serif',
-  boxShadow: '0 24px 60px rgba(0,0,0,0.55), inset 0 1px 0 rgba(243,234,217,0.06)',
+  boxShadow: '0 24px 60px rgba(0,0,0,0.55), inset 0 1px 0 rgba(232,232,232,0.06)',
 }
 
 export default function ProfileModal({ open, onClose }) {
@@ -62,24 +62,24 @@ export default function ProfileModal({ open, onClose }) {
     <div onClick={onClose} style={GLASS_OVERLAY}>
       <div onClick={e => e.stopPropagation()} style={GLASS_PANEL}>
         <div style={{
-          fontFamily: 'var(--font-arcade), monospace',
+          fontFamily: 'var(--font-pixel), monospace',
           fontSize: 10, letterSpacing: '0.12em',
-          color: '#c84b31', marginBottom: 8, textTransform: 'uppercase',
+          color: '#2d7ff9', marginBottom: 8, textTransform: 'uppercase',
         }}>
           👤 ACCOUNT
         </div>
         <div style={{
-          fontFamily: 'var(--font-arcade), monospace',
-          fontSize: 13, color: '#f3ead9', marginBottom: 22, lineHeight: 1.5,
+          fontFamily: 'var(--font-pixel), monospace',
+          fontSize: 13, color: '#e8e8e8', marginBottom: 22, lineHeight: 1.5,
         }}>
           Signed in to Jarvis
         </div>
 
         {loading ? (
-          <div style={{ color: 'rgba(243,234,217,0.5)', fontSize: 13, padding: 12 }}>Loading…</div>
+          <div style={{ color: 'rgba(232,232,232,0.5)', fontSize: 13, padding: 12 }}>Loading…</div>
         ) : !user ? (
           <div style={{
-            color: 'rgba(243,234,217,0.6)', fontSize: 13,
+            color: 'rgba(232,232,232,0.6)', fontSize: 13,
             padding: '12px 14px',
             background: 'rgba(239,68,68,0.08)',
             border: '1px solid rgba(239,68,68,0.25)',
@@ -92,19 +92,19 @@ export default function ProfileModal({ open, onClose }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 22 }}>
               <div style={{
                 width: 52, height: 52, borderRadius: '50%',
-                background: 'linear-gradient(135deg, #c84b31, #d4623f)',
+                background: 'linear-gradient(135deg, #2d7ff9, #d4623f)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 22, fontWeight: 700, color: '#fff', flexShrink: 0,
-                boxShadow: '0 4px 16px rgba(200,75,49,0.35)',
+                boxShadow: '0 4px 16px rgba(45,127,249,0.35)',
               }}>
                 {avatarLetter}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 15, color: '#f3ead9', fontWeight: 600, marginBottom: 2 }}>
+                <div style={{ fontSize: 15, color: '#e8e8e8', fontWeight: 600, marginBottom: 2 }}>
                   {displayName}
                 </div>
                 <div style={{
-                  fontSize: 12, color: 'rgba(243,234,217,0.55)',
+                  fontSize: 12, color: 'rgba(232,232,232,0.55)',
                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 }}>
                   {email}
@@ -113,18 +113,18 @@ export default function ProfileModal({ open, onClose }) {
             </div>
 
             <div style={{
-              background: 'rgba(243,234,217,0.04)',
-              border: '1px solid rgba(243,234,217,0.08)',
+              background: 'rgba(232,232,232,0.04)',
+              border: '1px solid rgba(232,232,232,0.08)',
               borderRadius: 10, padding: '12px 14px', marginBottom: 18,
-              fontSize: 11, color: 'rgba(243,234,217,0.6)', lineHeight: 1.55,
+              fontSize: 11, color: 'rgba(232,232,232,0.6)', lineHeight: 1.55,
             }}>
               <div style={{ marginBottom: 6 }}>
-                <span style={{ color: 'rgba(243,234,217,0.4)' }}>User ID</span>{' '}
-                <span style={{ fontFamily: 'ui-monospace, monospace', color: '#f3ead9' }}>{user.id?.slice(0, 8)}…</span>
+                <span style={{ color: 'rgba(232,232,232,0.4)' }}>User ID</span>{' '}
+                <span style={{ fontFamily: 'ui-monospace, monospace', color: '#e8e8e8' }}>{user.id?.slice(0, 8)}…</span>
               </div>
               <div>
-                <span style={{ color: 'rgba(243,234,217,0.4)' }}>Joined</span>{' '}
-                <span style={{ color: '#f3ead9' }}>
+                <span style={{ color: 'rgba(232,232,232,0.4)' }}>Joined</span>{' '}
+                <span style={{ color: '#e8e8e8' }}>
                   {user.created_at ? new Date(user.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
                 </span>
               </div>
@@ -153,9 +153,9 @@ export default function ProfileModal({ open, onClose }) {
             onClick={onClose}
             style={{
               background: 'transparent',
-              border: '1px solid rgba(243,234,217,0.1)',
+              border: '1px solid rgba(232,232,232,0.1)',
               borderRadius: 12, padding: '10px 24px',
-              color: 'rgba(243,234,217,0.7)', fontSize: 13,
+              color: 'rgba(232,232,232,0.7)', fontSize: 13,
               fontFamily: 'system-ui, sans-serif', cursor: 'pointer',
               transition: 'all 200ms ease',
             }}

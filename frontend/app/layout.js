@@ -1,4 +1,4 @@
-import { Instrument_Serif, Inter, Press_Start_2P } from 'next/font/google'
+import { Instrument_Serif, Inter, Press_Start_2P, Pixelify_Sans } from 'next/font/google'
 import './globals.css'
 import AgentationProvider from '../components/dev/AgentationProvider'
 
@@ -24,6 +24,13 @@ const pressStart = Press_Start_2P({
   display: 'swap',
 })
 
+const pixelify = Pixelify_Sans({
+  weight: ['400', '500', '600', '700'],
+  subsets: ['latin'],
+  variable: '--font-pixel',
+  display: 'swap',
+})
+
 export const metadata = {
   title: 'Jarvis — Your Personal AI',
   description: 'The first AI that actually gets to know you. Built by MG&CO Technologies.',
@@ -38,7 +45,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={`${instrumentSerif.variable} ${inter.variable} ${pressStart.variable}`}>
+    <html lang="en" className={`${instrumentSerif.variable} ${inter.variable} ${pressStart.variable} ${pixelify.variable}`}>
       <body style={{ backgroundColor: '#0a0908', margin: 0, padding: 0, height: '100vh' }}>
         {children}
         <AgentationProvider />

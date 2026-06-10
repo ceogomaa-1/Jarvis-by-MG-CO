@@ -5,13 +5,13 @@ const BOARD_COLS = 6;
 const BOARD_ROWS = 10;
 
 const TETRIS_PIECES = [
-  { shape: [[1, 1, 1, 1]], color: 'bg-[#c84b31]' },
-  { shape: [[1, 1], [1, 1]], color: 'bg-[#c84b31]' },
-  { shape: [[0, 1, 0], [1, 1, 1]], color: 'bg-[#c84b31]/80' },
-  { shape: [[1, 0], [1, 0], [1, 1]], color: 'bg-[#c84b31]/70' },
-  { shape: [[0, 1, 1], [1, 1, 0]], color: 'bg-[#c84b31]/90' },
-  { shape: [[1, 1, 0], [0, 1, 1]], color: 'bg-[#c84b31]/60' },
-  { shape: [[0, 1], [0, 1], [1, 1]], color: 'bg-[#c84b31]/80' },
+  { shape: [[1, 1, 1, 1]], color: 'bg-[#2d7ff9]' },
+  { shape: [[1, 1], [1, 1]], color: 'bg-[#2d7ff9]' },
+  { shape: [[0, 1, 0], [1, 1, 1]], color: 'bg-[#2d7ff9]/80' },
+  { shape: [[1, 0], [1, 0], [1, 1]], color: 'bg-[#2d7ff9]/70' },
+  { shape: [[0, 1, 1], [1, 1, 0]], color: 'bg-[#2d7ff9]/90' },
+  { shape: [[1, 1, 0], [0, 1, 1]], color: 'bg-[#2d7ff9]/60' },
+  { shape: [[0, 1], [0, 1], [1, 1]], color: 'bg-[#2d7ff9]/80' },
 ];
 
 const CELL_SIZES = { sm: 10, md: 14, lg: 18 };
@@ -137,7 +137,7 @@ export default function TetrisLoader({
   return (
     <div className="flex flex-col items-center gap-3">
       <div
-        className="border border-[rgba(243,234,217,0.1)] bg-transparent"
+        className="border border-[rgba(232,232,232,0.1)] bg-transparent"
         style={{
           display: 'grid',
           gridTemplateRows: `repeat(${BOARD_ROWS}, ${cellSize}px)`,
@@ -149,13 +149,13 @@ export default function TetrisLoader({
         {displayBoard.flat().map((cell, i) => (
           <div
             key={i}
-            className={`border border-[rgba(243,234,217,0.06)] ${cell ?? 'bg-[#0a0a0a]'}`}
+            className={`border border-[rgba(232,232,232,0.06)] ${cell ?? 'bg-[#0a0a0a]'}`}
             style={{ width: cellSize, height: cellSize }}
           />
         ))}
       </div>
       {showLoadingText && (
-        <div className="text-[#f3ead9]/50 text-[10px] font-mono tracking-widest uppercase">
+        <div className="text-[#e8e8e8]/50 text-[10px] font-mono tracking-widest uppercase">
           {loadingText}
         </div>
       )}

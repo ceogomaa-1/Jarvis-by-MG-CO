@@ -29,7 +29,7 @@ function ActionCard({ action, onShip, onDiscard, onExpand, expanded }) {
 
   return (
     <div style={{
-      border: '1px solid rgba(243,234,217,0.08)',
+      border: '1px solid rgba(232,232,232,0.08)',
       borderRadius: 10, marginBottom: 10, overflow: 'hidden',
     }}>
       {/* Card header */}
@@ -38,37 +38,37 @@ function ActionCard({ action, onShip, onDiscard, onExpand, expanded }) {
         style={{
           display: 'flex', alignItems: 'flex-start', gap: 12,
           padding: '12px 14px', cursor: 'pointer',
-          background: expanded ? 'rgba(243,234,217,0.03)' : 'transparent',
+          background: expanded ? 'rgba(232,232,232,0.03)' : 'transparent',
         }}
       >
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
             <span style={{
               fontSize: 10, fontWeight: 600, letterSpacing: '0.06em',
-              color: 'rgba(243,234,217,0.5)', textTransform: 'uppercase',
+              color: 'rgba(232,232,232,0.5)', textTransform: 'uppercase',
             }}>
               {typeLabel}
             </span>
             {isExternal && (
               <span style={{
                 fontSize: 10, fontWeight: 600, letterSpacing: '0.05em',
-                background: 'rgba(200,75,49,0.12)', color: '#c84b31',
+                background: 'rgba(45,127,249,0.12)', color: '#2d7ff9',
                 padding: '2px 6px', borderRadius: 4, textTransform: 'uppercase',
               }}>
                 External · {connLabel}
               </span>
             )}
           </div>
-          <div style={{ fontSize: 14, color: '#f3ead9', fontWeight: 500, lineHeight: 1.4 }}>
+          <div style={{ fontSize: 14, color: '#e8e8e8', fontWeight: 500, lineHeight: 1.4 }}>
             {action.title}
           </div>
           {action.description && (
-            <div style={{ fontSize: 11, color: 'rgba(243,234,217,0.5)', marginTop: 3 }}>
+            <div style={{ fontSize: 11, color: 'rgba(232,232,232,0.5)', marginTop: 3 }}>
               {action.description}
             </div>
           )}
         </div>
-        <span style={{ fontSize: 11, color: 'rgba(243,234,217,0.35)', flexShrink: 0, marginTop: 2 }}>
+        <span style={{ fontSize: 11, color: 'rgba(232,232,232,0.35)', flexShrink: 0, marginTop: 2 }}>
           {expanded ? '▲' : '▼'}
         </span>
       </div>
@@ -76,12 +76,12 @@ function ActionCard({ action, onShip, onDiscard, onExpand, expanded }) {
       {/* Expanded artifact */}
       {expanded && (
         <div style={{
-          borderTop: '1px solid rgba(243,234,217,0.06)',
+          borderTop: '1px solid rgba(232,232,232,0.06)',
           padding: '14px 16px',
         }}>
           <div
             className="biz-markdown"
-            style={{ fontSize: 13, color: 'rgba(243,234,217,0.85)', lineHeight: 1.7 }}
+            style={{ fontSize: 13, color: 'rgba(232,232,232,0.85)', lineHeight: 1.7 }}
           >
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
               {action.artifact_markdown || '*(no artifact)*'}
@@ -103,7 +103,7 @@ function ActionCard({ action, onShip, onDiscard, onExpand, expanded }) {
             <button
               onClick={() => onShip(action.id)}
               style={{
-                background: '#c84b31', border: 'none',
+                background: '#2d7ff9', border: 'none',
                 borderRadius: 6, padding: '6px 16px',
                 color: 'white', fontSize: 11, fontWeight: 600, cursor: 'pointer',
               }}
@@ -170,7 +170,7 @@ export default function PendingActionsStack({ open, onClose, userId }) {
         style={{
           width: '100%', maxWidth: 680, margin: '0 20px',
           background: '#0a0a0a',
-          border: '1px solid rgba(243,234,217,0.1)',
+          border: '1px solid rgba(232,232,232,0.1)',
           borderRadius: 16, padding: 28,
           fontFamily: 'system-ui, sans-serif',
           maxHeight: '88vh', display: 'flex', flexDirection: 'column',
@@ -178,26 +178,26 @@ export default function PendingActionsStack({ open, onClose, userId }) {
       >
         <div style={{
           fontSize: 11, fontWeight: 600, letterSpacing: '0.12em',
-          color: '#c84b31', marginBottom: 6, textTransform: 'uppercase',
+          color: '#2d7ff9', marginBottom: 6, textTransform: 'uppercase',
         }}>
           📋 MORNING QUEUE
         </div>
-        <div style={{ fontSize: 18, color: '#f3ead9', marginBottom: 4, fontWeight: 600 }}>
+        <div style={{ fontSize: 18, color: '#e8e8e8', marginBottom: 4, fontWeight: 600 }}>
           Operator prepared these overnight
         </div>
-        <div style={{ fontSize: 12, color: 'rgba(243,234,217,0.5)', marginBottom: 18, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 12, color: 'rgba(232,232,232,0.5)', marginBottom: 18, lineHeight: 1.5 }}>
           Review each card. External actions fire through your connected services when you click Ship.
         </div>
 
         <div style={{ overflowY: 'auto', flex: 1, paddingRight: 4 }}>
           {loading ? (
-            <div style={{ color: 'rgba(243,234,217,0.5)', fontSize: 13, padding: 8 }}>
+            <div style={{ color: 'rgba(232,232,232,0.5)', fontSize: 13, padding: 8 }}>
               Loading…
             </div>
           ) : actions.length === 0 ? (
             <div style={{
               textAlign: 'center', padding: '32px 0',
-              color: 'rgba(243,234,217,0.35)', fontSize: 13,
+              color: 'rgba(232,232,232,0.35)', fontSize: 13,
             }}>
               No pending actions. The Operator runs nightly at 2:00 AM — enable it in Brand Settings.
             </div>
@@ -216,16 +216,16 @@ export default function PendingActionsStack({ open, onClose, userId }) {
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
-          <span style={{ fontSize: 11, color: 'rgba(243,234,217,0.4)' }}>
+          <span style={{ fontSize: 11, color: 'rgba(232,232,232,0.4)' }}>
             {actions.length} pending
           </span>
           <button
             onClick={onClose}
             style={{
               background: 'transparent',
-              border: '1px solid rgba(243,234,217,0.15)',
+              border: '1px solid rgba(232,232,232,0.15)',
               borderRadius: 8, padding: '8px 20px',
-              color: 'rgba(243,234,217,0.7)', fontSize: 13,
+              color: 'rgba(232,232,232,0.7)', fontSize: 13,
               fontFamily: 'system-ui, sans-serif', cursor: 'pointer',
             }}
           >

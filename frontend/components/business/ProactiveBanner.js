@@ -81,7 +81,7 @@ export default function ProactiveBanner({ briefing, onDispatchAction, onDismiss 
           onClick={handleDismiss}
           style={{
             background: 'transparent', border: 'none', cursor: 'pointer',
-            color: 'rgba(243,234,217,0.4)', fontSize: 18, padding: '2px 6px',
+            color: 'rgba(232,232,232,0.4)', fontSize: 18, padding: '2px 6px',
             lineHeight: 1,
           }}
           aria-label="Dismiss briefing"
@@ -94,7 +94,7 @@ export default function ProactiveBanner({ briefing, onDispatchAction, onDismiss 
       <div
         className="biz-markdown"
         style={{
-          fontSize: 14, color: '#f3ead9', lineHeight: 1.65,
+          fontSize: 14, color: '#e8e8e8', lineHeight: 1.65,
           marginBottom: hasAction ? 14 : 0,
         }}
       >

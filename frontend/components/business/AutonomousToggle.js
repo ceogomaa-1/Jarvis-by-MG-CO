@@ -1,8 +1,8 @@
 'use client'
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Lock, Zap } from 'lucide-react'
 
+// OS1 v2 — pixel-art lever switch + "Autonomous Jarvis" label (per Figma)
 export default function AutonomousToggle({ userId, apiUrl, isReady, onToggle }) {
   const [isEnabled, setIsEnabled] = useState(false)
   const [showTooltip, setShowTooltip] = useState(false)
@@ -26,130 +26,53 @@ export default function AutonomousToggle({ userId, apiUrl, isReady, onToggle }) 
   const active = isEnabled && isReady
 
   return (
-    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
-      {/* Lever housing */}
+    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 10 }}>
+      {/* Pixel lever */}
       <button
         onClick={handleToggle}
-        title={!isReady ? 'Complete the readiness bar to unlock' : undefined}
+        title={!isReady ? 'Complete the readiness bar to unlock' : 'Autonomous Jarvis'}
         style={{
           position: 'relative',
-          width: 40,
-          height: 80,
-          borderRadius: 12,
-          background: 'rgba(243,234,217,0.03)',
-          border: `1px solid ${active ? 'rgba(200,75,49,0.25)' : 'rgba(243,234,217,0.08)'}`,
+          width: 34,
+          height: 44,
+          background: 'transparent',
+          border: 'none',
           cursor: isReady ? 'pointer' : 'not-allowed',
           opacity: !isReady ? 0.45 : 1,
-          overflow: 'hidden',
-          transition: 'border-color 0.3s ease, opacity 0.3s ease',
           padding: 0,
+          transition: 'opacity 0.3s ease',
         }}
       >
-        {/* Groove track */}
-        <div style={{
-          position: 'absolute',
-          left: '50%',
-          top: 10,
-          bottom: 10,
-          width: 3,
-          transform: 'translateX(-50%)',
-          borderRadius: 2,
-          background: 'rgba(243,234,217,0.05)',
-        }} />
-
-        {/* OFF label — top */}
-        <span style={{
-          position: 'absolute',
-          top: 3,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          fontFamily: 'var(--font-arcade), monospace',
-          fontSize: 5,
-          letterSpacing: '0.08em',
-          color: active ? 'rgba(243,234,217,0.1)' : 'rgba(243,234,217,0.22)',
-          userSelect: 'none',
-          transition: 'color 0.3s ease',
-        }}>
-          OFF
-        </span>
-
-        {/* ON label — bottom */}
-        <span style={{
-          position: 'absolute',
-          bottom: 3,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          fontFamily: 'var(--font-arcade), monospace',
-          fontSize: 5,
-          letterSpacing: '0.08em',
-          color: active ? '#c84b31' : 'rgba(243,234,217,0.12)',
-          userSelect: 'none',
-          transition: 'color 0.3s ease',
-        }}>
-          ON
-        </span>
-
-        {/* Lever handle — rod + knob, moves as a unit */}
-        <motion.div
-          animate={{ top: active ? 38 : 12 }}
-          transition={{ type: 'spring', stiffness: 280, damping: 18, mass: 1.2 }}
-          style={{
-            position: 'absolute',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 0,
-          }}
-        >
-          {/* Rod */}
-          <div style={{
-            width: 3,
-            height: 14,
-            borderRadius: 2,
-            background: active
-              ? 'linear-gradient(180deg, rgba(200,75,49,0.6), #c84b31)'
-              : 'rgba(243,234,217,0.12)',
-            transition: 'background 0.28s ease',
-          }} />
-
-          {/* Knob */}
-          <div style={{
-            width: 22,
-            height: 22,
-            borderRadius: '50%',
-            background: active
-              ? 'radial-gradient(circle at 35% 35%, #e8634a, #c84b31)'
-              : 'rgba(243,234,217,0.07)',
-            border: `1.5px solid ${active ? 'rgba(200,75,49,0.5)' : 'rgba(243,234,217,0.15)'}`,
-            boxShadow: active ? '0 0 14px rgba(200,75,49,0.55), 0 0 4px rgba(200,75,49,0.9)' : 'none',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            transition: 'background 0.28s ease, border-color 0.28s ease, box-shadow 0.28s ease',
-            flexShrink: 0,
-          }}>
-            {!isReady
-              ? <Lock size={8} color="rgba(243,234,217,0.3)" />
-              : <Zap size={8} color={active ? '#0a0a0a' : 'rgba(243,234,217,0.3)'} />
-            }
-          </div>
-        </motion.div>
+        <svg width="34" height="44" viewBox="0 0 34 44" style={{ display: 'block' }}>
+          {/* Base block (pixel) */}
+          <rect x="6" y="34" width="22" height="8" fill="none" stroke={active ? 'var(--os1-blue)' : 'var(--os1-text-dim)'} strokeWidth="2" />
+          <rect x="12" y="37" width="10" height="2" fill={active ? 'var(--os1-blue)' : 'var(--os1-text-dim)'} />
+          {/* Lever arm — angled when off, upright when on */}
+          <motion.g
+            animate={{ rotate: active ? 0 : 38 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 17 }}
+            style={{ originX: '17px', originY: '34px' }}
+          >
+            <rect x="15.5" y="12" width="3" height="22" fill={active ? 'var(--os1-blue)' : 'var(--os1-text-dim)'} />
+            {/* Knob — pixel circle */}
+            <rect x="11" y="4" width="12" height="3" fill={active ? 'var(--os1-blue)' : 'var(--os1-text-dim)'} />
+            <rect x="9" y="7" width="16" height="6" fill={active ? 'var(--os1-blue)' : 'var(--os1-text-dim)'} />
+            <rect x="11" y="13" width="12" height="3" fill={active ? 'var(--os1-blue)' : 'var(--os1-text-dim)'} />
+          </motion.g>
+        </svg>
       </button>
 
       {/* Label */}
-      <span style={{
-        fontFamily: 'var(--font-arcade), monospace',
-        fontSize: 9,
-        letterSpacing: '0.1em',
-        textTransform: 'uppercase',
-        color: active ? '#c84b31' : 'rgba(243,234,217,0.2)',
+      <div className="font-pixel" style={{
+        fontSize: 12,
+        lineHeight: 1.45,
+        color: active ? 'var(--os1-text)' : 'var(--os1-text-dim)',
         transition: 'color 0.3s ease',
         userSelect: 'none',
+        textAlign: 'left',
       }}>
-        Auto
-      </span>
+        Autonomous<br />Jarvis
+      </div>
 
       {/* Not-ready tooltip */}
       {showTooltip && !isReady && (
@@ -157,36 +80,23 @@ export default function AutonomousToggle({ userId, apiUrl, isReady, onToggle }) 
           initial={{ opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0 }}
+          className="os1-card"
           style={{
             position: 'absolute',
             bottom: '100%',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            marginBottom: 8,
-            padding: '8px 12px',
-            borderRadius: 10,
-            background: 'rgba(15,15,18,0.95)',
-            border: '1px solid rgba(243,234,217,0.08)',
+            right: 0,
+            marginBottom: 10,
+            padding: '10px 13px',
+            background: '#1a1a1a',
             whiteSpace: 'nowrap',
             zIndex: 50,
             pointerEvents: 'none',
           }}
         >
-          <div style={{
-            fontFamily: 'var(--font-arcade), monospace',
-            fontSize: 9,
-            letterSpacing: '0.08em',
-            color: '#c84b31',
-            marginBottom: 3,
-          }}>
+          <div className="font-pixel" style={{ fontSize: 12, color: 'var(--os1-text)', marginBottom: 3 }}>
             Jarvis needs to know you better first
           </div>
-          <div style={{
-            fontFamily: 'var(--font-arcade), monospace',
-            fontSize: 8,
-            letterSpacing: '0.08em',
-            color: 'rgba(243,234,217,0.35)',
-          }}>
+          <div className="font-pixel" style={{ fontSize: 10, color: 'var(--os1-text-faint)' }}>
             Complete the readiness bar to unlock
           </div>
         </motion.div>

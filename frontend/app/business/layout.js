@@ -6,7 +6,7 @@ import ArcadeToggle from '../../components/business/workflow/ArcadeToggle'
 export default function BusinessLayout({ children }) {
   const pathname = usePathname()
   return (
-    <div style={{ minHeight: '100vh', background: '#0a0908', color: '#f3ead9' }}>
+    <div style={{ minHeight: '100vh', background: '#131313', color: '#e8e8e8' }}>
       <ArcadeToggle />
       <AnimatePresence mode="wait">
         <div key={pathname}>
