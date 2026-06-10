@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 import os
@@ -113,6 +113,10 @@ async def set_preferred_name(body: PreferredNameUpdate):
 
 @router.get("/business-users/{user_id}")
 async def get_business_user(user_id: str):
+    """Returns {exists: true/false} only when the lookup definitively succeeded.
+    On a real DB error, raise 500 instead of {exists: false} — callers (e.g. the
+    chat page's onboarding guard) must not treat a failed lookup as "no profile"
+    and redirect into a fresh onboarding loop."""
     try:
         sb = _client()
         res = (
@@ -122,11 +126,14 @@ async def get_business_user(user_id: str):
             .maybe_single()
             .execute()
         )
-        if res.data:
-            return {"exists": True, **res.data}
-        return {"exists": False}
     except Exception as e:
-        return {"exists": False, "error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
+
+    # maybe_single() returns None (not a response object) when zero rows match —
+    # that's a definitive "no profile yet", not an error.
+    if res is None or not res.data:
+        return {"exists": False}
+    return {"exists": True, **res.data}
 
 
 @router.post("/business-users")

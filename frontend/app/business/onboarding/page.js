@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
-import { completeBusinessOnboarding } from '../../../lib/userPreferences'
+import { completeBusinessOnboarding, getBusinessUser } from '../../../lib/userPreferences'
 import OS1Cinematic from '../../../components/onboarding/OS1Cinematic'
 import OS1Questions from '../../../components/onboarding/OS1Questions'
 import TetrisLoader from '../../../components/ui/TetrisLoader'
@@ -11,14 +11,29 @@ export default function BusinessOnboardingPage() {
   const router = useRouter()
   const [phase, setPhase] = useState(null) // 'cinematic' | 'questions'
   const [session, setSession] = useState(null)
+  const [pendingAnswers, setPendingAnswers] = useState(null)
+  const [onboardError, setOnboardError] = useState(false)
 
   useEffect(() => {
     if (!supabase) { setPhase('cinematic'); return }
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session)
       const params = new URLSearchParams(window.location.search)
       const resumeAtQuestions = params.get('step') === 'questions' && !!session?.user
       if (resumeAtQuestions) window.history.replaceState({}, '', '/business/onboarding')
+
+      // Reverse guard: a user who already has a business profile should never
+      // see onboarding again — bounce straight to chat so nobody re-onboards
+      // by accident.
+      if (session?.user) {
+        const uid = 'user_' + session.user.id.replace(/-/g, '')
+        const businessUser = await getBusinessUser(uid)
+        if (businessUser.exists === true) {
+          router.replace('/business/chat')
+          return
+        }
+      }
+
       setPhase(resumeAtQuestions ? 'questions' : 'cinematic')
     }).catch(() => setPhase('cinematic'))
   }, [])
@@ -36,20 +51,36 @@ export default function BusinessOnboardingPage() {
     }
   }
 
-  const handleQuestionsComplete = async (answers) => {
-    if (session?.user) {
-      const uid = 'user_' + session.user.id.replace(/-/g, '')
-      await completeBusinessOnboarding({
-        userId: uid,
-        email: session.user.email,
-        name: answers.name,
-        industry: answers.industry,
-        customIndustry: answers.industry === 'Other' ? answers.customIndustry : null,
-        companyName: answers.companyName,
-        mission: answers.mission,
-      })
+  const attemptComplete = async (answers) => {
+    if (!session?.user) {
+      router.push('/business/chat')
+      return
     }
-    router.push('/business/chat')
+    setOnboardError(false)
+    const uid = 'user_' + session.user.id.replace(/-/g, '')
+    const result = await completeBusinessOnboarding({
+      userId: uid,
+      email: session.user.email,
+      name: answers.name,
+      industry: answers.industry,
+      customIndustry: answers.industry === 'Other' ? answers.customIndustry : null,
+      companyName: answers.companyName,
+      mission: answers.mission,
+    })
+    if (result.ok) {
+      // Loop breaker: chat page's onboarding guard checks this first and skips
+      // its redirect-to-onboarding while a fresh profile may not have
+      // propagated to its read yet.
+      sessionStorage.setItem('jarvis_onboarded', '1')
+      router.push('/business/chat')
+    } else {
+      setOnboardError(true)
+    }
+  }
+
+  const handleQuestionsComplete = async (answers) => {
+    setPendingAnswers(answers)
+    await attemptComplete(answers)
   }
 
   if (!phase) {
@@ -64,5 +95,30 @@ export default function BusinessOnboardingPage() {
     return <OS1Cinematic onComplete={handleCinematicComplete} />
   }
 
-  return <OS1Questions onComplete={handleQuestionsComplete} />
+  return (
+    <>
+      <OS1Questions onComplete={handleQuestionsComplete} />
+      {onboardError && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(19,19,19,0.92)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          gap: 24, padding: 24, textAlign: 'center',
+        }}>
+          <p className="font-pixel" style={{ color: '#e8e8e8', fontSize: 15, maxWidth: 420, lineHeight: 1.6 }}>
+            Couldn&apos;t fire up your workspace. Your answers are safe — let&apos;s try again.
+          </p>
+          <button
+            onClick={() => attemptComplete(pendingAnswers)}
+            className="font-pixel"
+            style={{
+              background: 'var(--os1-blue)', border: 'none', borderRadius: 999,
+              padding: '10px 28px', color: '#fff', cursor: 'pointer', fontSize: 14,
+            }}
+          >
+            Retry →
+          </button>
+        </div>
+      )}
+    </>
+  )
 }

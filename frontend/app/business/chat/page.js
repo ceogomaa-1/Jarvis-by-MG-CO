@@ -65,10 +65,20 @@ export default function BusinessChatPage() {
         const uid = 'user_' + session.user.id.replace(/-/g, '')
         setUserId(uid)
 
+        // Loop breaker: onboarding just confirmed success and may not have
+        // propagated to this read yet — skip the redirect this one time.
+        const justOnboarded = sessionStorage.getItem('jarvis_onboarded') === '1'
+
         const businessUser = await getBusinessUser(uid)
-        if (!businessUser.exists) {
+        // Only redirect on a *definitive* "no profile" (HTTP 200, exists:false).
+        // exists === null means the lookup failed (network/server error) —
+        // never bounce back to onboarding on that, it would loop forever.
+        if (businessUser.exists === false && !justOnboarded) {
           router.replace('/business/onboarding')
           return
+        }
+        if (businessUser.exists !== null) {
+          sessionStorage.removeItem('jarvis_onboarded')
         }
 
         await loadConversations(uid)

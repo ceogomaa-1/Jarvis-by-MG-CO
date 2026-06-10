@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
+import CRTOverlay from './CRTOverlay'
 
 const QUESTIONS = [
   { key: 'name', text: 'What should I call you?' },
@@ -164,7 +165,18 @@ function buildIgnitionLines(answers) {
   ]
 }
 
-function IgnitingSequence({ answers, onDone }) {
+function BlueFlash() {
+  return (
+    <motion.div
+      initial={{ opacity: 0.15 }}
+      animate={{ opacity: 0 }}
+      transition={{ duration: 0.05 }}
+      style={{ position: 'fixed', inset: 0, background: '#2d7ff9', zIndex: 50, pointerEvents: 'none' }}
+    />
+  )
+}
+
+function IgnitingSequence({ answers, onDone, reducedMotion }) {
   const lines = useMemo(() => buildIgnitionLines(answers), [answers])
   const [visibleCount, setVisibleCount] = useState(0)
 
@@ -177,6 +189,8 @@ function IgnitingSequence({ answers, onDone }) {
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleCount, lines])
+
+  const lastLine = lines[visibleCount - 1]
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#131313', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 24 }}>
@@ -197,11 +211,14 @@ function IgnitingSequence({ answers, onDone }) {
           </motion.div>
         ))}
       </div>
+      <CRTOverlay reducedMotion={reducedMotion} zIndex={5} />
+      {lastLine?.status === 'OK' && <BlueFlash key={visibleCount} />}
     </div>
   )
 }
 
 export default function OS1Questions({ onComplete }) {
+  const reducedMotion = useReducedMotion()
   const [step, setStep] = useState(0)
   const [answers, setAnswers] = useState({ name: '', industry: '', customIndustry: '', companyName: '', mission: '' })
   const [igniting, setIgniting] = useState(false)
@@ -243,7 +260,7 @@ export default function OS1Questions({ onComplete }) {
   }
 
   if (igniting) {
-    return <IgnitingSequence answers={answers} onDone={() => onComplete(answers)} />
+    return <IgnitingSequence answers={answers} onDone={() => onComplete(answers)} reducedMotion={reducedMotion} />
   }
 
   const q = QUESTIONS[step]
@@ -267,14 +284,20 @@ export default function OS1Questions({ onComplete }) {
 
       <div style={{ position: 'fixed', top: 30, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 10 }}>
         {QUESTIONS.map((_, i) => (
-          <div
+          <motion.div
             key={i}
-            style={{
-              width: 8, height: 8, borderRadius: '50%',
-              background: i < step ? 'var(--os1-blue)' : (i === step ? 'var(--os1-text-dim)' : 'var(--os1-border)'),
-              transition: 'background 200ms ease',
-            }}
-          />
+            initial={{ opacity: 0, scale: 0 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: reducedMotion ? 0 : 0.3, delay: reducedMotion ? 0 : i * 0.08 }}
+          >
+            <div
+              style={{
+                width: 8, height: 8, borderRadius: '50%',
+                background: i < step ? 'var(--os1-blue)' : (i === step ? 'var(--os1-text-dim)' : 'var(--os1-border)'),
+                transition: 'background 200ms ease',
+              }}
+            />
+          </motion.div>
         ))}
       </div>
 
@@ -291,8 +314,8 @@ export default function OS1Questions({ onComplete }) {
 
           {questionTyped && (
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4, delay: 0.1 }}
               style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 28 }}
             >
