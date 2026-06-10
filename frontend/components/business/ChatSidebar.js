@@ -3,7 +3,7 @@ import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import TetrisLoader from '../ui/TetrisLoader'
 
-const SIDEBAR_WIDTH = 280
+const SIDEBAR_WIDTH = 232
 
 function relativeTime(dateStr) {
   const date = new Date(dateStr)
@@ -12,101 +12,78 @@ function relativeTime(dateStr) {
   const diffMins = Math.floor(diffMs / 60000)
   const diffHours = Math.floor(diffMs / 3600000)
   const diffDays = Math.floor(diffMs / 86400000)
-  if (diffMins < 1) return 'just now'
-  if (diffMins < 60) return `${diffMins}m ago`
+  if (diffMins < 1) return 'Just Now'
+  if (diffMins < 60) return `${diffMins}min ago`
   if (diffHours < 24) return `${diffHours}h ago`
-  if (diffDays === 1) return 'Yesterday'
-  if (diffDays < 7) return `${diffDays}d ago`
+  if (diffDays === 1) return '1d ago'
+  if (diffDays < 30) return `${diffDays}d ago`
   return date.toLocaleDateString()
 }
 
-function groupConversations(conversations) {
-  const now = new Date()
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const yesterdayStart = new Date(todayStart - 86400000)
-  const weekStart = new Date(todayStart - 6 * 86400000)
-  const groups = { today: [], yesterday: [], week: [], older: [] }
-  for (const conv of conversations) {
-    const d = new Date(conv.updated_at || conv.created_at)
-    if (d >= todayStart) groups.today.push(conv)
-    else if (d >= yesterdayStart) groups.yesterday.push(conv)
-    else if (d >= weekStart) groups.week.push(conv)
-    else groups.older.push(conv)
-  }
-  return groups
-}
-
-function GroupLabel({ label }) {
-  return (
-    <div className="font-arcade" style={{
-      fontSize: 9, letterSpacing: '0.2em',
-      color: 'rgba(243,234,217,0.3)', textTransform: 'uppercase',
-      padding: '8px 16px 4px',
-    }}>
-      {label}
-    </div>
-  )
-}
-
-function ConversationItem({ conv, isActive, onSelect, onDelete }) {
-  const [hovered, setHovered] = useState(false)
-  const [showDelete, setShowDelete] = useState(false)
-
+function ConversationCard({ conv, isActive, onSelect, onDelete }) {
   return (
     <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => { setHovered(false); setShowDelete(false) }}
       onClick={() => onSelect(conv.id)}
+      className={`os1-card${isActive ? ' active' : ''}`}
       style={{
-        padding: '10px 16px',
+        padding: '10px 12px 8px',
         cursor: 'pointer',
-        background: isActive
-          ? 'rgba(200,75,49,0.08)'
-          : hovered ? 'rgba(243,234,217,0.04)' : 'transparent',
-        borderLeft: isActive ? '2px solid #c84b31' : '2px solid transparent',
-        transition: 'all 150ms ease',
-        display: 'flex', alignItems: 'flex-start', gap: 8, position: 'relative',
+        marginBottom: 10,
+        position: 'relative',
       }}
     >
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div className="font-arcade" style={{
-          fontSize: 12,
-          color: isActive ? '#f3ead9' : 'rgba(243,234,217,0.75)',
+      {/* Title row + × */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+        <div className="font-pixel" style={{
+          flex: 1, minWidth: 0,
+          fontSize: 13,
+          color: isActive ? 'var(--os1-text)' : 'var(--os1-text-dim)',
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-          lineHeight: 1.6,
+          lineHeight: 1.4,
         }}>
-          {conv.title || 'New conversation'}
+          {conv.title || 'New chat'}
         </div>
-        <div style={{
-          fontSize: 10, color: 'rgba(243,234,217,0.25)',
-          fontFamily: 'system-ui, sans-serif', marginTop: 2,
-        }}>
-          {relativeTime(conv.updated_at || conv.created_at)}
-        </div>
-      </div>
-
-      {/* Delete button — shows on hover */}
-      {hovered && (
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(conv.id) }}
+          title="Delete conversation"
           style={{
-            flexShrink: 0,
-            width: 20, height: 20,
-            background: 'transparent',
-            border: 'none', cursor: 'pointer',
-            color: 'rgba(243,234,217,0.25)',
-            fontSize: 14, lineHeight: 1,
+            flexShrink: 0, width: 16, height: 16,
+            background: 'transparent', border: 'none', cursor: 'pointer',
+            color: 'var(--os1-text-faint)', fontSize: 13, lineHeight: 1,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            borderRadius: 4,
+            padding: 0, fontFamily: 'var(--pixel)',
             transition: 'color 150ms',
           }}
-          onMouseEnter={e => e.currentTarget.style.color = 'rgba(200,75,49,0.7)'}
-          onMouseLeave={e => e.currentTarget.style.color = 'rgba(243,234,217,0.25)'}
-          title="Delete conversation"
+          onMouseEnter={e => e.currentTarget.style.color = 'var(--os1-text)'}
+          onMouseLeave={e => e.currentTarget.style.color = 'var(--os1-text-faint)'}
         >
           ×
         </button>
-      )}
+      </div>
+
+      {/* Bottom row: time + Remove */}
+      <div style={{
+        display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+        marginTop: 8,
+      }}>
+        <span className="os1-serif-micro" style={{ fontSize: 9 }}>
+          {relativeTime(conv.updated_at || conv.created_at)}
+        </span>
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(conv.id) }}
+          className="os1-serif-micro"
+          style={{
+            background: 'transparent', border: 'none', cursor: 'pointer',
+            fontSize: 9, padding: 0,
+            color: 'var(--os1-text-faint)',
+            transition: 'color 150ms',
+          }}
+          onMouseEnter={e => e.currentTarget.style.color = 'var(--os1-text-dim)'}
+          onMouseLeave={e => e.currentTarget.style.color = 'var(--os1-text-faint)'}
+        >
+          Remove
+        </button>
+      </div>
     </div>
   )
 }
@@ -121,6 +98,9 @@ export default function ChatSidebar({
   memoryCount = 0,
   isMobileOpen,
   onClose,
+  collapsed = false,
+  onCollapse,
+  onOpenSettings,
 }) {
   const [search, setSearch] = useState('')
 
@@ -130,137 +110,129 @@ export default function ChatSidebar({
     return conversations.filter(c => (c.title || '').toLowerCase().includes(q))
   }, [conversations, search])
 
-  const groups = useMemo(() => groupConversations(filtered), [filtered])
-
-  const renderGroup = (label, items) => {
-    if (!items.length) return null
-    return (
-      <div key={label}>
-        <GroupLabel label={label} />
-        {items.map(conv => (
-          <ConversationItem
-            key={conv.id}
-            conv={conv}
-            isActive={conv.id === activeConversationId}
-            onSelect={onSelectConversation}
-            onDelete={onDeleteConversation}
-          />
-        ))}
-      </div>
-    )
-  }
-
   const sidebarContent = (
-    <div style={{
+    <div className="os1-panel" style={{
       width: SIDEBAR_WIDTH,
       height: '100%',
-      background: 'rgba(10,10,10,0.97)',
-      borderRight: '1px solid rgba(243,234,217,0.06)',
       display: 'flex', flexDirection: 'column',
-      backdropFilter: 'blur(20px)',
-      WebkitBackdropFilter: 'blur(20px)',
       flexShrink: 0,
+      overflow: 'hidden',
     }}>
-      {/* New chat button */}
-      <div style={{ padding: '16px 12px 8px' }}>
-        <button
-          onClick={onNewChat}
-          style={{
-            width: '100%',
-            background: 'rgba(243,234,217,0.04)',
-            border: '1px solid rgba(243,234,217,0.08)',
-            borderRadius: 12, padding: '10px 14px',
-            color: 'rgba(243,234,217,0.65)',
-            cursor: 'pointer',
-            fontSize: 8,
-            display: 'flex', alignItems: 'center', gap: 8,
-            transition: 'all 200ms ease',
-          }}
-          onMouseEnter={e => {
-            e.currentTarget.style.background = 'rgba(243,234,217,0.08)'
-            e.currentTarget.style.color = 'rgba(243,234,217,0.9)'
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.background = 'rgba(243,234,217,0.04)'
-            e.currentTarget.style.color = 'rgba(243,234,217,0.65)'
-          }}
-        >
-          <span style={{ fontSize: 16, lineHeight: 1 }}>+</span>
-          <span className="font-arcade" style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase' }}>New chat</span>
+      {/* Collapse toggle */}
+      <div style={{ padding: '14px 14px 4px' }}>
+        <button onClick={onCollapse} className="os1-iconbtn" title="Hide sidebar" style={{ marginLeft: -4 }}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <rect x="3" y="4" width="18" height="16" rx="3" />
+            <line x1="9" y1="4" x2="9" y2="20" />
+          </svg>
         </button>
       </div>
 
-      {/* Search */}
-      <div style={{ padding: '4px 12px 8px' }}>
+      {/* Search pill */}
+      <div style={{ padding: '8px 14px 4px', position: 'relative' }}>
+        <svg
+          width="14" height="14" viewBox="0 0 24 24" fill="none"
+          stroke="var(--os1-text-faint)" strokeWidth="2"
+          style={{ position: 'absolute', left: 27, top: '50%', transform: 'translateY(-46%)', pointerEvents: 'none' }}
+        >
+          <circle cx="11" cy="11" r="7" />
+          <line x1="16.5" y1="16.5" x2="21" y2="21" />
+        </svg>
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Search conversations…"
-          style={{
-            width: '100%', boxSizing: 'border-box',
-            background: 'transparent',
-            border: 'none',
-            borderBottom: '1px solid rgba(243,234,217,0.06)',
-            padding: '6px 4px',
-            color: 'rgba(243,234,217,0.6)',
-            fontFamily: 'var(--font-arcade), monospace', fontSize: 10,
-            outline: 'none',
-          }}
+          placeholder="Search"
+          className="os1-search"
         />
       </div>
 
-      {/* Conversation list */}
-      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}
-        className="biz-chat-scroll"
-      >
+      {/* New Session row */}
+      <div style={{ padding: '12px 14px 0' }}>
+        <button
+          onClick={onNewChat}
+          style={{
+            width: '100%', background: 'transparent', border: 'none',
+            borderBottom: '1px solid var(--os1-border-soft)',
+            padding: '4px 2px 9px',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            cursor: 'pointer', color: 'var(--os1-text)',
+            transition: 'color 150ms',
+          }}
+          onMouseEnter={e => e.currentTarget.style.color = '#ffffff'}
+          onMouseLeave={e => e.currentTarget.style.color = 'var(--os1-text)'}
+        >
+          <span className="font-pixel" style={{ fontSize: 14, letterSpacing: '0.04em' }}>New Session</span>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <rect x="3" y="3" width="18" height="18" rx="4" />
+            <line x1="12" y1="8" x2="12" y2="16" />
+            <line x1="8" y1="12" x2="16" y2="12" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Conversation cards */}
+      <div className="os1-scroll" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '14px 14px 4px' }}>
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 32 }}>
             <TetrisLoader size="sm" speed="fast" showLoadingText={false} />
           </div>
         ) : filtered.length === 0 ? (
-          <div style={{
-            padding: '24px 16px',
-            color: 'rgba(243,234,217,0.2)',
-            fontSize: 10, fontFamily: 'var(--font-arcade), monospace',
-            textAlign: 'center',
+          <div className="font-pixel" style={{
+            padding: '24px 8px',
+            color: 'var(--os1-text-faint)',
+            fontSize: 12, textAlign: 'center',
           }}>
-            {search ? 'No matches' : 'No conversations yet'}
+            {search ? 'No matches' : 'No sessions yet'}
           </div>
         ) : (
-          <>
-            {renderGroup('Today', groups.today)}
-            {renderGroup('Yesterday', groups.yesterday)}
-            {renderGroup('Previous 7 days', groups.week)}
-            {renderGroup('Older', groups.older)}
-          </>
+          filtered.map(conv => (
+            <ConversationCard
+              key={conv.id}
+              conv={conv}
+              isActive={conv.id === activeConversationId}
+              onSelect={onSelectConversation}
+              onDelete={onDeleteConversation}
+            />
+          ))
         )}
       </div>
 
-      {/* Memory counter */}
+      {/* Footer: settings gear + memories saved */}
       <div style={{
-        padding: '12px 16px',
-        borderTop: '1px solid rgba(243,234,217,0.04)',
-        fontSize: 9, color: 'rgba(243,234,217,0.22)',
-        fontFamily: 'var(--font-arcade), monospace',
+        padding: '12px 14px 14px',
+        display: 'flex', alignItems: 'center', gap: 10,
       }}>
-        {memoryCount > 0 ? `${memoryCount} memories learned` : 'No memories yet'}
+        <button onClick={onOpenSettings} className="os1-iconbtn" title="Settings" style={{ padding: 4, marginLeft: -2 }}>
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+            <circle cx="12" cy="12" r="3.2" />
+            <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.01a1.7 1.7 0 0 0 1.02-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.01a1.7 1.7 0 0 0 1.56 1.02H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.03z" />
+          </svg>
+        </button>
+        <span className="font-pixel" style={{ fontSize: 11, color: 'var(--os1-text-dim)' }}>
+          {memoryCount > 0 ? `${memoryCount} Memories Saved` : 'No Memories Yet'}
+        </span>
       </div>
     </div>
   )
 
-  // Desktop: always visible inline
+  // Desktop: floating panel with margins (hidden when collapsed)
   // Mobile: overlay slide-in
   return (
     <>
       {/* Desktop sidebar */}
-      <div style={{ display: 'flex' }} className="business-sidebar-desktop">
-        <style>{`
-          @media (max-width: 768px) {
-            .business-sidebar-desktop { display: none !important; }
-          }
-        `}</style>
-        {sidebarContent}
-      </div>
+      {!collapsed && (
+        <div
+          className="business-sidebar-desktop"
+          style={{ display: 'flex', padding: '14px 0 14px 14px', height: '100%' }}
+        >
+          <style>{`
+            @media (max-width: 768px) {
+              .business-sidebar-desktop { display: none !important; }
+            }
+          `}</style>
+          {sidebarContent}
+        </div>
+      )}
 
       {/* Mobile overlay */}
       <AnimatePresence>
@@ -283,12 +255,12 @@ export default function ChatSidebar({
             />
             <motion.div
               key="sidebar"
-              initial={{ x: -SIDEBAR_WIDTH }}
+              initial={{ x: -SIDEBAR_WIDTH - 20 }}
               animate={{ x: 0 }}
-              exit={{ x: -SIDEBAR_WIDTH }}
+              exit={{ x: -SIDEBAR_WIDTH - 20 }}
               transition={{ duration: 0.3, ease: 'easeOut' }}
               style={{
-                position: 'fixed', top: 56, left: 0, bottom: 0,
+                position: 'fixed', top: 10, left: 10, bottom: 10,
                 zIndex: 40, display: 'none',
               }}
               className="mobile-sidebar-panel"

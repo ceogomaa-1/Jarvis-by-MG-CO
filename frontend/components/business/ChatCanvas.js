@@ -9,7 +9,6 @@ import DownloadPDFButton from './DownloadPDFButton'
 import { detectCreation } from '../../lib/business/creationDetector'
 import CreationCanvas from './CreationCanvas'
 import ProactiveBanner from './ProactiveBanner'
-import ChatHeaderMenu from './ChatHeaderMenu'
 import WelcomeState from './WelcomeState'
 import JarvisAvatar from './JarvisAvatar'
 import ReadinessBar from './ReadinessBar'
@@ -56,7 +55,7 @@ function UserBubble({ content, attachments }) {
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: 'easeOut' }}
-      style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20, flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}
+      style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 24, flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}
     >
       {attachments && attachments.length > 0 && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -65,21 +64,24 @@ function UserBubble({ content, attachments }) {
               key={i}
               src={att.preview_url}
               alt=""
-              style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 12, border: '1px solid rgba(243,234,217,0.1)' }}
+              style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 12, border: '1px solid var(--os1-border-soft)' }}
             />
           ))}
         </div>
       )}
       {content && (
-        <div style={{
-          maxWidth: '70%', padding: '12px 18px',
-          borderRadius: '20px 20px 4px 20px',
-          background: 'rgba(243,234,217,0.06)',
-          border: '1px solid rgba(243,234,217,0.04)',
-          color: '#f3ead9', fontSize: 15,
-          fontFamily: 'system-ui, sans-serif', lineHeight: 1.6,
+        <div className="os1-bubble-user" style={{
+          maxWidth: '70%', padding: '14px 18px 8px',
+          fontSize: 14,
+          fontFamily: 'var(--pixel)', lineHeight: 1.55,
         }}>
           {content}
+          <div className="os1-serif-micro" style={{
+            fontSize: 8.5, textAlign: 'right', marginTop: 8,
+            color: 'var(--os1-text-faint)',
+          }}>
+            Just Now
+          </div>
         </div>
       )}
     </motion.div>
@@ -92,7 +94,7 @@ function ThinkingDots() {
       {[0, 1, 2].map(i => (
         <motion.div
           key={i}
-          style={{ width: 6, height: 6, borderRadius: '50%', background: '#c84b31' }}
+          style={{ width: 6, height: 6, background: 'var(--os1-text-dim)' }}
           animate={{ opacity: [0.3, 1, 0.3], scale: [0.85, 1.1, 0.85] }}
           transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut', delay: i * 0.15 }}
         />
@@ -115,20 +117,19 @@ function ToolStatusPill({ toolName }) {
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 6,
         padding: '4px 10px', marginBottom: 8,
-        borderRadius: 20,
-        background: 'rgba(200,75,49,0.08)',
-        border: '1px solid rgba(200,75,49,0.18)',
+        borderRadius: 999,
+        background: 'var(--os1-blue-soft)',
+        border: '1px solid rgba(45,127,249,0.3)',
       }}
     >
       <motion.div
-        style={{ width: 6, height: 6, borderRadius: '50%', background: '#c84b31', flexShrink: 0 }}
+        style={{ width: 6, height: 6, background: 'var(--os1-blue)', flexShrink: 0 }}
         animate={{ opacity: [0.4, 1, 0.4] }}
         transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
       />
-      <span style={{
-        fontFamily: 'var(--font-arcade), monospace',
-        fontSize: 10, letterSpacing: '0.08em',
-        color: 'rgba(200,75,49,0.8)', textTransform: 'uppercase',
+      <span className="font-pixel" style={{
+        fontSize: 11, letterSpacing: '0.05em',
+        color: 'var(--os1-blue)', textTransform: 'lowercase',
       }}>
         {pretty}…
       </span>
@@ -144,30 +145,39 @@ function AssistantBubble({ content, chunks, streaming, toolStatus }) {
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: 'easeOut' }}
-      style={{ marginBottom: 28, maxWidth: '85%' }}
+      style={{ marginBottom: 30, maxWidth: '80%', display: 'flex', gap: 10 }}
     >
-      <AnimatePresence>
-        {streaming && toolStatus && (
-          <ToolStatusPill key={toolStatus} toolName={toolStatus} />
-        )}
-      </AnimatePresence>
-      <div
-        className="biz-markdown"
-        style={{ fontSize: 15, color: 'rgba(243,234,217,0.9)', lineHeight: 1.7, fontFamily: 'system-ui, sans-serif' }}
-      >
-        {streaming && !hasChunks ? (
-          <ThinkingDots />
-        ) : streaming && hasChunks ? (
-          <p style={{ margin: 0, whiteSpace: 'pre-wrap', lineHeight: 1.7, wordBreak: 'break-word' }}>
-            {chunks.slice(0, -1).map(c => c.text).join('')}
-            <span key={chunks[chunks.length - 1].key} className="chunk-fade-in">
-              {chunks[chunks.length - 1].text}
-            </span>
-            <span className="streaming-cursor" />
-          </p>
-        ) : (
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{content || ''}</ReactMarkdown>
-        )}
+      {/* Pixel bullet point — per Figma */}
+      <span className="font-pixel" style={{
+        color: 'var(--os1-text-dim)', fontSize: 14, lineHeight: 1.8, flexShrink: 0,
+        paddingTop: 1,
+      }}>
+        ·
+      </span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <AnimatePresence>
+          {streaming && toolStatus && (
+            <ToolStatusPill key={toolStatus} toolName={toolStatus} />
+          )}
+        </AnimatePresence>
+        <div
+          className="os1-markdown"
+          style={{ fontSize: 14, color: 'var(--os1-text)', lineHeight: 1.8 }}
+        >
+          {streaming && !hasChunks ? (
+            <ThinkingDots />
+          ) : streaming && hasChunks ? (
+            <p style={{ margin: 0, whiteSpace: 'pre-wrap', lineHeight: 1.8, wordBreak: 'break-word' }}>
+              {chunks.slice(0, -1).map(c => c.text).join('')}
+              <span key={chunks[chunks.length - 1].key} className="chunk-fade-in">
+                {chunks[chunks.length - 1].text}
+              </span>
+              <span className="os1-cursor" />
+            </p>
+          ) : (
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{content || ''}</ReactMarkdown>
+          )}
+        </div>
       </div>
     </motion.div>
   )
@@ -192,7 +202,6 @@ function WalkthroughMessage({ msg }) {
     </motion.div>
   )
 }
-
 export default function ChatCanvas({
   userId,
   activeConversationId,
@@ -877,14 +886,13 @@ export default function ChatCanvas({
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.96 }}
+      initial={{ opacity: 0, scale: 0.98 }}
       animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 1.04 }}
+      exit={{ opacity: 0, scale: 1.02 }}
       transition={{ duration: 0.4, ease: 'easeOut' }}
       style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
     >
-      <ChatHeaderMenu userId={userId} onBrandSaved={() => {}} />
-
+      {/* Top center — "Jarvis Knows About Me..." progress */}
       <ReadinessBar
         userId={userId}
         apiUrl={BACKEND}
@@ -933,11 +941,11 @@ export default function ChatCanvas({
             <div
               key="messages"
               ref={scrollRef}
-              className="biz-chat-scroll"
+              className="os1-scroll"
               style={{
                 position: 'absolute', inset: 0,
                 overflowY: 'auto',
-                padding: '64px 40px 12px',
+                padding: '76px 40px 12px',
               }}
             >
               <div style={{ maxWidth: 760, margin: '0 auto' }}>
@@ -963,14 +971,15 @@ export default function ChatCanvas({
                   return (
                     <div key={m.id ?? i}>
                       {m.is_proactive && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
-                          <span style={{ fontSize: 10, color: '#c84b31' }}>⚡</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                           <span style={{
-                            fontFamily: 'var(--font-arcade), monospace',
-                            fontSize: 8,
-                            letterSpacing: '0.1em',
+                            width: 7, height: 7, background: 'var(--os1-blue)', display: 'inline-block',
+                          }} />
+                          <span className="font-pixel" style={{
+                            fontSize: 10,
+                            letterSpacing: '0.06em',
                             textTransform: 'uppercase',
-                            color: 'rgba(200,75,49,0.55)',
+                            color: 'var(--os1-text-faint)',
                           }}>
                             Proactive Insight
                           </span>
@@ -1001,18 +1010,18 @@ export default function ChatCanvas({
           )}
         </AnimatePresence>
 
-        {/* Mini Jarvis avatar — persistent during conversation */}
+        {/* Mini Jarvis globe — persistent during conversation */}
         {hasMessages && (
           <div style={{
-            position: 'absolute', top: 12, left: 0, right: 0, zIndex: 3,
+            position: 'absolute', top: 10, left: 0, right: 0, zIndex: 3,
             display: 'flex', justifyContent: 'center',
             pointerEvents: 'none',
           }}>
             <motion.div
-              animate={{ opacity: isActivelyStreaming ? 1 : 0.55 }}
+              animate={{ opacity: isActivelyStreaming ? 1 : 0.5 }}
               transition={{ duration: 0.4, ease: 'easeInOut' }}
             >
-              <JarvisAvatar size={32} isStreaming={isActivelyStreaming || loading} />
+              <JarvisAvatar size={40} isStreaming={isActivelyStreaming || loading} />
             </motion.div>
           </div>
         )}
@@ -1021,23 +1030,32 @@ export default function ChatCanvas({
         {hasMessages && (
           <div style={{
             position: 'absolute', bottom: 0, left: 0, right: 0, height: 56,
-            background: 'linear-gradient(to bottom, transparent, #0a0908)',
+            background: 'linear-gradient(to bottom, transparent, #131313)',
             pointerEvents: 'none', zIndex: 1,
           }} />
         )}
       </div>
 
       {/* Input area */}
-      <div style={{ padding: '8px 40px 24px', flexShrink: 0 }}>
-        <div style={{ maxWidth: 760, margin: '0 auto', position: 'relative' }}>
+      <div style={{ padding: '8px 40px 26px', flexShrink: 0 }}>
+        <div style={{ maxWidth: 740, margin: '0 auto', position: 'relative' }}>
           {/* Usage counter — top-right of input area */}
           {usage && (
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4 }}>
               <UsageCounter usage={usage} />
             </div>
           )}
-          {/* Toggle floats to the left, outside layout flow, keeping input centered */}
-          <div style={{ position: 'absolute', left: -68, bottom: 12 }}>
+          <PromptInputBox
+            onSend={(message, files) => sendMessage(message, files)}
+            isLoading={loading}
+            placeholder="Ask Jarvis..."
+            enableVoice={false}
+            enableUpload={true}
+            showViewToggle={true}
+          />
+          {/* Autonomous Jarvis lever — floats to the right of the input */}
+          <div className="os1-autonomous-dock" style={{ position: 'absolute', left: 'calc(100% + 30px)', bottom: 14 }}>
+            <style>{`@media (max-width: 1180px) { .os1-autonomous-dock { display: none !important; } }`}</style>
             <AutonomousToggle
               userId={userId}
               apiUrl={BACKEND}
@@ -1045,13 +1063,6 @@ export default function ChatCanvas({
               onToggle={setAutonomousEnabled}
             />
           </div>
-          <PromptInputBox
-            onSend={(message, files) => sendMessage(message, files)}
-            isLoading={loading}
-            placeholder="Message Jarvis..."
-            enableVoice={false}
-            enableUpload={true}
-          />
         </div>
       </div>
     </motion.div>

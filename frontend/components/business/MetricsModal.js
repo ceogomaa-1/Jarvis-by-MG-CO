@@ -84,31 +84,31 @@ export default function MetricsModal({ open, onClose, userId }) {
           background: 'rgba(15, 15, 18, 0.55)',
           backdropFilter: 'blur(28px) saturate(180%)',
           WebkitBackdropFilter: 'blur(28px) saturate(180%)',
-          border: '1px solid rgba(243,234,217,0.15)',
+          border: '1px solid rgba(232,232,232,0.15)',
           borderRadius: 20, padding: 28,
           fontFamily: 'system-ui, sans-serif',
-          boxShadow: '0 24px 60px rgba(0,0,0,0.55), inset 0 1px 0 rgba(243,234,217,0.06)',
+          boxShadow: '0 24px 60px rgba(0,0,0,0.55), inset 0 1px 0 rgba(232,232,232,0.06)',
           display: 'flex', flexDirection: 'column',
           maxHeight: '88vh',
         }}
       >
         <div style={{
-          fontFamily: 'var(--font-arcade), monospace',
+          fontFamily: 'var(--font-pixel), monospace',
           fontSize: 10, letterSpacing: '0.12em',
-          color: '#c84b31', marginBottom: 8, textTransform: 'uppercase',
+          color: '#2d7ff9', marginBottom: 8, textTransform: 'uppercase',
         }}>
           YOUR NUMBERS
         </div>
         <div style={{
-          fontFamily: 'var(--font-arcade), monospace',
-          fontSize: 13, color: '#f3ead9', marginBottom: 6, lineHeight: 1.5,
+          fontFamily: 'var(--font-pixel), monospace',
+          fontSize: 13, color: '#e8e8e8', marginBottom: 6, lineHeight: 1.5,
         }}>
           Update your current metrics
         </div>
-        <div style={{ fontSize: 12, color: 'rgba(243,234,217,0.5)', marginBottom: 16, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 12, color: 'rgba(232,232,232,0.5)', marginBottom: 16, lineHeight: 1.5 }}>
           Paste your current numbers in whatever way you track them. Jarvis evaluates these against your industry risk flags every morning at 6 AM.
           {savedAt && (
-            <span style={{ display: 'block', marginTop: 6, color: 'rgba(243,234,217,0.4)' }}>
+            <span style={{ display: 'block', marginTop: 6, color: 'rgba(232,232,232,0.4)' }}>
               Last updated: {formatTimestamp(savedAt)}
             </span>
           )}
@@ -123,10 +123,10 @@ export default function MetricsModal({ open, onClose, userId }) {
           rows={14}
           style={{
             width: '100%', boxSizing: 'border-box',
-            background: 'rgba(243,234,217,0.04)',
-            border: '1px solid rgba(243,234,217,0.12)',
+            background: 'rgba(232,232,232,0.04)',
+            border: '1px solid rgba(232,232,232,0.12)',
             borderRadius: 10, padding: '14px 16px',
-            color: '#f3ead9',
+            color: '#e8e8e8',
             fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
             fontSize: 13, lineHeight: 1.6, outline: 'none', resize: 'vertical',
             flex: 1, minHeight: 240,
@@ -139,9 +139,9 @@ export default function MetricsModal({ open, onClose, userId }) {
             disabled={saving}
             style={{
               background: 'transparent',
-              border: '1px solid rgba(243,234,217,0.1)',
+              border: '1px solid rgba(232,232,232,0.1)',
               borderRadius: 12, padding: '10px 24px',
-              color: 'rgba(243,234,217,0.7)', fontSize: 13,
+              color: 'rgba(232,232,232,0.7)', fontSize: 13,
               fontFamily: 'system-ui, sans-serif', cursor: saving ? 'default' : 'pointer',
               transition: 'all 200ms ease',
             }}
@@ -152,7 +152,7 @@ export default function MetricsModal({ open, onClose, userId }) {
             onClick={handleSave}
             disabled={saving || loading}
             style={{
-              background: saving ? 'rgba(200,75,49,0.4)' : '#c84b31',
+              background: saving ? 'rgba(45,127,249,0.4)' : '#2d7ff9',
               border: 'none', borderRadius: 12, padding: '10px 24px',
               color: '#0a0a0a', fontSize: 13, fontWeight: 500,
               fontFamily: 'system-ui, sans-serif',

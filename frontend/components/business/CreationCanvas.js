@@ -26,10 +26,10 @@ const ROLE_ICONS = {
 
 function StatusPill({ agent, status }) {
   const palette = {
-    pending: { bg: 'rgba(243,234,217,0.04)', border: 'rgba(243,234,217,0.1)', text: 'rgba(243,234,217,0.5)', dot: 'rgba(243,234,217,0.3)' },
-    started: { bg: 'rgba(200,75,49,0.08)', border: 'rgba(200,75,49,0.3)', text: '#f3ead9', dot: '#c84b31' },
-    complete: { bg: 'rgba(34,197,94,0.08)', border: 'rgba(34,197,94,0.3)', text: '#f3ead9', dot: '#22c55e' },
-    failed: { bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.3)', text: '#f3ead9', dot: '#ef4444' },
+    pending: { bg: 'rgba(232,232,232,0.04)', border: 'rgba(232,232,232,0.1)', text: 'rgba(232,232,232,0.5)', dot: 'rgba(232,232,232,0.3)' },
+    started: { bg: 'rgba(45,127,249,0.08)', border: 'rgba(45,127,249,0.3)', text: '#e8e8e8', dot: '#2d7ff9' },
+    complete: { bg: 'rgba(34,197,94,0.08)', border: 'rgba(34,197,94,0.3)', text: '#e8e8e8', dot: '#22c55e' },
+    failed: { bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.3)', text: '#e8e8e8', dot: '#ef4444' },
   }
   const c = palette[status] || palette.pending
 
@@ -117,14 +117,14 @@ export default function CreationCanvas({ msg, onArtifactUpdate }) {
       {title && (
         <div style={{
           fontSize: 11, fontWeight: 600, letterSpacing: '0.12em',
-          color: '#c84b31', marginBottom: 6, textTransform: 'uppercase',
+          color: '#2d7ff9', marginBottom: 6, textTransform: 'uppercase',
         }}>
           CREATION 1.0 · Spinning up sub-agents
         </div>
       )}
       {title && (
         <div style={{
-          fontSize: 20, fontWeight: 600, color: '#f3ead9',
+          fontSize: 20, fontWeight: 600, color: '#e8e8e8',
           marginBottom: 8, fontFamily: 'system-ui, sans-serif',
         }}>
           {title}
@@ -132,7 +132,7 @@ export default function CreationCanvas({ msg, onArtifactUpdate }) {
       )}
       {intro && (
         <div style={{
-          fontSize: 14, color: 'rgba(243,234,217,0.7)', marginBottom: 16,
+          fontSize: 14, color: 'rgba(232,232,232,0.7)', marginBottom: 16,
           fontFamily: 'system-ui, sans-serif', lineHeight: 1.6,
         }}>
           {intro}
@@ -155,8 +155,8 @@ export default function CreationCanvas({ msg, onArtifactUpdate }) {
       {/* Final artifact */}
       {displayArtifact && (
         <div style={{
-          background: 'rgba(243,234,217,0.03)',
-          border: '1px solid rgba(243,234,217,0.1)',
+          background: 'rgba(232,232,232,0.03)',
+          border: '1px solid rgba(232,232,232,0.1)',
           borderRadius: 14,
           padding: '22px 26px',
           marginTop: 12,
@@ -177,15 +177,15 @@ export default function CreationCanvas({ msg, onArtifactUpdate }) {
                 <button
                   onClick={() => setShowRefine(true)}
                   style={{
-                    background: 'rgba(200,75,49,0.1)',
-                    border: '1px solid rgba(200,75,49,0.3)',
+                    background: 'rgba(45,127,249,0.1)',
+                    border: '1px solid rgba(45,127,249,0.3)',
                     borderRadius: 6, padding: '5px 12px',
-                    color: '#c84b31', fontSize: 12, fontWeight: 500,
+                    color: '#2d7ff9', fontSize: 12, fontWeight: 500,
                     cursor: 'pointer', fontFamily: 'system-ui, sans-serif',
                     transition: 'all 200ms ease',
                   }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(200,75,49,0.2)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'rgba(200,75,49,0.1)')}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(45,127,249,0.2)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'rgba(45,127,249,0.1)')}
                 >
                   Refine
                 </button>
@@ -193,10 +193,10 @@ export default function CreationCanvas({ msg, onArtifactUpdate }) {
                   onClick={handleDownloadPDF}
                   disabled={downloading}
                   style={{
-                    background: 'rgba(243,234,217,0.06)',
-                    border: '1px solid rgba(243,234,217,0.15)',
+                    background: 'rgba(232,232,232,0.06)',
+                    border: '1px solid rgba(232,232,232,0.15)',
                     borderRadius: 6, padding: '5px 12px',
-                    color: downloading ? 'rgba(243,234,217,0.3)' : 'rgba(243,234,217,0.7)',
+                    color: downloading ? 'rgba(232,232,232,0.3)' : 'rgba(232,232,232,0.7)',
                     fontSize: 12, fontWeight: 500,
                     cursor: downloading ? 'default' : 'pointer',
                     fontFamily: 'system-ui, sans-serif',
@@ -212,7 +212,7 @@ export default function CreationCanvas({ msg, onArtifactUpdate }) {
           <div
             className="biz-markdown"
             style={{
-              fontSize: 14, color: '#f3ead9', lineHeight: 1.7,
+              fontSize: 14, color: '#e8e8e8', lineHeight: 1.7,
               fontFamily: 'system-ui, sans-serif',
             }}
           >
@@ -225,8 +225,8 @@ export default function CreationCanvas({ msg, onArtifactUpdate }) {
       {(deploying || liveUrl || deploymentError) && (
         <div style={{
           marginTop: 16,
-          background: liveUrl ? 'rgba(34,197,94,0.05)' : deploymentError ? 'rgba(239,68,68,0.05)' : 'rgba(200,75,49,0.05)',
-          border: `1px solid ${liveUrl ? 'rgba(34,197,94,0.25)' : deploymentError ? 'rgba(239,68,68,0.25)' : 'rgba(200,75,49,0.2)'}`,
+          background: liveUrl ? 'rgba(34,197,94,0.05)' : deploymentError ? 'rgba(239,68,68,0.05)' : 'rgba(45,127,249,0.05)',
+          border: `1px solid ${liveUrl ? 'rgba(34,197,94,0.25)' : deploymentError ? 'rgba(239,68,68,0.25)' : 'rgba(45,127,249,0.2)'}`,
           borderRadius: 12,
           padding: '14px 18px',
         }}>
@@ -234,7 +234,7 @@ export default function CreationCanvas({ msg, onArtifactUpdate }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <div style={{
                 fontSize: 10, fontWeight: 600, letterSpacing: '0.12em',
-                color: '#c84b31', textTransform: 'uppercase', marginBottom: 4,
+                color: '#2d7ff9', textTransform: 'uppercase', marginBottom: 4,
               }}>
                 BUILDING
               </div>
@@ -243,12 +243,12 @@ export default function CreationCanvas({ msg, onArtifactUpdate }) {
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <div style={{
                       width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-                      background: i === deploymentStages.length - 1 ? '#c84b31' : '#22c55e',
+                      background: i === deploymentStages.length - 1 ? '#2d7ff9' : '#22c55e',
                       animation: i === deploymentStages.length - 1 ? 'pulseDot 1.2s ease-in-out infinite' : 'none',
                     }} />
                     <span style={{
                       fontSize: 12,
-                      color: i === deploymentStages.length - 1 ? 'rgba(243,234,217,0.85)' : 'rgba(243,234,217,0.45)',
+                      color: i === deploymentStages.length - 1 ? 'rgba(232,232,232,0.85)' : 'rgba(232,232,232,0.45)',
                       fontFamily: 'system-ui, sans-serif',
                     }}>
                       {stage}
@@ -259,11 +259,11 @@ export default function CreationCanvas({ msg, onArtifactUpdate }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{
                     width: 8, height: 8, borderRadius: '50%',
-                    background: '#c84b31',
+                    background: '#2d7ff9',
                     animation: 'pulseDot 1.2s ease-in-out infinite',
                     flexShrink: 0,
                   }} />
-                  <span style={{ fontSize: 12, color: 'rgba(243,234,217,0.75)', fontFamily: 'system-ui, sans-serif' }}>
+                  <span style={{ fontSize: 12, color: 'rgba(232,232,232,0.75)', fontFamily: 'system-ui, sans-serif' }}>
                     {deploymentStatus || 'Deploying…'}
                   </span>
                 </div>
@@ -278,9 +278,9 @@ export default function CreationCanvas({ msg, onArtifactUpdate }) {
                       style={{
                         display: 'inline-flex', alignItems: 'center',
                         padding: '6px 12px', borderRadius: 8,
-                        background: 'rgba(243,234,217,0.07)',
-                        border: '1px solid rgba(243,234,217,0.15)',
-                        color: 'rgba(243,234,217,0.8)',
+                        background: 'rgba(232,232,232,0.07)',
+                        border: '1px solid rgba(232,232,232,0.15)',
+                        color: 'rgba(232,232,232,0.8)',
                         fontSize: 12, fontWeight: 500,
                         textDecoration: 'none', fontFamily: 'system-ui, sans-serif',
                       }}
@@ -296,9 +296,9 @@ export default function CreationCanvas({ msg, onArtifactUpdate }) {
                       style={{
                         display: 'inline-flex', alignItems: 'center',
                         padding: '6px 12px', borderRadius: 8,
-                        background: 'rgba(200,75,49,0.08)',
-                        border: '1px solid rgba(200,75,49,0.2)',
-                        color: '#c84b31',
+                        background: 'rgba(45,127,249,0.08)',
+                        border: '1px solid rgba(45,127,249,0.2)',
+                        color: '#2d7ff9',
                         fontSize: 12, fontWeight: 500,
                         textDecoration: 'none', fontFamily: 'system-ui, sans-serif',
                       }}
@@ -342,9 +342,9 @@ export default function CreationCanvas({ msg, onArtifactUpdate }) {
                     style={{
                       display: 'inline-flex', alignItems: 'center', gap: 6,
                       padding: '7px 14px', borderRadius: 8,
-                      background: 'rgba(243,234,217,0.07)',
-                      border: '1px solid rgba(243,234,217,0.15)',
-                      color: 'rgba(243,234,217,0.8)',
+                      background: 'rgba(232,232,232,0.07)',
+                      border: '1px solid rgba(232,232,232,0.15)',
+                      color: 'rgba(232,232,232,0.8)',
                       fontSize: 12, fontWeight: 500,
                       textDecoration: 'none', fontFamily: 'system-ui, sans-serif',
                     }}
@@ -374,7 +374,7 @@ export default function CreationCanvas({ msg, onArtifactUpdate }) {
               {liveUrl && (
                 <div style={{
                   marginTop: 8, fontSize: 11,
-                  color: 'rgba(243,234,217,0.4)',
+                  color: 'rgba(232,232,232,0.4)',
                   fontFamily: 'system-ui, sans-serif',
                 }}>
                   {liveUrl}
@@ -397,9 +397,9 @@ export default function CreationCanvas({ msg, onArtifactUpdate }) {
                     style={{
                       display: 'inline-flex', alignItems: 'center',
                       padding: '6px 12px', borderRadius: 8,
-                      background: 'rgba(243,234,217,0.07)',
-                      border: '1px solid rgba(243,234,217,0.15)',
-                      color: 'rgba(243,234,217,0.8)',
+                      background: 'rgba(232,232,232,0.07)',
+                      border: '1px solid rgba(232,232,232,0.15)',
+                      color: 'rgba(232,232,232,0.8)',
                       fontSize: 12, fontWeight: 500,
                       textDecoration: 'none',
                     }}
@@ -415,9 +415,9 @@ export default function CreationCanvas({ msg, onArtifactUpdate }) {
                     style={{
                       display: 'inline-flex', alignItems: 'center',
                       padding: '6px 12px', borderRadius: 8,
-                      background: 'rgba(200,75,49,0.08)',
-                      border: '1px solid rgba(200,75,49,0.2)',
-                      color: '#c84b31',
+                      background: 'rgba(45,127,249,0.08)',
+                      border: '1px solid rgba(45,127,249,0.2)',
+                      color: '#2d7ff9',
                       fontSize: 12, fontWeight: 500,
                       textDecoration: 'none',
                     }}
@@ -437,7 +437,7 @@ export default function CreationCanvas({ msg, onArtifactUpdate }) {
           background: 'rgba(239,68,68,0.08)',
           border: '1px solid rgba(239,68,68,0.3)',
           borderRadius: 10, padding: '14px 18px',
-          color: '#f3ead9', fontSize: 13, marginTop: 12,
+          color: '#e8e8e8', fontSize: 13, marginTop: 12,
         }}>
           {error}
         </div>
