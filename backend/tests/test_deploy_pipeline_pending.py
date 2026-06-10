@@ -44,6 +44,7 @@ async def test_deploy_pipeline_returns_pending_without_polling(monkeypatch):
         return {"github": github, "vercel": vercel}.get(connector_type)
 
     monkeypatch.setattr(deploy_pipeline, "get_connector_for_user", fake_get_connector_for_user)
+    monkeypatch.setattr(deploy_pipeline, "_EXTERNAL_STATUS_INTERVAL", 0.01)
     site = {
         "project_name": "test-site",
         "files": [{"path": "package.json", "content": "{}"}],
