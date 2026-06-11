@@ -13,6 +13,7 @@ from backend.lib.business.system_prompt_builder import build_system_prompt
 from backend.lib.business.farida_loader import FARIDA_USER_ID, load_greeting as _load_farida_greeting
 from backend.lib.business.model_router import select_model, OPUS
 from backend.lib.business.memory import extract_and_store_memories
+from backend.lib.business.mind.graph import record_activity
 from backend.lib.business.tool_builder import build_tools_for_user
 from backend.lib.business.tool_executor import execute_tool
 from backend.lib.business.document_store import save_document
@@ -192,18 +193,57 @@ class BusinessChatRequest(BaseModel):
     conversation_history: list = []
     conversation_id: str | None = None
     attachments: list[AttachmentItem] = []
+    node_context: dict | None = None
 
 
-def _build_user_content(text: str, attachments: list[AttachmentItem], stash_pdfs: bool = False) -> list | str:
+def _node_context_block(node_context: dict | None) -> str:
+    """Build a context block for a Mind-graph node the user clicked before sending this message."""
+    if not node_context:
+        return ""
+    mode = node_context.get("mode")
+    if mode == "gap":
+        label = node_context.get("label", "")
+        prompt = node_context.get("prompt", "")
+        return (
+            f"[Context: The user clicked on a knowledge gap in their Mind graph — \"{label}\". "
+            f"They want to give you this missing info now. Ask them directly: {prompt}]"
+        )
+    if mode == "synapse":
+        insight = node_context.get("insight", "")
+        memory_a = node_context.get("memory_a_text", "")
+        memory_b = node_context.get("memory_b_text", "")
+        return (
+            f"[Context: The user clicked on a golden synapse in their Mind graph — a hidden connection "
+            f"Jarvis found between two memories.\nMemory A: \"{memory_a}\"\nMemory B: \"{memory_b}\"\n"
+            f"Insight: {insight}\nDiscuss this connection with the user.]"
+        )
+    # mode == "memory" (default)
+    memory_text = node_context.get("memory_text", "")
+    mind_category = node_context.get("mind_category", "")
+    return (
+        f"[Context: the user clicked on this memory in their Mind graph]\n"
+        f"\"{memory_text}\"\nCategory: {mind_category}"
+    )
+
+
+def _build_user_content(
+    text: str,
+    attachments: list[AttachmentItem],
+    stash_pdfs: bool = False,
+    node_context: dict | None = None,
+) -> list | str:
     """Build Anthropic content block(s) for a user turn, including images/PDFs/text.
 
     When stash_pdfs is set (Real Estate users), PDF attachments are also saved to
     document_store so Claude can reference them by doc_id with realestate__fill_pdf_form.
     """
+    context_block = _node_context_block(node_context)
     if not attachments:
-        return text
+        return f"{context_block}\n\n{text}" if context_block else text
     import base64
     blocks: list = []
+    if context_block:
+        blocks.append({"type": "text", "text": context_block})
     doc_id_notes: list[str] = []
     for att in attachments[:5]:  # enforce max 5 server-side
         if att.type == "image" or att.media_type.startswith("image/"):
@@ -254,7 +294,7 @@ async def get_user_usage(user_id: str = ""):
 
 @router.post("/business/chat/stream")
 async def business_chat_stream(request: BusinessChatRequest):
-    system_prompt = await build_system_prompt(request.user_id, request.message)
+    system_prompt, used_memory_ids = await build_system_prompt(request.user_id, request.message)
     tools = await build_tools_for_user(request.user_id)
     is_re_user = bool(request.user_id) and await is_real_estate_user(request.user_id)
 
@@ -264,7 +304,9 @@ async def business_chat_stream(request: BusinessChatRequest):
         if isinstance(m.get("content"), str) and m["content"].strip()
         and m.get("role") in ("user", "assistant")
     ]
-    user_content = _build_user_content(request.message, request.attachments, stash_pdfs=is_re_user)
+    user_content = _build_user_content(
+        request.message, request.attachments, stash_pdfs=is_re_user, node_context=request.node_context
+    )
     messages = safe_history + [{"role": "user", "content": user_content}]
 
     model = select_model(request.message)
@@ -347,6 +389,11 @@ async def business_chat_stream(request: BusinessChatRequest):
         # Immediate "thinking" signal — arrives within ~100ms of user sending,
         # guarantees the UI indicator is on before the first model token.
         yield f'data: {json.dumps({"type": "status", "value": "thinking"})}\n\n'
+
+        # Mind thought-trace: light up the memories injected into this turn's system prompt.
+        if used_memory_ids and request.user_id:
+            yield f'data: {json.dumps({"type": "memory_used", "ids": used_memory_ids})}\n\n'
+            asyncio.create_task(record_activity(request.user_id, used_memory_ids, "used", conv_id))
 
         current_messages = messages.copy()
         final_text = ""
@@ -575,9 +622,14 @@ async def business_chat_stream(request: BusinessChatRequest):
                 if is_new_conv:
                     asyncio.create_task(_auto_title(sb, conv_id, request.message))
 
-                await extract_and_store_memories(
+                new_memories = await extract_and_store_memories(
                     request.user_id, conv_id, request.message, final_text, sb
                 )
+                # Mind thought-trace: announce newly-born memories. Sent after [DONE] —
+                # the frontend's outer SSE read loop keeps consuming until the stream
+                # actually closes, so this still arrives.
+                if new_memories:
+                    yield f'data: {json.dumps({"type": "memory_born", "memories": new_memories})}\n\n'
             except Exception as e:
                 print(f"Post-stream persistence error: {e}")
 

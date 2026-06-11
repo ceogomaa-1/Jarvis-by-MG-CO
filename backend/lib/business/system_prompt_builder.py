@@ -286,35 +286,40 @@ def _user_id_to_uuid(user_id: str) -> str:
     return user_id
 
 
-def _fetch_user_memories(user_id: str) -> str:
-    """Fetch user memories and format as a block for system prompt injection."""
+def _fetch_user_memories(user_id: str) -> tuple[str, list[str]]:
+    """Fetch user memories and format as a block for system prompt injection.
+
+    Returns (block, memory_ids) — memory_ids feeds the 'memory_used' thought-trace event.
+    """
     try:
         sb = _get_supabase()
         if not sb:
-            return ""
+            return "", []
         user_uuid = _user_id_to_uuid(user_id)
         res = (
             sb.table("business_user_memories")
-            .select("memory")
+            .select("id, memory")
             .eq("user_id", user_uuid)
             .order("created_at", desc=True)
             .limit(30)
             .execute()
         )
         if not res.data:
-            return ""
-        memories = [m["memory"] for m in res.data if m.get("memory")]
-        if not memories:
-            return ""
-        lines = "\n".join(f"- {m}" for m in memories)
-        return (
+            return "", []
+        rows = [m for m in res.data if m.get("memory")]
+        if not rows:
+            return "", []
+        memory_ids = [m["id"] for m in rows if m.get("id")]
+        lines = "\n".join(f"- {m['memory']}" for m in rows)
+        block = (
             "## What I Know About This User\n"
             "The following are facts and preferences learned from previous conversations. "
             "Use these naturally — don't announce that you \"remember\" things, just act on the knowledge:\n\n"
             f"{lines}"
         )
+        return block, memory_ids
     except Exception:
-        return ""
+        return "", []
 
 
 def _fetch_user_profile(user_id: str) -> dict:
@@ -335,11 +340,13 @@ def _fetch_user_profile(user_id: str) -> dict:
         return {}
 
 
-async def build_system_prompt(user_id: str, user_message: str) -> str:
+async def build_system_prompt(user_id: str, user_message: str) -> tuple[str, list[str]]:
     """
     Build the full system prompt for a business chat message.
     Falls back to generic system prompt if no industry profile exists.
     Prepends the $1M North Star block to prime every response.
+
+    Returns (prompt_text, used_memory_ids).
     """
     profile = await asyncio.to_thread(_fetch_user_profile, user_id) if user_id else {}
 
@@ -378,7 +385,9 @@ async def build_system_prompt(user_id: str, user_message: str) -> str:
     north_star_block = await north_star_context_for_user(user_id)
 
     # Inject user memories (after North Star, before base template)
-    memory_block = await asyncio.to_thread(_fetch_user_memories, user_id) if user_id else ""
+    memory_block, used_memory_ids = (
+        await asyncio.to_thread(_fetch_user_memories, user_id) if user_id else ("", [])
+    )
 
     # Inject today's Morning Queue digest, if any
     from backend.lib.business.morning_queue import queue_digest_for_prompt
@@ -415,7 +424,7 @@ async def build_system_prompt(user_id: str, user_message: str) -> str:
         parts.append(_REAL_ESTATE_CAPABILITIES)
     if autonomous_enabled:
         parts.append(_AUTONOMOUS_MODE_NOTE)
-    return "\n\n".join(parts)
+    return "\n\n".join(parts), used_memory_ids
 
 
 def get_industry_context_note(user_id: str) -> str:

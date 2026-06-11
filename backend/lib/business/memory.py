@@ -11,6 +11,8 @@ import os
 
 import httpx
 
+from backend.lib.business.mind.ingest import process_new_memory
+
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
 _EXTRACTION_PROMPT = """\
@@ -40,8 +42,8 @@ def _user_id_to_uuid(user_id: str) -> str:
     return user_id
 
 
-def _store_memory_if_new(sb, user_uuid: str, memory_text: str, conversation_id: str) -> None:
-    """Synchronous helper — run via asyncio.to_thread."""
+def _store_memory_if_new(sb, user_uuid: str, memory_text: str, conversation_id: str) -> str | None:
+    """Synchronous helper — run via asyncio.to_thread. Returns the new memory id, or None if duplicate/failed."""
     try:
         existing = (
             sb.table("business_user_memories")
@@ -51,17 +53,21 @@ def _store_memory_if_new(sb, user_uuid: str, memory_text: str, conversation_id: 
             .execute()
         )
         if not existing.data:
-            sb.table("business_user_memories").insert({
+            result = sb.table("business_user_memories").insert({
                 "user_id": user_uuid,
                 "memory": memory_text,
                 "source_conversation_id": conversation_id,
                 "category": "general",
             }).execute()
             print(f"MEMORY_EXTRACT: saved memory: {memory_text[:100]}")
+            rows = result.data or []
+            return rows[0]["id"] if rows else None
         else:
             print(f"MEMORY_EXTRACT: duplicate, skipped: {memory_text[:60]}")
+            return None
     except Exception as e:
         print(f"MEMORY_EXTRACT: SAVE FAILED: {e}")
+        return None
 
 
 async def extract_and_store_memories(
@@ -70,15 +76,17 @@ async def extract_and_store_memories(
     user_message: str,
     assistant_response: str,
     sb,
-) -> None:
+) -> list[dict]:
     """
     Use Haiku to extract key facts from the exchange and store as discrete memories.
     Called as a background task after each chat exchange — never blocks the response stream.
+    Returns [{"id": ..., "memory": ...}] for newly-created memories (already routed
+    through process_new_memory) — feeds the 'memory_born' thought-trace event.
     """
     print(f"MEMORY_EXTRACT: called for user {user_id}, conv {conversation_id}")
     if not ANTHROPIC_API_KEY or not sb or not user_id:
         print(f"MEMORY_EXTRACT: aborting — missing api_key={bool(ANTHROPIC_API_KEY)} sb={bool(sb)} user_id={bool(user_id)}")
-        return
+        return []
 
     user_uuid = _user_id_to_uuid(user_id)
     prompt = _EXTRACTION_PROMPT.format(
@@ -105,7 +113,7 @@ async def extract_and_store_memories(
 
         if resp.status_code != 200:
             print(f"MEMORY_EXTRACT: Haiku API error {resp.status_code}: {resp.text[:200]}")
-            return
+            return []
 
         raw = resp.json().get("content", [{}])[0].get("text", "").strip()
         print(f"MEMORY_EXTRACT: Haiku returned: {raw[:300]}")
@@ -123,17 +131,24 @@ async def extract_and_store_memories(
             memories = json.loads(raw)
         except json.JSONDecodeError:
             print(f"MEMORY_EXTRACT: JSON parse failed on: {raw[:300]}")
-            return
+            return []
 
         if not isinstance(memories, list):
             print(f"MEMORY_EXTRACT: unexpected response type: {type(memories)}")
-            return
+            return []
 
         print(f"MEMORY_EXTRACT: extracted {len(memories)} memories")
+        new_memories: list[dict] = []
         for memory_text in memories:
             if not isinstance(memory_text, str) or len(memory_text) < 10:
                 continue
-            await asyncio.to_thread(_store_memory_if_new, sb, user_uuid, memory_text, conversation_id)
+            new_id = await asyncio.to_thread(_store_memory_if_new, sb, user_uuid, memory_text, conversation_id)
+            if new_id:
+                mind_category = await process_new_memory(user_id, new_id, memory_text)
+                new_memories.append({"id": new_id, "memory": memory_text, "mind_category": mind_category or "general"})
+
+        return new_memories
 
     except Exception as e:
         print(f"MEMORY_EXTRACT: error: {e}")
+        return []

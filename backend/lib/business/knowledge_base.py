@@ -17,6 +17,7 @@ import zipfile
 
 import httpx
 
+from backend.lib.business.mind.ingest import process_new_memory
 from backend.tools.url_fetch import fetch_url_content
 
 SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL", "")
@@ -184,12 +185,15 @@ async def _store_facts(client: httpx.AsyncClient, user_uuid: str, source_id: str
                 payload["knowledge_source_id"] = source_id
             ins = await client.post(
                 f"{SUPABASE_URL}/rest/v1/business_user_memories",
-                headers={**_write_headers(), "Prefer": "return=minimal"},
+                headers=_write_headers(),
                 json=payload,
                 timeout=10.0,
             )
             if ins.status_code in (200, 201, 204):
                 stored += 1
+                rows = ins.json() if ins.status_code in (200, 201) else []
+                if rows:
+                    await process_new_memory(user_uuid, rows[0]["id"], fact)
         except Exception as e:
             print(f"KB: store fact error: {e}")
     return stored

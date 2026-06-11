@@ -28,6 +28,7 @@ from backend.lib.business.connectors.registry import (
     get_connector_for_user,
     list_user_connections,
 )
+from backend.lib.business.mind.ingest import process_new_memory
 from backend.lib.business.readiness import calculate_readiness
 
 SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL", "")
@@ -106,7 +107,8 @@ async def _fetch_business_profile(user_id: str) -> dict:
         return {}
 
 
-async def _fetch_memories(user_uuid: str, limit: int = 20) -> list[str]:
+async def _fetch_memories(user_uuid: str, limit: int = 20) -> list[dict]:
+    """Returns recent memories as [{id, memory}, ...]."""
     if not SUPABASE_URL or not SUPABASE_KEY:
         return []
     try:
@@ -115,7 +117,7 @@ async def _fetch_memories(user_uuid: str, limit: int = 20) -> list[str]:
                 f"{SUPABASE_URL}/rest/v1/business_user_memories",
                 headers=_read_headers(),
                 params={
-                    "select": "memory",
+                    "select": "id,memory",
                     "user_id": f"eq.{user_uuid}",
                     "order": "created_at.desc",
                     "limit": str(limit),
@@ -123,7 +125,7 @@ async def _fetch_memories(user_uuid: str, limit: int = 20) -> list[str]:
                 timeout=10.0,
             )
         rows = resp.json() if resp.status_code == 200 else []
-        return [r["memory"] for r in rows if r.get("memory")]
+        return [{"id": r["id"], "memory": r["memory"]} for r in rows if r.get("memory") and r.get("id")]
     except Exception as e:
         print(f"MORNING_QUEUE: memories fetch error: {e}")
         return []
@@ -198,7 +200,9 @@ async def _gather_context(user_id: str) -> dict:
     industry = profile.get("industry", "")
     company_name = profile.get("company_name") or "the business"
 
-    memories = await _fetch_memories(user_uuid)
+    memory_rows = await _fetch_memories(user_uuid)
+    memories = [r["memory"] for r in memory_rows]
+    memory_ids = [r["id"] for r in memory_rows]
     metrics_text = await _fetch_metrics_text(user_id)
 
     bible = load_bible(industry) if industry else {}
@@ -240,6 +244,7 @@ async def _gather_context(user_id: str) -> dict:
         "company_name": company_name,
         "industry_label": industry or "general business",
         "context_block": context_block,
+        "memory_ids": memory_ids,
     }
 
 
@@ -335,6 +340,8 @@ async def generate_queue_for_user(user_id: str, force: bool = False) -> dict:
     if not items:
         return {"user_id": user_id, "status": "skipped", "reason": "no items generated", "items_created": 0}
 
+    source_memory_ids = ctx.get("memory_ids") or None
+
     rows = [
         {
             "user_id": user_uuid,
@@ -344,6 +351,7 @@ async def generate_queue_for_user(user_id: str, force: bool = False) -> dict:
             "body": item["body"],
             "action_prompt": item["action_prompt"],
             "read": False,
+            "source_memory_ids": source_memory_ids,
         }
         for item in items
     ]
@@ -594,12 +602,15 @@ async def bury_memory_for_action(user_id: str, item_id: str) -> dict:
 
         memory = f"User acted on a Morning Queue item: \"{item['title']}\" — {item['body']}"
         async with httpx.AsyncClient() as client:
-            await client.post(
+            ins = await client.post(
                 f"{SUPABASE_URL}/rest/v1/business_user_memories",
-                headers={**_write_headers(), "Prefer": "return=minimal"},
+                headers=_write_headers(),
                 json={"user_id": user_uuid, "memory": memory, "category": "morning_queue_action"},
                 timeout=10.0,
             )
+        ins_rows = ins.json() if ins.status_code in (200, 201) else []
+        if ins_rows:
+            await process_new_memory(user_uuid, ins_rows[0]["id"], memory)
 
         return {"ok": True, "action_prompt": item.get("action_prompt", "")}
     except Exception as e:

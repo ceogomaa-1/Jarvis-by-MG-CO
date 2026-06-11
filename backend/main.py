@@ -36,6 +36,8 @@ from backend.routes.business.onboarding_routes import router as business_onboard
 from backend.routes.business.documents import router as business_documents_router
 from backend.routes.business.knowledge_routes import router as business_knowledge_router
 from backend.routes.business.morning_queue_routes import router as business_morning_queue_router
+from backend.routes.business.mind import router as business_mind_router
+from backend.cron.synapse_cron import run_weekly_synapse_generation
 
 if not ANTHROPIC_API_KEY:
     raise RuntimeError(
@@ -75,8 +77,14 @@ async def lifespan(app: FastAPI):
         id="operator_nightly",
         replace_existing=True,
     )
+    scheduler.add_job(
+        run_weekly_synapse_generation,
+        CronTrigger(day_of_week="sun", hour=3, minute=0, timezone="America/Toronto"),
+        id="weekly_synapses",
+        replace_existing=True,
+    )
     scheduler.start()
-    print("CRON: Scheduler started — personal briefings at 08:00, business risk at 06:00, operator at 02:00 Toronto")
+    print("CRON: Scheduler started — personal briefings at 08:00, business risk at 06:00, operator at 02:00, synapses Sun 03:00 Toronto")
 
     yield
 
@@ -127,6 +135,7 @@ app.include_router(business_onboarding_router, prefix="/api")
 app.include_router(business_documents_router, prefix="/api")
 app.include_router(business_knowledge_router, prefix="/api")
 app.include_router(business_morning_queue_router, prefix="/api")
+app.include_router(business_mind_router, prefix="/api")
 
 
 @app.on_event("startup")

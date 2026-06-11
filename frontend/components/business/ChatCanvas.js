@@ -28,6 +28,13 @@ function pendingDeployStorageKey(userId) {
   return `jarvis_pending_deploys_${userId || 'anon'}`
 }
 
+function nodeContextSummary(ctx) {
+  if (!ctx) return ''
+  if (ctx.mode === 'gap') return ctx.label || 'Knowledge gap'
+  if (ctx.mode === 'synapse') return ctx.insight || 'Golden synapse'
+  return ctx.memory_text || 'Memory'
+}
+
 function isActiveCreationMessage(message) {
   return message?.role === 'creation' && (
     message.deploying ||
@@ -220,6 +227,7 @@ export default function ChatCanvas({
   const [autonomousEnabled, setAutonomousEnabled] = useState(false)
   const [usage, setUsage] = useState(null)
   const [isThinking, setIsThinking] = useState(false)
+  const [nodeContext, setNodeContext] = useState(null)
   const msgIdRef = useRef(1)
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
@@ -274,6 +282,27 @@ export default function ChatCanvas({
       setInput(prefill)
       sessionStorage.removeItem('jarvis_prefill')
     }
+  }, [])
+
+  // Check sessionStorage for a node-context handoff from The Mind ("Talk to Jarvis about this ->")
+  useEffect(() => {
+    let raw
+    try {
+      raw = sessionStorage.getItem('jarvis_node_context')
+    } catch {
+      raw = null
+    }
+    if (!raw) return
+    try {
+      sessionStorage.removeItem('jarvis_node_context')
+    } catch {}
+    try {
+      const ctx = JSON.parse(raw)
+      setNodeContext(ctx)
+      if (ctx.mode === 'gap' && ctx.prompt) {
+        setInput(ctx.prompt)
+      }
+    } catch {}
   }, [])
 
   // "Act on this ->" from the Morning Queue — drop the action prompt into the input
@@ -839,6 +868,7 @@ export default function ChatCanvas({
           conversation_history: history,
           conversation_id: activeConvRef.current || null,
           attachments: attachments.map(a => ({ type: a.type, media_type: a.media_type, data: a.data, name: a.name })),
+          node_context: nodeContext,
         }),
         signal: controller.signal,
       })
@@ -1101,6 +1131,39 @@ export default function ChatCanvas({
       {/* Input area */}
       <div style={{ padding: '8px 40px 26px', flexShrink: 0 }}>
         <div style={{ maxWidth: 740, margin: '0 auto', position: 'relative' }}>
+          {/* Mind node-context chip — set via "Talk to Jarvis about this ->" */}
+          {nodeContext && (
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                maxWidth: '100%', padding: '6px 8px 6px 14px',
+                background: 'rgba(45,127,249,0.08)',
+                border: '1px solid rgba(45,127,249,0.3)',
+                borderRadius: 999,
+                fontSize: 12, color: '#e8e8e8',
+              }}>
+                <span style={{
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  maxWidth: 480,
+                }}>
+                  {nodeContextSummary(nodeContext)}
+                </span>
+                <button
+                  onClick={() => setNodeContext(null)}
+                  aria-label="Dismiss context"
+                  style={{
+                    flexShrink: 0, width: 18, height: 18, borderRadius: '50%',
+                    border: 'none', background: 'rgba(232,232,232,0.1)',
+                    color: '#9a9a9a', cursor: 'pointer', fontSize: 12,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    lineHeight: 1, padding: 0,
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          )}
           {/* Usage counter — top-right of input area */}
           {usage && (
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4 }}>
