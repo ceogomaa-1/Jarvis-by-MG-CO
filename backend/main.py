@@ -34,6 +34,7 @@ from backend.routes.documents import router as documents_router
 from backend.routes.business.readiness_routes import router as business_readiness_router
 from backend.routes.business.onboarding_routes import router as business_onboarding_router
 from backend.routes.business.documents import router as business_documents_router
+from backend.routes.business.knowledge_routes import router as business_knowledge_router
 
 if not ANTHROPIC_API_KEY:
     raise RuntimeError(
@@ -123,6 +124,7 @@ app.include_router(documents_router, prefix="/api")
 app.include_router(business_readiness_router, prefix="/api")
 app.include_router(business_onboarding_router, prefix="/api")
 app.include_router(business_documents_router, prefix="/api")
+app.include_router(business_knowledge_router, prefix="/api")
 
 
 @app.on_event("startup")

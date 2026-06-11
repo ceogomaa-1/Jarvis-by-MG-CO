@@ -2,14 +2,14 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Inbox, BarChart3, Wrench, Star, User } from 'lucide-react'
+import { Inbox, BookOpen, Wrench, Star, User } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { setJarvisMode } from '../../lib/userPreferences'
 
 import MorningQueueModal from './MorningQueueModal'
 import BrandModal from './BrandModal'
 import ConnectionsModal from './ConnectionsModal'
-import MetricsModal from './MetricsModal'
+import KnowledgeBaseModal from './KnowledgeBaseModal'
 import ProfileModal from './ProfileModal'
 
 const PANEL_WIDTH = 248
@@ -46,7 +46,7 @@ function SpaceInvaderIcon({ size = 22 }) {
   )
 }
 
-function MenuItem({ icon, label, onClick }) {
+function MenuItem({ icon, label, hint, onClick }) {
   return (
     <button
       onClick={onClick}
@@ -62,7 +62,14 @@ function MenuItem({ icon, label, onClick }) {
       }}
     >
       <span style={{ color: 'var(--os1-text-dim)', display: 'flex', flexShrink: 0 }}>{icon}</span>
-      <span className="font-pixel" style={{ fontSize: 13, lineHeight: 1.3 }}>{label}</span>
+      <span style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+        <span className="font-pixel" style={{ fontSize: 13, lineHeight: 1.3 }}>{label}</span>
+        {hint && (
+          <span className="os1-serif-micro" style={{ fontSize: 9, lineHeight: 1.35, color: 'var(--os1-text-faint)' }}>
+            {hint}
+          </span>
+        )}
+      </span>
     </button>
   )
 }
@@ -99,11 +106,11 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
     : '—'
 
   const items = [
-    { label: 'Morning Queue',         icon: <Inbox size={17} />,     onClick: () => openM('queue') },
-    { label: 'Adjust Numbers',        icon: <BarChart3 size={17} />, onClick: () => openM('metrics') },
-    { label: 'Connections',           icon: <Wrench size={17} />,    onClick: () => openM('connections') },
-    { label: 'Brand Personalization', icon: <Star size={17} />,      onClick: () => openM('brand') },
-    { label: 'My Profile',            icon: <User size={17} />,      onClick: () => openM('profile') },
+    { label: 'Morning Queue',         icon: <Inbox size={17} />,    onClick: () => openM('queue') },
+    { label: 'Knowledge Base',        icon: <BookOpen size={17} />, hint: "stuff you're ready to paste and want me to know right away", onClick: () => openM('knowledge') },
+    { label: 'Connections',           icon: <Wrench size={17} />,   onClick: () => openM('connections') },
+    { label: 'Brand Personalization', icon: <Star size={17} />,     onClick: () => openM('brand') },
+    { label: 'My Profile',            icon: <User size={17} />,     onClick: () => openM('profile') },
   ]
 
   return (
@@ -173,7 +180,7 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
               {/* Menu items */}
               <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }} className="os1-scroll">
                 {items.map(item => (
-                  <MenuItem key={item.label} icon={item.icon} label={item.label} onClick={item.onClick} />
+                  <MenuItem key={item.label} icon={item.icon} label={item.label} hint={item.hint} onClick={item.onClick} />
                 ))}
               </div>
 
@@ -205,11 +212,11 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
         )}
       </AnimatePresence>
 
-      <MorningQueueModal open={openModal === 'queue'}       onClose={close} userId={userId} />
-      <BrandModal        open={openModal === 'brand'}       onClose={close} userId={userId} onSaved={onBrandSaved} />
-      <ConnectionsModal  open={openModal === 'connections'} onClose={close} userId={userId} />
-      <MetricsModal      open={openModal === 'metrics'}     onClose={close} userId={userId} />
-      <ProfileModal      open={openModal === 'profile'}     onClose={close} />
+      <MorningQueueModal  open={openModal === 'queue'}       onClose={close} userId={userId} />
+      <BrandModal         open={openModal === 'brand'}       onClose={close} userId={userId} onSaved={onBrandSaved} />
+      <ConnectionsModal   open={openModal === 'connections'} onClose={close} userId={userId} />
+      <KnowledgeBaseModal open={openModal === 'knowledge'}   onClose={close} userId={userId} />
+      <ProfileModal       open={openModal === 'profile'}     onClose={close} />
     </>
   )
 }
