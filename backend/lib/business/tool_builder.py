@@ -4,6 +4,8 @@ Only includes tools for connectors the user has actually connected (status=activ
 Returns [] if nothing is connected — never pass an empty list to Anthropic (omit the param instead).
 """
 from backend.lib.business.connectors.registry import list_user_connections
+from backend.lib.business.real_estate.profile import is_real_estate_user
+from backend.lib.business.real_estate.tools import REAL_ESTATE_TOOLS
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Static tool registry: tool_name → {description, input_schema}
@@ -589,11 +591,18 @@ async def build_tools_for_user(user_id: str) -> list[dict]:
     rows = await list_user_connections(user_id)
     active_types = {r["connector_type"] for r in rows if r.get("status") == "active"}
 
-    if not active_types:
-        return []
-
-    return [
+    tools = [
         {"name": name, "description": defn["description"], "input_schema": defn["input_schema"]}
         for name, defn in _TOOLS.items()
         if _TOOL_TO_CONNECTOR[name] in active_types
     ]
+
+    # Real Estate Operator Suite — available to RE-industry users regardless of
+    # which connectors they've activated (each tool checks its own deps).
+    if await is_real_estate_user(user_id):
+        tools += [
+            {"name": name, "description": defn["description"], "input_schema": defn["input_schema"]}
+            for name, defn in REAL_ESTATE_TOOLS.items()
+        ]
+
+    return tools

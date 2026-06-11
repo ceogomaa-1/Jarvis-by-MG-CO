@@ -15,6 +15,8 @@ from backend.lib.business.model_router import select_model, OPUS
 from backend.lib.business.memory import extract_and_store_memories
 from backend.lib.business.tool_builder import build_tools_for_user
 from backend.lib.business.tool_executor import execute_tool
+from backend.lib.business.document_store import save_document
+from backend.lib.business.real_estate.profile import is_real_estate_user
 from backend.usage_limits import check_limit, increment_usage, get_usage
 
 router = APIRouter()
@@ -44,6 +46,8 @@ WRITE_ACTIONS = frozenset({
     "buffer__create_post",
     "buffer__schedule_post",
     "buffer__add_to_queue",
+    "realestate__ghl_add_note",
+    "realestate__book_showing",
 })
 
 
@@ -74,6 +78,11 @@ def _describe_action(tool_name: str, tool_input: dict) -> str:
         first = tool_input.get("firstName", "")
         last = tool_input.get("lastName", "")
         return f"Create contact: {(first + ' ' + last).strip() or '?'}"
+    if tool_name == "realestate__ghl_add_note":
+        note = (tool_input.get("note") or "")[:80]
+        return f"Add CRM note: {note or '?'}"
+    if tool_name == "realestate__book_showing":
+        return f"Book showing: {tool_input.get('property_address', '?')} w/ {tool_input.get('client_name', '?')}"
     if tool_name in {"buffer__create_post", "buffer__schedule_post", "buffer__add_to_queue"}:
         channels = ", ".join(tool_input.get("channel_ids", []) or [])
         publish_at = tool_input.get("publish_at") or "next queue slot"
@@ -185,12 +194,17 @@ class BusinessChatRequest(BaseModel):
     attachments: list[AttachmentItem] = []
 
 
-def _build_user_content(text: str, attachments: list[AttachmentItem]) -> list | str:
-    """Build Anthropic content block(s) for a user turn, including images/PDFs/text."""
+def _build_user_content(text: str, attachments: list[AttachmentItem], stash_pdfs: bool = False) -> list | str:
+    """Build Anthropic content block(s) for a user turn, including images/PDFs/text.
+
+    When stash_pdfs is set (Real Estate users), PDF attachments are also saved to
+    document_store so Claude can reference them by doc_id with realestate__fill_pdf_form.
+    """
     if not attachments:
         return text
     import base64
     blocks: list = []
+    doc_id_notes: list[str] = []
     for att in attachments[:5]:  # enforce max 5 server-side
         if att.type == "image" or att.media_type.startswith("image/"):
             blocks.append({
@@ -202,6 +216,16 @@ def _build_user_content(text: str, attachments: list[AttachmentItem]) -> list | 
                 "type": "document",
                 "source": {"type": "base64", "media_type": "application/pdf", "data": att.data},
             })
+            if stash_pdfs:
+                try:
+                    pdf_bytes = base64.b64decode(att.data)
+                    saved = save_document(pdf_bytes, att.name or "attachment.pdf", "application/pdf")
+                    doc_id_notes.append(
+                        f'[Attached PDF "{saved["filename"]}" — doc_id: {saved["doc_id"]}. '
+                        f"If the user asks you to fill it in, call realestate__fill_pdf_form with this doc_id.]"
+                    )
+                except Exception:
+                    pass
         else:
             # Text/CSV/plain — decode and inject as labelled text block
             try:
@@ -210,6 +234,8 @@ def _build_user_content(text: str, attachments: list[AttachmentItem]) -> list | 
                 blocks.append({"type": "text", "text": f"[File: {label}]\n{decoded[:8000]}"})
             except Exception:
                 pass
+    if doc_id_notes:
+        blocks.append({"type": "text", "text": "\n".join(doc_id_notes)})
     blocks.append({"type": "text", "text": text})
     return blocks
 
@@ -230,6 +256,7 @@ async def get_user_usage(user_id: str = ""):
 async def business_chat_stream(request: BusinessChatRequest):
     system_prompt = await build_system_prompt(request.user_id, request.message)
     tools = await build_tools_for_user(request.user_id)
+    is_re_user = bool(request.user_id) and await is_real_estate_user(request.user_id)
 
     safe_history = [
         {"role": m.get("role", "user"), "content": str(m.get("content", ""))}
@@ -237,7 +264,7 @@ async def business_chat_stream(request: BusinessChatRequest):
         if isinstance(m.get("content"), str) and m["content"].strip()
         and m.get("role") in ("user", "assistant")
     ]
-    user_content = _build_user_content(request.message, request.attachments)
+    user_content = _build_user_content(request.message, request.attachments, stash_pdfs=is_re_user)
     messages = safe_history + [{"role": "user", "content": user_content}]
 
     model = select_model(request.message)

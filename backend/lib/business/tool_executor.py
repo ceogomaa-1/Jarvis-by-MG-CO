@@ -10,6 +10,7 @@ import json
 
 from backend.lib.business.connectors.base import ConnectorResult
 from backend.lib.business.connectors.registry import get_connector_for_user
+from backend.lib.business.real_estate.tools import execute_real_estate_tool
 
 
 async def execute_tool(tool_name: str, tool_input: dict, user_id: str) -> str:
@@ -21,6 +22,18 @@ async def execute_tool(tool_name: str, tool_input: dict, user_id: str) -> str:
         return json.dumps({"error": f"Invalid tool name format: {tool_name}"})
 
     connector_type, action_name = parts
+
+    # Real Estate tools aren't simple connector wrappers — each implementation
+    # checks its own connector dependencies (GHL, Google) internally.
+    if connector_type == "realestate":
+        try:
+            result: ConnectorResult = await execute_real_estate_tool(action_name, tool_input, user_id)
+        except Exception as e:
+            return json.dumps({"error": f"Tool execution error: {e}"})
+
+        if result.ok:
+            return json.dumps(result.data or {}, default=str)
+        return json.dumps({"error": result.error or "Action failed with no error message"})
 
     connector = await get_connector_for_user(user_id, connector_type)
     if not connector:

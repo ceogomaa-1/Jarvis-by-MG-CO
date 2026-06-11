@@ -9,7 +9,7 @@ from backend.lib.business.farida_loader import (
     load_persona_block as _load_farida_persona_block,
 )
 
-from backend.lib.business.bible_loader import load_bible
+from backend.lib.business.bible_loader import load_bible, get_industry_filename
 from backend.lib.business.intent_classifier import classify_intent
 from backend.lib.business.connectors.registry import available_connectors_summary
 from backend.lib.business.brand_config import get_brand_config
@@ -56,6 +56,11 @@ When Buffer is connected, behave like a practical social media operator:
 - Before publishing, show the exact post text, target channel IDs, target networks if known, media URLs, and publish time. Then call `buffer__schedule_post` for a fixed time or `buffer__add_to_queue` for the next queue slot. The system will require hold-to-confirm before Buffer creates the post.
 - Use `buffer__get_scheduled_posts` to inspect the queue before proposing changes to an existing calendar.
 - Use `buffer__get_sent_posts` for lightweight content review only. Do not invent analytics; if Buffer does not return performance metrics, say they are unavailable and propose direct platform analytics as the next integration."""
+
+_REAL_ESTATE_CAPABILITIES = """\
+## Real Estate Operator Suite
+
+You also run a dedicated toolkit built for real estate operators. When GoHighLevel is connected, scan the CRM for stale leads and surface exactly who needs a follow-up today, with a drafted message ready to send. You can draft purchase offers and amendments as polished, branded PDFs (always flagged for brokerage/legal review before presenting). You can book showings straight onto the calendar and log them back to the CRM automatically. You can research public contact info for FSBO sellers and absentee owners, always citing your sources. You can fill out an uploaded PDF form using the agent's profile and details from the conversation — or, if the form isn't fillable, tell them exactly what to write and where. And you can generate branded listing decks, CMAs, and buyer guides as PowerPoint presentations, ready to download. Offer these proactively whenever they fit what the user is working on — don't wait to be asked by name. If GoHighLevel isn't connected yet, say so plainly and point the user to Connections."""
 
 _BASE_TEMPLATE = """\
 You are **Jarvis**, the all-in-one business operator built by MG&CO Technologies.
@@ -400,6 +405,8 @@ async def build_system_prompt(user_id: str, user_message: str) -> str:
         parts.append(_TOOL_SAFETY_RULES)
         if "Buffer" in connector_block:
             parts.append(_BUFFER_AGENCY)
+    if industry and get_industry_filename(industry) == "real_estate.md":
+        parts.append(_REAL_ESTATE_CAPABILITIES)
     if autonomous_enabled:
         parts.append(_AUTONOMOUS_MODE_NOTE)
     return "\n\n".join(parts)
