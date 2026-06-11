@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 import { completeBusinessOnboarding, getBusinessUser } from '../../../lib/userPreferences'
+import { useFontPref } from '../../../lib/fontPref'
 import OS1Cinematic from '../../../components/onboarding/OS1Cinematic'
 import OS1Questions from '../../../components/onboarding/OS1Questions'
 import TetrisLoader from '../../../components/ui/TetrisLoader'
@@ -13,6 +14,8 @@ export default function BusinessOnboardingPage() {
   const [session, setSession] = useState(null)
   const [pendingAnswers, setPendingAnswers] = useState(null)
   const [onboardError, setOnboardError] = useState(false)
+
+  useFontPref(session?.user?.id ? 'user_' + session.user.id.replace(/-/g, '') : null)
 
   useEffect(() => {
     if (!supabase) { setPhase('cinematic'); return }

@@ -6,6 +6,7 @@ import ChatCanvas from '../../../components/business/ChatCanvas'
 import ChatSidebar from '../../../components/business/ChatSidebar'
 import ChatHeaderMenu from '../../../components/business/ChatHeaderMenu'
 import { getBusinessUser } from '../../../lib/userPreferences'
+import { useFontPref } from '../../../lib/fontPref'
 import TetrisLoader from '../../../components/ui/TetrisLoader'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
@@ -24,6 +25,8 @@ export default function BusinessChatPage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [injectPrompt, setInjectPrompt] = useState(null)
+
+  useFontPref(userId)
 
   const loadConversations = useCallback(async (uid) => {
     const id = uid || userId

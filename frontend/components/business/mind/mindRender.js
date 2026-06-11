@@ -1,6 +1,7 @@
 // Pure canvas drawing + hit-testing helpers for MindCanvas. Kept separate so
 // the render loop body stays readable.
 import { colorForCategory, GOLD, QUEUE_BLUE } from './colors'
+import { getCanvasFontStack } from '../../../lib/fontPref'
 
 export const SPAWN_DURATION = 700
 export const REMOVE_DURATION = 450
@@ -171,7 +172,7 @@ export function drawQueueNode(ctx, q, w2s, zoom, t, opts = {}) {
     ctx.save()
     ctx.globalAlpha = opts.dimmed ? 0.1 : 0.85
     ctx.fillStyle = QUEUE_BLUE
-    ctx.font = '10px var(--pixel), monospace'
+    ctx.font = `10px ${getCanvasFontStack()}`
     ctx.textAlign = 'center'
     ctx.fillText(`born ${time} ⚡`, x, y - size - 4)
     ctx.restore()
@@ -195,7 +196,7 @@ export function drawBlob(ctx, blob, w2s, zoom, opts = {}) {
     ctx.save()
     ctx.globalAlpha = opts.dimmed ? 0.1 : 0.8
     ctx.fillStyle = '#131313'
-    ctx.font = `${Math.max(9, 10 * zoom)}px var(--pixel), monospace`
+    ctx.font = `${Math.max(9, 10 * zoom)}px ${getCanvasFontStack()}`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.fillText(String(blob.count), x, y + 1)

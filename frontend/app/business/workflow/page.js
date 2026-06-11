@@ -6,6 +6,7 @@ import ChatHeaderMenu from '../../../components/business/ChatHeaderMenu'
 import ViewToggle from '../../../components/business/workflow/ViewToggle'
 import { useEffect, useState } from 'react'
 import { supabase } from '../../../lib/supabase'
+import { useFontPref } from '../../../lib/fontPref'
 
 const TABS = [
   { id: 'mind', label: 'MIND' },
@@ -15,6 +16,8 @@ const TABS = [
 export default function WorkflowPage() {
   const [userId, setUserId] = useState(null)
   const [activeTab, setActiveTab] = useState('mind')
+
+  useFontPref(userId)
 
   useEffect(() => {
     if (!supabase) return

@@ -42,16 +42,21 @@ class PreferredNameUpdate(BaseModel):
     preferred_name: str
 
 
+class FontPrefUpdate(BaseModel):
+    user_id: str
+    font_pref: str  # 'pixel' | 'normal'
+
+
 @router.get("/user-preferences/{user_id}")
 async def get_preference(user_id: str):
     try:
         sb = _client()
-        res = sb.table("user_preferences").select("jarvis_mode,timezone,timezone_confirmed").eq("user_id", user_id).maybe_single().execute()
+        res = sb.table("user_preferences").select("jarvis_mode,timezone,timezone_confirmed,font_pref").eq("user_id", user_id).maybe_single().execute()
         if res.data:
             return res.data
-        return {"jarvis_mode": None, "timezone": None, "timezone_confirmed": False}
+        return {"jarvis_mode": None, "timezone": None, "timezone_confirmed": False, "font_pref": None}
     except Exception as e:
-        return {"jarvis_mode": None, "timezone": None, "timezone_confirmed": False, "error": str(e)}
+        return {"jarvis_mode": None, "timezone": None, "timezone_confirmed": False, "font_pref": None, "error": str(e)}
 
 
 @router.post("/user-preferences")
@@ -105,6 +110,19 @@ async def set_preferred_name(body: PreferredNameUpdate):
         sb.table("user_preferences").upsert({
             "user_id": body.user_id,
             "preferred_name": body.preferred_name,
+        }).execute()
+        return {"ok": True}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@router.patch("/user-preferences/font-pref")
+async def set_font_pref(body: FontPrefUpdate):
+    try:
+        sb = _client()
+        sb.table("user_preferences").upsert({
+            "user_id": body.user_id,
+            "font_pref": body.font_pref,
         }).execute()
         return {"ok": True}
     except Exception as e:

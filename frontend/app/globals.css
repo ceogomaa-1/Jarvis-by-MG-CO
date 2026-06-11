@@ -416,6 +416,13 @@ html, body {
   --os1-serif: var(--font-serif), Georgia, serif;
 }
 
+/* Readable Font toggle (Batch 48) — flips every OS1 surface that reads
+   --pixel/.font-pixel from the brand pixel font to Inter. */
+html.os1-font-normal {
+  --pixel: var(--font-sans), 'Inter', system-ui, sans-serif;
+}
+html.os1-font-normal .font-pixel { letter-spacing: 0 !important; }
+
 .os1-root {
   background: var(--os1-bg);
   color: var(--os1-text);

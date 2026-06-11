@@ -11,6 +11,7 @@ import BrandModal from './BrandModal'
 import ConnectionsModal from './ConnectionsModal'
 import KnowledgeBaseModal from './KnowledgeBaseModal'
 import ProfileModal from './ProfileModal'
+import FontToggle from './FontToggle'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
@@ -218,6 +219,7 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
                 {items.map(item => (
                   <MenuItem key={item.label} icon={item.icon} label={item.label} hint={item.hint} badge={item.badge} onClick={item.onClick} />
                 ))}
+                <FontToggle userId={userId} />
               </div>
 
               {/* Switch to Personal Jarvis */}
