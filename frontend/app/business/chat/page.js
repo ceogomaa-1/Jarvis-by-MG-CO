@@ -58,6 +58,12 @@ export default function BusinessChatPage() {
     }
   }, [userId])
 
+  // Warm up the Render backend immediately on mount — free-tier dynos sleep after
+  // idle and the first request can otherwise time out silently (see Batch 46.1).
+  useEffect(() => {
+    fetch(`${BACKEND}/health`).catch(() => {})
+  }, [])
+
   useEffect(() => {
     if (!supabase) { setLoading(false); return }
     supabase.auth.getSession().then(async ({ data: { session } }) => {

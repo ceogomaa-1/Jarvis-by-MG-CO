@@ -135,3 +135,9 @@ async def print_routes():
 @app.get("/")
 async def root():
     return {"status": "Jarvis is alive"}
+
+
+@app.get("/health")
+async def health():
+    """Instant 200 — used by the frontend to warm up the Render dyno before the first chat message."""
+    return {"status": "ok"}

@@ -224,6 +224,11 @@ export default function ChatCanvas({
   const inputRef = useRef(null)
   // Track current conversation ID in a ref so the send handler always has the latest value
   const activeConvRef = useRef(activeConversationId)
+  // Holds the conversation ID currently mid-stream (or null). When the conv-change
+  // effect fires for THIS conversation while a stream is in flight, the assistant's
+  // reply hasn't been persisted yet — skip the DB reload so it doesn't wipe the
+  // in-flight streaming bubble.
+  const streamingConvRef = useRef(null)
   // Scroll-to-bottom anchor and initial-load flag
   const messagesEndRef = useRef(null)
   const didInitialScroll = useRef(false)
@@ -278,6 +283,12 @@ export default function ChatCanvas({
       return
     }
     if (!supabase) return
+    // A reply is actively streaming for THIS conversation — its assistant message
+    // isn't in the DB yet. Skip the reload entirely; reloading now would wipe the
+    // in-flight streaming bubble and the reply would appear to "never arrive."
+    if (streamingConvRef.current && String(streamingConvRef.current) === String(activeConversationId)) {
+      return
+    }
     setMessagesLoading(true)
     const load = async () => {
       const { data: msgs } = await supabase
@@ -292,11 +303,13 @@ export default function ChatCanvas({
         chunks: [],
       }))
       setMessages(prev => {
-        const activeCreations = prev.filter(isActiveCreationMessage)
-        if (activeCreations.length === 0) return dbMessages
+        // Preserve in-flight creations AND any still-streaming assistant bubble —
+        // neither is persisted to the DB until it completes.
+        const preserved = prev.filter(m => isActiveCreationMessage(m) || m.streaming === true)
+        if (preserved.length === 0) return dbMessages
         const dbIds = new Set(dbMessages.map(m => String(m.id)))
-        const preserved = activeCreations.filter(m => !dbIds.has(String(m.id)))
-        return [...dbMessages, ...preserved]
+        const filteredPreserved = preserved.filter(m => !dbIds.has(String(m.id)))
+        return [...dbMessages, ...filteredPreserved]
       })
       setMessagesLoading(false)
     }
@@ -773,6 +786,40 @@ export default function ChatCanvas({
     const aId = msgIdRef.current
     setMessages(prev => [...prev, { id: aId, role: 'assistant', content: '', streaming: true, chunks: [] }])
     setIsThinking(true)
+    streamingConvRef.current = activeConvRef.current || 'pending'
+
+    let result = await runChatStream(aId, text, history, attachments)
+    if (!result.gotChunk) {
+      // Render free-tier cold start can drop the very first request of a session
+      // silently. Retry once, transparently — the thinking indicator stays up
+      // throughout since the bubble is still marked `streaming: true`.
+      result = await runChatStream(aId, text, history, attachments, true)
+    }
+
+    streamingConvRef.current = null
+    setToolStatus(null)
+
+    if (!result.gotChunk) {
+      setIsThinking(false)
+      setMessages(prev => prev.map(m =>
+        m.id === aId ? { ...m, content: 'Something went wrong. Please try again.', streaming: false } : m
+      ))
+    } else {
+      setIsThinking(false)
+      // Notify parent to refresh sidebar (new title may have been generated)
+      onConversationsUpdated?.()
+    }
+    setLoading(false)
+  }
+
+  // Runs one attempt of the chat stream for assistant message `aId`. Returns
+  // { gotChunk: boolean } — false means the stream produced nothing (network
+  // error, Render cold-start timeout, or zero content within 25s) so the
+  // caller can retry once before showing an error bubble.
+  async function runChatStream(aId, text, history, attachments, isRetry = false) {
+    const controller = new AbortController()
+    let gotChunk = false
+    let firstChunkTimer = setTimeout(() => controller.abort(), 25000)
 
     try {
       const res = await fetch(`${BACKEND}/api/business/chat/stream`, {
@@ -785,6 +832,7 @@ export default function ChatCanvas({
           conversation_id: activeConvRef.current || null,
           attachments: attachments.map(a => ({ type: a.type, media_type: a.media_type, data: a.data, name: a.name })),
         }),
+        signal: controller.signal,
       })
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
@@ -827,6 +875,7 @@ export default function ChatCanvas({
               if (chunk.type === 'conv_id' && chunk.value) {
                 if (!activeConvRef.current) {
                   activeConvRef.current = chunk.value
+                  streamingConvRef.current = chunk.value
                   onConversationCreated?.(chunk.value)
                 }
               } else if (chunk.type === 'tool_call') {
@@ -836,6 +885,11 @@ export default function ChatCanvas({
                   setToolStatus(null)
                 }
               } else if (chunk.type === 'pending_action') {
+                if (!gotChunk) {
+                  gotChunk = true
+                  clearTimeout(firstChunkTimer)
+                  firstChunkTimer = null
+                }
                 setMessages(prev => prev.map(m =>
                   m.id === aId ? { ...m, pending_action: chunk.action, action_resolved: false } : m
                 ))
@@ -846,6 +900,11 @@ export default function ChatCanvas({
             }
 
             // Regular text chunk
+            if (!gotChunk) {
+              gotChunk = true
+              clearTimeout(firstChunkTimer)
+              firstChunkTimer = null
+            }
             setIsThinking(false)
             acc += chunk
             pendingBatch += chunk
@@ -861,23 +920,18 @@ export default function ChatCanvas({
       if (pendingBatch) {
         allChunks.push({ text: pendingBatch, key: Date.now() + Math.random() })
       }
-      setToolStatus(null)
-      setIsThinking(false)
-      setMessages(prev => prev.map(m =>
-        m.id === aId ? { ...m, content: acc, chunks: [...allChunks], streaming: false } : m
-      ))
-
-      // Notify parent to refresh sidebar (new title may have been generated)
-      onConversationsUpdated?.()
-
+      if (gotChunk) {
+        setMessages(prev => prev.map(m =>
+          m.id === aId ? { ...m, content: acc, chunks: [...allChunks], streaming: false } : m
+        ))
+      }
+      return { gotChunk }
     } catch (err) {
-      console.error('Chat failed:', err)
-      setIsThinking(false)
-      setMessages(prev => prev.map(m =>
-        m.id === aId ? { ...m, content: 'Something went wrong. Please try again.', streaming: false } : m
-      ))
+      console.error(`Chat stream failed${isRetry ? ' (retry)' : ''}:`, err)
+      return { gotChunk }
+    } finally {
+      if (firstChunkTimer) clearTimeout(firstChunkTimer)
     }
-    setLoading(false)
   }
 
   const handleSuggestion = (text) => sendMessage(text)
