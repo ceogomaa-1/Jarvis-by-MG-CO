@@ -1,11 +1,25 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 
-// OS1 v2 — pixel-art lever switch + "Autonomous Jarvis" label (per Figma)
+// OS1 v2 — horizontal pixel rocker switch + "Autonomous Jarvis" label (per Figma)
 export default function AutonomousToggle({ userId, apiUrl, isReady, onToggle }) {
   const [isEnabled, setIsEnabled] = useState(false)
   const [showTooltip, setShowTooltip] = useState(false)
+
+  // Hydrate from backend so the switch survives refreshes/sessions.
+  useEffect(() => {
+    if (!userId) return
+    fetch(`${apiUrl}/api/business/autonomous/state?user_id=${encodeURIComponent(userId)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data?.enabled) {
+          setIsEnabled(true)
+          onToggle?.(true)
+        }
+      })
+      .catch(console.error)
+  }, [userId, apiUrl]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleToggle() {
     if (!isReady) {
@@ -27,39 +41,50 @@ export default function AutonomousToggle({ userId, apiUrl, isReady, onToggle }) 
 
   return (
     <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 10 }}>
-      {/* Pixel lever */}
+      {/* Horizontal pixel rocker switch */}
       <button
         onClick={handleToggle}
         title={!isReady ? 'Complete the readiness bar to unlock' : 'Autonomous Jarvis'}
         style={{
           position: 'relative',
-          width: 34,
-          height: 44,
-          background: 'transparent',
-          border: 'none',
+          flexShrink: 0,
+          width: 56,
+          height: 26,
+          borderRadius: 999,
+          border: `1px solid ${active ? '#2d7ff9' : '#3d3d3d'}`,
+          background: active ? 'rgba(45,127,249,0.25)' : '#2e2e2e',
           cursor: isReady ? 'pointer' : 'not-allowed',
           opacity: !isReady ? 0.45 : 1,
           padding: 0,
-          transition: 'opacity 0.3s ease',
+          transition: 'background 0.3s ease, border-color 0.3s ease, opacity 0.3s ease',
         }}
       >
-        <svg width="34" height="44" viewBox="0 0 34 44" style={{ display: 'block' }}>
-          {/* Base block (pixel) */}
-          <rect x="6" y="34" width="22" height="8" fill="none" stroke={active ? 'var(--os1-blue)' : 'var(--os1-text-dim)'} strokeWidth="2" />
-          <rect x="12" y="37" width="10" height="2" fill={active ? 'var(--os1-blue)' : 'var(--os1-text-dim)'} />
-          {/* Lever arm — angled when off, upright when on */}
-          <motion.g
-            animate={{ rotate: active ? 0 : 38 }}
-            transition={{ type: 'spring', stiffness: 260, damping: 17 }}
-            style={{ originX: '17px', originY: '34px' }}
-          >
-            <rect x="15.5" y="12" width="3" height="22" fill={active ? 'var(--os1-blue)' : 'var(--os1-text-dim)'} />
-            {/* Knob — pixel circle */}
-            <rect x="11" y="4" width="12" height="3" fill={active ? 'var(--os1-blue)' : 'var(--os1-text-dim)'} />
-            <rect x="9" y="7" width="16" height="6" fill={active ? 'var(--os1-blue)' : 'var(--os1-text-dim)'} />
-            <rect x="11" y="13" width="12" height="3" fill={active ? 'var(--os1-blue)' : 'var(--os1-text-dim)'} />
-          </motion.g>
-        </svg>
+        {/* Micro-labels */}
+        <span className="font-pixel" style={{
+          position: 'absolute', left: 6, top: '50%', transform: 'translateY(-50%)',
+          fontSize: 7, lineHeight: 1, color: '#6a6a6a', userSelect: 'none',
+        }}>
+          OFF
+        </span>
+        <span className="font-pixel" style={{
+          position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
+          fontSize: 7, lineHeight: 1, color: active ? '#2d7ff9' : '#6a6a6a', userSelect: 'none',
+          transition: 'color 0.3s ease',
+        }}>
+          ON
+        </span>
+
+        {/* Knob */}
+        <motion.div
+          animate={{ x: active ? 30 : 0 }}
+          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+          style={{
+            position: 'absolute', top: 2, left: 2,
+            width: 20, height: 20, borderRadius: 4,
+            background: active ? '#2d7ff9' : '#8a8a8a',
+            boxShadow: active ? '0 0 10px rgba(45,127,249,0.6)' : 'none',
+          }}
+        />
       </button>
 
       {/* Label */}

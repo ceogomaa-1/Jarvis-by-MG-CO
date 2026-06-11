@@ -3,6 +3,7 @@ Readiness, autonomous mode, and proactive insights API.
 
   GET   /business/readiness?user_id=...            → readiness score (0–100)
   POST  /business/autonomous/toggle                → enable/disable autonomous mode
+  GET   /business/autonomous/state?user_id=...     → current autonomous mode state
   GET   /business/proactive/unread?user_id=...     → unread proactive insights
   PATCH /business/proactive/{id}/read              → mark insight as read
 
@@ -17,7 +18,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
 from backend.lib.business.readiness import calculate_readiness
-from backend.lib.business.brand_config import upsert_brand_config
+from backend.lib.business.brand_config import get_brand_config, upsert_brand_config
 
 SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
@@ -65,6 +66,14 @@ async def toggle_autonomous(request: ToggleRequest, background_tasks: Background
     if request.enabled:
         background_tasks.add_task(_generate_proactive_insight, request.user_id)
     return {"autonomous_enabled": request.enabled}
+
+
+@router.get("/business/autonomous/state")
+async def get_autonomous_state(user_id: str = ""):
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id required")
+    config = await get_brand_config(user_id)
+    return {"enabled": bool(config.get("operator_enabled", False))}
 
 
 # ════════════════════════════════════════════════════════════════════
