@@ -12,7 +12,19 @@ import ConnectionsModal from './ConnectionsModal'
 import KnowledgeBaseModal from './KnowledgeBaseModal'
 import ProfileModal from './ProfileModal'
 
+const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
+
 const PANEL_WIDTH = 248
+
+function UnreadBadge() {
+  return (
+    <span style={{
+      position: 'absolute', top: 2, right: 2,
+      width: 8, height: 8, borderRadius: 2,
+      background: '#2d7ff9',
+    }} />
+  )
+}
 
 function HamburgerIcon() {
   return (
@@ -46,7 +58,7 @@ function SpaceInvaderIcon({ size = 22 }) {
   )
 }
 
-function MenuItem({ icon, label, hint, onClick }) {
+function MenuItem({ icon, label, hint, badge, onClick }) {
   return (
     <button
       onClick={onClick}
@@ -59,9 +71,19 @@ function MenuItem({ icon, label, hint, onClick }) {
         color: 'var(--os1-text)',
         textAlign: 'left',
         marginBottom: 12,
+        position: 'relative',
       }}
     >
-      <span style={{ color: 'var(--os1-text-dim)', display: 'flex', flexShrink: 0 }}>{icon}</span>
+      <span style={{ color: 'var(--os1-text-dim)', display: 'flex', flexShrink: 0, position: 'relative' }}>
+        {icon}
+        {badge && (
+          <span style={{
+            position: 'absolute', top: -3, right: -5,
+            width: 7, height: 7, borderRadius: 2,
+            background: '#2d7ff9',
+          }} />
+        )}
+      </span>
       <span style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
         <span className="font-pixel" style={{ fontSize: 13, lineHeight: 1.3 }}>{label}</span>
         {hint && (
@@ -74,10 +96,11 @@ function MenuItem({ icon, label, hint, onClick }) {
   )
 }
 
-export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, onClose }) {
+export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, onClose, onActPrompt }) {
   const router = useRouter()
   const [openModal, setOpenModal] = useState(null)
   const [authUser, setAuthUser] = useState(null)
+  const [unreadCount, setUnreadCount] = useState(0)
 
   useEffect(() => {
     if (!supabase) return
@@ -86,8 +109,20 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
       .catch(() => setAuthUser(null))
   }, [])
 
+  useEffect(() => {
+    if (!userId) return
+    fetch(`${BACKEND}/api/business/morning-queue/unread-count?user_id=${encodeURIComponent(userId)}`)
+      .then(r => r.json())
+      .then(d => setUnreadCount(d.unread || 0))
+      .catch(() => {})
+  }, [userId])
+
   const close = () => setOpenModal(null)
-  const openM = (key) => { setOpenModal(key); onClose?.() }
+  const openM = (key) => {
+    setOpenModal(key)
+    onClose?.()
+    if (key === 'queue') setUnreadCount(0)
+  }
 
   const switchToPersonal = async () => {
     try { if (userId) await setJarvisMode(userId, 'personal') } catch {}
@@ -106,7 +141,7 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
     : '—'
 
   const items = [
-    { label: 'Morning Queue',         icon: <Inbox size={17} />,    onClick: () => openM('queue') },
+    { label: 'Morning Queue',         icon: <Inbox size={17} />,    badge: unreadCount > 0, onClick: () => openM('queue') },
     { label: 'Knowledge Base',        icon: <BookOpen size={17} />, hint: "stuff you're ready to paste and want me to know right away", onClick: () => openM('knowledge') },
     { label: 'Connections',           icon: <Wrench size={17} />,   onClick: () => openM('connections') },
     { label: 'Brand Personalization', icon: <Star size={17} />,     onClick: () => openM('brand') },
@@ -124,6 +159,7 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
           style={{ position: 'fixed', top: 20, right: 22, zIndex: 50 }}
         >
           <HamburgerIcon />
+          {unreadCount > 0 && <UnreadBadge />}
         </button>
       )}
 
@@ -180,7 +216,7 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
               {/* Menu items */}
               <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }} className="os1-scroll">
                 {items.map(item => (
-                  <MenuItem key={item.label} icon={item.icon} label={item.label} hint={item.hint} onClick={item.onClick} />
+                  <MenuItem key={item.label} icon={item.icon} label={item.label} hint={item.hint} badge={item.badge} onClick={item.onClick} />
                 ))}
               </div>
 
@@ -212,7 +248,7 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
         )}
       </AnimatePresence>
 
-      <MorningQueueModal  open={openModal === 'queue'}       onClose={close} userId={userId} />
+      <MorningQueueModal  open={openModal === 'queue'}       onClose={close} userId={userId} onAct={onActPrompt} />
       <BrandModal         open={openModal === 'brand'}       onClose={close} userId={userId} onSaved={onBrandSaved} />
       <ConnectionsModal   open={openModal === 'connections'} onClose={close} userId={userId} />
       <KnowledgeBaseModal open={openModal === 'knowledge'}   onClose={close} userId={userId} />

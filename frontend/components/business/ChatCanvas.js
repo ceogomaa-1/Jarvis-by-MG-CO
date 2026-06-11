@@ -208,6 +208,7 @@ export default function ChatCanvas({
   onConversationCreated,
   onConversationsUpdated,
   onMemoryCountUpdate,
+  injectPrompt,
 }) {
   const [messages, setMessages] = useState([])
   const [messagesLoading, setMessagesLoading] = useState(false)
@@ -274,6 +275,13 @@ export default function ChatCanvas({
       sessionStorage.removeItem('jarvis_prefill')
     }
   }, [])
+
+  // "Act on this ->" from the Morning Queue — drop the action prompt into the input
+  useEffect(() => {
+    if (!injectPrompt?.text) return
+    setInput(injectPrompt.text)
+    inputRef.current?.focus()
+  }, [injectPrompt])
 
   // Load messages when conversation changes
   useEffect(() => {

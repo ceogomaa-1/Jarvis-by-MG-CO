@@ -380,6 +380,10 @@ async def build_system_prompt(user_id: str, user_message: str) -> str:
     # Inject user memories (after North Star, before base template)
     memory_block = await asyncio.to_thread(_fetch_user_memories, user_id) if user_id else ""
 
+    # Inject today's Morning Queue digest, if any
+    from backend.lib.business.morning_queue import queue_digest_for_prompt
+    queue_block = await queue_digest_for_prompt(user_id) if user_id else ""
+
     # Inject connected tools context — skip if no connectors active
     connector_block = await available_connectors_summary(user_id) if user_id else ""
     has_connectors = connector_block and not connector_block.startswith("No connectors")
@@ -398,6 +402,8 @@ async def build_system_prompt(user_id: str, user_message: str) -> str:
         parts.append(farida_block)
     if memory_block:
         parts.append(memory_block)
+    if queue_block:
+        parts.append(queue_block)
     parts.append(base_prompt)
     parts.append(_WEBDEV_BUILDER)
     if has_connectors:

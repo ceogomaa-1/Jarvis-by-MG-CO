@@ -23,6 +23,7 @@ export default function BusinessChatPage() {
   const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [injectPrompt, setInjectPrompt] = useState(null)
 
   const loadConversations = useCallback(async (uid) => {
     const id = uid || userId
@@ -207,6 +208,7 @@ export default function BusinessChatPage() {
         open={menuOpen}
         onToggle={() => setMenuOpen(o => !o)}
         onClose={() => setMenuOpen(false)}
+        onActPrompt={(prompt) => setInjectPrompt({ text: prompt, ts: Date.now() })}
       />
 
       {/* Body: floating sidebar + chat canvas */}
@@ -232,6 +234,7 @@ export default function BusinessChatPage() {
           onConversationCreated={handleConversationCreated}
           onConversationsUpdated={handleConversationsUpdated}
           onMemoryCountUpdate={(count) => setMemoryCount(c => Math.max(c, count))}
+          injectPrompt={injectPrompt}
         />
       </div>
     </div>
