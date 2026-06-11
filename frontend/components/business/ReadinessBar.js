@@ -34,7 +34,7 @@ export default function ReadinessBar({ userId, apiUrl, onReadinessUpdate }) {
     { key: 'business_name',       label: 'Business' },
     { key: 'revenue_context',     label: 'Revenue Goals' },
     { key: 'first_connector',     label: '1st Tool' },
-    { key: 'power_connected',     label: '3+ Tools' },
+    { key: 'power_connected',     label: '2 Tools' },
     { key: 'north_star_set',      label: 'North Star' },
     { key: 'five_memories',       label: '5+ Memories' },
     { key: 'deep_knowledge',      label: 'Deep Context' },

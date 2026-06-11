@@ -37,7 +37,7 @@ def _get_next_milestone(checkpoints: dict) -> str:
     if not checkpoints.get("five_memories"):
         return "Keep chatting — Jarvis is still learning about you"
     if not checkpoints.get("power_connected"):
-        return "Connect 2 more tools to unlock full power"
+        return "Connect 1 more tool to unlock full power"
     if not checkpoints.get("deep_knowledge"):
         return "Continue sharing context — almost there"
     return "Autonomous mode ready!"
@@ -132,7 +132,7 @@ async def calculate_readiness(user_id: str) -> dict:
             if connector_count >= 1:
                 score += 10
                 checkpoints["first_connector"] = True
-            if connector_count >= 3:
+            if connector_count >= 2:
                 score += 10
                 checkpoints["power_connected"] = True
 
