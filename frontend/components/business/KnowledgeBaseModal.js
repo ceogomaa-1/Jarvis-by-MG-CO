@@ -44,7 +44,7 @@ function formatDate(iso) {
   }
 }
 
-export default function KnowledgeBaseModal({ open, onClose, userId }) {
+export default function KnowledgeBaseModal({ open, onClose, userId, userEmail }) {
   const [tab, setTab] = useState('feed')
   const [text, setText] = useState('')
   const [files, setFiles] = useState([])
@@ -54,6 +54,11 @@ export default function KnowledgeBaseModal({ open, onClose, userId }) {
   const [sources, setSources] = useState([])
   const [sourcesLoading, setSourcesLoading] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
+  const [wishText, setWishText] = useState('')
+  const [wishSubmitting, setWishSubmitting] = useState(false)
+  const [wishSubmitted, setWishSubmitted] = useState(false)
+  const [wishError, setWishError] = useState('')
+  const lastWishSubmitRef = useRef(0)
   const fileInputRef = useRef(null)
   const progressEndRef = useRef(null)
 
@@ -151,6 +156,35 @@ export default function KnowledgeBaseModal({ open, onClose, userId }) {
     setDeletingId(null)
   }
 
+  async function handleWishSubmit() {
+    if (!userId || wishSubmitting) return
+    const wish = wishText.trim()
+    if (!wish) return
+
+    const now = Date.now()
+    if (now - lastWishSubmitRef.current < 30000) {
+      setWishError('Slow down a little — try again in a few seconds.')
+      return
+    }
+
+    setWishSubmitting(true)
+    setWishError('')
+    try {
+      await fetch(`${BACKEND}/api/business/feedback/wish`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, email: userEmail || null, wish_text: wish }),
+      })
+      lastWishSubmitRef.current = now
+      setWishText('')
+      setWishSubmitted(true)
+    } catch (e) {
+      console.error('Wish submit failed', e)
+      setWishError('Could not reach Jarvis — try again in a moment.')
+    }
+    setWishSubmitting(false)
+  }
+
   return (
     <div
       onClick={onClose}
@@ -199,6 +233,7 @@ export default function KnowledgeBaseModal({ open, onClose, userId }) {
           {[
             { key: 'feed', label: 'Feed Jarvis' },
             { key: 'knows', label: 'What Jarvis Knows' },
+            { key: 'wish', label: 'Wish Box' },
           ].map(t => (
             <button
               key={t.key}
@@ -418,6 +453,94 @@ export default function KnowledgeBaseModal({ open, onClose, userId }) {
                 Close
               </button>
             </div>
+          </div>
+        )}
+
+        {tab === 'wish' && (
+          <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
+            {!wishSubmitted ? (
+              <>
+                <div style={{
+                  fontFamily: 'var(--font-pixel), monospace',
+                  fontSize: 13, color: '#e8e8e8', marginBottom: 4, lineHeight: 1.5,
+                }}>
+                  What do you wish Jarvis could do better — or have — that doesn't exist yet?
+                </div>
+                <div className="os1-serif-micro" style={{ fontSize: 9, color: 'rgba(232,232,232,0.45)', marginBottom: 16 }}>
+                  every wish lands directly on the founder's desk.
+                </div>
+                <textarea
+                  value={wishText}
+                  onChange={e => setWishText(e.target.value)}
+                  disabled={wishSubmitting}
+                  placeholder="Tell Jarvis what's missing, what's broken, or what you wish it could do..."
+                  rows={8}
+                  style={{
+                    width: '100%', boxSizing: 'border-box',
+                    background: 'rgba(232,232,232,0.04)',
+                    border: '1px solid rgba(232,232,232,0.12)',
+                    borderRadius: 10, padding: '14px 16px',
+                    color: '#e8e8e8',
+                    fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
+                    fontSize: 13, lineHeight: 1.6, outline: 'none', resize: 'vertical',
+                    marginBottom: 12,
+                  }}
+                />
+                {wishError && (
+                  <div className="os1-serif-micro" style={{ fontSize: 10, color: '#ff6b6b', marginBottom: 12 }}>
+                    {wishError}
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 'auto' }}>
+                  <button
+                    onClick={onClose}
+                    disabled={wishSubmitting}
+                    style={{
+                      background: 'transparent',
+                      border: '1px solid rgba(232,232,232,0.1)',
+                      borderRadius: 12, padding: '10px 24px',
+                      color: 'rgba(232,232,232,0.7)', fontSize: 13,
+                      fontFamily: 'system-ui, sans-serif', cursor: wishSubmitting ? 'default' : 'pointer',
+                      transition: 'all 200ms ease',
+                    }}
+                  >
+                    Close
+                  </button>
+                  <button
+                    onClick={handleWishSubmit}
+                    disabled={wishSubmitting || !wishText.trim()}
+                    style={{
+                      background: wishSubmitting ? 'rgba(45,127,249,0.4)' : '#2d7ff9',
+                      border: 'none', borderRadius: 12, padding: '10px 24px',
+                      color: '#0a0a0a', fontSize: 13, fontWeight: 500,
+                      fontFamily: 'system-ui, sans-serif',
+                      cursor: wishSubmitting ? 'default' : 'pointer',
+                      opacity: !wishText.trim() ? 0.5 : 1,
+                      transition: 'background 200ms ease',
+                    }}
+                  >
+                    {wishSubmitting ? 'Sending...' : 'Send'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 16, padding: '40px 0' }}>
+                <div className="onboarding-pulse" style={{ width: 10, height: 10, background: '#2d7ff9', borderRadius: 2 }} />
+                <div style={{
+                  fontFamily: 'var(--font-pixel), monospace',
+                  fontSize: 13, color: '#e8e8e8', lineHeight: 1.6, maxWidth: 340,
+                }}>
+                  Thanks! Keep your eyes on Jarvis — your request will be seen soon!
+                </div>
+                <button
+                  onClick={() => setWishSubmitted(false)}
+                  className="os1-serif-micro"
+                  style={{ fontSize: 10, color: '#2d7ff9', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
+                >
+                  make another wish
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

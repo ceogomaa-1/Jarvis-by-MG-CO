@@ -253,7 +253,7 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
       <MorningQueueModal  open={openModal === 'queue'}       onClose={close} userId={userId} onAct={onActPrompt} />
       <BrandModal         open={openModal === 'brand'}       onClose={close} userId={userId} onSaved={onBrandSaved} />
       <ConnectionsModal   open={openModal === 'connections'} onClose={close} userId={userId} />
-      <KnowledgeBaseModal open={openModal === 'knowledge'}   onClose={close} userId={userId} />
+      <KnowledgeBaseModal open={openModal === 'knowledge'}   onClose={close} userId={userId} userEmail={authUser?.email} />
       <ProfileModal       open={openModal === 'profile'}     onClose={close} />
     </>
   )
