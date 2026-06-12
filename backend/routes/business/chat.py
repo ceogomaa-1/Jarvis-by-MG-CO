@@ -106,7 +106,7 @@ def _user_id_to_uuid(user_id: str) -> str:
     return user_id
 
 
-def _setup_conversation(sb, user_id: str, conv_id: str | None, message: str) -> tuple[str | None, bool]:
+def _setup_conversation(sb, user_id: str, conv_id: str | None, message: str, attachments: list[dict] | None = None) -> tuple[str | None, bool]:
     """
     Create conversation if conv_id is None, then save user message.
     Returns (conv_id, is_new_conversation).
@@ -122,11 +122,14 @@ def _setup_conversation(sb, user_id: str, conv_id: str | None, message: str) -> 
         conv_id = res.data[0]["id"] if res.data else None
 
     if conv_id:
-        sb.table("business_messages").insert({
+        row = {
             "conversation_id": conv_id,
             "role": "user",
             "content": message,
-        }).execute()
+        }
+        if attachments:
+            row["attachments"] = attachments
+        sb.table("business_messages").insert(row).execute()
 
     return conv_id, is_new
 
@@ -185,6 +188,8 @@ class AttachmentItem(BaseModel):
     media_type: str = "image/jpeg"
     data: str                    # base64-encoded
     name: str = ""               # original filename (for text_file fallback label)
+    storage_path: str | None = None  # path in the chat-attachments Supabase bucket
+    size: int | None = None      # file size in bytes
 
 
 class BusinessChatRequest(BaseModel):
@@ -345,8 +350,17 @@ async def business_chat_stream(request: BusinessChatRequest):
 
     if not limit_exceeded and sb and request.user_id:
         try:
+            attachments_meta = [
+                {
+                    "name": a.name,
+                    "media_type": a.media_type,
+                    "size": a.size,
+                    "storage_path": a.storage_path,
+                }
+                for a in request.attachments if a.storage_path
+            ]
             conv_id, is_new_conv = await asyncio.to_thread(
-                _setup_conversation, sb, request.user_id, conv_id, request.message
+                _setup_conversation, sb, request.user_id, conv_id, request.message, attachments_meta
             )
         except Exception as e:
             print(f"Pre-stream DB setup error: {e}")

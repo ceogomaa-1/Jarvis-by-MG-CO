@@ -19,6 +19,8 @@ import UsageCounter from './UsageCounter'
 import { supabase } from '../../lib/supabase'
 import TetrisLoader from '../ui/TetrisLoader'
 import ThinkingIndicator from './ThinkingIndicator'
+import { uploadChatAttachment } from '../../lib/business/attachments'
+import { AttachmentsRow } from './AttachmentDisplay'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 const DEPLOY_POLL_MS = 5000
@@ -64,18 +66,7 @@ function UserBubble({ content, attachments }) {
       transition={{ duration: 0.3, ease: 'easeOut' }}
       style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 24, flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}
     >
-      {attachments && attachments.length > 0 && (
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          {attachments.map((att, i) => att.preview_url && (
-            <img
-              key={i}
-              src={att.preview_url}
-              alt=""
-              style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 12, border: '1px solid var(--os1-border-soft)' }}
-            />
-          ))}
-        </div>
-      )}
+      <AttachmentsRow attachments={attachments} />
       {content && (
         <div className="os1-bubble-user" style={{
           maxWidth: '70%', padding: '14px 18px 8px',
@@ -330,12 +321,13 @@ export default function ChatCanvas({
     const load = async () => {
       const { data: msgs } = await supabase
         .from('business_messages')
-        .select('id, role, content, created_at')
+        .select('id, role, content, created_at, attachments')
         .eq('conversation_id', activeConversationId)
         .order('created_at', { ascending: true })
       // Normalize DB messages to match in-memory format
       const dbMessages = (msgs || []).map(m => ({
         ...m,
+        attachments: m.attachments || [],
         streaming: false,
         chunks: [],
       }))
@@ -589,6 +581,7 @@ export default function ChatCanvas({
           media_type: file.type || 'application/octet-stream',
           data: base64,
           name: file.name,
+          size: file.size,
           preview_url: isImage ? dataUrl : null,
         })
       }
@@ -630,9 +623,16 @@ export default function ChatCanvas({
     if (overrideText === null) setInput('')
     inputRef.current?.focus()
 
-    // Convert File objects to base64 attachments
+    // Convert File objects to base64 attachments, in parallel with uploading
+    // each file to Supabase Storage (chat-attachments) for persistent display.
     const attachments = files.length > 0
-      ? await Promise.all(files.map(fileToAttachment))
+      ? await Promise.all(files.map(async (file) => {
+          const [att, storagePath] = await Promise.all([
+            fileToAttachment(file),
+            uploadChatAttachment(file, userId, activeConvRef.current),
+          ])
+          return { ...att, storage_path: storagePath }
+        }))
       : []
 
     // When files are attached, always use the regular chat path — it has full
@@ -867,7 +867,7 @@ export default function ChatCanvas({
           user_id: userId || '',
           conversation_history: history,
           conversation_id: activeConvRef.current || null,
-          attachments: attachments.map(a => ({ type: a.type, media_type: a.media_type, data: a.data, name: a.name })),
+          attachments: attachments.map(a => ({ type: a.type, media_type: a.media_type, data: a.data, name: a.name, storage_path: a.storage_path, size: a.size })),
           node_context: nodeContext,
         }),
         signal: controller.signal,
