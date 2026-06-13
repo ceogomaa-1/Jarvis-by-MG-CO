@@ -1628,8 +1628,12 @@ export default function Home() {
     }).catch(() => setOnboarding(true))
   }, [userId])
 
-  // Proactive polling — every 30s (secondary path; the real-time path is the
-  // external cron pinger hitting POST /api/notes/_dispatch every ~60s)
+  // Proactive polling — every 10s while the app is open. Catches due reminders
+  // ("chat" channel) and any unread proactive_messages rows (e.g. the cron
+  // dispatcher's "inapp" reminder insert) so they appear live, without needing
+  // a reload. The external cron pinger hitting POST /api/notes/_dispatch every
+  // ~60s is what actually fires push/email/inapp; this poll just surfaces the
+  // result quickly while the app is open.
   useEffect(() => {
     if (!userId || !onboardingComplete) return
     const poll = async () => {
@@ -1646,7 +1650,7 @@ export default function Home() {
         }
       } catch {}
     }
-    const interval = setInterval(poll, 30000)
+    const interval = setInterval(poll, 10000)
     return () => clearInterval(interval)
   }, [userId, onboardingComplete])
 

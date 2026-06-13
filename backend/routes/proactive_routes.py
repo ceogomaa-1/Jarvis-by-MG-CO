@@ -53,6 +53,53 @@ async def get_proactive_messages(user_id: str):
 _NO_MESSAGE = {"has_message": False, "message": None, "trigger_type": None}
 
 
+async def _check_unread_proactive_messages(user_id: str) -> dict | None:
+    """Return the oldest unread row from `proactive_messages` (morning
+    briefings, and the "inapp" channel's `note_reminder` rows written by the
+    cron dispatcher), marking it read.
+
+    Without this, those rows only ever surfaced via GET /api/proactive/{user_id}
+    on page load — so a reminder that fired while the app was open didn't show
+    up until the user reloaded. Folding the check into this polled endpoint
+    makes them appear live."""
+    if not _SUPABASE_URL or not _SUPABASE_KEY:
+        return None
+    headers = {
+        "apikey": _SUPABASE_KEY,
+        "Authorization": f"Bearer {_SUPABASE_KEY}",
+        "Content-Type": "application/json",
+    }
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"{_SUPABASE_URL}/rest/v1/proactive_messages",
+            headers=headers,
+            params={
+                "user_id": f"eq.{user_id}",
+                "read": "eq.false",
+                "order": "created_at.asc",
+                "limit": 1,
+            },
+            timeout=10.0,
+        )
+    if resp.status_code != 200:
+        return None
+    rows = resp.json()
+    if not rows:
+        return None
+
+    row = rows[0]
+    async with httpx.AsyncClient() as client:
+        await client.patch(
+            f"{_SUPABASE_URL}/rest/v1/proactive_messages",
+            headers={**headers, "Prefer": "return=minimal"},
+            params={"id": f"eq.{row['id']}"},
+            json={"read": True},
+            timeout=10.0,
+        )
+
+    return {"has_message": True, "message": row["message"], "trigger_type": row.get("type") or "proactive"}
+
+
 async def _check_due_reminders(user_id: str) -> dict | None:
     """Return a proactive reminder message if any note is past its remind_at time
     and hasn't been surfaced in chat yet ("chat" not in channels_sent)."""
@@ -120,8 +167,9 @@ async def _check_due_reminders(user_id: str) -> dict | None:
 
 @router.get("/proactive/check/{user_id}")
 async def check_proactive(user_id: str):
-    """Frontend polls this every 5 minutes.
-    Checks due reminders first, then pending insights."""
+    """Frontend polls this every ~10s.
+    Checks due reminders first, then unread proactive_messages (cron-fired
+    "inapp" reminders, morning briefings), then pending insights."""
 
     # 1. Reminders take priority — fire them the moment they're due
     reminder = await _check_due_reminders(user_id)
@@ -130,7 +178,13 @@ async def check_proactive(user_id: str):
             await save_conversation_turn(user_id, "assistant", reminder["message"])
         return reminder
 
-    # 2. Deliver any background-generated insight that's been stored
+    # 2. Surface unread proactive_messages rows live (e.g. the cron
+    # dispatcher's "inapp" channel insert) instead of waiting for next reload
+    unread = await _check_unread_proactive_messages(user_id)
+    if unread:
+        return unread
+
+    # 3. Deliver any background-generated insight that's been stored
     pending = await get_pending_proactive_message(user_id)
     if not pending:
         return _NO_MESSAGE
