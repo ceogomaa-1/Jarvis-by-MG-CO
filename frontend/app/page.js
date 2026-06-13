@@ -826,35 +826,80 @@ function Toast({ message, onTap, onClose, duration = 6000 }) {
 
 function Conversation({ messages, loading, onRetry }) {
   const scrollRef = useRef(null)
+  const stickRef = useRef(true)
+  const [showJump, setShowJump] = useState(false)
+
+  function handleScroll() {
+    const el = scrollRef.current
+    if (!el) return
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight
+    const atBottom = distance < 80
+    stickRef.current = atBottom
+    if (atBottom) setShowJump(false)
+  }
+
+  function scrollToBottom() {
+    const el = scrollRef.current
+    if (!el) return
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+    stickRef.current = true
+    setShowJump(false)
+  }
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
+    const el = scrollRef.current
+    if (!el) return
+    const lastRole = messages[messages.length - 1]?.role
+    if (stickRef.current || lastRole === 'user') {
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+      stickRef.current = true
+      setShowJump(false)
+    } else {
+      setShowJump(true)
     }
   }, [messages, loading])
 
   return (
-    <div ref={scrollRef} style={{
-      flex: 1, overflowY: 'auto',
-      padding: '24px 40px 32px',
-      maskImage: 'linear-gradient(to bottom, transparent 0, #000 60px, #000 100%)',
-      WebkitMaskImage: 'linear-gradient(to bottom, transparent 0, #000 60px, #000 100%)',
-    }}>
-      <div style={{ maxWidth: 720, margin: '0 auto' }}>
-        {messages.map((m, i) => (
-          <div key={m.id ?? i} className="msg-enter">
-            <Message msg={m} isLatest={i === messages.length - 1 && !loading} onRetry={onRetry} />
-          </div>
-        ))}
-        {loading && <ThinkingIndicator />}
+    <div style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <div ref={scrollRef} onScroll={handleScroll} style={{
+        flex: 1, overflowY: 'auto',
+        padding: '24px 40px 32px',
+        maskImage: 'linear-gradient(to bottom, transparent 0, #000 60px, #000 100%)',
+        WebkitMaskImage: 'linear-gradient(to bottom, transparent 0, #000 60px, #000 100%)',
+      }}>
+        <div style={{ maxWidth: 720, margin: '0 auto' }}>
+          {messages.map((m, i) => (
+            <div key={m.id ?? i} className="msg-enter">
+              <Message msg={m} isLatest={i === messages.length - 1 && !loading} onRetry={onRetry} />
+            </div>
+          ))}
+          {loading && <ThinkingIndicator />}
+        </div>
       </div>
+      {showJump && (
+        <button
+          onClick={scrollToBottom}
+          style={{
+            position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)',
+            display: 'flex', alignItems: 'center', gap: 6,
+            background: 'rgba(20,16,12,0.85)', border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 999, padding: '8px 16px', cursor: 'pointer',
+            color: 'var(--ink-soft)', fontFamily: 'var(--sans)', fontSize: 11,
+            letterSpacing: '0.1em', textTransform: 'uppercase',
+            backdropFilter: 'blur(8px)', boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
+            animation: 'fadeUp 300ms ease both',
+          }}
+        >
+          ↓ Jump to latest
+        </button>
+      )}
     </div>
   )
 }
 
 // ─── Input bar ────────────────────────────────────────────────────────────────
 
-function InputBar({ orbState, input, setInput, onSend, onMicClick, voiceMode, voiceConnecting, loading, disabled, fileInputRef, uploadingFile, onFileSelect, pendingFiles, onRemoveFile, mobile, pastedImage, onPastedImageChange, usage }) {
+function InputBar({ orbState, input, setInput, onSend, onStop, onMicClick, voiceMode, voiceConnecting, loading, disabled, fileInputRef, uploadingFile, onFileSelect, pendingFiles, onRemoveFile, mobile, pastedImage, onPastedImageChange, usage }) {
   const isListening = orbState === 'listening'
   const textareaRef = useRef(null)
   const hasContent = input.trim() || !!pastedImage || (pendingFiles || []).some(f => f.status === 'ready')
@@ -1093,23 +1138,42 @@ function InputBar({ orbState, input, setInput, onSend, onMicClick, voiceMode, vo
             padding: '4px 0', margin: '0',
           }}
         />
-        <button
-          onClick={triggerSend}
-          disabled={!hasContent || loading || disabled}
-          aria-label="send"
-          style={{
-            width: 36, height: 36, borderRadius: 999, flexShrink: 0,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: hasContent && !loading ? 'var(--accent)' : 'rgba(243,234,217,0.07)',
-            border: 0, color: hasContent && !loading ? '#1a0e08' : 'var(--ink-mute)',
-            cursor: hasContent && !loading ? 'pointer' : 'default',
-            transition: 'all 200ms ease',
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-            <path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
+        {loading ? (
+          <button
+            onClick={onStop}
+            aria-label="stop generating"
+            style={{
+              width: 36, height: 36, borderRadius: 999, flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'var(--accent)',
+              border: 0, color: '#1a0e08',
+              cursor: 'pointer',
+              transition: 'all 200ms ease',
+            }}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="4" y="4" width="16" height="16" rx="2" />
+            </svg>
+          </button>
+        ) : (
+          <button
+            onClick={triggerSend}
+            disabled={!hasContent || disabled}
+            aria-label="send"
+            style={{
+              width: 36, height: 36, borderRadius: 999, flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: hasContent ? 'var(--accent)' : 'rgba(243,234,217,0.07)',
+              border: 0, color: hasContent ? '#1a0e08' : 'var(--ink-mute)',
+              cursor: hasContent ? 'pointer' : 'default',
+              transition: 'all 200ms ease',
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+              <path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        )}
       </div>
     </div>
   )
@@ -1308,6 +1372,8 @@ export default function Home() {
   const msgIdRef = useRef(1)
   const conversationBufferRef = useRef([])
   const reconnectAttemptsRef = useRef(0)
+  const abortControllerRef = useRef(null)
+  const userStoppedRef = useRef(false)
   const fileInputRef = useRef(null)
   const [uploadingFile, setUploadingFile] = useState(false)
   const [pastedImage, setPastedImage] = useState(null)
@@ -1319,6 +1385,8 @@ export default function Home() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [usage, setUsage] = useState(null)
   const mobileScrollRef = useRef(null)
+  const mobileStickRef = useRef(true)
+  const [showMobileJump, setShowMobileJump] = useState(false)
   const isVoiceEnabledRef = useRef(false)
   const justOnboardedRef = useRef(false)
   const MAX_RECONNECT = 5
@@ -1342,10 +1410,34 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
-    if (isMobile && mobileScrollRef.current) {
-      mobileScrollRef.current.scrollTo({ top: mobileScrollRef.current.scrollHeight, behavior: 'smooth' })
+    const el = mobileScrollRef.current
+    if (!isMobile || !el) return
+    const lastRole = messages[messages.length - 1]?.role
+    if (mobileStickRef.current || lastRole === 'user') {
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+      mobileStickRef.current = true
+      setShowMobileJump(false)
+    } else {
+      setShowMobileJump(true)
     }
   }, [messages, loading, isMobile])
+
+  function handleMobileScroll() {
+    const el = mobileScrollRef.current
+    if (!el) return
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight
+    const atBottom = distance < 80
+    mobileStickRef.current = atBottom
+    if (atBottom) setShowMobileJump(false)
+  }
+
+  function scrollMobileToBottom() {
+    const el = mobileScrollRef.current
+    if (!el) return
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+    mobileStickRef.current = true
+    setShowMobileJump(false)
+  }
 
   // ─── Onboard detection + preference routing ───────────────────────────────
   // Merged into ONE effect so the mode-write never races the mode-read.
@@ -1747,6 +1839,16 @@ export default function Home() {
     isStreaming                  ? 'speaking' :
     'idle'
 
+  // Esc cancels an in-flight generation
+  useEffect(() => {
+    if (!(loading || isStreaming)) return
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') stopGeneration()
+    }
+    window.addEventListener('keydown', handleEsc)
+    return () => window.removeEventListener('keydown', handleEsc)
+  }, [loading, isStreaming])
+
   function isPdfExportRequest(msg) {
     const lower = msg.toLowerCase()
     const hasPdf = lower.includes('pdf')
@@ -1900,6 +2002,7 @@ export default function Home() {
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
         const controller = new AbortController()
+        abortControllerRef.current = controller
         const timeoutId = setTimeout(() => controller.abort(), 60_000)
 
         const res = await fetch(`${BACKEND}/api/chat/stream`, {
@@ -2022,6 +2125,19 @@ export default function Home() {
 
       } catch (err) {
         console.error(`sendMessage attempt ${attempt + 1} failed:`, err)
+
+        // User-initiated stop — keep whatever was generated, no retry, no failed state
+        if (userStoppedRef.current) {
+          userStoppedRef.current = false
+          if (streamMsgId) {
+            setMessages(prev => prev.map(m => m.id === streamMsgId ? { ...m, streaming: false } : m))
+          } else {
+            setMessages(prev => prev.map(m => m.id === userMsgId ? { ...m, pending: false } : m))
+          }
+          setLoading(false)
+          return
+        }
+
         if (streamMsgId) {
           setMessages(prev => prev.filter(m => m.id !== streamMsgId))
           streamMsgId = null
@@ -2037,6 +2153,11 @@ export default function Home() {
     setMessages(prev => prev.map(m => m.id === userMsgId ? { ...m, pending: false, failed: true } : m))
     setToast({ message: 'Message failed — tap to retry', retryMsgId: userMsgId })
     setLoading(false)
+  }
+
+  function stopGeneration() {
+    userStoppedRef.current = true
+    abortControllerRef.current?.abort()
   }
 
   function handleRetry(msgOrId) {
@@ -2169,6 +2290,7 @@ export default function Home() {
           {/* Scrollable content — scrolls over the fixed orb, z:10 */}
           <div
             ref={mobileScrollRef}
+            onScroll={handleMobileScroll}
             style={{
               position: 'absolute', inset: 0,
               overflowY: 'auto', overflowX: 'hidden',
@@ -2249,6 +2371,25 @@ export default function Home() {
             )}
           </div>
 
+          {/* Jump to latest — floats above the fixed input bar, z:21 */}
+          {showMobileJump && (
+            <button
+              onClick={scrollMobileToBottom}
+              style={{
+                position: 'fixed', bottom: 110, left: '50%', transform: 'translateX(-50%)', zIndex: 21,
+                display: 'flex', alignItems: 'center', gap: 6,
+                background: 'rgba(20,16,12,0.85)', border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: 999, padding: '8px 16px', cursor: 'pointer',
+                color: 'var(--ink-soft)', fontFamily: 'var(--sans)', fontSize: 11,
+                letterSpacing: '0.1em', textTransform: 'uppercase',
+                backdropFilter: 'blur(8px)', boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
+                animation: 'fadeUp 300ms ease both',
+              }}
+            >
+              ↓ Jump to latest
+            </button>
+          )}
+
           {/* Input bar — fixed at bottom with gradient, z:20 */}
           <div style={{
             position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 20,
@@ -2259,6 +2400,7 @@ export default function Home() {
               input={input}
               setInput={setInput}
               onSend={sendMessage}
+              onStop={stopGeneration}
               onMicClick={toggleVoiceMode}
               voiceMode={voiceMode}
               voiceConnecting={voiceConnecting}
@@ -2419,6 +2561,7 @@ export default function Home() {
               input={input}
               setInput={setInput}
               onSend={sendMessage}
+              onStop={stopGeneration}
               onMicClick={toggleVoiceMode}
               voiceMode={voiceMode}
               voiceConnecting={voiceConnecting}
