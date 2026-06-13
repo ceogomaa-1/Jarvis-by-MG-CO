@@ -14,12 +14,24 @@ from backend.agent import (
     get_notes,
     mark_note_done,
 )
+from backend.cron.notes_reminders import run_notes_reminders
 from backend.memory import save_interaction
 from backend.utils.user_context import get_user_timezone
 
 router = APIRouter()
 
 _RECURRENCES = ("none", "daily", "weekly", "monthly")
+
+
+@router.post("/notes/_dispatch")
+async def dispatch_reminders():
+    """Dispatch target for an external cron pinger (cron-job.org / UptimeRobot,
+    every ~60s). Scans personal_notes for due reminders and sends them across the
+    inapp/push/email channels — same logic as the APScheduler job, but callable
+    on-demand so reminders fire within ~1 minute regardless of the dyno's sleep
+    state. Must be registered before /notes/{user_id} so it isn't shadowed."""
+    await run_notes_reminders()
+    return {"status": "ok"}
 
 
 class NoteCreate(BaseModel):

@@ -1,9 +1,12 @@
 import asyncio
 import json
 import traceback
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import httpx
+
+from backend.agent import _NOTES_TABLE, _SUPABASE_KEY, _SUPABASE_URL, _notes_headers
 from backend.llm import jarvis_think
 from backend.user_model import get_user_model, summarize_user_for_prompt
 from backend.memory import get_relevant_memories
@@ -60,6 +63,34 @@ def _hours_since(ts: datetime | None) -> float:
     if ts.tzinfo is None:
         ts = ts.replace(tzinfo=timezone.utc)
     return (now - ts).total_seconds() / 3600
+
+
+async def _has_fresh_reminder(user_id: str) -> bool:
+    """True if a reminder note was created/updated for this user in the last
+    60 seconds. Used to suppress the proactive "insight" pre-announcement when
+    the user just set a reminder — the reminder dispatcher (notes_reminders.py)
+    will deliver a clean notification at the actual due time, so an immediate
+    insight restating it would just feel like a duplicate."""
+    if not _SUPABASE_URL or not _SUPABASE_KEY:
+        return False
+    cutoff = (datetime.now(timezone.utc) - timedelta(seconds=60)).isoformat()
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{_SUPABASE_URL}/rest/v1/{_NOTES_TABLE}",
+                headers=_notes_headers(),
+                params={
+                    "user_id": f"eq.{user_id}",
+                    "remind_at": "not.is.null",
+                    "updated_at": f"gte.{cutoff}",
+                    "limit": 1,
+                },
+                timeout=10.0,
+            )
+        return resp.status_code == 200 and len(resp.json()) > 0
+    except Exception as e:
+        print(f"TRIGGERS: _has_fresh_reminder failed for {user_id}: {e}")
+        return False
 
 
 # ─── Trigger detection ────────────────────────────────────────────────────────
@@ -142,6 +173,9 @@ async def analyze_conversation_for_insight(user_id: str, user_message: str, jarv
 
         if _hours_since(_read_timestamp(_PROACTIVE_DIR / f"{user_id}_last_sent.txt")) < 3:
             return  # Respect the 3-hour cooldown
+
+        if await _has_fresh_reminder(user_id):
+            return  # The reminder dispatcher will deliver its own notification — don't pre-announce it
 
         model = await get_user_model(user_id)
         if not model.get("onboarding_complete", False):

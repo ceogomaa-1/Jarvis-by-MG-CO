@@ -1628,7 +1628,8 @@ export default function Home() {
     }).catch(() => setOnboarding(true))
   }, [userId])
 
-  // Proactive polling — every 5 min
+  // Proactive polling — every 30s (secondary path; the real-time path is the
+  // external cron pinger hitting POST /api/notes/_dispatch every ~60s)
   useEffect(() => {
     if (!userId || !onboardingComplete) return
     const poll = async () => {
@@ -1645,7 +1646,7 @@ export default function Home() {
         }
       } catch {}
     }
-    const interval = setInterval(poll, 300000)
+    const interval = setInterval(poll, 30000)
     return () => clearInterval(interval)
   }, [userId, onboardingComplete])
 

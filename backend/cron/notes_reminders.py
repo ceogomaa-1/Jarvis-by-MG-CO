@@ -1,9 +1,13 @@
 """
 Batch 50.1 — Jarvis Notes reminder dispatcher.
 
-Runs every 5 minutes via APScheduler (backend/main.py). Scans `personal_notes`
-for due, undone reminders (`remind_at <= now`) and delivers them through
-whichever channels haven't fired yet, tracked per-note in `channels_sent`:
+Runs every minute via APScheduler (backend/main.py) and on-demand via
+POST /api/notes/_dispatch (backend/routes/notes_routes.py), which an external
+cron pinger (cron-job.org / UptimeRobot) hits every ~60s — this also keeps the
+Render dyno warm so reminders don't queue up behind a cold start. Scans
+`personal_notes` for due, undone reminders (`remind_at <= now`) and delivers
+them through whichever channels haven't fired yet, tracked per-note in
+`channels_sent`:
 
   - "inapp" — insert a row into `proactive_messages` (type=note_reminder),
               delivered next time the frontend calls /api/proactive/{user_id}
@@ -169,7 +173,7 @@ async def _send_push(user_id: str, note: dict) -> bool:
     sent_any = False
     for sub in subs:
         try:
-            webpush(
+            resp = webpush(
                 subscription_info={
                     "endpoint": sub["endpoint"],
                     "keys": {"p256dh": sub["p256dh"], "auth": sub["auth"]},
@@ -182,10 +186,12 @@ async def _send_push(user_id: str, note: dict) -> bool:
                 vapid_private_key=VAPID_PRIVATE_KEY,
                 vapid_claims={"sub": VAPID_SUBJECT},
             )
+            status = getattr(resp, "status_code", None)
+            print(f"NOTES CRON: push delivered to {user_id} (sub {sub['id']}) — status {status}")
             sent_any = True
         except WebPushException as e:
             status = getattr(getattr(e, "response", None), "status_code", None)
-            print(f"NOTES CRON: push failed for {user_id}: {e}")
+            print(f"NOTES CRON: push failed for {user_id} (sub {sub['id']}) — status {status}: {e}")
             if status in (404, 410):
                 await _delete_push_subscription(sub["id"])
         except Exception as e:

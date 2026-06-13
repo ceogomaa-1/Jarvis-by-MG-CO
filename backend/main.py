@@ -88,12 +88,12 @@ async def lifespan(app: FastAPI):
     )
     scheduler.add_job(
         run_notes_reminders,
-        CronTrigger(minute="*/5"),
+        CronTrigger(minute="*"),
         id="notes_reminders",
         replace_existing=True,
     )
     scheduler.start()
-    print("CRON: Scheduler started — personal briefings at 08:00, business risk at 06:00, operator at 02:00, synapses Sun 03:00 Toronto, notes reminders every 5 min")
+    print("CRON: Scheduler started — personal briefings at 08:00, business risk at 06:00, operator at 02:00, synapses Sun 03:00 Toronto, notes reminders every 1 min (also reachable via POST /api/notes/_dispatch for external pinger)")
 
     yield
 

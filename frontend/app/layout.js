@@ -41,6 +41,15 @@ export const metadata = {
     ],
     apple: [{ url: '/apple-icon.png', sizes: '180x180', type: 'image/png' }],
   },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Jarvis',
+  },
+}
+
+export const viewport = {
+  themeColor: '#0a0908',
 }
 
 export default function RootLayout({ children }) {
