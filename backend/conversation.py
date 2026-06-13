@@ -32,16 +32,19 @@ def _headers(prefer: str = "return=minimal") -> dict:
     }
 
 
-async def save_conversation_turn(user_id: str, role: str, content: str) -> bool:
+async def save_conversation_turn(user_id: str, role: str, content: str, attachments: list[dict] | None = None) -> bool:
     """Insert a single message into the conversations table immediately."""
     if not _SUPABASE_URL or not _SUPABASE_KEY:
         return False
     try:
+        payload = {"user_id": user_id, "role": role, "content": content}
+        if attachments:
+            payload["attachments"] = attachments
         async with httpx.AsyncClient() as client:
             resp = await client.post(
                 f"{_SUPABASE_URL}/rest/v1/{_TABLE}",
                 headers=_headers(),
-                json={"user_id": user_id, "role": role, "content": content},
+                json=payload,
                 timeout=10.0,
             )
         if resp.status_code not in (200, 201):
@@ -66,7 +69,7 @@ async def get_conversation_history(user_id: str, limit: int = 20) -> list[dict]:
                     "user_id": f"eq.{user_id}",
                     "order": "created_at.desc",
                     "limit": limit,
-                    "select": "role,content",
+                    "select": "role,content,attachments",
                 },
                 timeout=10.0,
             )

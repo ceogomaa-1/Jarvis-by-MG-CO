@@ -13,6 +13,8 @@ import { JarvisVoice } from '../lib/jarvisVoice'
 import { playSound, preloadSounds } from '../lib/soundPlayer'
 import { LandingPage } from '../components/landing/LandingPage'
 import UsageCounter from '../components/business/UsageCounter'
+import { AttachmentsRow } from '../components/shared/AttachmentDisplay'
+import { uploadChatAttachment } from '../lib/attachments'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 const DEV_MODE = true
@@ -614,53 +616,6 @@ function BlinkCaret() {
   )
 }
 
-function formatFileSize(bytes) {
-  if (!bytes) return ''
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-function AttachmentCard({ attachment }) {
-  const isPdf = attachment.type === 'application/pdf' || attachment.name?.toLowerCase().endsWith('.pdf')
-  const isImage = attachment.type?.startsWith('image/')
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 12,
-      background: 'rgba(255,255,255,0.05)',
-      border: '1px solid rgba(255,255,255,0.1)',
-      borderRadius: 12, padding: '10px 14px', marginBottom: 6,
-    }}>
-      <div style={{
-        width: 36, height: 36, borderRadius: 8,
-        background: 'rgba(255,255,255,0.08)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-      }}>
-        <span style={{
-          fontSize: 10, fontWeight: 700, fontFamily: 'system-ui, sans-serif',
-          color: isPdf ? '#f87171' : isImage ? '#60a5fa' : 'rgba(243,234,217,0.55)',
-        }}>
-          {isPdf ? 'PDF' : isImage ? 'IMG' : 'DOC'}
-        </span>
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{
-          color: 'rgba(243,234,217,0.9)', fontSize: 13,
-          fontFamily: 'system-ui, sans-serif',
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>
-          {attachment.name}
-        </div>
-        {attachment.size > 0 && (
-          <div style={{ color: 'rgba(243,234,217,0.4)', fontSize: 11, fontFamily: 'system-ui, sans-serif' }}>
-            {formatFileSize(attachment.size)}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
 function Message({ msg, isLatest, onRetry }) {
   // Artifact role — must be checked first; content is {html, title} object
   if (msg.role === 'artifact') {
@@ -726,7 +681,7 @@ function Message({ msg, isLatest, onRetry }) {
     return (
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14, opacity: dimmed ? 0.55 : (isLatest ? 1 : 0.78), transition: 'opacity 600ms ease' }}>
         <div style={{ maxWidth: '72%', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-          {msg.attachment && <AttachmentCard attachment={msg.attachment} />}
+          <AttachmentsRow attachments={msg.attachments} />
           {msg.imagePreview && (
             <img
               src={msg.imagePreview}
@@ -1560,7 +1515,7 @@ export default function Home() {
       const history = historyData.messages || []
       if (history.length > 0) {
         msgIdRef.current = history.length + 1
-        const mapped = history.map((m, i) => ({ id: i + 1, role: m.role, content: m.content }))
+        const mapped = history.map((m, i) => ({ id: i + 1, role: m.role, content: m.content, attachments: m.attachments || [] }))
         // Mark orphaned: last message is user with no assistant response following
         const last = mapped[mapped.length - 1]
         if (last?.role === 'user') {
@@ -1772,6 +1727,14 @@ export default function Home() {
         setPendingFiles(prev => prev.map(f => f.id === id ? { ...f, status: 'error', errorMsg: 'Read failed' } : f))
       }
       reader.readAsDataURL(file)
+
+      // Upload to Supabase Storage in parallel — populates storagePath so the
+      // attachment persists across page reloads.
+      uploadChatAttachment(file, userId).then(storagePath => {
+        if (storagePath) {
+          setPendingFiles(prev => prev.map(f => f.id === id ? { ...f, storagePath } : f))
+        }
+      })
     }
   }
 
@@ -1864,10 +1827,13 @@ export default function Home() {
     const imageB64 = override?.imageBase64 ?? (pastedImage ? pastedImage.preview : null)
     const imageType = override?.imageType ?? (pastedImage ? pastedImage.type : null)
     const imagePreview = pastedImage?.preview ?? null
-    const firstImage = allReadyFiles.find(f => f.type?.startsWith('image/'))
-    const attachment = override?.attachment ?? (allReadyFiles.length > 0
-      ? { name: allReadyFiles.map(f => f.name).join(', '), type: 'files', size: 0 }
-      : null)
+    const attachments = override?.attachments ?? allReadyFiles.map(f => ({
+      name: f.name,
+      media_type: f.type,
+      size: f.size,
+      storage_path: f.storagePath ?? null,
+      preview_url: f.preview ?? null,
+    }))
 
     console.log('SEND: pendingFiles state', pendingFiles)
     console.log('SEND: allReadyFiles', allReadyFiles.length, 'imageB64 present', !!imageB64)
@@ -1901,7 +1867,7 @@ export default function Home() {
       .map(({ role, content }) => ({ role, content }))
     msgIdRef.current += 1
     const userMsgId = msgIdRef.current
-    setMessages(prev => [...prev, { id: userMsgId, role: 'user', content: displayText, attachment, imagePreview, pending: true }])
+    setMessages(prev => [...prev, { id: userMsgId, role: 'user', content: displayText, attachments, imagePreview, pending: true }])
     setLoading(true)
 
     let messageText = apiText || ''
@@ -1915,12 +1881,15 @@ export default function Home() {
     if (isVoiceMessage) {
       bodyPayload.voice_mode = true
     }
-    // Send all ready pending files as inline base64 attachments
+    // Send all ready pending files as inline base64 attachments (plus storage
+    // metadata so the backend can persist a lightweight record for history)
     if (allReadyFiles.length > 0) {
       bodyPayload.attachments = allReadyFiles.map(f => ({
         base64: f.preview.includes(',') ? f.preview.split(',')[1] : f.preview,
         type: f.type,
         name: f.name,
+        size: f.size,
+        storage_path: f.storagePath ?? null,
       }))
     }
     console.log('SEND: payload keys', Object.keys(bodyPayload), 'image_base64 present', !!bodyPayload.image_base64, 'attachments count', bodyPayload.attachments?.length ?? 0)
@@ -2081,7 +2050,7 @@ export default function Home() {
     setToast(null)
     const msg = messages.find(m => m.id === targetId)
     if (msg) {
-      sendMessage({ apiText: msg.content, displayText: msg.content, attachment: msg.attachment ?? null })
+      sendMessage({ apiText: msg.content, displayText: msg.content, attachments: msg.attachments ?? [] })
     }
   }
 

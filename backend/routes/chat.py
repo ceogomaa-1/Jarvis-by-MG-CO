@@ -112,6 +112,21 @@ def _get_supabase():
     return create_client(_SUPABASE_URL, _SUPABASE_KEY)
 
 
+def _attachments_meta(attachments: list[dict]) -> list[dict]:
+    """Strip base64 payloads, keeping only display metadata for persistence."""
+    meta = []
+    for att in attachments[:5]:
+        if not att.get("storage_path") and not att.get("name"):
+            continue
+        meta.append({
+            "name": att.get("name", "file"),
+            "media_type": att.get("type", ""),
+            "size": att.get("size", 0),
+            "storage_path": att.get("storage_path"),
+        })
+    return meta
+
+
 def _build_multimodal_content(message: str, attachments: list[dict]) -> list | str:
     """Build Anthropic multimodal content blocks from attachment dicts.
 
@@ -307,7 +322,7 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
         user_model_context = f"{user_model_context}\n\n{skills_summary}" if user_model_context else skills_summary
 
     # Persist user message BEFORE the LLM call so it survives any failure
-    await save_conversation_turn(request.user_id, "user", request.message)
+    await save_conversation_turn(request.user_id, "user", request.message, attachments=_attachments_meta(request.attachments))
 
     # Farida's first-conversation surprise greeting — fires exactly once.
     # history was fetched before saving user message so it reflects the true prior state.
@@ -470,7 +485,7 @@ async def chat_stream(request: ChatRequest):
         memory_context = (memory_context or "") + "\n".join(url_block_parts)
 
     # Persist user message BEFORE streaming starts
-    await save_conversation_turn(request.user_id, "user", request.message)
+    await save_conversation_turn(request.user_id, "user", request.message, attachments=_attachments_meta(request.attachments))
 
     onboarding_done = await is_onboarding_complete(request.user_id)
     system_override = None
