@@ -1674,6 +1674,22 @@ export default function Home() {
     if (userId) fetchUsage(userId)
   }, [userId])
 
+  // lastMsg/isStreaming + the Esc-cancel effect must be declared before any
+  // conditional return below (Rules of Hooks) — moved up from the orbState
+  // computation further down, which still reads isStreaming.
+  const lastMsg = messages[messages.length - 1]
+  const isStreaming = lastMsg?.streaming === true
+
+  // Esc cancels an in-flight generation
+  useEffect(() => {
+    if (!(loading || isStreaming)) return
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') stopGeneration()
+    }
+    window.addEventListener('keydown', handleEsc)
+    return () => window.removeEventListener('keydown', handleEsc)
+  }, [loading, isStreaming])
+
   // Redirect unauthenticated users to /welcome once auth check is complete.
   // Skip if the URL still has ?onboard=* (OAuth callback hasn't resolved yet).
   useEffect(() => {
@@ -1838,24 +1854,12 @@ export default function Home() {
     }
   }
 
-  const lastMsg = messages[messages.length - 1]
-  const isStreaming = lastMsg?.streaming === true
   const orbState =
     voiceMode && jarvisSpeaking ? 'speaking' :
     voiceMode                   ? 'listening' :
     loading                     ? 'thinking' :
     isStreaming                  ? 'speaking' :
     'idle'
-
-  // Esc cancels an in-flight generation
-  useEffect(() => {
-    if (!(loading || isStreaming)) return
-    const handleEsc = (e) => {
-      if (e.key === 'Escape') stopGeneration()
-    }
-    window.addEventListener('keydown', handleEsc)
-    return () => window.removeEventListener('keydown', handleEsc)
-  }, [loading, isStreaming])
 
   function isPdfExportRequest(msg) {
     const lower = msg.toLowerCase()
