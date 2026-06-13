@@ -8,6 +8,7 @@ import { supabase } from '../lib/supabase'
 import { getJarvisMode, setJarvisMode } from '../lib/userPreferences'
 import ModeToggle from '../components/shared/ModeToggle'
 import SignOutDrawer from '../components/shared/SignOutDrawer'
+import NotesPanel from '../components/shared/NotesPanel'
 import TimezoneStep from '../components/onboarding/TimezoneStep'
 import { JarvisVoice } from '../lib/jarvisVoice'
 import { playSound, preloadSounds } from '../lib/soundPlayer'
@@ -1362,6 +1363,7 @@ export default function Home() {
   const [authLoading, setAuthLoading]     = useState(true)
   const [onboardingComplete, setOnboarding] = useState(null)
   const [showPanel, setShowPanel]         = useState(false)
+  const [showNotesPanel, setShowNotesPanel] = useState(false)
   const [proactiveHint, setProactiveHint] = useState(null)
   const [voiceMode, setVoiceMode]         = useState(false)
   const [jarvisSpeaking, setJarvisSpeaking] = useState(false)
@@ -1515,6 +1517,12 @@ export default function Home() {
       .then(r => r.json())
       .then(data => setTimezoneConfirmed(data.timezone_confirmed ?? false))
       .catch(() => setTimezoneConfirmed(true))
+  }, [userId])
+
+  // Deep-link straight into Jarvis Notes via #notes or #notes=<id>
+  useEffect(() => {
+    if (!userId || typeof window === 'undefined') return
+    if (window.location.hash.startsWith('#notes')) setShowNotesPanel(true)
   }, [userId])
 
   // Fetch unread proactive messages (morning briefings) on login
@@ -2179,7 +2187,8 @@ export default function Home() {
     <>
       {showIntro && <IntroSplash onDone={() => setShowIntro(false)} />}
       {showPanel && userId && <KnowledgePanel userId={userId} onClose={() => setShowPanel(false)} />}
-      <SignOutDrawer isOpen={drawerOpen} onClose={() => setDrawerOpen(false)} user={user} userId={userId} />
+      {showNotesPanel && userId && <NotesPanel userId={userId} onClose={() => setShowNotesPanel(false)} />}
+      <SignOutDrawer isOpen={drawerOpen} onClose={() => setDrawerOpen(false)} user={user} userId={userId} onOpenNotes={() => setShowNotesPanel(true)} />
       {toast && (
         <Toast
           message={toast.message}

@@ -1,7 +1,5 @@
-import json
 import os
 from datetime import datetime, timezone
-from pathlib import Path
 
 import httpx
 from fastapi import APIRouter
@@ -52,36 +50,39 @@ async def get_proactive_messages(user_id: str):
 
     return {"messages": [m["message"] for m in messages]}
 
-_NOTES_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "notes"
 _NO_MESSAGE = {"has_message": False, "message": None, "trigger_type": None}
 
 
 async def _check_due_reminders(user_id: str) -> dict | None:
-    """Return a proactive reminder message if any note is past its remind_at time."""
-    notes_path = _NOTES_DIR / f"{user_id}_notes.json"
-    if not notes_path.exists():
-        return None
-
-    try:
-        notes = json.loads(notes_path.read_text(encoding="utf-8"))
-    except Exception:
+    """Return a proactive reminder message if any note is past its remind_at time
+    and hasn't been surfaced in chat yet ("chat" not in channels_sent)."""
+    if not _SUPABASE_URL or not _SUPABASE_KEY:
         return None
 
     now = datetime.now(timezone.utc)
-    due_note = None
-    for note in notes:
-        if note.get("done") or not note.get("remind_at"):
-            continue
-        try:
-            remind_dt = datetime.fromisoformat(note["remind_at"])
-            if remind_dt.tzinfo is None:
-                remind_dt = remind_dt.replace(tzinfo=timezone.utc)
-            if now >= remind_dt:
-                due_note = note
-                break
-        except (ValueError, TypeError):
-            continue
+    headers = {
+        "apikey": _SUPABASE_KEY,
+        "Authorization": f"Bearer {_SUPABASE_KEY}",
+        "Content-Type": "application/json",
+    }
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"{_SUPABASE_URL}/rest/v1/personal_notes",
+            headers=headers,
+            params={
+                "user_id": f"eq.{user_id}",
+                "done": "eq.false",
+                "remind_at": f"lte.{now.isoformat()}",
+                "order": "remind_at.asc",
+                "limit": 10,
+            },
+            timeout=10.0,
+        )
+    if resp.status_code != 200:
+        return None
 
+    notes = resp.json()
+    due_note = next((n for n in notes if "chat" not in (n.get("channels_sent") or [])), None)
     if not due_note:
         return None
 
@@ -103,11 +104,16 @@ async def _check_due_reminders(user_id: str) -> dict | None:
         system_override=system_override,
     )
 
-    # Mark note as done
-    for note in notes:
-        if note["id"] == due_note["id"]:
-            note["done"] = True
-    notes_path.write_text(json.dumps(notes, indent=2, ensure_ascii=False), encoding="utf-8")
+    # Mark the "chat" channel as delivered — note stays active until the user marks it done
+    channels_sent = (due_note.get("channels_sent") or []) + ["chat"]
+    async with httpx.AsyncClient() as client:
+        await client.patch(
+            f"{_SUPABASE_URL}/rest/v1/personal_notes",
+            headers={**headers, "Prefer": "return=minimal"},
+            params={"id": f"eq.{due_note['id']}"},
+            json={"channels_sent": channels_sent},
+            timeout=10.0,
+        )
 
     return {"has_message": True, "message": message, "trigger_type": "reminder"}
 

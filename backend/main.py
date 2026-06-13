@@ -16,6 +16,7 @@ from backend.routes.history_routes import router as history_router
 from backend.routes.google_auth_routes import router as google_auth_router
 from backend.routes.files_routes import router as files_router
 from backend.cron.briefing import run_morning_briefings
+from backend.cron.notes_reminders import run_notes_reminders
 from backend.routes.local_agent_routes import router as local_agent_router
 from backend.routes.business.chat import router as business_chat_router
 from backend.routes.business.show_me_how import router as business_show_me_how_router
@@ -84,8 +85,14 @@ async def lifespan(app: FastAPI):
         id="weekly_synapses",
         replace_existing=True,
     )
+    scheduler.add_job(
+        run_notes_reminders,
+        CronTrigger(minute="*/5"),
+        id="notes_reminders",
+        replace_existing=True,
+    )
     scheduler.start()
-    print("CRON: Scheduler started — personal briefings at 08:00, business risk at 06:00, operator at 02:00, synapses Sun 03:00 Toronto")
+    print("CRON: Scheduler started — personal briefings at 08:00, business risk at 06:00, operator at 02:00, synapses Sun 03:00 Toronto, notes reminders every 5 min")
 
     yield
 

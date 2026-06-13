@@ -4,6 +4,7 @@ from datetime import datetime
 import httpx
 import pytz
 
+from backend.agent import _load_notes
 from backend.memory import get_relevant_memories
 from backend.user_model import summarize_user_for_prompt
 
@@ -47,6 +48,15 @@ async def generate_morning_briefing(user_id: str) -> str:
     eastern = pytz.timezone("America/Toronto")
     today = datetime.now(eastern).strftime("%A, %B %d, %Y")
 
+    notes_context = ""
+    try:
+        active_notes = [n for n in await _load_notes(user_id) if not n.get("done")]
+        if active_notes:
+            lines = [f"- {n['note']}" + (f" (reminder: {n['remind_at']})" if n.get("remind_at") else "") for n in active_notes[:5]]
+            notes_context = "Open notes/reminders:\n" + "\n".join(lines)
+    except Exception:
+        pass
+
     briefing = await jarvis_think(
         user_message=f"""Generate a brief, personal morning briefing for this user.
 
@@ -54,9 +64,11 @@ Today: {today}
 {user_model}
 {f"Recent context: {memories[:300]}" if memories else ""}
 {calendar_context}
+{notes_context}
 
 Write it as Jarvis would speak — direct, warm, no fluff.
 2-3 sentences max. Mention what's on their calendar if anything.
+If there are open notes/reminders, especially ones due today, weave in at most one naturally.
 Reference something personal if relevant.
 End with one sharp question or observation about their day.""",
         conversation_history=[],

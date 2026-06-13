@@ -1,13 +1,13 @@
-import json
+import os
 import re
 import traceback
-import uuid
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
 import httpx
 
-_NOTES_DIR = Path(__file__).resolve().parent.parent / "data" / "notes"
+_SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL", "")
+_SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+_NOTES_TABLE = "personal_notes"
 
 # Anthropic native tool use format
 ANTHROPIC_TOOLS = [
@@ -49,31 +49,71 @@ ANTHROPIC_TOOLS = [
 
 # ─── Time parsing ─────────────────────────────────────────────────────────────
 
+_WEEKDAYS = {
+    "monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3,
+    "friday": 4, "saturday": 5, "sunday": 6,
+}
+
+# Fixed times of day — used for bare phrases like "tonight" or "this evening"
+_TIME_OF_DAY = {
+    "morning": (9, 0), "this morning": (9, 0),
+    "afternoon": (15, 0), "this afternoon": (15, 0),
+    "evening": (18, 0), "this evening": (18, 0),
+    "tonight": (20, 0),
+    "noon": (12, 0), "midday": (12, 0),
+    "midnight": (0, 0),
+}
+
+
 def _parse_remind_at(text: str) -> str | None:
     """Convert natural language time expressions to ISO datetime string."""
     text = text.strip().lower()
     now = datetime.now(timezone.utc)
 
-    m = re.match(r"in (\d+) minutes?", text)
+    # Already an ISO datetime/date — pass through unchanged
+    try:
+        parsed = datetime.fromisoformat(text)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.isoformat()
+    except ValueError:
+        pass
+
+    m = re.match(r"in (\d+) minutes?$", text)
     if m:
         return (now + timedelta(minutes=int(m.group(1)))).isoformat()
 
-    m = re.match(r"in (\d+) hours?", text)
+    m = re.match(r"in (\d+) hours?$", text)
     if m:
         return (now + timedelta(hours=int(m.group(1)))).isoformat()
 
-    m = re.match(r"in (\d+) days?", text)
+    m = re.match(r"in (\d+) days?$", text)
     if m:
         return (now + timedelta(days=int(m.group(1)))).isoformat()
 
-    m = re.match(r"tomorrow at (\d{1,2})(?::(\d{2}))?\s*(am|pm)?", text)
+    m = re.match(r"in (\d+) weeks?$", text)
+    if m:
+        return (now + timedelta(weeks=int(m.group(1)))).isoformat()
+
+    # Fixed times of day — "tonight", "this evening", "noon", etc.
+    if text in _TIME_OF_DAY:
+        hour, minute = _TIME_OF_DAY[text]
+        target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if target <= now:
+            target += timedelta(days=1)
+        return target.isoformat()
+
+    if text == "tomorrow":
+        return (now + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0).isoformat()
+
+    m = re.match(r"tomorrow at (\d{1,2})(?::(\d{2}))?\s*(am|pm)?$", text)
     if m:
         hour, minute, period = int(m.group(1)), int(m.group(2) or 0), m.group(3)
         if period == "pm" and hour < 12: hour += 12
         elif period == "am" and hour == 12: hour = 0
         return (now + timedelta(days=1)).replace(hour=hour, minute=minute, second=0, microsecond=0).isoformat()
 
-    m = re.match(r"today at (\d{1,2})(?::(\d{2}))?\s*(am|pm)?", text)
+    m = re.match(r"today at (\d{1,2})(?::(\d{2}))?\s*(am|pm)?$", text)
     if m:
         hour, minute, period = int(m.group(1)), int(m.group(2) or 0), m.group(3)
         if period == "pm" and hour < 12: hour += 12
@@ -82,7 +122,43 @@ def _parse_remind_at(text: str) -> str | None:
         if target <= now: target += timedelta(days=1)
         return target.isoformat()
 
-    m = re.match(r"(\d{1,2})(?::(\d{2}))?\s*(am|pm)", text)
+    # Weekday names — "monday", "next monday", "this friday at 3pm"
+    m = re.match(
+        r"(?:(next|this)\s+)?(monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
+        r"(?:\s+at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?)?$",
+        text,
+    )
+    if m:
+        modifier, weekday_name, hour, minute, period = m.groups()
+        target_weekday = _WEEKDAYS[weekday_name]
+        days_ahead = (target_weekday - now.weekday()) % 7
+        if days_ahead == 0:
+            days_ahead = 7 if modifier == "next" else 0
+        elif modifier == "next":
+            days_ahead += 7
+
+        if hour is not None:
+            hour, minute = int(hour), int(minute or 0)
+            if period == "pm" and hour < 12: hour += 12
+            elif period == "am" and hour == 12: hour = 0
+        else:
+            hour, minute = 9, 0
+
+        target = (now + timedelta(days=days_ahead)).replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if target <= now:
+            target += timedelta(days=7)
+        return target.isoformat()
+
+    # 24-hour time — "15:30"
+    m = re.match(r"(\d{1,2}):(\d{2})$", text)
+    if m:
+        hour, minute = int(m.group(1)), int(m.group(2))
+        if 0 <= hour <= 23 and 0 <= minute <= 59:
+            target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            if target <= now: target += timedelta(days=1)
+            return target.isoformat()
+
+    m = re.match(r"(\d{1,2})(?::(\d{2}))?\s*(am|pm)$", text)
     if m:
         hour, minute, period = int(m.group(1)), int(m.group(2) or 0), m.group(3)
         if period == "pm" and hour < 12: hour += 12
@@ -123,36 +199,52 @@ async def get_current_datetime() -> str:
     return datetime.now(timezone.utc).strftime("%A, %B %d %Y — %I:%M %p")
 
 
-def _load_notes(user_id: str) -> list:
-    path = _NOTES_DIR / f"{user_id}_notes.json"
-    if not path.exists():
+def _notes_headers(prefer: str = "return=representation") -> dict:
+    return {
+        "apikey": _SUPABASE_KEY,
+        "Authorization": f"Bearer {_SUPABASE_KEY}",
+        "Content-Type": "application/json",
+        "Prefer": prefer,
+    }
+
+
+async def _load_notes(user_id: str) -> list:
+    """Return all notes (active + done) for this user, newest first."""
+    if not _SUPABASE_URL or not _SUPABASE_KEY:
         return []
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{_SUPABASE_URL}/rest/v1/{_NOTES_TABLE}",
+                headers=_notes_headers(),
+                params={"user_id": f"eq.{user_id}", "order": "created_at.desc"},
+                timeout=10.0,
+            )
+        if resp.status_code != 200:
+            print(f"NOTES: load failed ({resp.status_code}): {resp.text[:200]}")
+            return []
+        return resp.json()
+    except Exception as e:
+        print(f"NOTES: load error: {e}")
         return []
-
-
-def _save_notes(user_id: str, notes: list):
-    _NOTES_DIR.mkdir(parents=True, exist_ok=True)
-    (_NOTES_DIR / f"{user_id}_notes.json").write_text(
-        json.dumps(notes, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
 
 
 async def save_note(user_id: str, note: str, remind_at_iso: str | None = None) -> str:
+    if not _SUPABASE_URL or not _SUPABASE_KEY:
+        return "Failed to save note: notes storage is not configured."
     try:
-        notes = _load_notes(user_id)
-        entry = {
-            "id": uuid.uuid4().hex[:8],
-            "note": note,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "remind_at": remind_at_iso,
-            "done": False,
-        }
-        notes.append(entry)
-        _save_notes(user_id, notes)
-        result = f"Note saved (id: {entry['id']}): {note}"
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                f"{_SUPABASE_URL}/rest/v1/{_NOTES_TABLE}",
+                headers=_notes_headers(),
+                json={"user_id": user_id, "note": note, "remind_at": remind_at_iso},
+                timeout=10.0,
+            )
+        if resp.status_code not in (200, 201):
+            return f"Failed to save note: {resp.text[:200]}"
+        rows = resp.json()
+        note_id = rows[0]["id"] if rows else "?"
+        result = f"Note saved (id: {note_id}): {note}"
         if remind_at_iso:
             result += f" — reminder set for {remind_at_iso}"
         return result
@@ -162,7 +254,7 @@ async def save_note(user_id: str, note: str, remind_at_iso: str | None = None) -
 
 async def get_notes(user_id: str) -> str:
     try:
-        notes = [n for n in _load_notes(user_id) if not n.get("done")]
+        notes = [n for n in await _load_notes(user_id) if not n.get("done")]
         if not notes:
             return "No active notes."
         lines = []
@@ -177,14 +269,23 @@ async def get_notes(user_id: str) -> str:
 
 
 async def mark_note_done(user_id: str, note_id: str) -> str:
+    if not _SUPABASE_URL or not _SUPABASE_KEY:
+        return "Failed to mark note done: notes storage is not configured."
     try:
-        notes = _load_notes(user_id)
-        for n in notes:
-            if n["id"] == note_id:
-                n["done"] = True
-                _save_notes(user_id, notes)
-                return f"Note {note_id} marked as done."
-        return f"Note {note_id} not found."
+        async with httpx.AsyncClient() as client:
+            resp = await client.patch(
+                f"{_SUPABASE_URL}/rest/v1/{_NOTES_TABLE}",
+                headers=_notes_headers(),
+                params={"id": f"eq.{note_id}", "user_id": f"eq.{user_id}"},
+                json={"done": True, "done_at": datetime.now(timezone.utc).isoformat()},
+                timeout=10.0,
+            )
+        if resp.status_code != 200:
+            return f"Failed to mark note done: {resp.text[:200]}"
+        rows = resp.json()
+        if not rows:
+            return f"Note {note_id} not found."
+        return f"Note {note_id} marked as done."
     except Exception as e:
         return f"Failed to mark note done: {e}"
 

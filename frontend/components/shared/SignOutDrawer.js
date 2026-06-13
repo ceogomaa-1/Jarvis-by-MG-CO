@@ -52,7 +52,7 @@ function KnowsSection({ title, items }) {
   )
 }
 
-export default function SignOutDrawer({ isOpen, onClose, user, userId }) {
+export default function SignOutDrawer({ isOpen, onClose, user, userId, onOpenNotes }) {
   const router = useRouter()
   const [model, setModel] = useState(null)
 
@@ -219,6 +219,29 @@ export default function SignOutDrawer({ isOpen, onClose, user, userId }) {
 
         {/* Divider */}
         <div style={{ marginLeft: 20, marginRight: 20, borderTop: '1px solid rgba(243,234,217,0.05)', flexShrink: 0 }} />
+
+        {/* Jarvis Notes */}
+        <div style={{ padding: '14px 20px 0', flexShrink: 0 }}>
+          <button
+            onClick={() => { onOpenNotes?.(); onClose() }}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 10,
+              padding: '12px 16px', borderRadius: 12,
+              background: 'rgba(255,144,114,0.06)', border: '1px solid rgba(255,144,114,0.15)',
+              cursor: 'pointer', color: 'var(--ink)',
+              fontFamily: 'var(--sans)', fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase',
+              transition: 'background 200ms ease',
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,144,114,0.12)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,144,114,0.06)'}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 11l3 3L22 4" />
+              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+            </svg>
+            Jarvis Notes
+          </button>
+        </div>
 
         {/* Sign Out */}
         <div style={{ padding: 20, flexShrink: 0 }}>
