@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase'
+import { getNotificationPermission, getPushSubscription, isPushSupported, subscribeToPush } from '../../lib/push'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
@@ -12,6 +13,15 @@ const SNOOZE_PRESETS = [
   { label: 'Tomorrow', value: 'tomorrow' },
   { label: '+1wk', value: 'in 1 week' },
 ]
+
+const RECURRENCE_OPTIONS = [
+  { value: 'none', label: 'One-time' },
+  { value: 'daily', label: 'Daily' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'monthly', label: 'Monthly' },
+]
+
+const RECURRENCE_ICON = { daily: '↻ daily', weekly: '↻ weekly', monthly: '↻ monthly' }
 
 function formatRemindAt(iso) {
   if (!iso) return null
@@ -53,11 +63,14 @@ export default function NotesPanel({ userId, onClose }) {
   const [sort, setSort] = useState('newest') // 'newest' | 'reminder'
   const [newNote, setNewNote] = useState('')
   const [newRemind, setNewRemind] = useState('')
+  const [newRecurrence, setNewRecurrence] = useState('none')
   const [adding, setAdding] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [editText, setEditText] = useState('')
   const [snoozeOpenId, setSnoozeOpenId] = useState(null)
   const [undoState, setUndoState] = useState(null) // { note }
+  const [pushStatus, setPushStatus] = useState('checking') // 'checking'|'unsupported'|'denied'|'subscribed'|'available'
+  const [pushBusy, setPushBusy] = useState(false)
   const undoTimeoutRef = useRef(null)
   const listRef = useRef(null)
 
@@ -115,6 +128,31 @@ export default function NotesPanel({ userId, onClose }) {
     }
   }, [loading, notes])
 
+  // Browser push status — checked lazily, never prompts on its own
+  useEffect(() => {
+    if (!isPushSupported()) { setPushStatus('unsupported'); return }
+    if (getNotificationPermission() === 'denied') { setPushStatus('denied'); return }
+    let cancelled = false
+    getPushSubscription().then(sub => {
+      if (!cancelled) setPushStatus(sub ? 'subscribed' : 'available')
+    }).catch(() => { if (!cancelled) setPushStatus('available') })
+    return () => { cancelled = true }
+  }, [])
+
+  const enableNotifications = async () => {
+    if (pushBusy) return
+    setPushBusy(true)
+    try {
+      await subscribeToPush(userId)
+      setPushStatus('subscribed')
+    } catch (err) {
+      console.error('NotesPanel: push subscribe failed', err)
+      setPushStatus(getNotificationPermission() === 'denied' ? 'denied' : 'available')
+    } finally {
+      setPushBusy(false)
+    }
+  }
+
   const streak = useMemo(() => computeStreak(notes), [notes])
 
   const visible = useMemo(() => {
@@ -146,20 +184,42 @@ export default function NotesPanel({ userId, onClose }) {
     if (!note || adding) return
     setAdding(true)
     try {
+      const remindAt = newRemind.trim()
       const res = await fetch(`${BACKEND}/api/notes/${userId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ note, remind_at: newRemind.trim() || null }),
+        body: JSON.stringify({
+          note,
+          remind_at: remindAt || null,
+          remind_recurrence: remindAt ? newRecurrence : 'none',
+        }),
       })
       if (!res.ok) throw new Error(await res.text())
       const data = await res.json()
       setNotes(prev => prev.some(n => n.id === data.note.id) ? prev : [data.note, ...prev])
       setNewNote('')
       setNewRemind('')
+      setNewRecurrence('none')
     } catch (err) {
       console.error('NotesPanel: add failed', err)
     } finally {
       setAdding(false)
+    }
+  }
+
+  const setRecurrence = async (note, recurrence) => {
+    setNotes(prev => prev.map(n => n.id === note.id ? { ...n, remind_recurrence: recurrence } : n))
+    try {
+      const res = await fetch(`${BACKEND}/api/notes/${userId}/${note.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ remind_recurrence: recurrence }),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      const data = await res.json()
+      setNotes(prev => prev.map(n => n.id === note.id ? data.note : n))
+    } catch (err) {
+      console.error('NotesPanel: set recurrence failed', err)
     }
   }
 
@@ -310,7 +370,47 @@ export default function NotesPanel({ userId, onClose }) {
               Add
             </button>
           </div>
+          {newRemind.trim() && (
+            <select
+              value={newRecurrence}
+              onChange={e => setNewRecurrence(e.target.value)}
+              style={{
+                background: 'rgba(243,234,217,0.04)', border: '1px solid var(--line)',
+                borderRadius: 8, padding: '0.35rem 0.5rem', color: 'var(--ink-mute)',
+                fontFamily: 'var(--sans)', fontSize: '0.68rem', outline: 'none', alignSelf: 'flex-start',
+              }}
+            >
+              {RECURRENCE_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          )}
         </form>
+
+        {/* Browser notifications */}
+        {pushStatus === 'available' && (
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem',
+            marginBottom: '0.75rem', padding: '0.5rem 0.7rem', borderRadius: 8,
+            background: 'rgba(255,144,114,0.06)', border: '1px solid rgba(255,144,114,0.18)',
+          }}>
+            <span style={{ fontFamily: 'var(--sans)', fontSize: '0.68rem', color: 'var(--ink-mute)' }}>
+              Get reminder notifications on this device
+            </span>
+            <button
+              onClick={enableNotifications}
+              disabled={pushBusy}
+              style={{
+                flexShrink: 0, background: 'none', border: '1px solid rgba(255,144,114,0.35)',
+                borderRadius: 6, padding: '0.25rem 0.6rem', color: 'var(--accent)',
+                cursor: pushBusy ? 'default' : 'pointer', fontFamily: 'var(--sans)',
+                fontSize: '0.64rem', letterSpacing: '0.08em', textTransform: 'uppercase',
+              }}
+            >
+              {pushBusy ? '...' : 'Enable'}
+            </button>
+          </div>
+        )}
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.6rem' }}>
@@ -428,7 +528,25 @@ export default function NotesPanel({ userId, onClose }) {
                           letterSpacing: '0.05em',
                         }}>
                           {overdue ? '⏰ overdue · ' : '⏰ '}{remindLabel}
+                          {note.remind_recurrence && note.remind_recurrence !== 'none' && (
+                            <> · {RECURRENCE_ICON[note.remind_recurrence]}</>
+                          )}
                         </span>
+                      )}
+                      {!note.done && note.remind_at && (
+                        <select
+                          value={note.remind_recurrence || 'none'}
+                          onChange={e => setRecurrence(note, e.target.value)}
+                          style={{
+                            background: 'none', border: 'none', color: 'var(--ink-mute)',
+                            cursor: 'pointer', fontFamily: 'var(--sans)', fontSize: '0.62rem',
+                            letterSpacing: '0.05em', padding: 0, outline: 'none',
+                          }}
+                        >
+                          {RECURRENCE_OPTIONS.map(opt => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
                       )}
                       {!note.done && (
                         <div style={{ position: 'relative' }}>

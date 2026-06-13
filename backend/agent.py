@@ -4,6 +4,9 @@ import traceback
 from datetime import datetime, timedelta, timezone
 
 import httpx
+import pytz
+
+from backend.utils.user_context import get_user_timezone
 
 _SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL", "")
 _SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
@@ -31,6 +34,11 @@ ANTHROPIC_TOOLS = [
                     "type": "string",
                     "description": "Optional reminder time in natural language, e.g. 'in 5 minutes' or '5:40pm' or 'tomorrow at 9am'",
                 },
+                "recurrence": {
+                    "type": "string",
+                    "enum": ["none", "daily", "weekly", "monthly"],
+                    "description": "Optional — repeat this reminder after it fires. Defaults to 'none' (one-off).",
+                },
             },
             "required": ["note"],
         },
@@ -42,6 +50,85 @@ ANTHROPIC_TOOLS = [
             "type": "object",
             "properties": {},
             "required": [],
+        },
+    },
+    {
+        "name": "mark_note_done",
+        "description": "Mark a note or reminder as done/completed",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "note_id": {"type": "string", "description": "The id of the note, from get_notes"},
+            },
+            "required": ["note_id"],
+        },
+    },
+    {
+        "name": "mark_note_undone",
+        "description": "Re-open a note that was previously marked done",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "note_id": {"type": "string", "description": "The id of the note, from get_notes"},
+            },
+            "required": ["note_id"],
+        },
+    },
+    {
+        "name": "edit_note",
+        "description": "Edit a note's text and/or its reminder time. Pass remind_at to set or change the reminder, or an empty string to clear it.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "note_id": {"type": "string", "description": "The id of the note, from get_notes"},
+                "note": {"type": "string", "description": "New text for the note (optional)"},
+                "remind_at": {
+                    "type": "string",
+                    "description": "New reminder time in natural language (optional), e.g. 'tomorrow at 9am'. Pass an empty string to clear the reminder.",
+                },
+            },
+            "required": ["note_id"],
+        },
+    },
+    {
+        "name": "snooze_note",
+        "description": "Snooze a note's reminder to a new time, re-arming it if it already fired",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "note_id": {"type": "string", "description": "The id of the note, from get_notes"},
+                "remind_at": {
+                    "type": "string",
+                    "description": "New reminder time in natural language, e.g. 'in 1 hour' or 'tomorrow at 9am'",
+                },
+            },
+            "required": ["note_id", "remind_at"],
+        },
+    },
+    {
+        "name": "delete_note",
+        "description": "Permanently delete a note or reminder",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "note_id": {"type": "string", "description": "The id of the note, from get_notes"},
+            },
+            "required": ["note_id"],
+        },
+    },
+    {
+        "name": "set_note_recurrence",
+        "description": "Set how often a note's reminder repeats after it fires",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "note_id": {"type": "string", "description": "The id of the note, from get_notes"},
+                "recurrence": {
+                    "type": "string",
+                    "enum": ["none", "daily", "weekly", "monthly"],
+                },
+            },
+            "required": ["note_id", "recurrence"],
         },
     },
 ]
@@ -65,62 +152,82 @@ _TIME_OF_DAY = {
 }
 
 
-def _parse_remind_at(text: str) -> str | None:
-    """Convert natural language time expressions to ISO datetime string."""
-    text = text.strip().lower()
-    now = datetime.now(timezone.utc)
+def _parse_remind_at(text: str, tz_name: str = "UTC") -> str | None:
+    """Convert natural language time expressions to an ISO UTC datetime string.
 
-    # Already an ISO datetime/date — pass through unchanged
+    Relative offsets ("in 5 minutes") are anchored to the current instant.
+    Absolute expressions ("tomorrow at 9am", "friday", "5:40pm", etc.) are
+    resolved against the user's local timezone (tz_name) so "tomorrow at 9am"
+    means 9am in the user's timezone, not UTC.
+    """
+    text = text.strip().lower()
+
+    try:
+        tz = pytz.timezone(tz_name)
+    except Exception:
+        tz = pytz.utc
+
+    now_utc = datetime.now(timezone.utc)
+    now_local = now_utc.astimezone(tz)
+    now_naive = now_local.replace(tzinfo=None)
+
+    def _local_to_utc_iso(local_naive: datetime) -> str:
+        return tz.localize(local_naive).astimezone(timezone.utc).isoformat()
+
+    # Already an ISO datetime/date — pass through unchanged (naive values are
+    # assumed to be in the user's local timezone)
     try:
         parsed = datetime.fromisoformat(text)
         if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=timezone.utc)
-        return parsed.isoformat()
+            return _local_to_utc_iso(parsed)
+        return parsed.astimezone(timezone.utc).isoformat()
     except ValueError:
         pass
 
     m = re.match(r"in (\d+) minutes?$", text)
     if m:
-        return (now + timedelta(minutes=int(m.group(1)))).isoformat()
+        return (now_utc + timedelta(minutes=int(m.group(1)))).isoformat()
 
     m = re.match(r"in (\d+) hours?$", text)
     if m:
-        return (now + timedelta(hours=int(m.group(1)))).isoformat()
+        return (now_utc + timedelta(hours=int(m.group(1)))).isoformat()
 
     m = re.match(r"in (\d+) days?$", text)
     if m:
-        return (now + timedelta(days=int(m.group(1)))).isoformat()
+        return (now_utc + timedelta(days=int(m.group(1)))).isoformat()
 
     m = re.match(r"in (\d+) weeks?$", text)
     if m:
-        return (now + timedelta(weeks=int(m.group(1)))).isoformat()
+        return (now_utc + timedelta(weeks=int(m.group(1)))).isoformat()
 
     # Fixed times of day — "tonight", "this evening", "noon", etc.
     if text in _TIME_OF_DAY:
         hour, minute = _TIME_OF_DAY[text]
-        target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-        if target <= now:
+        target = now_naive.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if target <= now_naive:
             target += timedelta(days=1)
-        return target.isoformat()
+        return _local_to_utc_iso(target)
 
     if text == "tomorrow":
-        return (now + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0).isoformat()
+        target = (now_naive + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
+        return _local_to_utc_iso(target)
 
     m = re.match(r"tomorrow at (\d{1,2})(?::(\d{2}))?\s*(am|pm)?$", text)
     if m:
         hour, minute, period = int(m.group(1)), int(m.group(2) or 0), m.group(3)
         if period == "pm" and hour < 12: hour += 12
         elif period == "am" and hour == 12: hour = 0
-        return (now + timedelta(days=1)).replace(hour=hour, minute=minute, second=0, microsecond=0).isoformat()
+        target = (now_naive + timedelta(days=1)).replace(hour=hour, minute=minute, second=0, microsecond=0)
+        return _local_to_utc_iso(target)
 
     m = re.match(r"today at (\d{1,2})(?::(\d{2}))?\s*(am|pm)?$", text)
     if m:
         hour, minute, period = int(m.group(1)), int(m.group(2) or 0), m.group(3)
         if period == "pm" and hour < 12: hour += 12
         elif period == "am" and hour == 12: hour = 0
-        target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-        if target <= now: target += timedelta(days=1)
-        return target.isoformat()
+        target = now_naive.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if target <= now_naive: target += timedelta(days=1)
+        return _local_to_utc_iso(target)
 
     # Weekday names — "monday", "next monday", "this friday at 3pm"
     m = re.match(
@@ -131,7 +238,7 @@ def _parse_remind_at(text: str) -> str | None:
     if m:
         modifier, weekday_name, hour, minute, period = m.groups()
         target_weekday = _WEEKDAYS[weekday_name]
-        days_ahead = (target_weekday - now.weekday()) % 7
+        days_ahead = (target_weekday - now_naive.weekday()) % 7
         if days_ahead == 0:
             days_ahead = 7 if modifier == "next" else 0
         elif modifier == "next":
@@ -144,28 +251,28 @@ def _parse_remind_at(text: str) -> str | None:
         else:
             hour, minute = 9, 0
 
-        target = (now + timedelta(days=days_ahead)).replace(hour=hour, minute=minute, second=0, microsecond=0)
-        if target <= now:
+        target = (now_naive + timedelta(days=days_ahead)).replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if target <= now_naive:
             target += timedelta(days=7)
-        return target.isoformat()
+        return _local_to_utc_iso(target)
 
     # 24-hour time — "15:30"
     m = re.match(r"(\d{1,2}):(\d{2})$", text)
     if m:
         hour, minute = int(m.group(1)), int(m.group(2))
         if 0 <= hour <= 23 and 0 <= minute <= 59:
-            target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-            if target <= now: target += timedelta(days=1)
-            return target.isoformat()
+            target = now_naive.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            if target <= now_naive: target += timedelta(days=1)
+            return _local_to_utc_iso(target)
 
     m = re.match(r"(\d{1,2})(?::(\d{2}))?\s*(am|pm)$", text)
     if m:
         hour, minute, period = int(m.group(1)), int(m.group(2) or 0), m.group(3)
         if period == "pm" and hour < 12: hour += 12
         elif period == "am" and hour == 12: hour = 0
-        target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-        if target <= now: target += timedelta(days=1)
-        return target.isoformat()
+        target = now_naive.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if target <= now_naive: target += timedelta(days=1)
+        return _local_to_utc_iso(target)
 
     return None
 
@@ -229,15 +336,22 @@ async def _load_notes(user_id: str) -> list:
         return []
 
 
-async def save_note(user_id: str, note: str, remind_at_iso: str | None = None) -> str:
+async def save_note(user_id: str, note: str, remind_at_iso: str | None = None, recurrence: str = "none") -> str:
     if not _SUPABASE_URL or not _SUPABASE_KEY:
         return "Failed to save note: notes storage is not configured."
+    if recurrence not in ("none", "daily", "weekly", "monthly"):
+        recurrence = "none"
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.post(
                 f"{_SUPABASE_URL}/rest/v1/{_NOTES_TABLE}",
                 headers=_notes_headers(),
-                json={"user_id": user_id, "note": note, "remind_at": remind_at_iso},
+                json={
+                    "user_id": user_id,
+                    "note": note,
+                    "remind_at": remind_at_iso,
+                    "remind_recurrence": recurrence,
+                },
                 timeout=10.0,
             )
         if resp.status_code not in (200, 201):
@@ -247,6 +361,8 @@ async def save_note(user_id: str, note: str, remind_at_iso: str | None = None) -
         result = f"Note saved (id: {note_id}): {note}"
         if remind_at_iso:
             result += f" — reminder set for {remind_at_iso}"
+            if recurrence != "none":
+                result += f" (repeats {recurrence})"
         return result
     except Exception as e:
         return f"Failed to save note: {e}"
@@ -262,6 +378,8 @@ async def get_notes(user_id: str) -> str:
             line = f"[{n['id']}] {n['note']}"
             if n.get("remind_at"):
                 line += f" (remind: {n['remind_at']})"
+            if n.get("remind_recurrence") and n["remind_recurrence"] != "none":
+                line += f" (repeats {n['remind_recurrence']})"
             lines.append(line)
         return "Active notes:\n" + "\n".join(lines)
     except Exception as e:
@@ -290,6 +408,141 @@ async def mark_note_done(user_id: str, note_id: str) -> str:
         return f"Failed to mark note done: {e}"
 
 
+async def mark_note_undone(user_id: str, note_id: str) -> str:
+    if not _SUPABASE_URL or not _SUPABASE_KEY:
+        return "Failed to re-open note: notes storage is not configured."
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.patch(
+                f"{_SUPABASE_URL}/rest/v1/{_NOTES_TABLE}",
+                headers=_notes_headers(),
+                params={"id": f"eq.{note_id}", "user_id": f"eq.{user_id}"},
+                json={"done": False, "done_at": None},
+                timeout=10.0,
+            )
+        if resp.status_code != 200:
+            return f"Failed to re-open note: {resp.text[:200]}"
+        rows = resp.json()
+        if not rows:
+            return f"Note {note_id} not found."
+        return f"Note {note_id} re-opened."
+    except Exception as e:
+        return f"Failed to re-open note: {e}"
+
+
+async def edit_note(
+    user_id: str,
+    note_id: str,
+    note: str | None = None,
+    remind_at_iso: str | None = None,
+    clear_remind_at: bool = False,
+) -> str:
+    if not _SUPABASE_URL or not _SUPABASE_KEY:
+        return "Failed to edit note: notes storage is not configured."
+    payload: dict = {}
+    if note is not None:
+        payload["note"] = note
+    if clear_remind_at:
+        payload["remind_at"] = None
+        payload["channels_sent"] = []
+    elif remind_at_iso is not None:
+        payload["remind_at"] = remind_at_iso
+        payload["channels_sent"] = []
+    if not payload:
+        return "Nothing to update."
+    payload["updated_at"] = datetime.now(timezone.utc).isoformat()
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.patch(
+                f"{_SUPABASE_URL}/rest/v1/{_NOTES_TABLE}",
+                headers=_notes_headers(),
+                params={"id": f"eq.{note_id}", "user_id": f"eq.{user_id}"},
+                json=payload,
+                timeout=10.0,
+            )
+        if resp.status_code != 200:
+            return f"Failed to edit note: {resp.text[:200]}"
+        rows = resp.json()
+        if not rows:
+            return f"Note {note_id} not found."
+        return f"Note {note_id} updated."
+    except Exception as e:
+        return f"Failed to edit note: {e}"
+
+
+async def snooze_note(user_id: str, note_id: str, remind_at_iso: str) -> str:
+    if not _SUPABASE_URL or not _SUPABASE_KEY:
+        return "Failed to snooze note: notes storage is not configured."
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.patch(
+                f"{_SUPABASE_URL}/rest/v1/{_NOTES_TABLE}",
+                headers=_notes_headers(),
+                params={"id": f"eq.{note_id}", "user_id": f"eq.{user_id}"},
+                json={
+                    "remind_at": remind_at_iso,
+                    "channels_sent": [],
+                    "done": False,
+                    "done_at": None,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                },
+                timeout=10.0,
+            )
+        if resp.status_code != 200:
+            return f"Failed to snooze note: {resp.text[:200]}"
+        rows = resp.json()
+        if not rows:
+            return f"Note {note_id} not found."
+        return f"Note {note_id} snoozed until {remind_at_iso}."
+    except Exception as e:
+        return f"Failed to snooze note: {e}"
+
+
+async def delete_note(user_id: str, note_id: str) -> str:
+    if not _SUPABASE_URL or not _SUPABASE_KEY:
+        return "Failed to delete note: notes storage is not configured."
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.delete(
+                f"{_SUPABASE_URL}/rest/v1/{_NOTES_TABLE}",
+                headers=_notes_headers(),
+                params={"id": f"eq.{note_id}", "user_id": f"eq.{user_id}"},
+                timeout=10.0,
+            )
+        if resp.status_code != 200:
+            return f"Failed to delete note: {resp.text[:200]}"
+        rows = resp.json()
+        if not rows:
+            return f"Note {note_id} not found."
+        return f"Note {note_id} deleted."
+    except Exception as e:
+        return f"Failed to delete note: {e}"
+
+
+async def set_note_recurrence(user_id: str, note_id: str, recurrence: str) -> str:
+    if not _SUPABASE_URL or not _SUPABASE_KEY:
+        return "Failed to update recurrence: notes storage is not configured."
+    if recurrence not in ("none", "daily", "weekly", "monthly"):
+        return f"Invalid recurrence: {recurrence!r}. Use none, daily, weekly, or monthly."
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.patch(
+                f"{_SUPABASE_URL}/rest/v1/{_NOTES_TABLE}",
+                headers=_notes_headers(),
+                params={"id": f"eq.{note_id}", "user_id": f"eq.{user_id}"},
+                json={"remind_recurrence": recurrence, "updated_at": datetime.now(timezone.utc).isoformat()},
+                timeout=10.0,
+            )
+        if resp.status_code != 200:
+            return f"Failed to update recurrence: {resp.text[:200]}"
+        rows = resp.json()
+        if not rows:
+            return f"Note {note_id} not found."
+        return f"Note {note_id} recurrence set to {recurrence}."
+    except Exception as e:
+        return f"Failed to update recurrence: {e}"
+
+
 # ─── Dispatcher (accepts structured dict input from Anthropic native tool use) ─
 
 async def execute_tool(user_id: str, tool_name: str, tool_input: dict) -> str:
@@ -301,12 +554,42 @@ async def execute_tool(user_id: str, tool_name: str, tool_input: dict) -> str:
         elif tool_name == "save_note":
             note = tool_input.get("note", "")
             remind_at_str = tool_input.get("remind_at")
-            remind_at_iso = _parse_remind_at(remind_at_str) if remind_at_str else None
-            return await save_note(user_id, note, remind_at_iso)
+            recurrence = tool_input.get("recurrence", "none")
+            remind_at_iso = None
+            if remind_at_str:
+                tz_name = await get_user_timezone(user_id)
+                remind_at_iso = _parse_remind_at(remind_at_str, tz_name)
+            return await save_note(user_id, note, remind_at_iso, recurrence)
         elif tool_name == "get_notes":
             return await get_notes(user_id)
         elif tool_name == "mark_note_done":
             return await mark_note_done(user_id, tool_input.get("note_id", ""))
+        elif tool_name == "mark_note_undone":
+            return await mark_note_undone(user_id, tool_input.get("note_id", ""))
+        elif tool_name == "edit_note":
+            note_id = tool_input.get("note_id", "")
+            new_note = tool_input.get("note")
+            remind_at_str = tool_input.get("remind_at")
+            clear_remind = remind_at_str == ""
+            remind_at_iso = None
+            if remind_at_str:
+                tz_name = await get_user_timezone(user_id)
+                remind_at_iso = _parse_remind_at(remind_at_str, tz_name)
+                if remind_at_iso is None:
+                    return f"Could not understand the time: {remind_at_str!r}"
+            return await edit_note(user_id, note_id, new_note, remind_at_iso, clear_remind)
+        elif tool_name == "snooze_note":
+            note_id = tool_input.get("note_id", "")
+            remind_at_str = tool_input.get("remind_at", "")
+            tz_name = await get_user_timezone(user_id)
+            remind_at_iso = _parse_remind_at(remind_at_str, tz_name)
+            if remind_at_iso is None:
+                return f"Could not understand the time: {remind_at_str!r}"
+            return await snooze_note(user_id, note_id, remind_at_iso)
+        elif tool_name == "delete_note":
+            return await delete_note(user_id, tool_input.get("note_id", ""))
+        elif tool_name == "set_note_recurrence":
+            return await set_note_recurrence(user_id, tool_input.get("note_id", ""), tool_input.get("recurrence", "none"))
         else:
             return f"Unknown tool: {tool_name}"
     except Exception as e:

@@ -15,19 +15,24 @@ from backend.agent import (
     mark_note_done,
 )
 from backend.memory import save_interaction
+from backend.utils.user_context import get_user_timezone
 
 router = APIRouter()
+
+_RECURRENCES = ("none", "daily", "weekly", "monthly")
 
 
 class NoteCreate(BaseModel):
     note: str
     remind_at: str | None = None  # natural language or ISO — parsed server-side
+    remind_recurrence: str | None = None  # none|daily|weekly|monthly
 
 
 class NoteUpdate(BaseModel):
     note: str | None = None
     remind_at: str | None = None  # natural language, ISO, or null to clear
     done: bool | None = None
+    remind_recurrence: str | None = None  # none|daily|weekly|monthly
 
 
 class SnoozeRequest(BaseModel):
@@ -50,13 +55,25 @@ async def list_notes(user_id: str, include_done: bool = False):
 @router.post("/notes/{user_id}")
 async def create_note(user_id: str, body: NoteCreate, background_tasks: BackgroundTasks):
     _require_supabase()
-    remind_at_iso = _parse_remind_at(body.remind_at) if body.remind_at else None
+    remind_at_iso = None
+    if body.remind_at:
+        tz_name = await get_user_timezone(user_id)
+        remind_at_iso = _parse_remind_at(body.remind_at, tz_name)
+        if remind_at_iso is None:
+            raise HTTPException(400, f"Could not understand the time: {body.remind_at!r}")
+
+    recurrence = body.remind_recurrence if body.remind_recurrence in _RECURRENCES else "none"
 
     async with httpx.AsyncClient() as client:
         resp = await client.post(
             f"{_SUPABASE_URL}/rest/v1/{_NOTES_TABLE}",
             headers=_notes_headers(),
-            json={"user_id": user_id, "note": body.note, "remind_at": remind_at_iso},
+            json={
+                "user_id": user_id,
+                "note": body.note,
+                "remind_at": remind_at_iso,
+                "remind_recurrence": recurrence,
+            },
             timeout=10.0,
         )
     if resp.status_code not in (200, 201):
@@ -78,11 +95,22 @@ async def update_note(user_id: str, note_id: str, body: NoteUpdate, background_t
     if body.note is not None:
         payload["note"] = body.note
     if body.remind_at is not None:
-        payload["remind_at"] = _parse_remind_at(body.remind_at) if body.remind_at else None
+        if body.remind_at:
+            tz_name = await get_user_timezone(user_id)
+            remind_at_iso = _parse_remind_at(body.remind_at, tz_name)
+            if remind_at_iso is None:
+                raise HTTPException(400, f"Could not understand the time: {body.remind_at!r}")
+            payload["remind_at"] = remind_at_iso
+        else:
+            payload["remind_at"] = None
         payload["channels_sent"] = []
     if body.done is not None:
         payload["done"] = body.done
         payload["done_at"] = datetime.now(timezone.utc).isoformat() if body.done else None
+    if body.remind_recurrence is not None:
+        if body.remind_recurrence not in _RECURRENCES:
+            raise HTTPException(400, f"Invalid recurrence: {body.remind_recurrence!r}")
+        payload["remind_recurrence"] = body.remind_recurrence
     if not payload:
         raise HTTPException(400, "No fields to update")
     payload["updated_at"] = datetime.now(timezone.utc).isoformat()
@@ -129,7 +157,8 @@ async def delete_note(user_id: str, note_id: str):
 @router.post("/notes/{user_id}/{note_id}/snooze")
 async def snooze_note(user_id: str, note_id: str, body: SnoozeRequest):
     _require_supabase()
-    remind_at_iso = _parse_remind_at(body.remind_at)
+    tz_name = await get_user_timezone(user_id)
+    remind_at_iso = _parse_remind_at(body.remind_at, tz_name)
     if not remind_at_iso:
         raise HTTPException(400, f"Could not understand the time: {body.remind_at!r}")
 
