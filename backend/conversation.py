@@ -73,9 +73,29 @@ async def get_conversation_history(user_id: str, limit: int = 20) -> list[dict]:
                 },
                 timeout=10.0,
             )
-        if resp.status_code != 200:
-            print(f"CONV: get failed ({resp.status_code}): {resp.text[:200]}")
-            return []
+            if resp.status_code != 200:
+                # Schema drift (e.g. `attachments` column missing in this
+                # environment) shouldn't hide a user's entire history —
+                # fall back to the columns that have always existed.
+                print(f"CONV: get failed ({resp.status_code}): {resp.text[:200]} — retrying without attachments")
+                resp = await client.get(
+                    f"{_SUPABASE_URL}/rest/v1/{_TABLE}",
+                    headers=_headers("return=representation"),
+                    params={
+                        "user_id": f"eq.{user_id}",
+                        "order": "created_at.desc",
+                        "limit": limit,
+                        "select": "role,content",
+                    },
+                    timeout=10.0,
+                )
+                if resp.status_code != 200:
+                    print(f"CONV: get failed ({resp.status_code}): {resp.text[:200]}")
+                    return []
+                rows = resp.json()
+                for row in rows:
+                    row.setdefault("attachments", [])
+                return list(reversed(rows)) if rows else []
         rows = resp.json()
         # Fetched newest-first; reverse so oldest is first for chat context
         return list(reversed(rows)) if rows else []
