@@ -18,6 +18,7 @@ from backend.lib.business.tool_builder import build_tools_for_user
 from backend.lib.business.tool_executor import execute_tool
 from backend.lib.business.document_store import save_document
 from backend.lib.business.real_estate.profile import is_real_estate_user
+from backend.lib.business.intent_router import classify_message_intent
 from backend.usage_limits import check_limit, increment_usage, get_usage
 
 router = APIRouter()
@@ -306,6 +307,26 @@ async def get_user_usage(user_id: str = ""):
         return {"used": 0, "limit": 32, "remaining": 32, "is_admin": False, "resets_in": "", "window_minutes": 90}
     usage = await asyncio.to_thread(get_usage, user_id, sb)
     return usage
+
+
+class IntentClassifyRequest(BaseModel):
+    message: str
+    active_agent_id: str | None = None
+    recent_assistant_texts: list[str] | None = None
+    has_attachments: bool = False
+
+
+@router.post("/business/classify-intent")
+async def classify_intent_route(request: IntentClassifyRequest):
+    """Single classification call deciding whether a Business chat message
+    belongs to the regular chat flow, a show-me-how walkthrough, or the
+    creation pipeline. Replaces the old frontend regex cascade."""
+    return await classify_message_intent(
+        request.message,
+        active_agent_id=request.active_agent_id,
+        recent_assistant_texts=request.recent_assistant_texts,
+        has_attachments=request.has_attachments,
+    )
 
 
 @router.post("/business/chat/stream")

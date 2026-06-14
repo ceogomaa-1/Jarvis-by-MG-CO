@@ -3,11 +3,9 @@ import { useState, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { motion, AnimatePresence } from 'framer-motion'
-import { detectShowMeHow } from '../../lib/business/showMeHowDetector'
 import Walkthrough from './Walkthrough'
 import DownloadPDFButton from './DownloadPDFButton'
-import { detectCreation } from '../../lib/business/creationDetector'
-import { isAgentModificationRequest, findActiveAgentId } from '../../lib/business/agentEditDetector'
+import { findActiveAgentId } from '../../lib/business/agentEditDetector'
 import CreationCanvas from './CreationCanvas'
 import ProactiveBanner from './ProactiveBanner'
 import WelcomeState from './WelcomeState'
@@ -46,17 +44,6 @@ function isActiveCreationMessage(message) {
     (message.deploymentStages && message.deploymentStages.length > 0) ||
     (!message.liveUrl && !message.deploymentError)
   )
-}
-
-function isDeployConfirmation(text, messages) {
-  if (!/^\s*(yes|yeah|yep|please|yes please|do it|go ahead|ship it|deploy it|deploy|push it|launch it|make it live|sounds good|ok|okay|sure)\s*[.!?]*\s*$/i.test(text || '')) {
-    return false
-  }
-  const recent = [...(messages || [])].reverse().slice(0, 8)
-  return recent.some(m => {
-    if (m.role !== 'assistant' || typeof m.content !== 'string') return false
-    return /(github\s*\+\s*vercel|vercel.*github|github.*vercel|trigger live url|live url generation|push all files|spawn a sub-agent.*deploy|deployment)/is.test(m.content)
-  })
 }
 
 function UserBubble({ content, attachments }) {
@@ -643,19 +630,43 @@ export default function ChatCanvas({
     // to text-only messages; attachments mean "look at this and respond".
     const hasAttachments = attachments.length > 0
 
-    // "Active build context": if Jarvis just created/edited an ElevenLabs agent
-    // and this message reads as a modification ("make the greeting shorter",
-    // "adjust that for me", "make it sound more human"), treat it as an
-    // edit on THAT agent — never a walkthrough or a brand-new creation.
+    // "Active build context": if Jarvis just created/edited an ElevenLabs agent,
+    // pass its id to the intent classifier so "adjust the greeting" routes to
+    // chat (update_agent) rather than a walkthrough or a brand-new creation.
     const activeAgentId = !hasAttachments ? findActiveAgentId(messages) : null
-    const isAgentEdit = !!activeAgentId && isAgentModificationRequest(text)
 
     msgIdRef.current += 1
     const userMsgId = msgIdRef.current
     setMessages(prev => [...prev, { id: userMsgId, role: 'user', content: text, attachments }])
     setLoading(true)
 
-    if (!hasAttachments && !isAgentEdit && detectShowMeHow(text)) {
+    // Single backend classification call decides chat vs show-me-how vs
+    // create — replaces the old independent regex-detector cascade
+    // (agentEditDetector / showMeHowDetector / creationDetector / isDeployConfirmation).
+    let intent = 'chat'
+    if (!hasAttachments) {
+      try {
+        const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant' && typeof m.content === 'string' && m.content)
+        const res = await fetch(`${BACKEND}/api/business/classify-intent`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: text,
+            active_agent_id: activeAgentId,
+            recent_assistant_texts: lastAssistant ? [lastAssistant.content] : [],
+            has_attachments: false,
+          }),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          if (data?.intent) intent = data.intent
+        }
+      } catch (err) {
+        console.error('Intent classification failed, defaulting to chat:', err)
+      }
+    }
+
+    if (intent === 'show_me_how') {
       msgIdRef.current += 1
       const wId = msgIdRef.current
       setMessages(prev => [...prev, {
@@ -721,7 +732,7 @@ export default function ChatCanvas({
       return
     }
 
-    if (!hasAttachments && !isAgentEdit && (detectCreation(text) || isDeployConfirmation(text, messages))) {
+    if (intent === 'create') {
       msgIdRef.current += 1
       const cId = msgIdRef.current
       setMessages(prev => [...prev, {
