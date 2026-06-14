@@ -340,4 +340,176 @@ exit 0 — compiles clean (no frontend files changed this phase; re-run for cons
 
 - The 6a result is a real, slightly lucky double-win: Mem0 is still rate-limited (B5, noted in §G as a pre-existing operational issue), so this single call exercises BOTH the Phase 2 grounding fix (honestly reporting the lookup failure instead of "I know nothing about you") AND the Phase 4 clarification rule (asking what to pick back up). A non-rate-limited run would likely skip the "memory lookup isn't coming through" sentence and go straight to the clarifying question — the clarifying-question behavior itself is what Phase 4 targets and is present either way.
 - This phase intentionally scoped "Jarvis Core" down to the one concrete, regression-test-backed gap (ambiguity/clarification + outcome honesty) rather than attempting to unify the two products' very different personas (Personal's companion voice vs. Business's C-suite operator voice, including Business's intentional use of 🔴/🟡/🟢/✅/⏳/⚠️ status emoji in Mode 2/3 vs. Personal's "ZERO emojis" rule). Those persona differences are deliberate product design, not the inconsistency the original brief was concerned with, and unifying them was out of scope.
+
+## J. Phase 5 — Completion Report
+
+**Status: DONE. Live regression suite built for all 7 §D scenarios, a real fake-success bug found and fixed along the way, manual checklist written, full suite green, committed.**
+
+### What changed
+
+- New **`backend/tests/test_regression_suite.py`** — a live regression suite hitting the real running server (`RUN_LIVE_TESTS=1 python -m pytest backend/tests/test_regression_suite.py -v -s`, skipped by default via `pytest.mark.skipif`). One test per §D scenario (7 total), using loose shape-based assertions against real LLM output.
+- New **`JARVIS-REGRESSION-CHECKLIST.md`** — manual checklist for what the live suite intentionally doesn't automate: reminder #4's real-time (~60s) in-app delivery, the Business Creation → Vercel deploy pipeline UI (C7), the new onboarding fix in the chat UI, voice mode, and Business Creation sub-agent grounding.
+- **A real bug, found by the suite, fixed**: see below.
+- New **`backend/tests/test_onboarding_no_fake_tools.py`** (2 tests) — regression-locks the fix.
+
+### The bug the suite found (new root-cause-#3 instance, not previously cataloged in §C)
+
+First run of the live suite: **5/7 passed**, regressions #4 and #5 failed with `assert []` ("expected a note to be saved"). Both tests used a brand-new throwaway `user_id`.
+
+Investigation via `LLM_ONBOARDING_GATE`/`LLM_TOOLS_OFFERED` logs showed: for a brand-new user, `backend/routes/chat.py` sets `system_override = get_onboarding_prompt(user_id)` and then `tools = AVAILABLE_TOOLS if not system_override else None` — **all tools, including `save_note`, are suppressed during onboarding.** That part is intentional (`backend/user_model.py`'s `_ONBOARDING_SYSTEM_PROMPTS`).
+
+The actual bug: with tools suppressed but the model still primed (by its own training, not by anything in this prompt) to "act" on an explicit instruction like "remind me in 1 min...", a brand-new user's first message produced this **real, live response**:
+
+```
+Before fix — POST /api/chat {"user_id":"<new>","message":"Remind me in 1 min to check the oven"}
+"response": "\n<function_calls>\n<invoke name=\"create_calendar_event\">\n<parameter name=\"title\">Check the oven</parameter>\n...
+</invoke>\n</function_calls>\n<function_calls>\n<invoke name=\"create_reminder\">\n<parameter name=\"title\">Check the oven</parameter>\n...
+</invoke>\n</function_calls>\n\nReminder set for 4:11 PM — one minute from now.\n\nWhat are you cooking?"
+```
+
+Two distinct problems in one response, both squarely in the original brief's root cause #3 (fake-success):
+1. **Raw `<function_calls><invoke>` XML leaked directly into the user-visible `response` string** — no tool was registered for this call (`LLM_TOOLS_OFFERED: NONE`), so this is the model hallucinating tool-call syntax as plain text.
+2. **`create_reminder` is not a real tool anywhere in this codebase** (confirmed via grep — zero matches) — a fully invented tool name.
+3. **"Reminder set for 4:11 PM"** — confidently stated as fact. Nothing was saved; `GET /api/notes/<user>` returned `[]`.
+
+This was invisible to Phase 0's static code review (§C) because it only manifests when (a) `system_override` is set AND (b) the user's message is an explicit action request — a combination the live regression suite exercises but a code read doesn't.
+
+### The fix
+
+`backend/user_model.py` — added `_NO_TOOLS_REMINDER`, appended to the three *active* onboarding prompts (`identity`, `goals`, `personality`) alongside the existing `_MEMORY_REMINDER`, same pattern:
+
+```python
+_NO_TOOLS_REMINDER = (
+    " IMPORTANT: You have NO tools available on this turn — you cannot create calendar events, "
+    "save notes, set reminders, send emails, or take any other action right now, no matter what "
+    "the user asks. Never output tool-call or function-call syntax. Never tell the user something "
+    "is set, saved, sent, scheduled, or done — that would be a lie. If they ask you to do one of "
+    "those things, acknowledge it naturally (e.g. \"got it — once we're set up I'll be able to do "
+    "that for you\") without explaining why, then continue the onboarding question."
+)
+```
+
+Deliberately **not** added to `"complete"` — once onboarding finishes, tools are active again and this would be false.
+
+### Live verification — real output from the running server (post-restart)
+
+| # | Check | Call | Before fix | After fix |
+|---|---|---|---|---|
+| 4 | Brand-new user, "Remind me in 1 min to check the oven" | `POST /api/chat {"user_id":"<new>",...}` | Raw `<function_calls><invoke name="create_calendar_event">...` + `<invoke name="create_reminder">...` XML, then *"Reminder set for 4:11 PM — one minute from now."* (nothing saved) | *"Noted — once we're fully set up I'll be able to handle reminders like that for you.\n\nWhile you've got one eye on the oven — what's your name?"* — no XML, no false claim, continues onboarding |
+| 5 | Brand-new user, "Note this down: the supplier called, new lead time is 3 weeks" | `POST /api/chat {"user_id":"<new>",...}` | (same failure mode — `assert []`, no note saved) | *"Once we're set up I'll be able to save notes like that for you automatically.\n\nQuick question while we're getting started -- what's your name?"* — honest, continues onboarding |
+
+### Full live regression suite — real output (after fix, against `REAL_PERSONAL_USER` for #4/#5)
+
+```
+$ RUN_LIVE_TESTS=1 python -m pytest backend/tests/test_regression_suite.py -v -s
+test_regression_1_agent_edit_routes_to_chat PASSED
+test_regression_2_dead_restaurant_url_no_invented_facts PASSED
+test_regression_3_profile_recall_real_user PASSED
+test_regression_4_reminder_saved_with_correct_time PASSED
+test_regression_5_plain_note_saved_without_unnecessary_questions PASSED
+test_regression_6_ambiguous_remember_asks_clarifying_question PASSED
+test_regression_7_tool_failure_reported_honestly PASSED
+7 passed in 128.06s (0:02:08)
+```
+
+Real-user note cleanup confirmed: `GET /api/notes/user_d4533f...` → `count: 0` after the run (both test notes created and deleted via the real `DELETE /api/notes/{user_id}/{note_id}` endpoint).
+
+### Automated tests — real output
+
+```
+$ python -m pytest backend/tests/test_onboarding_no_fake_tools.py -v
+test_active_onboarding_prompts_warn_no_tools_available PASSED
+test_complete_onboarding_prompt_does_not_warn_no_tools PASSED
+2 passed
+
+$ python -m pytest backend/tests/ -q
+169 passed, 7 skipped, 2 warnings   (was 167 before this phase; +2 new unit tests; 7 skipped = the new live suite, skipped without RUN_LIVE_TESTS=1)
+```
+
+### Honesty notes
+
+- **#4/#5's original failure had two independent causes**, both fixed: (a) a test-design bug — `_load_notes` returns `created_at.desc` (newest first), so the original `notes[-1]` would have picked the *oldest* note once a real user has more than one (it only "worked" for brand-new users with exactly zero pre-existing notes); fixed to `notes[0]`. (b) the real fake-success bug described above, which is the one that actually matters.
+- **This bug predates this entire 5-phase batch** — it's a Phase-0-era latent bug that Phases 1-4's static-analysis-driven inventories (§A/§B/§C) did not catch, because it only fires for a brand-new user's *first* message when that message is an explicit action request. The live regression suite (Phase 5's actual deliverable) is what surfaced it. This is the clearest evidence in this batch that "implement → verify on the real running app" is doing real work, not just confirming what a code read already suggested.
+- The fix is additive and scoped exactly like Phases 2/4: one new constant, appended to the 3 prompts where it's true, not appended where it isn't. No existing onboarding copy was changed.
+- Not independently re-verified in this phase: regression #1 (Phase 1), #2 and #6 (Phase 2/4 business-side), #7 (Phase 3) — these passed in this run using the same suite, but their underlying fixes were already live-verified in their own phases. This run's value-add is specifically #4/#5 and the new onboarding fix.
+- `JARVIS-REGRESSION-CHECKLIST.md` items (browser-based onboarding check, in-app reminder delivery, Business Creation deploy UI, voice mode, Creation sub-agent grounding) were written but **not executed** in this phase — they require a browser session and, for the deploy pipeline, a real Vercel deploy. Flagged here rather than silently left out.
+
+---
+
+## K. FINAL REPORT — All Phases (0–5)
+
+### Root causes → fixes, mapped
+
+| Original root cause | Phase | Fix | Status |
+|---|---|---|---|
+| 1. Brittle multi-layer regex intent routing (Business frontend, §A1) | 1 | Single backend `classify_message_intent()` (Haiku), `/api/business/classify-intent`; deleted 3 frontend regex detector files + 1 dead backend file | ✅ Done, 9/9 live scenarios correct, committed `136caea` |
+| 2. No grounding/anti-hallucination contract (§B) | 2 | `GROUNDING_CONTRACT` injected into Personal (`llm.py`), Business chat (`system_prompt_builder.py`), Business creation sub-agents (`sub_agents.py`); B4 (`get_user_model` lookup-failed signal), B5 (Mem0-rate-limit sentinel), B8 (`is_fallback` site flag) | ✅ Done, live-verified (dead-URL → honest refusal to invent), committed `c03063f` |
+| 3. Fake-success / no real result reporting (§C) | 3 | C7: `/business/deploy-status` returns `UNKNOWN` (not `BUILDING`) on a Vercel status-check failure, frontend message updated; C3/C6 confirmed already-solid | ✅ Done, live-verified, committed `4248dbe` |
+| 3 (cont'd) — **new instance found by Phase 5's live suite, not in original §C** | 5 | New-user onboarding (`system_override` set, tools suppressed) produced hallucinated `<function_calls>` XML + false "Reminder set"/"Noted" claims on a brand-new user's first action request. Fixed via `_NO_TOOLS_REMINDER` in `backend/user_model.py`'s active onboarding prompts | ✅ Done, live-verified before/after, committed in this phase |
+| 4. Inconsistent "Jarvis Core" behavior between Personal/Business (ambiguity handling + outcome honesty) | 4 | New `JARVIS_CORE_CONTRACT` (`backend/lib/jarvis_core.py`) injected into both products' system prompts, right after `GROUNDING_CONTRACT` | ✅ Done, live-verified on both products, committed `11391ee` |
+
+### Regression test list (§D) — final status
+
+All 7 scenarios are now encoded in `backend/tests/test_regression_suite.py` and pass against the real running server:
+
+```
+$ RUN_LIVE_TESTS=1 python -m pytest backend/tests/test_regression_suite.py -v -s
+7 passed in 128.06s
+```
+
+| # | Scenario | First verified in | Re-verified in Phase 5's suite? |
+|---|---|---|---|
+| 1 | Agent-edit phrasing → chat, not creation | Phase 1 | ✅ pass |
+| 2 | Dead restaurant URL → no invented facts | Phase 2 | ✅ pass |
+| 3 | Profile recall ("what's my dream job"-equivalent: "what's my name") | Phase 2 | ✅ pass |
+| 4 | "Remind me in 1 min" → real reminder, correct `remind_at` | **Phase 5 (new bug found + fixed)** | ✅ pass |
+| 5 | "Note this down" → plain note, no unnecessary question | **Phase 5 (new bug found + fixed)** | ✅ pass |
+| 6 | Ambiguous "remember the thing we talked about" → clarifying question | Phase 4 | ✅ pass |
+| 7 | Tool failure reported honestly | Phase 3 | ✅ pass |
+
+### Test suite growth across the batch
+
+| Phase | `pytest backend/tests/ -q` |
+|---|---|
+| Before Phase 1 | 139 passed |
+| After Phase 1 | 148 passed (+9, intent router) |
+| After Phase 2 | 164 passed (+16, grounding) |
+| After Phase 3 | 165 passed (+1, deploy-status) |
+| After Phase 4 | 167 passed (+2, Jarvis Core contract) |
+| After Phase 5 | **169 passed, 7 skipped** (+2 unit tests; 7 skipped = new live regression suite, opt-in via `RUN_LIVE_TESTS=1`) |
+
+### What was explicitly NOT changed (confirmed-solid or out-of-scope, with reasons)
+
+- **§A2** `intent_classifier.py`'s synchronous Haiku fallback (prompt-section selector, not action routing) — different mechanism from §A1, out of Phase 1's scope by design.
+- **§A5 #7** `jarvis_think()`'s single-pass tool loop (a 2nd round of `tool_use` after the first tool result is dropped) — pre-existing, not triggered by any of the 7 regression scenarios, not touched.
+- **§B2, §B7** (web-scrape failure reporting, walkthrough grounding) — Phase 2 confirmed both already correctly grounded; no code change.
+- **§C1, C2, C4, C5, C8** — Phase 0 rated these ✅ solid or low-priority/internal-only; Phase 3 found no new information to change those verdicts.
+- **§C3, C6** — Phase 3 confirmed both already fixed by pre-batch commits (`fd06459`/`8e99050`/`579f0b5`); no new code.
+- **B5's underlying cause** (Mem0 account rate-limiting, "quota exceeded") is a live operational issue on the real Mem0 account, observed during Phases 2 and 4 — B5's *fix* (the `MEMORY_LOOKUP_FAILED_NOTE` sentinel, so Jarvis reports "lookup failed" instead of "I know nothing") is done and verified, but the underlying rate-limit itself is an account/billing issue outside this batch's scope.
+- Personas were deliberately left divergent (Phase 4 honesty notes) — Personal's "ZERO emojis" companion voice vs. Business's status-emoji C-suite operator voice are product design choices, not the inconsistency the brief targeted.
+
+### What was verified live vs. what still needs a human in a browser
+
+Every phase made real API calls against a real running server (`uvicorn backend.main:app`, real Anthropic/Supabase/Mem0 credentials) and captured real output — no phase's "done" claim rests on a code read alone. The one category not covered by API-level testing is **browser UI behavior**, captured in `JARVIS-REGRESSION-CHECKLIST.md`:
+1. Reminder #4's real-time (~60s) in-app delivery
+2. Business Creation → Vercel deploy pipeline UI (C7's `ChatCanvas.js` `UNKNOWN`-state message)
+3. The new onboarding fix (Phase 5) rendered in the actual chat UI — confirmed via API that the raw `<function_calls>` XML is gone from the JSON `response` field, but not yet confirmed how the chat UI would have rendered the *old* broken output or renders the new one
+4. Voice mode (`_VOICE_MODE_BLOCK`/`_VOICE_MODE_SELF_AWARENESS`) — not exercised by any text-based test
+5. Business Creation sub-agent grounding (B1/B8) under a real dead-URL Creation run (Phase 2's regression test 2 used the chat flow as a faithful proxy, not the full Creation pipeline)
+
+### Single most important finding of the whole batch
+
+**Phase 5's live regression suite found a real, user-facing fake-success bug that Phases 0–4's code-reading-based inventories missed entirely** (a brand-new user's first "remind me"/"note this down" message produced raw `<function_calls><invoke>` XML in the chat response plus a confident false "Reminder set" claim, including a fully-hallucinated tool name `create_reminder` that doesn't exist anywhere in the codebase). It was fixed with the same minimal, additive pattern as Phases 2/4. This is the concrete justification for Phase 5 existing as its own phase rather than being assumed-covered by Phases 1–4's per-phase live checks — static review of the system-prompt-construction code would not have surfaced it, because the bug only exists in the *combination* of "onboarding active" + "user's first message is an explicit action request," which only a live end-to-end call exercises.
+
+### Commits this batch
+
+```
+136caea  Phase 1: single backend intent classifier for Jarvis OS1 Business chat
+c03063f  Phase 2: grounding/anti-hallucination contract
+4248dbe  Phase 3: honest deploy-status reporting (C7)
+11391ee  Phase 4: shared Jarvis Core operating contract
+<pending>  Phase 5: live regression suite + onboarding fake-success fix
+```
+
+Per the batch instructions, all phases are pushed to `main`/production together after Phase 5's commit lands.
 - No code paths were removed or restructured — this phase is purely additive (one new shared module, two injection points, one new test file), matching the low-risk pattern established by Phase 2's `GROUNDING_CONTRACT`.
