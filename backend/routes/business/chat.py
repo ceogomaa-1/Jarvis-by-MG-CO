@@ -72,7 +72,18 @@ def _describe_action(tool_name: str, tool_input: dict) -> str:
     if "create_agent" in tool_name:
         return f"Create agent: {tool_input.get('name', '?')}"
     if "update_agent" in tool_name:
-        return f"Update agent: {tool_input.get('agent_id', '?')}"
+        agent_id = tool_input.get("agent_id", "?")
+        changes = []
+        if "first_message" in tool_input:
+            changes.append(f'greeting → "{tool_input["first_message"][:70]}"')
+        if "system_prompt" in tool_input:
+            changes.append("system prompt")
+        if "name" in tool_input:
+            changes.append(f'name → {tool_input["name"]}')
+        if "voice_id" in tool_input:
+            changes.append("voice")
+        detail = ", ".join(changes) if changes else "config"
+        return f"Update agent {agent_id}: {detail}"
     if "delete_agent" in tool_name:
         return f"Delete agent: {tool_input.get('agent_id', '?')}"
     if "create_contact" in tool_name:
@@ -688,9 +699,14 @@ async def confirm_action(request: ConfirmActionRequest):
                     "messages": [{
                         "role": "user",
                         "content": (
-                            f"The action '{request.tool_name}' was just executed with result: "
-                            f"{json.dumps(result_data)[:400]}. "
+                            f"The action '{request.tool_name}' was just executed.\n"
+                            f"Inputs sent: {json.dumps(request.tool_input)[:600]}\n"
+                            f"Result: {json.dumps(result_data)[:400]}\n\n"
                             "Write a brief 1-2 sentence natural confirmation of what was done. "
+                            "If the result contains an 'error' key, the action FAILED — say so "
+                            "plainly and do not claim success. Otherwise, confirm using the REAL "
+                            "result (e.g. include the agent_id if present). If the inputs include "
+                            "a new first_message, quote it — that's the new greeting. "
                             "Be specific and direct. No pleasantries."
                         ),
                     }],
@@ -722,7 +738,14 @@ def _make_fallback_confirmation(tool_name: str, result_data: dict) -> str:
     if result_data.get("status") == "deleted":
         return "Deleted successfully."
     if result_data.get("status") == "updated":
-        return "Updated successfully."
+        agent_id = result_data.get("agent_id")
+        return f"Updated agent {agent_id}." if agent_id else "Updated successfully."
+    if result_data.get("status") == "created":
+        agent_id = result_data.get("agent_id")
+        name = result_data.get("name")
+        if agent_id:
+            return f'Created agent "{name}" ({agent_id}).'
+        return "Created successfully."
     if result_data.get("status") == "sent":
         return "Sent successfully."
     if "event_id" in result_data:

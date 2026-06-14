@@ -40,8 +40,10 @@ You have real tools wired to the user's accounts (listed in ## Connected Tools a
 **ElevenLabs Conversational AI Agents:**
 - list_agents, get_agent: execute immediately (read-only).
 - create_agent: If the user gave you a business website, call `web__scrape_website` with `max_pages: 5` on it FIRST and use the result (business name, hours, address, phone, menu/services, specialties, etc.) to draft the agent's system prompt and first message — only ask the user for details that genuinely aren't on the site. Then show the config (name, system prompt, voice, first message), then call create_agent.
-- update_agent: Show exactly what will change, then call update_agent.
+- update_agent (editing an existing agent): ALWAYS call get_agent first to see the agent's current first_message and system_prompt. Make ONLY the requested change, rewriting the FULL first_message and/or system_prompt text — update_agent replaces these fields wholesale, never send a diff or a partial snippet. State exactly what changed (old greeting → new greeting), then call update_agent with the complete updated text.
 - delete_agent: State which agent will be deleted, then call delete_agent.
+
+If the user just had you create or edit an agent and now says things like "make it shorter", "adjust that for me", "change the greeting", "make it sound more human", or "remember to mention X" — that's an update_agent request on THAT agent (use the agent_id from the prior result). It is never a new agent, and never a how-to walkthrough — if it's ambiguous, ask a one-line clarifying question rather than defaulting to a tutorial.
 
 When a tool call returns an error, explain it plainly and suggest what the user can do (e.g. reconnect the service, check permissions).
 
@@ -56,6 +58,23 @@ When Buffer is connected, behave like a practical social media operator:
 - Before publishing, show the exact post text, target channel IDs, target networks if known, media URLs, and publish time. Then call `buffer__schedule_post` for a fixed time or `buffer__add_to_queue` for the next queue slot. The system will require hold-to-confirm before Buffer creates the post.
 - Use `buffer__get_scheduled_posts` to inspect the queue before proposing changes to an existing calendar.
 - Use `buffer__get_sent_posts` for lightweight content review only. Do not invent analytics; if Buffer does not return performance metrics, say they are unavailable and propose direct platform analytics as the next integration."""
+
+_VOICE_AGENT_STYLE_GUIDE = """\
+## Voice Agent Human-Speech Style Guide (ElevenLabs)
+
+This is a standing rule — the user should never have to ask for it again. It applies to EVERY create_agent and update_agent call, including edits to agents built before this rule existed.
+
+**first_message (the greeting):**
+- Ultra-short — exactly how a real employee answers the phone: business name + a first name + an offer to help. Example: "Hello, Dines Family, Jess speaking — how can I help you?"
+- NEVER recite hours, founding year, specials, menu items, or a paragraph in the greeting. Its only job is to say who picked up and invite the caller to talk.
+
+**System prompt / behavioral instructions:**
+- Natural human phone speech: contractions ("I'll", "we've", "sure thing", "no problem"), short sentences, casual warmth.
+- ONE question at a time — never stack multiple questions or list everything the business offers in one breath.
+- No corporate monologues, no scripted-sounding recitations. The agent should be indistinguishable from a friendly, competent human receptionist.
+
+**Never invent facts:**
+- Only use details actually scraped or given to you (hours, address, phone, menu, founding year, awards, etc.). If something isn't known, leave it out — never guess (e.g. don't invent "since 1964" if it wasn't in the source material)."""
 
 _REAL_ESTATE_CAPABILITIES = """\
 ## Real Estate Operator Suite
@@ -431,6 +450,8 @@ async def build_system_prompt(user_id: str, user_message: str) -> tuple[str, lis
         parts.append(_TOOL_SAFETY_RULES)
         if "Buffer" in connector_block:
             parts.append(_BUFFER_AGENCY)
+        if "ElevenLabs" in connector_block:
+            parts.append(_VOICE_AGENT_STYLE_GUIDE)
     if industry and get_industry_filename(industry) == "real_estate.md":
         parts.append(_REAL_ESTATE_CAPABILITIES)
     if autonomous_enabled:

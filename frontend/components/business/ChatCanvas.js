@@ -7,6 +7,7 @@ import { detectShowMeHow } from '../../lib/business/showMeHowDetector'
 import Walkthrough from './Walkthrough'
 import DownloadPDFButton from './DownloadPDFButton'
 import { detectCreation } from '../../lib/business/creationDetector'
+import { isAgentModificationRequest, findActiveAgentId } from '../../lib/business/agentEditDetector'
 import CreationCanvas from './CreationCanvas'
 import ProactiveBanner from './ProactiveBanner'
 import WelcomeState from './WelcomeState'
@@ -552,6 +553,7 @@ export default function ChatCanvas({
         }),
       })
       const result = await res.json()
+      const toolResult = result.tool_result || {}
       msgIdRef.current += 1
       setMessages(prev => [...prev, {
         id: msgIdRef.current,
@@ -559,6 +561,7 @@ export default function ChatCanvas({
         content: result.response || 'Done.',
         streaming: false,
         chunks: [],
+        ...(toolResult.agent_id ? { agent_id: toolResult.agent_id } : {}),
       }])
       onConversationsUpdated?.()
     } catch (err) {
@@ -640,12 +643,19 @@ export default function ChatCanvas({
     // to text-only messages; attachments mean "look at this and respond".
     const hasAttachments = attachments.length > 0
 
+    // "Active build context": if Jarvis just created/edited an ElevenLabs agent
+    // and this message reads as a modification ("make the greeting shorter",
+    // "adjust that for me", "make it sound more human"), treat it as an
+    // edit on THAT agent — never a walkthrough or a brand-new creation.
+    const activeAgentId = !hasAttachments ? findActiveAgentId(messages) : null
+    const isAgentEdit = !!activeAgentId && isAgentModificationRequest(text)
+
     msgIdRef.current += 1
     const userMsgId = msgIdRef.current
     setMessages(prev => [...prev, { id: userMsgId, role: 'user', content: text, attachments }])
     setLoading(true)
 
-    if (!hasAttachments && detectShowMeHow(text)) {
+    if (!hasAttachments && !isAgentEdit && detectShowMeHow(text)) {
       msgIdRef.current += 1
       const wId = msgIdRef.current
       setMessages(prev => [...prev, {
@@ -711,7 +721,7 @@ export default function ChatCanvas({
       return
     }
 
-    if (!hasAttachments && (detectCreation(text) || isDeployConfirmation(text, messages))) {
+    if (!hasAttachments && !isAgentEdit && (detectCreation(text) || isDeployConfirmation(text, messages))) {
       msgIdRef.current += 1
       const cId = msgIdRef.current
       setMessages(prev => [...prev, {
