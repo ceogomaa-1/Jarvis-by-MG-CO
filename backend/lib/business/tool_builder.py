@@ -11,6 +11,35 @@ from backend.lib.business.real_estate.tools import REAL_ESTATE_TOOLS
 # Static tool registry: tool_name → {description, input_schema}
 # Tool names use connector_type__action_name (double underscore).
 # ─────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# Always-on tools: available to every user regardless of connected connectors.
+# ─────────────────────────────────────────────────────────────────────────────
+_ALWAYS_ON_TOOLS: dict[str, dict] = {
+    "web__scrape_website": {
+        "description": (
+            "Fetch and read the full content of a URL. Renders JavaScript-heavy pages "
+            "(Wix, Squarespace, etc.) with a headless browser, falls back to a fast static "
+            "fetch, and extracts text from linked PDFs (e.g. menu or brochure PDFs). Use this "
+            "whenever the user gives you a website to read, research, or build something from "
+            "(e.g. building an ElevenLabs voice agent for a business). Set max_pages to 5 when "
+            "building a full client profile from a homepage — it auto-discovers and reads key "
+            "sub-pages (menu, about, contact, location, hours) and any linked PDFs from the same site."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "The full URL to fetch (must start with http:// or https://)"},
+                "max_pages": {
+                    "type": "integer",
+                    "description": "How many pages to read in total, including the given URL (1-5). Use 5 when building a client profile from a homepage so menu/about/contact/hours pages and linked PDFs are auto-discovered. Default 1.",
+                    "default": 1,
+                },
+            },
+            "required": ["url"],
+        },
+    },
+}
+
 _TOOLS: dict[str, dict] = {
 
     # ── Stripe ────────────────────────────────────────────────────────────────
@@ -582,16 +611,21 @@ _TOOL_TO_CONNECTOR: dict[str, str] = {k: k.split("__")[0] for k in _TOOLS}
 
 async def build_tools_for_user(user_id: str) -> list[dict]:
     """
-    Return Anthropic tool definitions for the user's active connector connections.
-    Returns [] if no connectors are active — callers must NOT pass [] to the API.
+    Return Anthropic tool definitions: always-on tools (no connector required) plus
+    tools for the user's active connector connections.
     """
+    tools = [
+        {"name": name, "description": defn["description"], "input_schema": defn["input_schema"]}
+        for name, defn in _ALWAYS_ON_TOOLS.items()
+    ]
+
     if not user_id:
-        return []
+        return tools
 
     rows = await list_user_connections(user_id)
     active_types = {r["connector_type"] for r in rows if r.get("status") == "active"}
 
-    tools = [
+    tools += [
         {"name": name, "description": defn["description"], "input_schema": defn["input_schema"]}
         for name, defn in _TOOLS.items()
         if _TOOL_TO_CONNECTOR[name] in active_types

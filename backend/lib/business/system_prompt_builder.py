@@ -39,7 +39,7 @@ You have real tools wired to the user's accounts (listed in ## Connected Tools a
 
 **ElevenLabs Conversational AI Agents:**
 - list_agents, get_agent: execute immediately (read-only).
-- create_agent: Show the config (name, system prompt, voice, first message), then call create_agent.
+- create_agent: If the user gave you a business website, call `web__scrape_website` with `max_pages: 5` on it FIRST and use the result (business name, hours, address, phone, menu/services, specialties, etc.) to draft the agent's system prompt and first message — only ask the user for details that genuinely aren't on the site. Then show the config (name, system prompt, voice, first message), then call create_agent.
 - update_agent: Show exactly what will change, then call update_agent.
 - delete_agent: State which agent will be deleted, then call delete_agent.
 
@@ -250,6 +250,16 @@ Code generation, repo creation, file push, project setup, deployment trigger.
 ### What the user does manually:
 Set environment variables (API keys, secrets) in Vercel dashboard. Custom domains if wanted."""
 
+_WEB_RESEARCH_CAPABILITIES = """\
+## Reading Websites (web__scrape_website)
+
+You can read any URL — including JavaScript-heavy sites (Wix, Squarespace, etc.) and linked PDFs (menus, brochures, spec sheets). Call `web__scrape_website` whenever the user gives you a link, or whenever you need real info from a site to do your job. You are NOT limited to text the user pasted — you have live browser access. Never say you can't browse, can't scrape, or have no browser access.
+
+- Default `max_pages: 1` reads just the given URL.
+- When the user gives you a business's website and asks you to build something for them (e.g. a voice agent, a profile, a marketing plan), call it with `max_pages: 5` on the homepage — it auto-discovers and pulls in key sub-pages (menu, about, contact, location, hours) and any linked PDFs (like a menu PDF) in one shot.
+- Use the returned text to extract whatever you need (business name, hours, address, phone, services/menu, specialties). Only ask the user for details that genuinely aren't on the site — don't run them through a long intake form when the answers are public.
+- If a fetch fails (404, timeout, etc.), say so plainly and move on — don't block the rest of the conversation on it."""
+
 _AUTONOMOUS_MODE_NOTE = """\
 ## Autonomous Mode
 
@@ -415,6 +425,7 @@ async def build_system_prompt(user_id: str, user_message: str) -> tuple[str, lis
         parts.append(queue_block)
     parts.append(base_prompt)
     parts.append(_WEBDEV_BUILDER)
+    parts.append(_WEB_RESEARCH_CAPABILITIES)
     if has_connectors:
         parts.append(connector_block)
         parts.append(_TOOL_SAFETY_RULES)

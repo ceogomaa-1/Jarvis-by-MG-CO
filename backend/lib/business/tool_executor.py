@@ -11,6 +11,7 @@ import json
 from backend.lib.business.connectors.base import ConnectorResult
 from backend.lib.business.connectors.registry import get_connector_for_user
 from backend.lib.business.real_estate.tools import execute_real_estate_tool
+from backend.lib.business.web_scrape import execute_web_tool
 
 
 async def execute_tool(tool_name: str, tool_input: dict, user_id: str) -> str:
@@ -28,6 +29,17 @@ async def execute_tool(tool_name: str, tool_input: dict, user_id: str) -> str:
     if connector_type == "realestate":
         try:
             result: ConnectorResult = await execute_real_estate_tool(action_name, tool_input, user_id)
+        except Exception as e:
+            return json.dumps({"error": f"Tool execution error: {e}"})
+
+        if result.ok:
+            return json.dumps(result.data or {}, default=str)
+        return json.dumps({"error": result.error or "Action failed with no error message"})
+
+    # Web tools are always-on — no connector/credentials needed.
+    if connector_type == "web":
+        try:
+            result: ConnectorResult = await execute_web_tool(action_name, tool_input)
         except Exception as e:
             return json.dumps({"error": f"Tool execution error: {e}"})
 
