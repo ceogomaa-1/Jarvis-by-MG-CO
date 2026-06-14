@@ -1,3 +1,15 @@
+import sys
+
+# Debug/log prints throughout this codebase use non-ASCII characters (→, em-dashes,
+# etc.). Production runs under UTF-8, but on Windows stdout often defaults to cp1252,
+# which raises UnicodeEncodeError deep inside request handlers and turns a working
+# request into "Hit a snag on my end." Force UTF-8 so logging never breaks a request.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
 import os
 from contextlib import asynccontextmanager
 

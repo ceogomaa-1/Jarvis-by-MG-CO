@@ -15,6 +15,8 @@ Returns:
     "env_keys_needed": ["NEXT_PUBLIC_SUPABASE_URL", ...],
     "files": [{"path": str, "content": str}, ...],
     "summary": str,
+    "is_fallback": bool,  # True if the creative generator failed/timed out and
+                          # this is the generic emergency template instead
   }
 """
 import json
@@ -414,6 +416,7 @@ async def generate_site(user_message: str, context: dict) -> dict:
         "env_keys_needed": env_keys,
         "files": files,
         "summary": summary,
+        "is_fallback": False,
     }
 
 
@@ -606,4 +609,5 @@ export default function Home() {{
         "env_keys_needed": [],
         "files": files,
         "summary": "Fallback build-clean Next.js site generated after the creative generator failed or timed out.",
+        "is_fallback": True,
     }

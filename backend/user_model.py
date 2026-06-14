@@ -114,10 +114,17 @@ async def is_onboarding_complete(user_id: str) -> bool:
         return True
 
 
-async def get_user_model(user_id: str) -> dict:
-    """Load the user model from Supabase. Returns a fresh model if none exists."""
+async def get_user_model(user_id: str) -> tuple[dict, bool]:
+    """Load the user model from Supabase.
+
+    Returns (model, lookup_failed). `lookup_failed=True` means Supabase could
+    not be reached or errored — the returned fresh model does NOT mean this is
+    actually a new user, just that we couldn't load their real profile right
+    now. Callers must not treat lookup_failed as "new user" and must not
+    persist this fresh model over a possibly-existing real one.
+    """
     if not _SUPABASE_URL or not _SUPABASE_KEY:
-        return _fresh_model(user_id)
+        return _fresh_model(user_id), True
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.get(
@@ -132,12 +139,14 @@ async def get_user_model(user_id: str) -> dict:
                 data = rows[0].get("model_data", {})
                 if isinstance(data, str):
                     data = json.loads(data)
-                return data
-        return _fresh_model(user_id)
+                return data, False
+            return _fresh_model(user_id), False  # genuinely no row — new user
+        print(f"USER_MODEL: Supabase returned {resp.status_code} loading model for {user_id}: {resp.text[:200]}")
+        return _fresh_model(user_id), True
     except Exception as e:
         print(f"USER_MODEL: ERROR loading from Supabase for {user_id}: {e}")
         traceback.print_exc()
-        return _fresh_model(user_id)
+        return _fresh_model(user_id), True
 
 
 async def save_user_model(user_id: str, model: dict) -> bool:
@@ -206,7 +215,10 @@ async def update_user_model(user_id: str, user_message: str, jarvis_response: st
     extract structured facts about the user from what they just said."""
     print(f"USER_MODEL: Updating for user {user_id}")
     try:
-        model = await get_user_model(user_id)
+        model, lookup_failed = await get_user_model(user_id)
+        if lookup_failed:
+            print(f"USER_MODEL: profile lookup failed for {user_id} — skipping update so a fresh model doesn't overwrite the real one")
+            return False
 
         # Increment interaction count and recalculate trust level
         model["jarvis_relationship"]["interaction_count"] += 1
@@ -298,7 +310,14 @@ async def update_user_model(user_id: str, user_message: str, jarvis_response: st
 async def summarize_user_for_prompt(user_id: str) -> str:
     """Convert the user model into a readable block for injection into jarvis_think()."""
     try:
-        model = await get_user_model(user_id)
+        model, lookup_failed = await get_user_model(user_id)
+        if lookup_failed:
+            return (
+                "PROFILE LOOKUP UNAVAILABLE right now (Supabase error) — this is NOT necessarily a new user. "
+                "Do not say \"I don't know you\" or treat them as new. If they ask about something that "
+                "would normally be in their profile, say the profile lookup is having an issue right now "
+                "rather than guessing or claiming you have no information about them."
+            )
 
         identity = model.get("identity", {})
         personality = model.get("personality", {})
@@ -423,7 +442,12 @@ async def get_onboarding_prompt(user_id: str) -> str:
     """Return the appropriate onboarding system override for the current message,
     then increment onboarding_messages_count. Marks onboarding complete at 10 messages."""
     try:
-        model = await get_user_model(user_id)
+        model, lookup_failed = await get_user_model(user_id)
+        if lookup_failed:
+            # Don't persist a fresh model over a possibly-existing one, and don't
+            # restart onboarding for a returning user just because the lookup failed.
+            return _ONBOARDING_SYSTEM_PROMPTS["complete"]
+
         count = model.get("onboarding_messages_count", 0)
 
         if count >= 10:

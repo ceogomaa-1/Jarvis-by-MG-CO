@@ -6,7 +6,7 @@ router = APIRouter()
 
 @router.get("/user/onboarding-status/{user_id}")
 async def onboarding_status(user_id: str):
-    model = await get_user_model(user_id)
+    model, _ = await get_user_model(user_id)
     return {
         "user_id": user_id,
         "onboarding_complete": model.get("onboarding_complete", False),
@@ -17,4 +17,5 @@ async def onboarding_status(user_id: str):
 
 @router.get("/user/model/{user_id}")
 async def get_full_model(user_id: str):
-    return await get_user_model(user_id)
+    model, _ = await get_user_model(user_id)
+    return model

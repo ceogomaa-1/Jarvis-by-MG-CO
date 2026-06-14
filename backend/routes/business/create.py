@@ -320,6 +320,13 @@ async def business_create(request: CreateRequest):
                     yield f'data: {json.dumps({"type": "artifact", "format": "markdown", "content": previous_artifact})}\n\n'
                     yield f'data: {json.dumps({"type": "complete"})}\n\n'
                     yield f'data: {json.dumps({"type": "agent_status", "id": "a2", "status": "started"})}\n\n'
+                    if site.get("is_fallback"):
+                        fallback_notice = (
+                            "The custom build step hit an issue, so I deployed a clean generic "
+                            "starter instead, it will not match the design brief above. "
+                            "Say \"rebuild the site\" to retry the custom version."
+                        )
+                        yield f'data: {json.dumps({"type": "deployment_status", "message": fallback_notice})}\n\n'
                     yield f'data: {json.dumps({"type": "deployment_status", "message": f"Generated {len(site.get('files', []))} files — starting deploy pipeline…"})}\n\n'
 
                     async for dev in run_deploy_pipeline(request.user_id, site, request.message, creation_id):
@@ -415,6 +422,13 @@ async def business_create(request: CreateRequest):
 
                         if not site:
                             raise RuntimeError("site generator returned no files")
+                        if site.get("is_fallback"):
+                            fallback_notice = (
+                                "The custom build step hit an issue, so I deployed a clean generic "
+                                "starter instead, it will not match the design brief above. "
+                                "Say \"rebuild the site\" to retry the custom version."
+                            )
+                            yield f'data: {json.dumps({"type": "deployment_status", "message": fallback_notice})}\n\n'
                         file_count = len(site.get("files", []))
                         yield f'data: {json.dumps({"type": "deployment_status", "message": f"Generated {file_count} files — starting deploy pipeline…"})}\n\n'
 

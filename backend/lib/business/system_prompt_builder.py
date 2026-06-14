@@ -13,6 +13,7 @@ from backend.lib.business.bible_loader import load_bible, get_industry_filename
 from backend.lib.business.intent_classifier import classify_intent
 from backend.lib.business.connectors.registry import available_connectors_summary
 from backend.lib.business.brand_config import get_brand_config
+from backend.lib.grounding import GROUNDING_CONTRACT
 
 SUPABASE_URL = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
@@ -443,6 +444,7 @@ async def build_system_prompt(user_id: str, user_message: str) -> tuple[str, lis
     if queue_block:
         parts.append(queue_block)
     parts.append(base_prompt)
+    parts.append(GROUNDING_CONTRACT)
     parts.append(_WEBDEV_BUILDER)
     parts.append(_WEB_RESEARCH_CAPABILITIES)
     if has_connectors:

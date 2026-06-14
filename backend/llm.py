@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 import anthropic
 from backend.utils.env import ANTHROPIC_API_KEY
 from backend.tools.soul import get_soul
+from backend.lib.grounding import GROUNDING_CONTRACT
 
 logger = logging.getLogger(__name__)
 
@@ -354,6 +355,7 @@ def _build_system_prompt(
         system_prompt += f"\n\n{_VOICE_MODE_SELF_AWARENESS}"
 
     system_prompt += _CITATION_RULES
+    system_prompt += f"\n\n{GROUNDING_CONTRACT}"
     system_prompt += _TESTING_PHASE_AWARENESS
     system_prompt += _INTERNAL_DISCRETION
 

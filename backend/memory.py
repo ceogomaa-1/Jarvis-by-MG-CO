@@ -34,6 +34,16 @@ async def save_interaction(user_id: str, user_message: str, jarvis_response: str
         return False
 
 
+# Returned in place of "" when the Mem0 lookup itself failed (rate limit, error) —
+# distinct from "" which means the lookup succeeded and found nothing relevant.
+# Lets the model say "memory lookup is having an issue" instead of implying it
+# has no memories of this user at all.
+MEMORY_LOOKUP_FAILED_NOTE = (
+    "(memory lookup temporarily unavailable — this does not mean there's nothing "
+    "to know about the user, just that it couldn't be retrieved right now)"
+)
+
+
 async def get_relevant_memories(user_id: str, current_message: str) -> str:
     """Search Mem0 for memories relevant to the current message and return them
     as a formatted string ready to inject into jarvis_think() as memory_context."""
@@ -51,10 +61,10 @@ async def get_relevant_memories(user_id: str, current_message: str) -> str:
     except Exception as e:
         if RateLimitError and isinstance(e, RateLimitError):
             print(f"MEMORY: rate limited (Mem0 quota exceeded, resets June 1) — skipping for user {user_id}")
-            return ""
+            return MEMORY_LOOKUP_FAILED_NOTE
         print(f"MEMORY: ERROR — get_relevant_memories failed for user {user_id}: {e}")
         traceback.print_exc()
-        return ""
+        return MEMORY_LOOKUP_FAILED_NOTE
 
 
 async def extract_emotional_context(

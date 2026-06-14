@@ -3,6 +3,8 @@ import os
 
 import httpx
 
+from backend.lib.grounding import GROUNDING_CONTRACT
+
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 from backend.lib.business.connectors.registry import available_connectors_summary  # noqa: E402
 SUB_AGENT_MODEL = "claude-sonnet-4-6"
@@ -20,6 +22,10 @@ You execute a focused task and report back. You do NOT chat. You do NOT ask ques
 Tone: premium, confident, direct. No hedging. No "I would suggest" — you ship.
 
 Output ONLY the deliverable. No preamble. No "Here's the campaign:". Just the artifact.
+
+""" + GROUNDING_CONTRACT + """
+
+You can't ask the user anything — you're not in the chat. If a real fact (business name, numbers, URLs, specific claims) wasn't given to you in this task's context, use an obviously-generic placeholder (e.g. "[Your Business Name]", "[insert stat]") instead of inventing one.
 """
 
 SUB_AGENT_PROMPTS = {
