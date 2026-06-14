@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import httpx
 import pytz
@@ -10,6 +10,11 @@ from backend.user_model import summarize_user_for_prompt
 
 SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+
+# The one daily check-in: at most once per 24h per user, around this local time.
+CHECKIN_HOUR = 9
+CHECKIN_MINUTE = 0
+CHECKIN_TZ = "America/Toronto"
 
 
 async def get_all_users() -> list[str]:
@@ -100,13 +105,39 @@ async def save_briefing(user_id: str, briefing: str):
         )
 
 
+async def _sent_checkin_in_last_24h(user_id: str) -> bool:
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        return False
+    cutoff = (datetime.now(pytz.utc) - timedelta(hours=24)).isoformat()
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"{SUPABASE_URL}/rest/v1/proactive_messages",
+            headers={
+                "apikey": SUPABASE_KEY,
+                "Authorization": f"Bearer {SUPABASE_KEY}",
+            },
+            params={
+                "user_id": f"eq.{user_id}",
+                "type": "eq.morning_briefing",
+                "created_at": f"gte.{cutoff}",
+                "select": "id",
+                "limit": 1,
+            },
+            timeout=10.0,
+        )
+    rows = resp.json() if resp.status_code == 200 else []
+    return len(rows) > 0
+
+
 async def run_morning_briefings():
-    print("CRON: Running morning briefings...")
+    print("CRON: Running morning briefings (daily check-in)...")
     users = await get_all_users()
     for user_id in users:
         try:
+            if await _sent_checkin_in_last_24h(user_id):
+                continue
             briefing = await generate_morning_briefing(user_id)
             await save_briefing(user_id, briefing)
-            print(f"CRON: Briefing generated for {user_id}")
+            print(f"CRON: Daily check-in sent for {user_id}")
         except Exception as e:
             print(f"CRON: Failed for {user_id}: {e}")

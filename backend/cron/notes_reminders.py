@@ -14,9 +14,8 @@ them through whichever channels haven't fired yet, tracked per-note in
   - "push"  — Web Push (VAPID) to any rows in `push_subscriptions`
   - "email" — Resend, via backend/lib/personal_mailer.py
 
-The "chat" channel (delivered while the user is actively chatting) is handled
-separately by backend/routes/proactive_routes.py::_check_due_reminders, which
-the frontend polls every 5 minutes.
+The unified "inapp" row is what the frontend's /api/proactive/check polling
+picks up and shows in the chat.
 
 Idempotency: a channel is only added to `channels_sent` once it has been
 confirmed delivered (e.g. a 2xx from Resend, a successful push, a successful
@@ -29,11 +28,14 @@ Recurring reminders (`remind_recurrence` in daily|weekly|monthly): once every
 dispatch channel has fired, the note is re-armed — `remind_at` is advanced to
 its next occurrence (timezone-correct, via the user's saved timezone) and
 `channels_sent` is reset to `[]`. One-off notes (`remind_recurrence='none'`)
-simply stay fired.
+are marked `done=True` once every channel has fired, so they fire exactly
+once and are excluded from all future cycles. `channels_sent` is never reset
+for one-offs.
 
-Snoozing a note resets `channels_sent` to `[]`.
+Snoozing a note resets `channels_sent` to `[]` (and clears `done`).
 """
 
+import asyncio
 import calendar
 import json
 import os
@@ -58,6 +60,10 @@ VAPID_SUBJECT = os.getenv("VAPID_SUBJECT", "")
 _DISPATCH_CHANNELS = ("inapp", "push", "email")
 _RETRY_CUTOFF_HOURS = 48
 _RECURRENCES = ("daily", "weekly", "monthly")
+
+# Guards against the per-minute APScheduler tick and the external
+# /api/notes/_dispatch pinger overlapping and double-dispatching a reminder.
+_dispatch_lock = asyncio.Lock()
 
 
 async def _fetch_due_notes() -> list[dict]:
@@ -228,6 +234,27 @@ async def _mark_channels_sent(note_id: str, channels: list[str]) -> None:
         print(f"NOTES CRON: failed to update channels_sent for {note_id}: {e}")
 
 
+async def _mark_note_done(note_id: str, channels: list[str]) -> None:
+    """A one-off (`remind_recurrence='none'`) note has been fully dispatched —
+    mark it done so it's excluded from all future cycles. channels_sent stays
+    populated and is never reset for one-offs."""
+    try:
+        async with httpx.AsyncClient() as client:
+            await client.patch(
+                f"{_SUPABASE_URL}/rest/v1/{_NOTES_TABLE}",
+                headers=_notes_headers("return=minimal"),
+                params={"id": f"eq.{note_id}"},
+                json={
+                    "channels_sent": channels,
+                    "done": True,
+                    "done_at": datetime.now(timezone.utc).isoformat(),
+                },
+                timeout=10.0,
+            )
+    except Exception as e:
+        print(f"NOTES CRON: failed to mark note {note_id} done: {e}")
+
+
 async def _rearm_note(note_id: str, next_remind_at: str) -> None:
     """Advance a recurring note to its next occurrence and reset channels_sent."""
     try:
@@ -303,50 +330,58 @@ def _next_occurrence(remind_at_iso: str, recurrence: str, tz_name: str) -> str |
 
 async def run_notes_reminders():
     """Dispatch due reminders across the in-app, push, and email channels."""
-    notes = await _fetch_due_notes()
-    if not notes:
+    if _dispatch_lock.locked():
+        print("NOTES CRON: dispatch already running — skipping this tick")
         return
 
-    for note in notes:
-        channels_sent = list(note.get("channels_sent") or [])
-        pending = [c for c in _DISPATCH_CHANNELS if c not in channels_sent]
-        if not pending:
-            continue
+    async with _dispatch_lock:
+        notes = await _fetch_due_notes()
+        if not notes:
+            return
 
-        user_id = note["user_id"]
-        tz_name = await get_user_timezone(user_id)
-        newly_sent = []
+        for note in notes:
+            channels_sent = list(note.get("channels_sent") or [])
+            pending = [c for c in _DISPATCH_CHANNELS if c not in channels_sent]
+            if not pending:
+                continue
 
-        if "inapp" in pending and await _send_inapp(user_id, note):
-            newly_sent.append("inapp")
-        if "push" in pending and await _send_push(user_id, note):
-            newly_sent.append("push")
-        if "email" in pending and await _send_email(user_id, note, tz_name):
-            newly_sent.append("email")
+            user_id = note["user_id"]
+            tz_name = await get_user_timezone(user_id)
+            newly_sent = []
 
-        still_pending = [c for c in pending if c not in newly_sent]
-        if still_pending and _hours_overdue(note) >= _RETRY_CUTOFF_HOURS:
-            print(
-                f"NOTES CRON: note {note['id']} channels {still_pending} exceeded "
-                f"{_RETRY_CUTOFF_HOURS}h retry cutoff — marking as sent without delivery"
-            )
-            newly_sent = newly_sent + still_pending
+            if "inapp" in pending and await _send_inapp(user_id, note):
+                newly_sent.append("inapp")
+            if "push" in pending and await _send_push(user_id, note):
+                newly_sent.append("push")
+            if "email" in pending and await _send_email(user_id, note, tz_name):
+                newly_sent.append("email")
 
-        if not newly_sent:
-            continue
+            still_pending = [c for c in pending if c not in newly_sent]
+            if still_pending and _hours_overdue(note) >= _RETRY_CUTOFF_HOURS:
+                print(
+                    f"NOTES CRON: note {note['id']} channels {still_pending} exceeded "
+                    f"{_RETRY_CUTOFF_HOURS}h retry cutoff — marking as sent without delivery"
+                )
+                newly_sent = newly_sent + still_pending
 
-        updated_channels = channels_sent + newly_sent
-        recurrence = note.get("remind_recurrence") or "none"
-        all_dispatched = all(c in updated_channels for c in _DISPATCH_CHANNELS)
+            if not newly_sent:
+                continue
 
-        if all_dispatched and recurrence in _RECURRENCES and note.get("remind_at"):
-            next_remind_at = _next_occurrence(note["remind_at"], recurrence, tz_name)
-            if next_remind_at:
-                await _rearm_note(note["id"], next_remind_at)
-                print(f"NOTES CRON: note {note['id']} re-armed for {next_remind_at} ({recurrence})")
+            updated_channels = channels_sent + newly_sent
+            recurrence = note.get("remind_recurrence") or "none"
+            all_dispatched = all(c in updated_channels for c in _DISPATCH_CHANNELS)
+
+            if all_dispatched and recurrence in _RECURRENCES and note.get("remind_at"):
+                next_remind_at = _next_occurrence(note["remind_at"], recurrence, tz_name)
+                if next_remind_at:
+                    await _rearm_note(note["id"], next_remind_at)
+                    print(f"NOTES CRON: note {note['id']} re-armed for {next_remind_at} ({recurrence})")
+                else:
+                    await _mark_channels_sent(note["id"], updated_channels)
+            elif all_dispatched:
+                # One-off note fully dispatched — fire once, then done forever.
+                await _mark_note_done(note["id"], updated_channels)
             else:
                 await _mark_channels_sent(note["id"], updated_channels)
-        else:
-            await _mark_channels_sent(note["id"], updated_channels)
 
-        print(f"NOTES CRON: dispatched reminder for note {note['id']} ({user_id}) via {newly_sent}")
+            print(f"NOTES CRON: dispatched reminder for note {note['id']} ({user_id}) via {newly_sent}")

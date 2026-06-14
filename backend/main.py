@@ -16,7 +16,7 @@ from backend.routes.voice_routes import router as voice_router
 from backend.routes.history_routes import router as history_router
 from backend.routes.google_auth_routes import router as google_auth_router
 from backend.routes.files_routes import router as files_router
-from backend.cron.briefing import run_morning_briefings
+from backend.cron.briefing import run_morning_briefings, CHECKIN_HOUR, CHECKIN_MINUTE, CHECKIN_TZ
 from backend.cron.notes_reminders import run_notes_reminders
 from backend.routes.local_agent_routes import router as local_agent_router
 from backend.routes.business.chat import router as business_chat_router
@@ -56,7 +56,6 @@ async def lifespan(app: FastAPI):
     """Create data dirs and start cron scheduler on startup."""
     for path in [
         "data/user_models",
-        "data/proactive",
         "data/last_interaction",
         "data/notes",
     ]:
@@ -64,7 +63,7 @@ async def lifespan(app: FastAPI):
 
     scheduler.add_job(
         run_morning_briefings,
-        CronTrigger(hour=8, minute=0, timezone="America/Toronto"),
+        CronTrigger(hour=CHECKIN_HOUR, minute=CHECKIN_MINUTE, timezone=CHECKIN_TZ),
         id="morning_briefings",
         replace_existing=True,
     )
@@ -93,7 +92,7 @@ async def lifespan(app: FastAPI):
         replace_existing=True,
     )
     scheduler.start()
-    print("CRON: Scheduler started — personal briefings at 08:00, business risk at 06:00, operator at 02:00, synapses Sun 03:00 Toronto, notes reminders every 1 min (also reachable via POST /api/notes/_dispatch for external pinger)")
+    print(f"CRON: Scheduler started — personal daily check-in at {CHECKIN_HOUR:02d}:{CHECKIN_MINUTE:02d} {CHECKIN_TZ}, business risk at 06:00, operator at 02:00, synapses Sun 03:00 Toronto, notes reminders every 1 min (also reachable via POST /api/notes/_dispatch for external pinger)")
 
     yield
 

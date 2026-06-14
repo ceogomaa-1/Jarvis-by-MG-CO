@@ -9,7 +9,7 @@ from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from supabase import create_client
 from backend.models.schemas import ChatRequest, ChatResponse
@@ -17,7 +17,6 @@ from backend.llm import jarvis_think
 from backend.memory import get_relevant_memories, save_interaction
 from backend.user_model import get_user_model, summarize_user_for_prompt, update_user_model, get_onboarding_prompt, is_onboarding_complete
 from backend.agent import ANTHROPIC_TOOLS as AVAILABLE_TOOLS
-from backend.triggers import analyze_conversation_for_insight
 from backend.conversation import get_conversation_history, save_conversation_turn
 from backend.utils.user_context import format_user_time_context
 from backend.lib.sessions import format_session_context
@@ -291,7 +290,7 @@ async def _get_context(user_id: str, message: str):
 # ─── Regular endpoint ─────────────────────────────────────────────────────────
 
 @router.post("/chat", response_model=None)
-async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
+async def chat(request: ChatRequest):
     # ── Usage limit check ─────────────────────────────────────────────────────
     sb = _get_supabase()
     if sb and request.user_id:
@@ -409,9 +408,6 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
             request.user_id, request.message, response_text,
             feedback_was_requested=bool(_chat_fb_injection),
         ),
-    )
-    background_tasks.add_task(
-        analyze_conversation_for_insight, request.user_id, request.message, response_text
     )
     # Increment usage after successful response
     if sb and request.user_id:
@@ -611,9 +607,6 @@ async def chat_stream(request: ChatRequest):
                 feedback_was_requested=bool(_fb_injection),
             )
         asyncio.create_task(_run_post_tasks())
-        asyncio.create_task(
-            analyze_conversation_for_insight(request.user_id, request.message, response_text)
-        )
         if debug_str:
             yield f"data: [DEBUG:{debug_str}]\n\n"
         # Batch 14: emit sources collected during this turn
