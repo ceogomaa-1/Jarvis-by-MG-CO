@@ -288,3 +288,56 @@ exit 0 — compiles clean, no errors
 - C6 required reading three files (`proactive_routes.py`, `notes_reminders.py`, `briefing.py`) to confirm the §C6-described bug no longer exists anywhere in the proactive-message pipeline — this was a "verify the fix already happened" task, not a "no fix needed because I didn't look" rubber stamp. The unrelated `fd06459`/`8e99050` commits (already on `main` before this batch) did the actual work; this phase's contribution for C6 is the verification + write-up.
 - C7's frontend change (`ChatCanvas.js` status string) was verified via `npm run build` (compiles clean) but **not** exercised in a browser against a live deploy — doing so would require triggering a real multi-minute Creation 1.0 site build + Vercel deploy and then forcing the status-check call to fail mid-poll, which is disproportionate for a one-line status-message change that doesn't alter control flow (the `UNKNOWN` branch falls into the same "keep polling" path as the previous default, only the displayed string differs). The backend half (the actual `state` value returned) was verified live against the real Vercel API (C7a above).
 - C1/C2/C4/C5/C8 from §C were Phase 0 findings already rated ✅ solid or low-priority/internal-only and were not re-litigated this phase — no new information surfaced that would change those verdicts.
+
+---
+
+## I. Phase 4 — Completion Report
+
+**Status: DONE. New shared `JARVIS_CORE_CONTRACT` extracted and injected into both products, verified live, regression-tested, committed.**
+
+### What changed
+
+The 4th root cause from the original brief — "inconsistent Jarvis Core behavior between Personal and Business" — was traced to one concrete, testable gap: **regression test 6** ("remember the thing we talked about" → Jarvis should ask a one-line clarifying question, not guess or silently do nothing). Neither product had a *general* ambiguity/clarification rule:
+
+- Personal (`backend/llm.py`) only had narrow, domain-specific disambiguation language for notes ("if more than one note could match, list the candidates... never guess on a destructive action like delete_note").
+- Business (`backend/lib/business/system_prompt_builder.py`'s `_TOOL_SAFETY_RULES`) only had it for agent edits ("if it's ambiguous, ask a one-line clarifying question rather than defaulting to a tutorial").
+
+Similarly, **honest outcome reporting** (regression test 7, the prompt-level companion to Phase 3's code-level C3/C7 fixes) existed in both products but was expressed differently and not as a shared rule.
+
+- New `backend/lib/jarvis_core.py` — exports `JARVIS_CORE_CONTRACT`, sitting alongside `GROUNDING_CONTRACT` (Phase 2) as the second piece of the shared "Jarvis Core": where `GROUNDING_CONTRACT` governs what Jarvis may state as **fact**, `JARVIS_CORE_CONTRACT` governs how Jarvis handles **ambiguous requests** (ask one short clarifying question when >1 candidate or none, never guess on destructive/write actions) and **action outcomes** (tool result is ground truth — an `error` means it did NOT succeed, an unknown-status result is reported as unknown, never padded with a guess).
+- Injected into `backend/llm.py`'s `_build_system_prompt()` (Personal), right after `GROUNDING_CONTRACT`.
+- Injected into `backend/lib/business/system_prompt_builder.py`'s `build_system_prompt()` (Business chat), right after `GROUNDING_CONTRACT`.
+- **Deliberately NOT injected into `backend/lib/business/creation/sub_agents.py`** — those sub-agents run unattended and cannot ask the user anything, which would conflict with the clarification rule; their existing grounding addendum ("use an obviously-generic placeholder instead of inventing") already covers their version of this.
+- Existing domain-specific disambiguation language (note-handling in Personal, agent-edit ambiguity in Business) was left in place — it's concrete reinforcement of the general rule for those specific cases, not a duplicate to remove.
+- New test `backend/tests/test_jarvis_core_contract.py` (2 tests: contract text present in both `_build_system_prompt()` output and `build_system_prompt()` output).
+
+### Live verification — real output from the running server (post-restart)
+
+| # | Check | Call | Result |
+|---|---|---|---|
+| 6a | Regression #6, Personal — ambiguous "remember" | `POST /api/chat {"user_id":"test-phase4-clarify","message":"can you remember the thing we talked about?"}` | *"My memory lookup isn't coming through right at this moment... What was it about? If you remind me, I can pick right back up from there."* — asks a one-line clarifying question; also correctly reports the Mem0 lookup failure (B5) rather than claiming "nothing to remember" |
+| 6b | Regression #6, Business — same prompt | `POST /api/business/chat/stream {"user_id":"test-phase4-clarify-biz","message":"can you remember the thing we talked about?"}` | *"I don't have any previous conversation history with you... **What were you referring to?** Give me a quick summary... and I'll pick right back up where you left off."* — same behavior: honest "nothing stored yet" + one clarifying question, not a guess |
+| — | Smoke test, Personal (real user) | `POST /api/chat {"user_id":"user_d4533f...","message":"just say OK..."}` | `{"response":"OK",...}` — larger prompt doesn't break normal replies |
+| — | Smoke test, Business | `POST /api/business/chat/stream {"user_id":"test-phase4-smoke","message":"just say OK..."}` | `"OK"` |
+| 2 | Re-check regression #2 (grounding, Phase 2) still holds with the new contract added | `POST /api/business/chat/stream` with the same dead-restaurant-URL prompt from Phase 2 | Same honest "URL is dead... I'm not going to guess at your menu or founding date" + 3 concrete next steps — grounding behavior unchanged by the new addition |
+
+### Automated tests — real output
+
+```
+$ python -m pytest backend/tests/test_jarvis_core_contract.py -v
+test_jarvis_core_contract.py::test_personal_system_prompt_includes_jarvis_core_contract PASSED
+test_jarvis_core_contract.py::test_business_system_prompt_includes_jarvis_core_contract PASSED
+2 passed
+
+$ python -m pytest backend/tests/ -q
+167 passed, 2 warnings   (was 165 before this phase; +2 new)
+
+$ npm run build   (frontend/)
+exit 0 — compiles clean (no frontend files changed this phase; re-run for consistency)
+```
+
+### Honesty notes
+
+- The 6a result is a real, slightly lucky double-win: Mem0 is still rate-limited (B5, noted in §G as a pre-existing operational issue), so this single call exercises BOTH the Phase 2 grounding fix (honestly reporting the lookup failure instead of "I know nothing about you") AND the Phase 4 clarification rule (asking what to pick back up). A non-rate-limited run would likely skip the "memory lookup isn't coming through" sentence and go straight to the clarifying question — the clarifying-question behavior itself is what Phase 4 targets and is present either way.
+- This phase intentionally scoped "Jarvis Core" down to the one concrete, regression-test-backed gap (ambiguity/clarification + outcome honesty) rather than attempting to unify the two products' very different personas (Personal's companion voice vs. Business's C-suite operator voice, including Business's intentional use of 🔴/🟡/🟢/✅/⏳/⚠️ status emoji in Mode 2/3 vs. Personal's "ZERO emojis" rule). Those persona differences are deliberate product design, not the inconsistency the original brief was concerned with, and unifying them was out of scope.
+- No code paths were removed or restructured — this phase is purely additive (one new shared module, two injection points, one new test file), matching the low-risk pattern established by Phase 2's `GROUNDING_CONTRACT`.

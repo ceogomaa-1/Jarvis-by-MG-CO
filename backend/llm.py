@@ -10,6 +10,7 @@ import anthropic
 from backend.utils.env import ANTHROPIC_API_KEY
 from backend.tools.soul import get_soul
 from backend.lib.grounding import GROUNDING_CONTRACT
+from backend.lib.jarvis_core import JARVIS_CORE_CONTRACT
 
 logger = logging.getLogger(__name__)
 
@@ -356,6 +357,7 @@ def _build_system_prompt(
 
     system_prompt += _CITATION_RULES
     system_prompt += f"\n\n{GROUNDING_CONTRACT}"
+    system_prompt += f"\n\n{JARVIS_CORE_CONTRACT}"
     system_prompt += _TESTING_PHASE_AWARENESS
     system_prompt += _INTERNAL_DISCRETION
 
