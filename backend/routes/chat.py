@@ -25,6 +25,7 @@ from backend.tools.citation_context import init_collector, add_source, get_sourc
 from backend.tools.url_fetch import extract_urls, fetch_url_content
 from backend.usage_limits import check_limit, increment_usage, get_usage
 from backend.farida_personal_loader import _is_farida, load_greeting as _load_farida_greeting
+from backend.lib.personal.relationship_bible import is_relationship_context, build_relationship_injection
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -362,16 +363,23 @@ async def chat(request: ChatRequest):
 
     tools = AVAILABLE_TOOLS if not system_override else None
 
+    _recent = " ".join(
+        m.get("content", "") if isinstance(m.get("content"), str) else ""
+        for m in list(history)[-4:] + [{"role": "user", "content": request.message}]
+    )
+
+    # ── Relationship Bible injection ──────────────────────────────────────────
+    _relationship_injection = ""
+    if not system_override and await is_relationship_context(request.message, _recent):
+        _relationship_injection = build_relationship_injection()
+
     # ── Proactive feedback injection ──────────────────────────────────────────
     _chat_fb_injection = ""
     if not system_override:
-        _recent = " ".join(
-            m.get("content", "") if isinstance(m.get("content"), str) else ""
-            for m in list(history)[-4:] + [{"role": "user", "content": request.message}]
-        )
         if should_ask_for_feedback(request.user_id, len(history) + 1, memory_context, _recent):
             _chat_fb_injection = get_feedback_prompt_injection(_extract_user_name(memory_context))
-    _effective_tone = (tone_context + "\n\n" + _chat_fb_injection).strip() if _chat_fb_injection else tone_context
+
+    _effective_tone = "\n\n".join(b for b in (tone_context, _relationship_injection, _chat_fb_injection) if b)
 
     # Call LLM — catch failures and return a graceful fallback so user message isn't orphaned
     debug_str = None
@@ -511,12 +519,19 @@ async def chat_stream(request: ChatRequest):
     ]
     tools = AVAILABLE_TOOLS if not system_override else None
 
-    # ── Proactive feedback injection ──────────────────────────────────────────
     message_count = len(history) + 1
     recent_text = " ".join(
         m.get("content", "") if isinstance(m.get("content"), str) else ""
         for m in list(history)[-4:] + [{"role": "user", "content": request.message}]
     )
+
+    # ── Relationship Bible injection ──────────────────────────────────────────
+    _relationship_injection = ""
+    if not system_override and await is_relationship_context(request.message, recent_text):
+        _relationship_injection = build_relationship_injection()
+        print(f"RELATIONSHIP_BIBLE: injecting for user_id={request.user_id}")
+
+    # ── Proactive feedback injection ──────────────────────────────────────────
     _fb_injection = ""
     if not system_override and should_ask_for_feedback(
         request.user_id, message_count, memory_context, recent_text
@@ -559,7 +574,7 @@ async def chat_stream(request: ChatRequest):
 
         response_text = _FALLBACK_LLM_ERROR
         debug_str = None
-        _combined_tone = (tone_context + "\n\n" + _fb_injection).strip() if _fb_injection else tone_context
+        _combined_tone = "\n\n".join(b for b in (tone_context, _relationship_injection, _fb_injection) if b)
         try:
             response_text = await jarvis_think(
                 user_message=user_content,
