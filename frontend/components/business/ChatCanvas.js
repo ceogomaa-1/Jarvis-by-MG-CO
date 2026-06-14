@@ -480,7 +480,9 @@ export default function ChatCanvas({
         }
 
         const elapsed = Math.round((Date.now() - startedAt) / 1000)
-        const status = `Building on Vercel… (${elapsed}s, ${state})`
+        const status = state === 'UNKNOWN'
+          ? `Can't check deployment status right now (${data.error || 'Vercel API error'}) — retrying… (${elapsed}s)`
+          : `Building on Vercel… (${elapsed}s, ${state})`
         setMessages(prev => prev.map(m => {
           if (m.id !== messageId) return m
           const updated = {

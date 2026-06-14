@@ -242,3 +242,49 @@ $ python -m pytest backend/tests/ -q
 - The Mem0 `429 Too Many Requests` seen during live verification is a real, currently-active condition on the production Mem0 account (log message says "quota exceeded, resets June 1" — today is 2026-06-14, so either this message has a stale/incorrect date or the quota is monthly and still exhausted; this is a pre-existing operational issue, not a Phase 2 regression, and is out of scope for this batch beyond confirming B5's failure-path behaves correctly under it).
 - The Unicode/stdout-encoding fix is a genuine pre-existing production-readiness bug (every `/api/chat` call on a `cp1252`-stdout host was failing), discovered only because Phase 2's live verification required a real `/api/chat` round-trip. It is unrelated to any Phase 2 grounding change but was blocking, so it was fixed in the same commit.
 - Regression test 2 was run against the **chat** flow (`/api/business/chat/stream`), not the full **creation** flow (multi-agent site build + Vercel deploy), which is what "build an agent for this restaurant" would route to per Phase 1's classifier. The chat-flow test exercises the identical `GROUNDING_CONTRACT` text and the identical `web__scrape_website` tool/failure path that the creation flow's sub-agents and `site_generator.py` also rely on (B1/B8), so it's a faithful proxy without requiring a full live deploy cycle for this verification pass.
+
+---
+
+## H. Phase 3 — Completion Report
+
+**Status: DONE. One real bug fixed (C7), two items confirmed already-solid (C3, C6), verified live, committed.**
+
+### What changed
+
+- **C7** (`backend/routes/business/create.py` `GET /business/deploy-status`, + `frontend/components/business/ChatCanvas.js`): when the Vercel deployment-status *check itself* fails (`status_res.ok is False` — e.g. a 404/401/network error calling Vercel's API), the route previously returned `{"state": "BUILDING", "error": <real error>}`. The frontend poller ignores `error` for any non-`READY`/`ERROR`/`FAILED`/`CANCELED` state and just shows "Building on Vercel… (Xs, BUILDING)" — so a connector failure that already happened was presented as "still in progress," indefinitely (until the existing 6-minute poll timeout). Fixed:
+  - Backend now returns `{"state": "UNKNOWN", "error": <real error>}` in this case, and persists it via `update_deployment_by_id(deployment_id, "UNKNOWN", error=...)` (maps to `status: "building"`, `deployment_status: "UNKNOWN"`, `deployment_error: <real error>` in `business_creations` — so the real error is visible to anything reading that row, not silently dropped).
+  - Frontend poller (`ChatCanvas.js`) now special-cases `state === 'UNKNOWN'`: shows `"Can't check deployment status right now ({error}) — retrying… (Xs)"` instead of `"Building on Vercel… (Xs, UNKNOWN)"`. Still polls/retries (status-check hiccups are often transient) and still falls back to the existing 6-minute "Still building… the repo and expected URL are saved below" message if it never resolves — only the *in-progress messaging* changed, not the control flow.
+  - New test `backend/tests/test_deploy_status_unknown.py` (1 test).
+- **C3** (`backend/routes/business/chat.py` `/business/chat/confirm-action`) — **no fix needed**. `_make_fallback_confirmation()` checks `"error" in result_data` FIRST, before any "deleted"/"updated"/"created" status branches, returning `"Action failed: {error}"` — it cannot fall through to an optimistic default when an error is present. The primary path (Haiku-generated confirmation) is separately instructed: "If the result contains an 'error' key, the action FAILED — say so plainly and do not claim success." Live-verified below.
+- **C6** (`backend/routes/proactive_routes.py` `/proactive/check/{user_id}` + `backend/cron/notes_reminders.py` + `backend/cron/briefing.py`) — **no fix needed**. The code MAP.md §C6 described (a bare `jarvis_think` call with no try/except, "mark done" before delivery confirmed) no longer exists in this form — it was superseded by the `fd06459`/`8e99050`/`579f0b5` reminder-system rewrite that landed on `main` before this batch started. Current state, re-verified by reading the live code this phase:
+  - `check_proactive()` wraps everything in try/except and "Never raises — any internal error is swallowed and returns has_message: false" (verbatim from its own docstring).
+  - `run_notes_reminders()` only calls `_mark_note_done()` (or re-arms a recurring note) once **every** dispatch channel (`inapp`/`push`/`email`) has confirmed-delivered, or the note is >48h overdue (explicit retry-cutoff, logged). A failed channel is left unmarked and retried next tick — never silently marked done.
+  - `run_morning_briefings()` per-user try/except; `save_briefing()` (which writes the `proactive_messages` row the user actually sees) is only called *after* `generate_morning_briefing()` (the `jarvis_think` call) succeeds — a failure means no row is written and no claim is made, just a skipped check-in for that day.
+
+### Live verification — real output from the running server
+
+| # | Check | Call | Result |
+|---|---|---|---|
+| C7a | Status-check failure on a real Vercel-connected user, invalid deployment ID | `GET /api/business/deploy-status?user_id=3363afdc-9bca-4b88-893c-f535c62a6687&deployment_id=dpl_invalid_test_xyz123` | `{"state":"UNKNOWN","url":null,"error":"Deployment lookup failed: 404","logs":null}` — real Vercel 404, no longer reported as `BUILDING` |
+| C7b | Sanity check — existing "not connected" path unchanged | `GET /api/business/deploy-status?user_id=test-no-vercel-user&deployment_id=dpl_invalid_test_xyz123` | `{"state":"ERROR","url":null,"error":"Vercel connector not connected","logs":null}` — unchanged |
+| C3 / regression #7 | Tool failure reported honestly, not as success | `POST /api/business/chat/confirm-action {"user_id":"test-phase3-confirm-action","tool_name":"elevenlabs__update_agent","tool_input":{"agent_id":"fake_agent_123","first_message":"Hey there!"}}` (ElevenLabs not connected for this user) | `{"response":"The action failed — ElevenLabs is not connected. You need to connect it via Settings → Connections before you can update the agent.","tool_result":{"error":"Not connected to elevenlabs. Connect it via Settings → Connections and try again."}}` — real error surfaced, no "Done"/"Updated" claim |
+
+### Automated tests — real output
+
+```
+$ python -m pytest backend/tests/test_deploy_status_unknown.py -v
+test_deploy_status_unknown.py::test_status_check_failure_is_unknown_not_building PASSED
+1 passed
+
+$ python -m pytest backend/tests/ -q
+165 passed, 2 warnings   (was 164 before this phase; +1 new)
+
+$ npm run build   (frontend/)
+exit 0 — compiles clean, no errors
+```
+
+### Honesty notes
+
+- C6 required reading three files (`proactive_routes.py`, `notes_reminders.py`, `briefing.py`) to confirm the §C6-described bug no longer exists anywhere in the proactive-message pipeline — this was a "verify the fix already happened" task, not a "no fix needed because I didn't look" rubber stamp. The unrelated `fd06459`/`8e99050` commits (already on `main` before this batch) did the actual work; this phase's contribution for C6 is the verification + write-up.
+- C7's frontend change (`ChatCanvas.js` status string) was verified via `npm run build` (compiles clean) but **not** exercised in a browser against a live deploy — doing so would require triggering a real multi-minute Creation 1.0 site build + Vercel deploy and then forcing the status-check call to fail mid-poll, which is disproportionate for a one-line status-message change that doesn't alter control flow (the `UNKNOWN` branch falls into the same "keep polling" path as the previous default, only the displayed string differs). The backend half (the actual `state` value returned) was verified live against the real Vercel API (C7a above).
+- C1/C2/C4/C5/C8 from §C were Phase 0 findings already rated ✅ solid or low-priority/internal-only and were not re-litigated this phase — no new information surfaced that would change those verdicts.

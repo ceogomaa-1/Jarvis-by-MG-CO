@@ -206,7 +206,12 @@ async def business_deploy_status(user_id: str = "", deployment_id: str = ""):
 
     status_res = await vc.get_deployment(deployment_id)
     if not status_res.ok:
-        return {"state": "BUILDING", "url": None, "error": status_res.error, "logs": None}
+        # The status CHECK failed (Vercel API error, disconnected token, etc.) — this
+        # is not the same as "still building". Report it honestly as UNKNOWN with the
+        # real error, rather than claiming BUILDING while the deployment itself may
+        # have already finished (or failed) with no way for us to know right now.
+        await update_deployment_by_id(deployment_id, "UNKNOWN", error=status_res.error)
+        return {"state": "UNKNOWN", "url": None, "error": status_res.error, "logs": None}
 
     state = status_res.data.get("readyState") or "BUILDING"
     url = status_res.data.get("alias") or status_res.data.get("url")
