@@ -7,27 +7,32 @@ via the connector registry, since these aren't all simple connector wrappers).
 """
 from backend.lib.business.connectors.base import ConnectorResult
 from backend.lib.business.pptx_generator import generate_presentation
-from backend.lib.business.real_estate import ghl_leads, offer_drafter, pdf_form_filler, seller_research, showing_booker
+from backend.lib.business.real_estate import contact_enrichment, ghl_leads, offer_drafter, orea_form_filler, pdf_form_filler, seller_research, showing_booker
+from backend.lib.business.real_estate.form_templates.orea_100 import FIELDS as OREA_FIELDS
+
+_OREA_FIELDS_DESC = "; ".join(f"{k} ({spec['label']})" for k, spec in OREA_FIELDS.items())
 
 REAL_ESTATE_TOOLS: dict[str, dict] = {
     "realestate__ghl_scan_stale_leads": {
-        "description": "[Real Estate / GoHighLevel] Scan CRM contacts for stale leads (no activity in N days), classify which need follow-up, and draft 1-2 sentence follow-up messages. Returns a ranked, actionable queue.",
+        "description": "[Real Estate / GoHighLevel] Scan CRM contacts for stale leads (no activity in N days), classify which need follow-up, and draft 1-2 sentence follow-up messages. Returns a ranked, actionable queue. If the user has more than one GoHighLevel account connected, defaults to scanning ALL of them (response includes an 'accounts' breakdown) — pass account_label to scope to one account.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "days_stale": {"type": "integer", "description": "Flag contacts with no activity in this many days (default 14)"},
-                "limit": {"type": "integer", "description": "Max stale leads to return (default 25)"},
+                "limit": {"type": "integer", "description": "Max stale leads to return per account (default 25)"},
+                "account_label": {"type": "string", "description": "Which connected GoHighLevel account to scan (see Connected Tools for labels), or 'all' (default) to scan every connected account"},
             },
             "required": [],
         },
     },
     "realestate__ghl_add_note": {
-        "description": "[Real Estate / GoHighLevel] Add a note to a CRM contact — log actions Jarvis took (follow-ups sent, showings booked) back into GoHighLevel.",
+        "description": "[Real Estate / GoHighLevel] Add a note to a CRM contact — log actions Jarvis took (follow-ups sent, showings booked) back into GoHighLevel. If the user has more than one GoHighLevel account connected, pass account_label to specify which one (defaults to 'default' / their first account) — use the account_label the contact came from in a stale-lead scan.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "contact_id": {"type": "string", "description": "GoHighLevel contact ID"},
                 "note": {"type": "string", "description": "Note text to add"},
+                "account_label": {"type": "string", "description": "Which connected GoHighLevel account this contact belongs to (see Connected Tools for labels). Defaults to 'default'."},
             },
             "required": ["contact_id", "note"],
         },
@@ -87,6 +92,49 @@ REAL_ESTATE_TOOLS: dict[str, dict] = {
             "required": ["doc_id"],
         },
     },
+    "realestate__enrich_contacts": {
+        "description": "[Real Estate] Best-effort public-record contact enrichment for a list of leads (e.g. parsed from an uploaded CSV) — searches the web plus people-search/brokerage/social sources (Canada411, 411.ca, WhitePages, realtor.ca, LinkedIn, Facebook) for phone numbers and emails. Every result includes a source URL and a confidence level (high/medium/low). Returns 'not found' honestly when nothing reliable turns up — NEVER fabricates a phone number, email, or name. Processes up to 5 people per call (call again for more rows).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "people": {
+                    "type": "array",
+                    "description": "Leads to research (max 5 per call). Parse rows from the uploaded CSV / conversation into this shape.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string", "description": "Full name of the person to research"},
+                            "address": {"type": "string", "description": "Known address, if any"},
+                            "city": {"type": "string", "description": "City, if known"},
+                            "company": {"type": "string", "description": "Known company/brokerage, if any"},
+                        },
+                        "required": ["name"],
+                    },
+                },
+                "region": {"type": "string", "description": "City/region to narrow the search, e.g. 'Toronto, ON' (optional)"},
+            },
+            "required": ["people"],
+        },
+    },
+    "realestate__fill_orea_form": {
+        "description": "[Real Estate] Fill an OREA Form 100 (Agreement of Purchase and Sale) PDF using a coordinate overlay — covers the core deal terms on visual pages 1-2 (parties, property, price, deposit, irrevocability, completion date, chattels/fixtures/rental items/HST). Pages 3-6 (legal boilerplate, signatures, Confirmation of Cooperation) are NOT filled. Returns a DRAFT PDF plus lists of filled vs. still-missing fields. Always for human review — not legal advice.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "doc_id": {"type": "string", "description": "Document ID of the attached OREA Form 100 PDF, given to you in the conversation context"},
+                "address": {"type": "string", "description": "Property address — used to look up listing data (price, legal description, frontage, depth, municipality) for fields not already in known_values (optional)"},
+                "known_values": {
+                    "type": "object",
+                    "description": (
+                        "Field values you are confident about from the conversation, an uploaded CSV, or the user's profile — "
+                        "NEVER invent or estimate a value, especially for price, dates, and legal description. Only include "
+                        f"keys you have a real value for. Valid keys: {_OREA_FIELDS_DESC}"
+                    ),
+                },
+            },
+            "required": ["doc_id"],
+        },
+    },
     "realestate__generate_presentation": {
         "description": "[Real Estate] Generate a branded PowerPoint deck — listing presentation, CMA, buyer guide, or custom — using the MG&CO template.",
         "input_schema": {
@@ -108,10 +156,16 @@ async def execute_real_estate_tool(action_name: str, tool_input: dict, user_id: 
             user_id,
             days_stale=tool_input.get("days_stale", 14),
             limit=tool_input.get("limit", 25),
+            account_label=tool_input.get("account_label", "all"),
         )
 
     if action_name == "ghl_add_note":
-        return await ghl_leads.add_note(user_id, tool_input.get("contact_id", ""), tool_input.get("note", ""))
+        return await ghl_leads.add_note(
+            user_id,
+            tool_input.get("contact_id", ""),
+            tool_input.get("note", ""),
+            account_label=tool_input.get("account_label", "default"),
+        )
 
     if action_name == "draft_offer_document":
         return await offer_drafter.draft_offer_document(
@@ -148,6 +202,20 @@ async def execute_real_estate_tool(action_name: str, tool_input: dict, user_id: 
         return await pdf_form_filler.fill_pdf_form(
             user_id,
             doc_id=tool_input.get("doc_id", ""),
+            known_values=tool_input.get("known_values") or {},
+        )
+
+    if action_name == "enrich_contacts":
+        return await contact_enrichment.enrich_contacts(
+            people=tool_input.get("people") or [],
+            region=tool_input.get("region", ""),
+        )
+
+    if action_name == "fill_orea_form":
+        return await orea_form_filler.fill_orea_form(
+            user_id,
+            doc_id=tool_input.get("doc_id", ""),
+            address=tool_input.get("address", ""),
             known_values=tool_input.get("known_values") or {},
         )
 

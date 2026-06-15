@@ -52,7 +52,9 @@ from backend.routes.business.knowledge_routes import router as business_knowledg
 from backend.routes.business.morning_queue_routes import router as business_morning_queue_router
 from backend.routes.business.mind import router as business_mind_router
 from backend.routes.business.feedback_routes import router as business_feedback_router
+from backend.routes.business.email_routes import router as business_email_router
 from backend.cron.synapse_cron import run_weekly_synapse_generation
+from backend.cron.scheduled_emails_cron import run_scheduled_emails
 
 if not ANTHROPIC_API_KEY:
     raise RuntimeError(
@@ -103,8 +105,14 @@ async def lifespan(app: FastAPI):
         id="notes_reminders",
         replace_existing=True,
     )
+    scheduler.add_job(
+        run_scheduled_emails,
+        CronTrigger(minute="*"),
+        id="scheduled_emails",
+        replace_existing=True,
+    )
     scheduler.start()
-    print(f"CRON: Scheduler started — personal daily check-in at {CHECKIN_HOUR:02d}:{CHECKIN_MINUTE:02d} {CHECKIN_TZ}, business risk at 06:00, operator at 02:00, synapses Sun 03:00 Toronto, notes reminders every 1 min (also reachable via POST /api/notes/_dispatch for external pinger)")
+    print(f"CRON: Scheduler started — personal daily check-in at {CHECKIN_HOUR:02d}:{CHECKIN_MINUTE:02d} {CHECKIN_TZ}, business risk at 06:00, operator at 02:00, synapses Sun 03:00 Toronto, notes reminders every 1 min (also reachable via POST /api/notes/_dispatch for external pinger), scheduled emails every 1 min (also reachable via POST /api/business/email/_dispatch)")
 
     yield
 
@@ -158,6 +166,7 @@ app.include_router(business_knowledge_router, prefix="/api")
 app.include_router(business_morning_queue_router, prefix="/api")
 app.include_router(business_mind_router, prefix="/api")
 app.include_router(business_feedback_router, prefix="/api")
+app.include_router(business_email_router, prefix="/api")
 
 
 @app.on_event("startup")

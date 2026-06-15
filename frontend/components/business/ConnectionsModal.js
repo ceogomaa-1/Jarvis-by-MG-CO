@@ -213,6 +213,284 @@ function ConnectedDetails({ connection, onDisconnect, onTest, testing }) {
   )
 }
 
+// ── GoHighLevel multi-account (up to 3 accounts per user) ─────────────────────
+const GHL_ACCOUNT_SLOTS = [
+  { label: 'default', name: 'Account 1' },
+  { label: 'account_2', name: 'Account 2' },
+  { label: 'account_3', name: 'Account 3' },
+]
+
+function GhlAccountSlot({ slot, manifest, userId, account, onChanged }) {
+  const [values, setValues] = useState(() => {
+    const v = { display_name: account?.display_name || '' }
+    for (const f of (manifest.fields || [])) v[f.name] = ''
+    return v
+  })
+  const [saving, setSaving] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [feedback, setFeedback] = useState(null)
+
+  const isConnected = !!account
+  const isActive = account?.status === 'active'
+
+  const handleSave = async () => {
+    setSaving(true)
+    setFeedback(null)
+    try {
+      const credentials = {}
+      for (const f of (manifest.fields || [])) credentials[f.name] = values[f.name] || ''
+      const res = await fetch(`${BACKEND}/api/business/connections`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: userId,
+          connector_type: manifest.type,
+          credentials,
+          display_name: values.display_name || slot.name,
+          account_label: slot.label,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setFeedback({ ok: false, message: data.detail || 'Save failed.' })
+      } else if (data.ok) {
+        setFeedback({ ok: true, message: 'Connected and verified.' })
+      } else {
+        setFeedback({ ok: false, message: data.error || 'Test failed.' })
+      }
+      await onChanged()
+    } catch (e) {
+      setFeedback({ ok: false, message: e.message })
+    }
+    setSaving(false)
+  }
+
+  const handleTest = async () => {
+    setTesting(true)
+    setFeedback(null)
+    try {
+      const res = await fetch(`${BACKEND}/api/business/connections/test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, connector_type: manifest.type, account_label: slot.label }),
+      })
+      const data = await res.json()
+      setFeedback({ ok: data.ok, message: data.ok ? 'Connection verified.' : (data.error || 'Test failed.') })
+      await onChanged()
+    } catch (e) {
+      setFeedback({ ok: false, message: e.message })
+    }
+    setTesting(false)
+  }
+
+  const handleDisconnect = async () => {
+    if (!confirm(`Disconnect ${account?.display_name || slot.name}?`)) return
+    try {
+      await fetch(`${BACKEND}/api/business/connections`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, connector_type: manifest.type, account_label: slot.label }),
+      })
+      setValues(v => ({ ...v, display_name: '' }))
+      setFeedback(null)
+      await onChanged()
+    } catch (e) {
+      console.error('Disconnect failed', e)
+    }
+  }
+
+  return (
+    <div style={{
+      marginBottom: 10, padding: '10px 12px', borderRadius: 10,
+      background: 'rgba(232,232,232,0.02)',
+      border: '1px solid rgba(232,232,232,0.06)',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <span style={{
+          fontFamily: 'var(--font-pixel), monospace',
+          fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase',
+          color: 'rgba(232,232,232,0.5)',
+        }}>
+          {slot.name}
+        </span>
+        {isConnected && (
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+            padding: '2px 7px', borderRadius: 99,
+            background: isActive ? 'rgba(127,176,105,0.1)' : 'rgba(239,68,68,0.08)',
+            border: `1px solid ${isActive ? 'rgba(127,176,105,0.18)' : 'rgba(239,68,68,0.18)'}`,
+          }}>
+            <div style={{ width: 5, height: 5, borderRadius: '50%', background: isActive ? '#7fb069' : '#ef4444' }} />
+            <span style={{
+              fontFamily: 'var(--font-pixel), monospace',
+              fontSize: 8, letterSpacing: '0.08em', color: isActive ? '#7fb069' : '#ef4444',
+            }}>{isActive ? 'Connected' : 'Invalid'}</span>
+          </span>
+        )}
+      </div>
+
+      {isConnected ? (
+        <>
+          <p style={{ fontSize: 11, color: 'rgba(232,232,232,0.6)', margin: '0 0 8px' }}>
+            {account.display_name || slot.name}
+          </p>
+          {account.last_tested_at && (
+            <p style={{ fontSize: 10, color: 'rgba(232,232,232,0.35)', marginBottom: 8 }}>
+              Last tested: {new Date(account.last_tested_at).toLocaleString()}
+              {account.last_test_result && (
+                <span style={{ marginLeft: 6, color: isActive ? 'rgba(127,176,105,0.6)' : 'rgba(239,68,68,0.6)' }}>
+                  — {account.last_test_result}
+                </span>
+              )}
+            </p>
+          )}
+          {feedback && <FeedbackBar ok={feedback.ok} message={feedback.message} />}
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              onClick={handleTest}
+              disabled={testing}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5,
+                background: 'transparent',
+                border: '1px solid rgba(232,232,232,0.1)',
+                borderRadius: 8, padding: '6px 12px',
+                color: 'rgba(232,232,232,0.6)', fontSize: 10,
+                fontFamily: 'system-ui', cursor: testing ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {testing ? <Loader2 size={10} style={{ animation: 'spin 1s linear infinite' }} /> : null}
+              Test Connection
+            </button>
+            <button
+              onClick={handleDisconnect}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5,
+                background: 'transparent',
+                border: '1px solid rgba(239,68,68,0.2)',
+                borderRadius: 8, padding: '6px 12px',
+                color: 'rgba(239,68,68,0.7)', fontSize: 10,
+                fontFamily: 'system-ui', cursor: 'pointer',
+              }}
+            >
+              <Unplug size={10} />
+              Disconnect
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div style={{ marginBottom: 8 }}>
+            <label style={{
+              display: 'block', fontSize: 10, fontWeight: 500,
+              color: 'rgba(232,232,232,0.6)', marginBottom: 3,
+              letterSpacing: '0.04em', textTransform: 'uppercase',
+            }}>
+              Account Name
+            </label>
+            <input
+              type="text"
+              value={values.display_name}
+              onChange={e => setValues(v => ({ ...v, display_name: e.target.value }))}
+              placeholder={`e.g. "${slot.name} — Main Brokerage"`}
+              style={{
+                width: '100%', boxSizing: 'border-box',
+                background: 'rgba(232,232,232,0.04)',
+                border: '1px solid rgba(232,232,232,0.1)',
+                borderRadius: 8, padding: '8px 11px',
+                color: '#e8e8e8', fontSize: 12,
+                fontFamily: 'system-ui, sans-serif', outline: 'none',
+              }}
+            />
+          </div>
+          {(manifest.fields || []).map(field => (
+            <div key={field.name} style={{ marginBottom: 8 }}>
+              <label style={{
+                display: 'block', fontSize: 10, fontWeight: 500,
+                color: 'rgba(232,232,232,0.6)', marginBottom: 3,
+                letterSpacing: '0.04em', textTransform: 'uppercase',
+              }}>
+                {field.label}{field.required !== false ? ' *' : ''}
+              </label>
+              <input
+                type={field.type === 'password' ? 'password' : field.type === 'number' ? 'number' : 'text'}
+                value={values[field.name]}
+                onChange={e => setValues(v => ({ ...v, [field.name]: e.target.value }))}
+                placeholder={field.placeholder || ''}
+                style={{
+                  width: '100%', boxSizing: 'border-box',
+                  background: 'rgba(232,232,232,0.04)',
+                  border: '1px solid rgba(232,232,232,0.1)',
+                  borderRadius: 8, padding: '8px 11px',
+                  color: '#e8e8e8', fontSize: 12,
+                  fontFamily: field.type === 'password' ? 'ui-monospace, monospace' : 'system-ui, sans-serif',
+                  outline: 'none',
+                }}
+              />
+            </div>
+          ))}
+          {feedback && <FeedbackBar ok={feedback.ok} message={feedback.message} />}
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                background: saving ? 'rgba(45,127,249,0.5)' : '#2d7ff9',
+                border: 'none', borderRadius: 8, padding: '7px 16px',
+                color: '#fff', fontSize: 11, fontWeight: 500,
+                fontFamily: 'system-ui, sans-serif',
+                cursor: saving ? 'not-allowed' : 'pointer', transition: 'all 200ms',
+              }}
+            >
+              {saving && <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} />}
+              {saving ? 'Testing…' : 'Save & Test'}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function GhlAccountsPanel({ manifest, userId, accounts, onChanged }) {
+  const byLabel = Object.fromEntries((accounts || []).map(a => [a.account_label, a]))
+  return (
+    <div style={{ paddingTop: 12 }}>
+      {manifest.docs_url && (
+        <p style={{ fontSize: 11, color: 'rgba(232,232,232,0.45)', marginBottom: 10, lineHeight: 1.5 }}>
+          <a href={manifest.docs_url} target="_blank" rel="noreferrer" style={{ color: '#2d7ff9' }}>
+            Where do I get this?
+          </a>
+        </p>
+      )}
+      {manifest.status_note && (
+        <div style={{
+          marginBottom: 10, padding: '6px 10px',
+          background: 'rgba(232,232,232,0.03)',
+          border: '1px solid rgba(232,232,232,0.08)',
+          borderRadius: 7, fontSize: 10, color: 'rgba(232,232,232,0.5)', lineHeight: 1.5,
+        }}>
+          ℹ️ {manifest.status_note}
+        </div>
+      )}
+      <p style={{ fontSize: 10, color: 'rgba(232,232,232,0.35)', marginBottom: 10, lineHeight: 1.5 }}>
+        Connect up to 3 GoHighLevel accounts — Jarvis will scan all of them for stale leads by default,
+        or you can ask it to focus on one ("just check the Main Brokerage account").
+      </p>
+      {GHL_ACCOUNT_SLOTS.map(slot => (
+        <GhlAccountSlot
+          key={slot.label}
+          slot={slot}
+          manifest={manifest}
+          userId={userId}
+          account={byLabel[slot.label] || null}
+          onChanged={onChanged}
+        />
+      ))}
+    </div>
+  )
+}
+
 function FeedbackBar({ ok, message }) {
   return (
     <div style={{
@@ -227,10 +505,12 @@ function FeedbackBar({ ok, message }) {
 }
 
 // ── Single connector card ────────────────────────────────────────────────────
-function ConnectorCard({ manifest, connection, userId, onSave, onDelete, onTest, saving, testing, feedback }) {
+function ConnectorCard({ manifest, connection, accounts, onAccountsChanged, userId, onSave, onDelete, onTest, saving, testing, feedback }) {
   const [expanded, setExpanded] = useState(false)
-  const isConnected = !!connection
-  const isActive = connection?.status === 'active'
+  const isMultiAccount = manifest.type === 'gohighlevel'
+  const activeAccounts = isMultiAccount ? (accounts || []).filter(a => a.status === 'active') : []
+  const isConnected = isMultiAccount ? (accounts || []).length > 0 : !!connection
+  const isActive = isMultiAccount ? activeAccounts.length > 0 : connection?.status === 'active'
   const cardFeedback = feedback?.type === manifest.type ? feedback : null
 
   return (
@@ -261,7 +541,21 @@ function ConnectorCard({ manifest, connection, userId, onSave, onDelete, onTest,
             }}>
               {manifest.display_name}
             </span>
-            {isConnected && isActive && (
+            {isMultiAccount && isConnected && (
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                padding: '2px 7px', borderRadius: 99,
+                background: isActive ? 'rgba(127,176,105,0.1)' : 'rgba(239,68,68,0.08)',
+                border: `1px solid ${isActive ? 'rgba(127,176,105,0.18)' : 'rgba(239,68,68,0.18)'}`,
+              }}>
+                <div style={{ width: 5, height: 5, borderRadius: '50%', background: isActive ? '#7fb069' : '#ef4444' }} />
+                <span style={{
+                  fontFamily: 'var(--font-pixel), monospace',
+                  fontSize: 8, letterSpacing: '0.08em', color: isActive ? '#7fb069' : '#ef4444',
+                }}>{activeAccounts.length}/3 connected</span>
+              </span>
+            )}
+            {!isMultiAccount && isConnected && isActive && (
               <span style={{
                 display: 'inline-flex', alignItems: 'center', gap: 4,
                 padding: '2px 7px', borderRadius: 99,
@@ -275,7 +569,7 @@ function ConnectorCard({ manifest, connection, userId, onSave, onDelete, onTest,
                 }}>Connected</span>
               </span>
             )}
-            {isConnected && !isActive && (
+            {!isMultiAccount && isConnected && !isActive && (
               <span style={{
                 display: 'inline-flex', alignItems: 'center', gap: 4,
                 padding: '2px 7px', borderRadius: 99,
@@ -331,7 +625,14 @@ function ConnectorCard({ manifest, connection, userId, onSave, onDelete, onTest,
               padding: '0 16px 14px',
               borderTop: '1px solid rgba(232,232,232,0.04)',
             }}>
-              {isConnected ? (
+              {isMultiAccount ? (
+                <GhlAccountsPanel
+                  manifest={manifest}
+                  userId={userId}
+                  accounts={accounts}
+                  onChanged={onAccountsChanged}
+                />
+              ) : isConnected ? (
                 <ConnectedDetails
                   connection={connection}
                   onDisconnect={() => onDelete(manifest.type)}
@@ -347,7 +648,7 @@ function ConnectorCard({ manifest, connection, userId, onSave, onDelete, onTest,
                   feedback={cardFeedback}
                 />
               )}
-              {cardFeedback && isConnected && (
+              {cardFeedback && isConnected && !isMultiAccount && (
                 <div style={{ marginTop: 10 }}>
                   <FeedbackBar ok={cardFeedback.ok} message={cardFeedback.message} />
                 </div>
@@ -600,6 +901,8 @@ export default function ConnectionsModal({ open, onClose, userId }) {
                   key={manifest.type}
                   manifest={manifest}
                   connection={connByType[manifest.type] || null}
+                  accounts={manifest.type === 'gohighlevel' ? userConnections.filter(c => c.connector_type === 'gohighlevel') : undefined}
+                  onAccountsChanged={loadAll}
                   userId={userId}
                   onSave={handleSave}
                   onDelete={handleDelete}

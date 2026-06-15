@@ -26,6 +26,9 @@ from backend.lib.business.connectors.buffer_conn import BufferConnector
 SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 
+DEFAULT_ACCOUNT_LABEL = "default"
+MAX_ACCOUNTS_PER_TYPE = 3
+
 
 def _user_id_to_uuid(user_id: str) -> str:
     """Strip 'user_' prefix and reformat 32-char hex as a proper UUID."""
@@ -62,8 +65,8 @@ def connector_class(connector_type: str) -> type[BaseConnector] | None:
     return _CONNECTOR_REGISTRY.get(connector_type)
 
 
-async def _fetch_user_connection_row(user_id: str, connector_type: str) -> dict | None:
-    """Fetch the raw business_connections row for a user + type. None if missing."""
+async def _fetch_user_connection_row(user_id: str, connector_type: str, account_label: str = DEFAULT_ACCOUNT_LABEL) -> dict | None:
+    """Fetch the raw business_connections row for a user + type + account label. None if missing."""
     user_id = _user_id_to_uuid(user_id)
     if not user_id or not connector_type or not SUPABASE_URL or not SUPABASE_KEY:
         return None
@@ -76,9 +79,10 @@ async def _fetch_user_connection_row(user_id: str, connector_type: str) -> dict 
                     "Authorization": f"Bearer {SUPABASE_KEY}",
                 },
                 params={
-                    "select": "id,connector_type,credentials,status,display_name,last_tested_at,last_test_result",
+                    "select": "id,connector_type,account_label,credentials,status,display_name,last_tested_at,last_test_result",
                     "user_id": f"eq.{user_id}",
                     "connector_type": f"eq.{connector_type}",
+                    "account_label": f"eq.{account_label}",
                     "limit": "1",
                 },
                 timeout=10.0,
@@ -105,7 +109,7 @@ async def list_user_connections(user_id: str) -> list[dict]:
                     "Authorization": f"Bearer {SUPABASE_KEY}",
                 },
                 params={
-                    "select": "id,connector_type,display_name,status,last_tested_at,last_test_result,created_at",
+                    "select": "id,connector_type,account_label,display_name,status,last_tested_at,last_test_result,created_at",
                     "user_id": f"eq.{user_id}",
                     "order": "created_at.desc",
                 },
@@ -118,12 +122,18 @@ async def list_user_connections(user_id: str) -> list[dict]:
     return []
 
 
-async def get_connector_for_user(user_id: str, connector_type: str) -> BaseConnector | None:
+async def list_user_connections_for_type(user_id: str, connector_type: str) -> list[dict]:
+    """List every account (any label) a user has for one connector type."""
+    rows = await list_user_connections(user_id)
+    return [r for r in rows if r.get("connector_type") == connector_type]
+
+
+async def get_connector_for_user(user_id: str, connector_type: str, account_label: str = DEFAULT_ACCOUNT_LABEL) -> BaseConnector | None:
     """
     Returns an authenticated BaseConnector instance for the user, or None if
-    the user hasn't connected this type (or it's disabled / invalid).
+    the user hasn't connected this type/account (or it's disabled / invalid).
     """
-    row = await _fetch_user_connection_row(user_id, connector_type)
+    row = await _fetch_user_connection_row(user_id, connector_type, account_label)
     if not row or row.get("status") != "active":
         return None
 
@@ -140,6 +150,7 @@ async def upsert_user_connection(
     connector_type: str,
     credentials: dict,
     display_name: str = "",
+    account_label: str = DEFAULT_ACCOUNT_LABEL,
 ) -> dict | None:
     """Insert or update a user connection. Returns the row, or None on failure."""
     user_id = _user_id_to_uuid(user_id)
@@ -148,6 +159,7 @@ async def upsert_user_connection(
     payload = {
         "user_id": user_id,
         "connector_type": connector_type,
+        "account_label": account_label,
         "credentials": credentials,
         "display_name": display_name or connector_type,
         "status": "active",
@@ -156,7 +168,8 @@ async def upsert_user_connection(
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.post(
-                f"{SUPABASE_URL}/rest/v1/business_connections",
+                f"{SUPABASE_URL}/rest/v1/business_connections"
+                f"?on_conflict=user_id,connector_type,account_label",
                 headers={
                     "apikey": SUPABASE_KEY,
                     "Authorization": f"Bearer {SUPABASE_KEY}",
@@ -175,7 +188,7 @@ async def upsert_user_connection(
     return None
 
 
-async def delete_user_connection(user_id: str, connector_type: str) -> bool:
+async def delete_user_connection(user_id: str, connector_type: str, account_label: str = DEFAULT_ACCOUNT_LABEL) -> bool:
     user_id = _user_id_to_uuid(user_id)
     if not user_id or not connector_type or not SUPABASE_URL or not SUPABASE_KEY:
         return False
@@ -183,7 +196,7 @@ async def delete_user_connection(user_id: str, connector_type: str) -> bool:
         async with httpx.AsyncClient() as client:
             resp = await client.delete(
                 f"{SUPABASE_URL}/rest/v1/business_connections"
-                f"?user_id=eq.{user_id}&connector_type=eq.{connector_type}",
+                f"?user_id=eq.{user_id}&connector_type=eq.{connector_type}&account_label=eq.{account_label}",
                 headers={
                     "apikey": SUPABASE_KEY,
                     "Authorization": f"Bearer {SUPABASE_KEY}",
@@ -201,6 +214,7 @@ async def update_test_result(
     user_id: str,
     connector_type: str,
     result: ConnectorResult,
+    account_label: str = DEFAULT_ACCOUNT_LABEL,
 ) -> None:
     """Record a test result against a connection row."""
     user_id = _user_id_to_uuid(user_id)
@@ -215,7 +229,7 @@ async def update_test_result(
         async with httpx.AsyncClient() as client:
             await client.patch(
                 f"{SUPABASE_URL}/rest/v1/business_connections"
-                f"?user_id=eq.{user_id}&connector_type=eq.{connector_type}",
+                f"?user_id=eq.{user_id}&connector_type=eq.{connector_type}&account_label=eq.{account_label}",
                 headers={
                     "apikey": SUPABASE_KEY,
                     "Authorization": f"Bearer {SUPABASE_KEY}",
@@ -235,7 +249,13 @@ _CONNECTOR_ACTIONS: dict[str, list[str]] = {
     "smtp": ["send_email"],
     "elevenlabs": ["list_voices", "text_to_speech", "list_agents", "get_agent", "create_agent", "update_agent", "delete_agent"],
     "notion": ["search", "read_page", "query_database", "create_page", "list_pages", "create_database"],
-    "google": ["list_calendar_events", "create_calendar_event", "list_emails", "send_email"],
+    "google": [
+        "list_calendar_events", "create_calendar_event", "update_calendar_event", "delete_calendar_event",
+        "freebusy", "find_free_slot",
+        "list_emails", "prioritize_emails", "get_message", "modify_labels", "mark_read",
+        "send_email", "create_draft", "list_drafts", "get_draft",
+        "schedule_email", "list_scheduled_emails", "cancel_scheduled_email",
+    ],
     "canva": ["list_designs", "create_design"],
     "gohighlevel": ["list_contacts", "search_contacts", "create_contact", "list_pipelines", "list_opportunities", "list_appointments"],
     "github": ["list_repos", "create_repo", "push_files"],
@@ -275,13 +295,28 @@ async def available_connectors_summary(user_id: str) -> str:
     if not active:
         return "No connectors wired — produce drafts only (cannot send/publish/execute)."
 
-    lines = []
+    by_type: dict[str, list[dict]] = {}
     for row in active:
-        t = row["connector_type"]
+        by_type.setdefault(row["connector_type"], []).append(row)
+
+    lines = []
+    for t, accounts in by_type.items():
         label = _CONNECTOR_LABELS.get(t, t)
         actions = _CONNECTOR_ACTIONS.get(t, [])
         action_str = ", ".join(actions) if actions else "connected"
-        lines.append(f"- **{label}**: {action_str}")
+        if len(accounts) > 1:
+            account_str = ", ".join(
+                f'"{a.get("display_name") or a["account_label"]}" (account_label: {a["account_label"]})'
+                for a in accounts
+            )
+            lines.append(
+                f"- **{label}**: {len(accounts)} accounts connected — {account_str}. Actions: {action_str}. "
+                "When calling realestate__ghl_* tools, pass account_label to target one account, or "
+                "\"all\" to act across every connected account — ask the user which account they mean "
+                "if they have more than one and haven't said."
+            )
+        else:
+            lines.append(f"- **{label}**: {action_str}")
 
     block = "\n".join(lines)
     return (

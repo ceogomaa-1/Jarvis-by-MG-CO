@@ -1,9 +1,17 @@
-"""TOOL 1 — GoHighLevel stale-lead scanner + note logger."""
+"""TOOL 1 — GoHighLevel stale-lead scanner + note logger.
+
+Account-aware: a user may connect up to 3 GoHighLevel accounts (each with its
+own account_label). scan_stale_leads defaults to "all" — scanning every
+connected account and tagging each result set with its account_label /
+display_name — but a caller can pass a specific account_label to scope to one
+account. add_note always targets one account (defaults to "default", which is
+the only account most users will ever have).
+"""
 import asyncio
 from datetime import datetime, timedelta, timezone
 
 from backend.lib.business.connectors.base import ConnectorResult
-from backend.lib.business.connectors.registry import get_connector_for_user
+from backend.lib.business.connectors.registry import get_connector_for_user, list_user_connections_for_type
 from backend.lib.business.model_router import HAIKU
 from backend.lib.business.real_estate.llm import call_claude, parse_json_response
 
@@ -63,11 +71,7 @@ async def _classify_contact(last_note: str) -> dict:
     return {"needs_followup": True, "reason": "Could not auto-classify — review manually.", "suggested_followup": ""}
 
 
-async def scan_stale_leads(user_id: str, days_stale: int = 14, limit: int = 25) -> ConnectorResult:
-    ghl = await get_connector_for_user(user_id, "gohighlevel")
-    if not ghl:
-        return ConnectorResult(ok=False, error=GHL_NOT_CONNECTED)
-
+async def _scan_account(ghl, days_stale: int, limit: int) -> ConnectorResult:
     all_contacts: list[dict] = []
     cursor_id = None
     for _ in range(3):  # up to 300 contacts
@@ -133,10 +137,54 @@ async def scan_stale_leads(user_id: str, days_stale: int = 14, limit: int = 25) 
     )
 
 
-async def add_note(user_id: str, contact_id: str, note: str) -> ConnectorResult:
+async def scan_stale_leads(user_id: str, days_stale: int = 14, limit: int = 25, account_label: str = "all") -> ConnectorResult:
+    accounts = await list_user_connections_for_type(user_id, "gohighlevel")
+    active_accounts = [a for a in accounts if a.get("status") == "active"]
+    if not active_accounts:
+        return ConnectorResult(ok=False, error=GHL_NOT_CONNECTED)
+
+    if account_label != "all":
+        active_accounts = [a for a in active_accounts if a["account_label"] == account_label]
+        if not active_accounts:
+            return ConnectorResult(
+                ok=False,
+                error=f"No active GoHighLevel account with label '{account_label}'. "
+                f"Connected labels: {', '.join(a['account_label'] for a in accounts) or '(none)'}.",
+            )
+
+    results: list[dict] = []
+    for acct in active_accounts:
+        ghl = await get_connector_for_user(user_id, "gohighlevel", acct["account_label"])
+        if not ghl:
+            continue
+        result = await _scan_account(ghl, days_stale, limit)
+        entry = {
+            "account_label": acct["account_label"],
+            "account_display_name": acct.get("display_name") or acct["account_label"],
+        }
+        if result.ok:
+            entry.update(result.data or {})
+        else:
+            entry["error"] = result.error
+        results.append(entry)
+
+    if len(results) == 1:
+        return ConnectorResult(ok=True, data=results[0])
+
+    return ConnectorResult(ok=True, data={"accounts": results})
+
+
+async def add_note(user_id: str, contact_id: str, note: str, account_label: str = "default") -> ConnectorResult:
     if not contact_id or not note:
         return ConnectorResult(ok=False, error="contact_id and note are both required.")
-    ghl = await get_connector_for_user(user_id, "gohighlevel")
+    ghl = await get_connector_for_user(user_id, "gohighlevel", account_label)
     if not ghl:
-        return ConnectorResult(ok=False, error=GHL_NOT_CONNECTED)
+        accounts = await list_user_connections_for_type(user_id, "gohighlevel")
+        if not accounts:
+            return ConnectorResult(ok=False, error=GHL_NOT_CONNECTED)
+        return ConnectorResult(
+            ok=False,
+            error=f"No active GoHighLevel account with label '{account_label}'. "
+            f"Connected labels: {', '.join(a['account_label'] for a in accounts)}.",
+        )
     return await ghl.add_note(contact_id, note)

@@ -10,7 +10,13 @@ import json
 
 from backend.lib.business.connectors.base import ConnectorResult
 from backend.lib.business.connectors.registry import get_connector_for_user
+from backend.lib.business.document_store import resolve_attachments
 from backend.lib.business.real_estate.tools import execute_real_estate_tool
+from backend.lib.business.scheduled_emails import (
+    cancel_scheduled_email,
+    list_scheduled_emails,
+    schedule_email,
+)
 from backend.lib.business.web_scrape import execute_web_tool
 
 
@@ -57,7 +63,7 @@ async def execute_tool(tool_name: str, tool_input: dict, user_id: str) -> str:
         })
 
     try:
-        result: ConnectorResult = await _dispatch(connector, connector_type, action_name, tool_input)
+        result: ConnectorResult = await _dispatch(connector, connector_type, action_name, tool_input, user_id)
     except Exception as e:
         return json.dumps({"error": f"Tool execution error: {e}"})
 
@@ -66,7 +72,7 @@ async def execute_tool(tool_name: str, tool_input: dict, user_id: str) -> str:
     return json.dumps({"error": result.error or "Action failed with no error message"})
 
 
-async def _dispatch(connector, connector_type: str, action_name: str, inp: dict) -> ConnectorResult:
+async def _dispatch(connector, connector_type: str, action_name: str, inp: dict, user_id: str = "") -> ConnectorResult:
     """Map (connector_type, action_name) → connector method call."""
 
     # ── Stripe ────────────────────────────────────────────────────────────────
@@ -163,17 +169,84 @@ async def _dispatch(connector, connector_type: str, action_name: str, inp: dict)
             )
         if action_name == "delete_calendar_event":
             return await connector.delete_calendar_event(event_id=inp["event_id"])
+        if action_name == "freebusy":
+            return await connector.freebusy(
+                time_min=inp["time_min"],
+                time_max=inp["time_max"],
+                calendar_ids=inp.get("calendar_ids"),
+            )
+        if action_name == "find_free_slot":
+            return await connector.find_free_slot(
+                duration_min=int(inp["duration_min"]),
+                time_min=inp.get("time_min"),
+                time_max=inp.get("time_max"),
+                work_start_hour=int(inp.get("work_start_hour", 9)),
+                work_end_hour=int(inp.get("work_end_hour", 17)),
+                timezone_name=inp.get("timezone", "America/Toronto"),
+            )
         if action_name == "list_emails":
             return await connector.list_emails(
                 max_results=int(inp.get("max_results", 10)),
                 query=inp.get("query", ""),
             )
+        if action_name == "prioritize_emails":
+            return await connector.list_emails(
+                max_results=int(inp.get("max_results", 20)),
+                query=inp.get("query", "is:unread"),
+            )
+        if action_name == "get_message":
+            return await connector.get_message(message_id=inp["message_id"])
+        if action_name == "modify_labels":
+            return await connector.modify_labels(
+                message_id=inp["message_id"],
+                add_labels=inp.get("add_labels"),
+                remove_labels=inp.get("remove_labels"),
+            )
+        if action_name == "mark_read":
+            return await connector.mark_read(
+                message_id=inp["message_id"],
+                read=bool(inp.get("read", True)),
+            )
         if action_name == "send_email":
+            attachments, attach_error = resolve_attachments(inp.get("attachments"))
+            if attach_error:
+                return ConnectorResult(ok=False, error=attach_error)
             return await connector.send_email(
                 to=inp["to"],
                 subject=inp["subject"],
                 body=inp.get("body", ""),
+                cc=inp.get("cc", ""),
+                attachments=attachments or None,
             )
+        if action_name == "create_draft":
+            attachments, attach_error = resolve_attachments(inp.get("attachments"))
+            if attach_error:
+                return ConnectorResult(ok=False, error=attach_error)
+            return await connector.create_draft(
+                to=inp["to"],
+                subject=inp["subject"],
+                body=inp.get("body", ""),
+                cc=inp.get("cc", ""),
+                attachments=attachments or None,
+            )
+        if action_name == "list_drafts":
+            return await connector.list_drafts(max_results=int(inp.get("max_results", 10)))
+        if action_name == "get_draft":
+            return await connector.get_draft(draft_id=inp["draft_id"])
+        if action_name == "schedule_email":
+            return await schedule_email(
+                user_id,
+                to_email=inp["to"],
+                subject=inp["subject"],
+                body=inp.get("body", ""),
+                send_at=inp["send_at"],
+                cc=inp.get("cc", ""),
+                attachments=inp.get("attachments"),
+            )
+        if action_name == "list_scheduled_emails":
+            return await list_scheduled_emails(user_id, status=inp.get("status"))
+        if action_name == "cancel_scheduled_email":
+            return await cancel_scheduled_email(user_id, scheduled_id=inp["id"])
 
     # ── GoHighLevel ───────────────────────────────────────────────────────────
     if connector_type == "gohighlevel":

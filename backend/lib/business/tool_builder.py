@@ -259,7 +259,7 @@ _TOOLS: dict[str, dict] = {
         },
     },
     "google__create_calendar_event": {
-        "description": "[Google Calendar] Create a new event on the primary calendar.",
+        "description": "[Google Calendar] Create a new event on the primary calendar. If start/end omit timeZone, it defaults to America/Toronto.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -270,11 +270,11 @@ _TOOLS: dict[str, dict] = {
                         "summary": {"type": "string", "description": "Event title"},
                         "start": {
                             "type": "object",
-                            "description": "Start time as {dateTime: ISO8601, timeZone: 'America/Toronto'}",
+                            "description": "Start time as {dateTime: ISO8601, timeZone: 'America/Toronto'}. timeZone defaults to America/Toronto if omitted.",
                         },
                         "end": {
                             "type": "object",
-                            "description": "End time as {dateTime: ISO8601, timeZone: 'America/Toronto'}",
+                            "description": "End time as {dateTime: ISO8601, timeZone: 'America/Toronto'}. timeZone defaults to America/Toronto if omitted.",
                         },
                         "description": {"type": "string", "description": "Event description (optional)"},
                         "location": {"type": "string", "description": "Location (optional)"},
@@ -286,15 +286,15 @@ _TOOLS: dict[str, dict] = {
         },
     },
     "google__update_calendar_event": {
-        "description": "[Google Calendar] Update an existing calendar event (title, time, description, location). Confirm with user before calling.",
+        "description": "[Google Calendar] Update an existing calendar event (title, time, description, location). Confirm with user before calling. If start/end omit timeZone, it defaults to America/Toronto.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "event_id": {"type": "string", "description": "Event ID from list_calendar_events"},
                 "summary": {"type": "string", "description": "New event title (optional)"},
                 "description": {"type": "string", "description": "New description (optional)"},
-                "start": {"type": "object", "description": "New start: {dateTime: ISO8601, timeZone: string} (optional)"},
-                "end": {"type": "object", "description": "New end: {dateTime: ISO8601, timeZone: string} (optional)"},
+                "start": {"type": "object", "description": "New start: {dateTime: ISO8601, timeZone: string} (optional). timeZone defaults to America/Toronto if omitted."},
+                "end": {"type": "object", "description": "New end: {dateTime: ISO8601, timeZone: string} (optional). timeZone defaults to America/Toronto if omitted."},
                 "location": {"type": "string", "description": "New location (optional)"},
             },
             "required": ["event_id"],
@@ -308,6 +308,37 @@ _TOOLS: dict[str, dict] = {
                 "event_id": {"type": "string", "description": "Event ID from list_calendar_events"},
             },
             "required": ["event_id"],
+        },
+    },
+    "google__freebusy": {
+        "description": "[Google Calendar] Check free/busy blocks across one or more calendars in a time range. Use before proposing a meeting/showing time to avoid double-booking.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "time_min": {"type": "string", "description": "Start of range, ISO 8601 (e.g. 2026-06-15T00:00:00-04:00)"},
+                "time_max": {"type": "string", "description": "End of range, ISO 8601"},
+                "calendar_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Calendar IDs to check (default: ['primary'])",
+                },
+            },
+            "required": ["time_min", "time_max"],
+        },
+    },
+    "google__find_free_slot": {
+        "description": "[Google Calendar] Find the next free slot of a given duration within working hours (default 9am-5pm Mon-Fri, America/Toronto), checking the primary calendar's free/busy. Use this to propose a showing/meeting time.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "duration_min": {"type": "integer", "description": "Desired meeting/showing length in minutes"},
+                "time_min": {"type": "string", "description": "Earliest time to consider, ISO 8601 (optional, default now)"},
+                "time_max": {"type": "string", "description": "Latest time to consider, ISO 8601 (optional, default 7 days after time_min)"},
+                "work_start_hour": {"type": "integer", "description": "Working day start hour, 24h (default 9)"},
+                "work_end_hour": {"type": "integer", "description": "Working day end hour, 24h (default 17)"},
+                "timezone": {"type": "string", "description": "Timezone name (default America/Toronto)"},
+            },
+            "required": ["duration_min"],
         },
     },
     "google__list_emails": {
@@ -324,16 +355,186 @@ _TOOLS: dict[str, dict] = {
             "required": [],
         },
     },
+    "google__prioritize_emails": {
+        "description": (
+            "[Gmail] Fetch recent emails (sender, subject, date, snippet, read/unread status) so YOU can "
+            "triage and prioritize them for the user — e.g. 'these 3 need a reply today, these are FYI, "
+            "this looks like spam.' Defaults to unread mail. This tool only fetches the metadata; the "
+            "prioritization and reasoning is yours to do in your response, not the tool's."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "max_results": {"type": "integer", "description": "Max emails to fetch (default 20)"},
+                "query": {"type": "string", "description": "Gmail search query (default 'is:unread')"},
+            },
+            "required": [],
+        },
+    },
+    "google__get_message": {
+        "description": "[Gmail] Get the full content (body, headers, labels, read/unread) of a single email by message ID.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "message_id": {"type": "string", "description": "Gmail message ID (from list_emails or prioritize_emails)"},
+            },
+            "required": ["message_id"],
+        },
+    },
+    "google__modify_labels": {
+        "description": "[Gmail] Add or remove Gmail labels on a message — e.g. archive by removing 'INBOX', star with 'STARRED', mark read/unread via 'UNREAD'.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "message_id": {"type": "string", "description": "Gmail message ID"},
+                "add_labels": {"type": "array", "items": {"type": "string"}, "description": "Label IDs to add (optional)"},
+                "remove_labels": {"type": "array", "items": {"type": "string"}, "description": "Label IDs to remove (optional)"},
+            },
+            "required": ["message_id"],
+        },
+    },
+    "google__mark_read": {
+        "description": "[Gmail] Mark a message as read or unread.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "message_id": {"type": "string", "description": "Gmail message ID"},
+                "read": {"type": "boolean", "description": "True to mark read, false to mark unread (default true)"},
+            },
+            "required": ["message_id"],
+        },
+    },
     "google__send_email": {
-        "description": "[Gmail] Send an email via Gmail.",
+        "description": (
+            "[Gmail] Send an email via Gmail, optionally with attachments. To attach a file (one Jarvis "
+            "generated or the user uploaded), pass its doc_id from the conversation context. NOTE: Gmail's "
+            "consumer API has no read-receipt support — never promise the user a read receipt."
+        ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "to": {"type": "string", "description": "Recipient email address"},
+                "cc": {"type": "string", "description": "CC email address(es), comma-separated (optional)"},
                 "subject": {"type": "string", "description": "Email subject"},
                 "body": {"type": "string", "description": "Email body text"},
+                "attachments": {
+                    "type": "array",
+                    "description": "Files to attach, each referencing a doc_id from the conversation (optional)",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "doc_id": {"type": "string", "description": "Document ID from conversation context"},
+                            "filename": {"type": "string", "description": "Override filename (optional)"},
+                        },
+                        "required": ["doc_id"],
+                    },
+                },
             },
             "required": ["to", "subject", "body"],
+        },
+    },
+    "google__create_draft": {
+        "description": "[Gmail] Create a draft email in Gmail (not sent) for the user to review/edit before sending. Supports attachments via doc_id.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "to": {"type": "string", "description": "Recipient email address"},
+                "cc": {"type": "string", "description": "CC email address(es), comma-separated (optional)"},
+                "subject": {"type": "string", "description": "Email subject"},
+                "body": {"type": "string", "description": "Email body text"},
+                "attachments": {
+                    "type": "array",
+                    "description": "Files to attach, each referencing a doc_id from the conversation (optional)",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "doc_id": {"type": "string", "description": "Document ID from conversation context"},
+                            "filename": {"type": "string", "description": "Override filename (optional)"},
+                        },
+                        "required": ["doc_id"],
+                    },
+                },
+            },
+            "required": ["to", "subject", "body"],
+        },
+    },
+    "google__list_drafts": {
+        "description": "[Gmail] List existing Gmail drafts (to, subject, date, snippet).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "max_results": {"type": "integer", "description": "Max drafts to return (default 10)"},
+            },
+            "required": [],
+        },
+    },
+    "google__get_draft": {
+        "description": "[Gmail] Get the full content (to, cc, subject, body) of a Gmail draft by draft ID.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "draft_id": {"type": "string", "description": "Draft ID from list_drafts"},
+            },
+            "required": ["draft_id"],
+        },
+    },
+    "google__schedule_email": {
+        "description": (
+            "[Gmail] Schedule an email to be sent automatically at a future time. Gmail's API has no "
+            "native schedule-send, so Jarvis stores this and a background dispatcher (checked roughly "
+            "every minute) sends it through the user's connected Gmail account once send_at passes — "
+            "marked 'sent' only on a real success from Gmail, 'failed' with the real error otherwise. "
+            "Supports attachments via doc_id."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "to": {"type": "string", "description": "Recipient email address"},
+                "cc": {"type": "string", "description": "CC email address(es), comma-separated (optional)"},
+                "subject": {"type": "string", "description": "Email subject"},
+                "body": {"type": "string", "description": "Email body text"},
+                "send_at": {
+                    "type": "string",
+                    "description": "When to send, ISO 8601 with timezone offset (e.g. 2026-06-15T09:00:00-04:00 for America/Toronto)",
+                },
+                "attachments": {
+                    "type": "array",
+                    "description": "Files to attach, each referencing a doc_id from the conversation (optional)",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "doc_id": {"type": "string", "description": "Document ID from conversation context"},
+                            "filename": {"type": "string", "description": "Override filename (optional)"},
+                        },
+                        "required": ["doc_id"],
+                    },
+                },
+            },
+            "required": ["to", "subject", "body", "send_at"],
+        },
+    },
+    "google__list_scheduled_emails": {
+        "description": "[Gmail] List the user's scheduled emails and their status (pending, sent, failed, cancelled).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "enum": ["pending", "sent", "failed", "cancelled"],
+                    "description": "Filter by status (optional — default returns all)",
+                },
+            },
+            "required": [],
+        },
+    },
+    "google__cancel_scheduled_email": {
+        "description": "[Gmail] Cancel a pending scheduled email before it sends.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string", "description": "Scheduled email ID from list_scheduled_emails"},
+            },
+            "required": ["id"],
         },
     },
 

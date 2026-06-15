@@ -16,8 +16,11 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 
 from backend.lib.business.connectors.registry import (
+    DEFAULT_ACCOUNT_LABEL,
+    MAX_ACCOUNTS_PER_TYPE,
     list_available_connectors,
     list_user_connections,
+    list_user_connections_for_type,
     upsert_user_connection,
     get_connector_for_user,
     delete_user_connection,
@@ -43,11 +46,22 @@ async def get_user_connections(user_id: str = ""):
     return {"connections": rows}
 
 
+@router.get("/business/connections/{connector_type}/accounts")
+async def get_connector_accounts(connector_type: str, user_id: str = ""):
+    """List every account (any label) a user has for one connector type —
+    used by the multi-account UI (e.g. up to 3 GoHighLevel accounts)."""
+    if not user_id:
+        return {"accounts": []}
+    rows = await list_user_connections_for_type(user_id, connector_type)
+    return {"accounts": rows, "max_accounts": MAX_ACCOUNTS_PER_TYPE}
+
+
 class UpsertConnectionRequest(BaseModel):
     user_id: str
     connector_type: str
     credentials: dict
     display_name: str = ""
+    account_label: str = DEFAULT_ACCOUNT_LABEL
 
 
 @router.post("/business/connections")
@@ -58,12 +72,22 @@ async def upsert_connection(request: UpsertConnectionRequest):
     if not cls:
         raise HTTPException(status_code=400, detail=f"Unknown connector_type: {request.connector_type}")
 
+    # New account labels are capped at MAX_ACCOUNTS_PER_TYPE per user+type
+    existing = await list_user_connections_for_type(request.user_id, request.connector_type)
+    existing_labels = {a["account_label"] for a in existing}
+    if request.account_label not in existing_labels and len(existing_labels) >= MAX_ACCOUNTS_PER_TYPE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Maximum of {MAX_ACCOUNTS_PER_TYPE} {cls.DISPLAY_NAME} accounts per user.",
+        )
+
     # Save first (so even if test fails, credentials are stored — user can retry)
     row = await upsert_user_connection(
         user_id=request.user_id,
         connector_type=request.connector_type,
         credentials=request.credentials,
         display_name=request.display_name or cls.DISPLAY_NAME,
+        account_label=request.account_label,
     )
     if not row:
         raise HTTPException(status_code=500, detail="Failed to save connection")
@@ -71,7 +95,7 @@ async def upsert_connection(request: UpsertConnectionRequest):
     # Now test
     instance = cls(credentials=request.credentials)
     result = await instance.test()
-    await update_test_result(request.user_id, request.connector_type, result)
+    await update_test_result(request.user_id, request.connector_type, result, account_label=request.account_label)
 
     return {
         "ok": result.ok,
@@ -84,28 +108,30 @@ async def upsert_connection(request: UpsertConnectionRequest):
 class TestConnectionRequest(BaseModel):
     user_id: str
     connector_type: str
+    account_label: str = DEFAULT_ACCOUNT_LABEL
 
 
 @router.post("/business/connections/test")
 async def test_connection(request: TestConnectionRequest):
     if not request.user_id or not request.connector_type:
         raise HTTPException(status_code=400, detail="user_id and connector_type required")
-    instance = await get_connector_for_user(request.user_id, request.connector_type)
+    instance = await get_connector_for_user(request.user_id, request.connector_type, request.account_label)
     if not instance:
         raise HTTPException(status_code=404, detail="Connection not found or inactive")
     result = await instance.test()
-    await update_test_result(request.user_id, request.connector_type, result)
+    await update_test_result(request.user_id, request.connector_type, result, account_label=request.account_label)
     return {"ok": result.ok, "error": result.error, "data": result.data}
 
 
 class DeleteConnectionRequest(BaseModel):
     user_id: str
     connector_type: str
+    account_label: str = DEFAULT_ACCOUNT_LABEL
 
 
 @router.delete("/business/connections")
 async def delete_connection(request: DeleteConnectionRequest):
-    ok = await delete_user_connection(request.user_id, request.connector_type)
+    ok = await delete_user_connection(request.user_id, request.connector_type, request.account_label)
     return {"ok": ok}
 
 
