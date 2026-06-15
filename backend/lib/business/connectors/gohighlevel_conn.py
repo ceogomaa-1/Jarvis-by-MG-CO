@@ -1,20 +1,20 @@
 """
 GoHighLevel CRM connector.
 
-Supports two API generations:
-  - v1 (rest.gohighlevel.com) — legacy API key, used by the original
-    contacts/pipelines/opportunities/appointments actions.
-  - v2 (services.leadconnectorhq.com) — Private Integration token + Location ID,
-    required for the Real Estate Operator Suite (stale-lead scanner, notes, etc).
+Everything goes through the v2 (LeadConnector) API at
+services.leadconnectorhq.com, authenticated with a Private Integration token
+(Version 2021-07-28) + Location ID. The legacy v1 API (rest.gohighlevel.com)
+does not accept Private Integration tokens, so there is no v1 path here.
 
-Get a Private Integration token: GHL → Settings → Private Integrations.
-Get the Location ID: GHL → Settings → Business Profile.
+Get a Private Integration token: GHL -> Settings -> Private Integrations.
+Get the Location ID: GHL -> Settings -> Business Profile.
 """
+import time
+
 import httpx
 
 from backend.lib.business.connectors.base import BaseConnector, ConnectorResult
 
-V1_BASE = "https://rest.gohighlevel.com/v1"
 V2_BASE = "https://services.leadconnectorhq.com"
 V2_VERSION = "2021-07-28"
 
@@ -45,14 +45,6 @@ class GoHighLevelConnector(BaseConnector):
         },
     }
 
-    # ─── v1 (legacy) ────────────────────────────────────────────
-    def _headers(self) -> dict:
-        return {
-            "Authorization": f"Bearer {self.credentials.get('api_key', '').strip()}",
-            "Content-Type": "application/json",
-        }
-
-    # ─── v2 (Real Estate Operator Suite) ───────────────────────
     def _v2_headers(self) -> dict:
         return {
             "Authorization": f"Bearer {self.credentials.get('api_key', '').strip()}",
@@ -62,6 +54,43 @@ class GoHighLevelConnector(BaseConnector):
 
     def _location_id(self) -> str:
         return self.credentials.get("location_id", "").strip()
+
+    @staticmethod
+    def _api_error(action: str, resp: httpx.Response) -> str:
+        """Error message that reports the real HTTP status without assuming
+        the token is invalid — a 401/403 here means *this call* was rejected,
+        not that the Private Integration token needs to be reconnected."""
+        detail = resp.text.strip()
+        if len(detail) > 300:
+            detail = detail[:300] + "..."
+        suffix = f" — {detail}" if detail else ""
+        return f"{action} failed: GoHighLevel returned HTTP {resp.status_code}{suffix}"
+
+    async def _request(
+        self,
+        method: str,
+        path: str,
+        action: str,
+        *,
+        params: dict | None = None,
+        json: dict | None = None,
+        timeout: float = 15.0,
+    ) -> ConnectorResult:
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.request(
+                    method,
+                    f"{V2_BASE}{path}",
+                    headers=self._v2_headers(),
+                    params=params,
+                    json=json,
+                    timeout=timeout,
+                )
+            if resp.status_code >= 400:
+                return ConnectorResult(ok=False, error=self._api_error(action, resp))
+            return ConnectorResult(ok=True, data=resp.json())
+        except Exception as e:
+            return ConnectorResult(ok=False, error=f"{action} failed: {e}")
 
     async def test(self) -> ConnectorResult:
         missing = self._missing_fields()
@@ -90,108 +119,54 @@ class GoHighLevelConnector(BaseConnector):
             return ConnectorResult(ok=False, error=f"GoHighLevel connection failed: {e}")
 
     async def list_contacts_v2(self, limit: int = 100, start_after_id: str | None = None, start_after: str | None = None) -> ConnectorResult:
-        try:
-            params = {"locationId": self._location_id(), "limit": limit}
-            if start_after_id:
-                params["startAfterId"] = start_after_id
-            if start_after:
-                params["startAfter"] = start_after
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(f"{V2_BASE}/contacts/", headers=self._v2_headers(), params=params, timeout=20.0)
-            if resp.status_code in (401, 403):
-                return ConnectorResult(ok=False, error="GoHighLevel rejected the request — reconnect with a valid Private Integration token.")
-            resp.raise_for_status()
-            return ConnectorResult(ok=True, data=resp.json())
-        except Exception as e:
-            return ConnectorResult(ok=False, error=f"List contacts failed: {e}")
+        params = {"locationId": self._location_id(), "limit": limit}
+        if start_after_id:
+            params["startAfterId"] = start_after_id
+        if start_after:
+            params["startAfter"] = start_after
+        return await self._request("GET", "/contacts/", "List contacts", params=params, timeout=20.0)
 
     async def search_contacts_v2(self, query: str, limit: int = 10) -> ConnectorResult:
-        try:
-            params = {"locationId": self._location_id(), "query": query, "limit": limit}
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(f"{V2_BASE}/contacts/", headers=self._v2_headers(), params=params, timeout=15.0)
-            resp.raise_for_status()
-            return ConnectorResult(ok=True, data=resp.json())
-        except Exception as e:
-            return ConnectorResult(ok=False, error=f"Search contacts failed: {e}")
+        params = {"locationId": self._location_id(), "query": query, "limit": limit}
+        return await self._request("GET", "/contacts/", "Search contacts", params=params)
 
     async def get_contact_notes(self, contact_id: str) -> ConnectorResult:
-        try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(f"{V2_BASE}/contacts/{contact_id}/notes", headers=self._v2_headers(), timeout=15.0)
-            resp.raise_for_status()
-            return ConnectorResult(ok=True, data=resp.json())
-        except Exception as e:
-            return ConnectorResult(ok=False, error=f"Get contact notes failed: {e}")
+        return await self._request("GET", f"/contacts/{contact_id}/notes", "Get contact notes")
 
     async def add_note(self, contact_id: str, note: str) -> ConnectorResult:
-        try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.post(
-                    f"{V2_BASE}/contacts/{contact_id}/notes",
-                    headers=self._v2_headers(),
-                    json={"body": note},
-                    timeout=15.0,
-                )
-            resp.raise_for_status()
-            return ConnectorResult(ok=True, data=resp.json())
-        except Exception as e:
-            return ConnectorResult(ok=False, error=f"Add note failed: {e}")
+        return await self._request("POST", f"/contacts/{contact_id}/notes", "Add note", json={"body": note})
 
-    # ─── v1 (legacy, still used by existing tool registrations) ──
-    async def list_contacts(self, limit: int = 20) -> ConnectorResult:
-        try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(f"{V1_BASE}/contacts/", headers=self._headers(), params={"limit": limit}, timeout=15.0)
-            resp.raise_for_status()
-            return ConnectorResult(ok=True, data=resp.json())
-        except Exception as e:
-            return ConnectorResult(ok=False, error=f"List contacts failed: {e}")
-
-    async def search_contacts(self, query: str) -> ConnectorResult:
-        try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(f"{V1_BASE}/contacts/search/", headers=self._headers(), params={"query": query}, timeout=15.0)
-            resp.raise_for_status()
-            return ConnectorResult(ok=True, data=resp.json())
-        except Exception as e:
-            return ConnectorResult(ok=False, error=f"Search contacts failed: {e}")
-
+    # ─── Generic gohighlevel__* tools (all v2) ─────────────────
     async def create_contact(self, contact_data: dict) -> ConnectorResult:
-        try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.post(f"{V1_BASE}/contacts/", headers=self._headers(), json=contact_data, timeout=15.0)
-            resp.raise_for_status()
-            return ConnectorResult(ok=True, data=resp.json())
-        except Exception as e:
-            return ConnectorResult(ok=False, error=f"Create contact failed: {e}")
+        payload = {**contact_data, "locationId": self._location_id()}
+        return await self._request("POST", "/contacts/", "Create contact", json=payload)
 
     async def list_pipelines(self) -> ConnectorResult:
-        try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(f"{V1_BASE}/pipelines/", headers=self._headers(), timeout=15.0)
-            resp.raise_for_status()
-            return ConnectorResult(ok=True, data=resp.json())
-        except Exception as e:
-            return ConnectorResult(ok=False, error=f"List pipelines failed: {e}")
+        params = {"locationId": self._location_id()}
+        return await self._request("GET", "/opportunities/pipelines", "List pipelines", params=params)
 
     async def list_opportunities(self, pipeline_id: str) -> ConnectorResult:
-        try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(
-                    f"{V1_BASE}/pipelines/{pipeline_id}/opportunities",
-                    headers=self._headers(), timeout=15.0,
-                )
-            resp.raise_for_status()
-            return ConnectorResult(ok=True, data=resp.json())
-        except Exception as e:
-            return ConnectorResult(ok=False, error=f"List opportunities failed: {e}")
+        params = {"location_id": self._location_id(), "pipeline_id": pipeline_id}
+        return await self._request("GET", "/opportunities/search", "List opportunities", params=params)
 
     async def list_appointments(self) -> ConnectorResult:
-        try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(f"{V1_BASE}/appointments/", headers=self._headers(), timeout=15.0)
-            resp.raise_for_status()
-            return ConnectorResult(ok=True, data=resp.json())
-        except Exception as e:
-            return ConnectorResult(ok=False, error=f"List appointments failed: {e}")
+        cal_result = await self._request("GET", "/calendars/", "List calendars", params={"locationId": self._location_id()})
+        if not cal_result.ok:
+            return cal_result
+
+        calendars = (cal_result.data or {}).get("calendars", [])
+        if not calendars:
+            return ConnectorResult(
+                ok=True,
+                data={"events": [], "message": "No calendars are configured in GoHighLevel for this location."},
+            )
+
+        now_ms = int(time.time() * 1000)
+        thirty_days_ms = 30 * 24 * 60 * 60 * 1000
+        params = {
+            "locationId": self._location_id(),
+            "calendarId": calendars[0].get("id"),
+            "startTime": str(now_ms),
+            "endTime": str(now_ms + thirty_days_ms),
+        }
+        return await self._request("GET", "/calendars/events", "List appointments", params=params)

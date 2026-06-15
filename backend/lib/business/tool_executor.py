@@ -178,9 +178,9 @@ async def _dispatch(connector, connector_type: str, action_name: str, inp: dict)
     # ── GoHighLevel ───────────────────────────────────────────────────────────
     if connector_type == "gohighlevel":
         if action_name == "list_contacts":
-            return await connector.list_contacts(limit=int(inp.get("limit", 20)))
+            return await connector.list_contacts_v2(limit=int(inp.get("limit", 20)))
         if action_name == "search_contacts":
-            return await connector.search_contacts(query=inp["query"])
+            return await connector.search_contacts_v2(query=inp["query"])
         if action_name == "create_contact":
             return await connector.create_contact(contact_data=inp)
         if action_name == "list_pipelines":

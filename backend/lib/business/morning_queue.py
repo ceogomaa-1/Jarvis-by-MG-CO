@@ -176,7 +176,7 @@ async def _crm_signal(user_id: str) -> str:
         conn = await get_connector_for_user(user_id, "gohighlevel")
         if not conn:
             return ""
-        result = await conn.list_contacts(limit=10)
+        result = await conn.list_contacts_v2(limit=10)
         if not result.ok:
             return ""
         contacts = (result.data or {}).get("contacts", [])
