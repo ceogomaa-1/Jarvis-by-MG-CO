@@ -435,27 +435,40 @@ async def jarvis_think(
     result = await _client.messages.create(**kwargs)
     print(f"LLM_RESPONSE_TYPES: {[block.type for block in result.content]}")
 
-    # Native tool use loop
-    if result.stop_reason == "tool_use":
+    # Native tool-use loop.
+    # Previously single-pass: after the first tool round, a SECOND round of tool_use
+    # was silently dropped (only its text — often empty — was returned, triggering the
+    # caller's _FALLBACK_EMPTY). Now bounded-multi-round (cap mirrors Business's
+    # MAX_TOOL_ROUNDS) so chained tool calls complete. Each individual tool runs in its
+    # own try/except: one failing tool returns an error string to the model instead of
+    # aborting the entire turn. The single-tool-call happy path behaves exactly as before.
+    MAX_TOOL_ROUNDS = 5
+    _rounds = 0
+    while result.stop_reason == "tool_use" and available_tools and _rounds < MAX_TOOL_ROUNDS:
+        _rounds += 1
         assistant_content = []
         tool_results = []
         for block in result.content:
             if block.type == "text":
                 assistant_content.append({"type": "text", "text": block.text})
             elif block.type == "tool_use":
-                # Registry takes priority; fall back to legacy execute_tool
-                if block.name in TOOL_REGISTRY:
-                    tool_fn = TOOL_REGISTRY[block.name]["execute"]
-                    # Strip any user_id Claude might pass; inject server's value only if the
-                    # tool function actually accepts user_id (prevents TypeError on tools that don't)
-                    call_kwargs = {k: v for k, v in block.input.items() if k != "user_id"}
-                    if user_id and "user_id" in inspect.signature(tool_fn).parameters:
-                        call_kwargs["user_id"] = user_id
-                    print(f"TOOL_CALL: {block.name}({call_kwargs})")
-                    tool_result = await tool_fn(**call_kwargs)
-                else:
-                    print(f"TOOL_CALL (legacy): {block.name}({block.input})")
-                    tool_result = await execute_tool(user_id, block.name, block.input)
+                try:
+                    # Registry takes priority; fall back to legacy execute_tool
+                    if block.name in TOOL_REGISTRY:
+                        tool_fn = TOOL_REGISTRY[block.name]["execute"]
+                        # Strip any user_id Claude might pass; inject server's value only if the
+                        # tool function actually accepts user_id (prevents TypeError on tools that don't)
+                        call_kwargs = {k: v for k, v in block.input.items() if k != "user_id"}
+                        if user_id and "user_id" in inspect.signature(tool_fn).parameters:
+                            call_kwargs["user_id"] = user_id
+                        print(f"TOOL_CALL: {block.name}({call_kwargs})")
+                        tool_result = await tool_fn(**call_kwargs)
+                    else:
+                        print(f"TOOL_CALL (legacy): {block.name}({block.input})")
+                        tool_result = await execute_tool(user_id, block.name, block.input)
+                except Exception as tool_exc:
+                    print(f"TOOL_ERROR: {block.name} → {tool_exc}")
+                    tool_result = f"The {block.name} tool hit an error and couldn't complete: {tool_exc}"
                 print(f"TOOL_RESULT: {block.name} → {str(tool_result)[:200]}")
                 assistant_content.append({
                     "type": "tool_use",

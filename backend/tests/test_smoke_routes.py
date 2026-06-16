@@ -24,7 +24,7 @@ PERSONAL_GET_ROUTES = [
     ("/", {}, 200, ["status"]),
     (f"/api/usage", {"user_id": DUMMY_USER}, 200,
      ["used", "limit", "remaining", "is_admin", "resets_in"]),
-    ("/api/debug/last-error", {}, 200, None),  # list response
+    ("/api/debug/last-error", {}, 403, None),  # now admin-token gated (no token -> 403)
     (f"/api/history/{DUMMY_USER}", {}, 200, ["messages"]),
     (f"/api/memory/{DUMMY_USER}", {}, 200, ["user_id", "count", "memories"]),
     (f"/api/notes/{DUMMY_USER}", {}, 200, ["user_id", "count", "notes"]),

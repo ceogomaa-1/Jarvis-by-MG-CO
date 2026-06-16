@@ -23,7 +23,7 @@ from backend.lib.sessions import format_session_context
 from backend.routes.documents import search_user_documents
 from backend.tools.citation_context import init_collector, add_source, get_sources
 from backend.tools.url_fetch import extract_urls, fetch_url_content
-from backend.usage_limits import check_limit, increment_usage, get_usage
+from backend.usage_limits import check_limit, increment_usage, get_usage, DAILY_MESSAGE_LIMIT
 from backend.farida_personal_loader import _is_farida, load_greeting as _load_farida_greeting
 from backend.lib.personal.relationship_bible import is_relationship_context, build_relationship_injection
 
@@ -675,29 +675,33 @@ async def generate_artifact(request: ChatRequest):
         f'- Start with <!DOCTYPE html> end with </html>'
     )
 
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": api_key,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            },
-            json={
-                "model": "claude-sonnet-4-20250514",
-                "max_tokens": 8096,
-                "system": (
-                    f"{moment_block}\n\n---\n\n"
-                    "You are an expert HTML/CSS developer. "
-                    "Output ONLY raw HTML. Start with <!DOCTYPE html> and end with </html>. "
-                    "Keep total output under 3000 tokens. "
-                    "No markdown, no explanation, no code fences. "
-                    "Complete, valid, self-contained HTML only."
-                ),
-                "messages": [{"role": "user", "content": user_prompt}],
-            },
-            timeout=60.0,
-        )
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": api_key,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                },
+                json={
+                    "model": "claude-sonnet-4-20250514",
+                    "max_tokens": 8096,
+                    "system": (
+                        f"{moment_block}\n\n---\n\n"
+                        "You are an expert HTML/CSS developer. "
+                        "Output ONLY raw HTML. Start with <!DOCTYPE html> and end with </html>. "
+                        "Keep total output under 3000 tokens. "
+                        "No markdown, no explanation, no code fences. "
+                        "Complete, valid, self-contained HTML only."
+                    ),
+                    "messages": [{"role": "user", "content": user_prompt}],
+                },
+                timeout=60.0,
+            )
+    except Exception as e:
+        print(f"ARTIFACT: request failed: {e}")
+        return {"artifact": "", "error": "Artifact generation is temporarily unavailable."}
 
     print(f"ARTIFACT: Anthropic status {resp.status_code}")
     if resp.status_code != 200:
@@ -728,7 +732,7 @@ async def get_personal_usage(user_id: str = ""):
         return JSONResponse({"error": "user_id required"}, status_code=400)
     sb = _get_supabase()
     if not sb:
-        return JSONResponse({"used": 0, "limit": 15, "remaining": 15, "is_admin": False, "resets_in": ""})
+        return JSONResponse({"used": 0, "limit": DAILY_MESSAGE_LIMIT, "remaining": DAILY_MESSAGE_LIMIT, "is_admin": False, "resets_in": ""})
     usage = await asyncio.to_thread(get_usage, user_id, sb)
     return JSONResponse(usage)
 
@@ -736,5 +740,12 @@ async def get_personal_usage(user_id: str = ""):
 # ─── Debug endpoint ───────────────────────────────────────────────────────────
 
 @router.get("/debug/last-error")
-async def debug_last_error():
+async def debug_last_error(token: str = ""):
+    """Returns recent internal error entries (real user messages + tracebacks), so it
+    is gated behind an admin token. Set JARVIS_DEBUG_TOKEN in the environment and call
+    with ?token=<that value>. If the token is unset or mismatched, the endpoint is
+    closed (403) — never an open data leak."""
+    expected = os.getenv("JARVIS_DEBUG_TOKEN", "")
+    if not expected or token != expected:
+        return JSONResponse({"error": "forbidden"}, status_code=403)
     return list(_error_buffer)

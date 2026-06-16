@@ -401,7 +401,10 @@ async def build_system_prompt(user_id: str, user_message: str) -> tuple[str, lis
             )
     else:
         bible = load_bible(industry)
-        section_keys = classify_intent(user_message)
+        # classify_intent may make a synchronous httpx call to Haiku (up to 8s) on a
+        # weak keyword match. Run it in a thread so it never blocks the event loop /
+        # other requests while it waits.
+        section_keys = await asyncio.to_thread(classify_intent, user_message)
         section_parts = [bible[k] for k in section_keys if bible.get(k)]
         bible_sections = "\n\n---\n\n".join(section_parts) if section_parts else ""
         base_prompt = _BASE_TEMPLATE.format(

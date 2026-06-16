@@ -22,39 +22,43 @@ async def upload_file(
     if mime_type.startswith("image/"):
         b64 = base64.standard_b64encode(content_bytes).decode()
         api_key = os.getenv("ANTHROPIC_API_KEY", "")
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": api_key,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": "claude-sonnet-4-6",
-                    "max_tokens": 1024,
-                    "messages": [{
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "image",
-                                "source": {
-                                    "type": "base64",
-                                    "media_type": mime_type,
-                                    "data": b64,
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers={
+                        "x-api-key": api_key,
+                        "anthropic-version": "2023-06-01",
+                        "content-type": "application/json",
+                    },
+                    json={
+                        "model": "claude-sonnet-4-6",
+                        "max_tokens": 1024,
+                        "messages": [{
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "image",
+                                    "source": {
+                                        "type": "base64",
+                                        "media_type": mime_type,
+                                        "data": b64,
+                                    },
                                 },
-                            },
-                            {
-                                "type": "text",
-                                "text": "Describe this image in detail. If there is text, transcribe all of it exactly.",
-                            },
-                        ],
-                    }],
-                },
-                timeout=30.0,
-            )
-        result = resp.json()
-        extracted_content = result.get("content", [{}])[0].get("text", "Could not read image")
+                                {
+                                    "type": "text",
+                                    "text": "Describe this image in detail. If there is text, transcribe all of it exactly.",
+                                },
+                            ],
+                        }],
+                    },
+                    timeout=30.0,
+                )
+            result = resp.json()
+            extracted_content = result.get("content", [{}])[0].get("text", "Could not read image")
+        except Exception as e:
+            print(f"FILES: image description failed: {e}")
+            extracted_content = f"Image '{filename}' received ({len(content_bytes)} bytes), but I couldn't analyze it right now. Try again in a moment."
 
     elif mime_type == "application/pdf" or filename.endswith(".pdf"):
         try:

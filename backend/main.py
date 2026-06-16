@@ -10,13 +10,17 @@ try:
 except Exception:
     pass
 
+import logging
 import os
 from contextlib import asynccontextmanager
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+logger = logging.getLogger("jarvis")
 from backend.utils.env import ANTHROPIC_API_KEY
 from backend.routes.chat import router as chat_router
 from backend.routes.memory_routes import router as memory_router
@@ -129,6 +133,20 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(Exception)
+async def _global_exception_handler(request: Request, exc: Exception):
+    """Safety net ONLY for exceptions that currently fall through to a raw Starlette
+    500. FastAPI handles HTTPException and validation errors separately, so this does
+    not alter any route that already returns a proper status. It just turns an
+    otherwise-uncaught crash into a clean, consistent JSON 500 (no traceback/secrets
+    leaked to the client) and logs the real error server-side."""
+    logger.exception(f"UNHANDLED: {request.method} {request.url.path}")
+    return JSONResponse(
+        status_code=500,
+        content={"error": "internal_error", "detail": "Something went wrong on our end. Please try again."},
+    )
 
 
 @app.options("/{path:path}")

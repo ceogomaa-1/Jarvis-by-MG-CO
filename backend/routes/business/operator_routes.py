@@ -151,6 +151,11 @@ async def stream_run_status(run_id: str, user_id: str = ""):
                 print(f"OPERATOR_ROUTES: SSE poll error: {e}")
 
             await asyncio.sleep(1)
+        else:
+            # The 10-minute cap was reached without a terminal status. Emit an explicit
+            # timeout sentinel so the frontend EventSource can stop cleanly instead of
+            # seeing a silent close it has to guess at.
+            yield f"data: {json.dumps({'run_id': run_id, 'status': 'timeout', 'stage': 'operator-timeout', 'cycles_completed': last_cycles if last_cycles >= 0 else 0})}\n\n"
 
     return StreamingResponse(
         event_generator(),

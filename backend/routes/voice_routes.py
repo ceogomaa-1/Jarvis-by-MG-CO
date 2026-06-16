@@ -644,7 +644,9 @@ async def list_voices():
         raise HTTPException(status_code=503, detail="CARTESIA_API_KEY not configured")
     try:
         client = _get_cartesia()
-        voices = client.voices.list()
+        # voices.list() is a blocking SDK call — run it off the event loop so it
+        # doesn't freeze the worker (every other Cartesia call already does this).
+        voices = await asyncio.to_thread(client.voices.list)
         return [
             {"id": v["id"], "name": v["name"], "description": v.get("description", "")}
             for v in voices

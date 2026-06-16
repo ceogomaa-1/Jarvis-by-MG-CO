@@ -11,8 +11,17 @@ from backend.utils.env import MEM0_API_KEY
 logger = logging.getLogger(__name__)
 
 print(f"MEMORY: Initializing MemoryClient (cloud mode). API key present: {bool(MEM0_API_KEY)}")
-_client = MemoryClient(api_key=MEM0_API_KEY)
-print("MEMORY: MemoryClient initialized successfully.")
+# Mem0's MemoryClient.__init__ makes a live HTTP call to api.mem0.ai to validate the
+# key. A missing/invalid key OR any Mem0-side outage at boot must NOT take down the
+# whole app (Personal + Business). Degrade gracefully: _client stays None and every
+# memory function below early-returns its safe default.
+try:
+    _client = MemoryClient(api_key=MEM0_API_KEY)
+    print("MEMORY: MemoryClient initialized successfully.")
+except Exception as _e:
+    _client = None
+    print(f"MEMORY: WARNING — MemoryClient init failed ({_e}). Memory features are "
+          f"degraded for this process, but the app will still boot and serve requests.")
 
 
 async def save_interaction(user_id: str, user_message: str, jarvis_response: str) -> bool:
@@ -22,6 +31,8 @@ async def save_interaction(user_id: str, user_message: str, jarvis_response: str
         {"role": "user", "content": user_message},
         {"role": "assistant", "content": jarvis_response},
     ]
+    if _client is None:
+        return False
     print(f"MEMORY: Attempting to save interaction for user {user_id}")
     print(f"MEMORY: Messages being sent to Mem0: {messages}")
     try:
@@ -47,6 +58,8 @@ MEMORY_LOOKUP_FAILED_NOTE = (
 async def get_relevant_memories(user_id: str, current_message: str) -> str:
     """Search Mem0 for memories relevant to the current message and return them
     as a formatted string ready to inject into jarvis_think() as memory_context."""
+    if _client is None:
+        return ""
     try:
         results = await asyncio.to_thread(
             _client.search, current_message, filters={"user_id": user_id}, limit=10
@@ -180,6 +193,8 @@ memory_client = _client
 
 async def get_all_memories(user_id: str) -> list:
     """Return every memory Mem0 has stored for this user. Used by the debug endpoint."""
+    if _client is None:
+        return []
     try:
         results = await asyncio.to_thread(_client.get_all, filters={"user_id": user_id})
         if isinstance(results, dict):

@@ -92,29 +92,35 @@ async def upload_document(file: UploadFile = File(...), user_id: str = Form(...)
     if not sb:
         raise HTTPException(500, "Database not configured")
 
-    doc_res = sb.table("user_documents").insert({
-        "user_id": user_id,
-        "filename": filename,
-        "file_type": mime_type or "unknown",
-        "file_size": len(content_bytes),
-        "chunk_count": len(chunks),
-    }).execute()
-    doc_id = doc_res.data[0]["id"]
+    try:
+        doc_res = sb.table("user_documents").insert({
+            "user_id": user_id,
+            "filename": filename,
+            "file_type": mime_type or "unknown",
+            "file_size": len(content_bytes),
+            "chunk_count": len(chunks),
+        }).execute()
+        doc_id = doc_res.data[0]["id"]
 
-    batch_size = 50
-    for i in range(0, len(chunks), batch_size):
-        batch = []
-        for j, chunk in enumerate(chunks[i:i + batch_size]):
-            row = {
-                "document_id": doc_id,
-                "user_id": user_id,
-                "chunk_index": i + j,
-                "content": chunk,
-            }
-            if embeddings:
-                row["embedding"] = embeddings[i + j]
-            batch.append(row)
-        sb.table("document_chunks").insert(batch).execute()
+        batch_size = 50
+        for i in range(0, len(chunks), batch_size):
+            batch = []
+            for j, chunk in enumerate(chunks[i:i + batch_size]):
+                row = {
+                    "document_id": doc_id,
+                    "user_id": user_id,
+                    "chunk_index": i + j,
+                    "content": chunk,
+                }
+                if embeddings:
+                    row["embedding"] = embeddings[i + j]
+                batch.append(row)
+            sb.table("document_chunks").insert(batch).execute()
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"DOCS: storage failed for '{filename}' (user={user_id}): {e}")
+        raise HTTPException(502, "Could not save the document right now. Please try again.")
 
     print(f"DOCS: stored {len(chunks)} chunks for '{filename}' (user={user_id})")
     return JSONResponse({
