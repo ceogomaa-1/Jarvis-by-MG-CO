@@ -133,6 +133,10 @@ class GoHighLevelConnector(BaseConnector):
     async def get_contact_notes(self, contact_id: str) -> ConnectorResult:
         return await self._request("GET", f"/contacts/{contact_id}/notes", "Get contact notes")
 
+    async def get_contact_tasks(self, contact_id: str) -> ConnectorResult:
+        """List tasks for a contact (v2). Task objects include dueDate + completed."""
+        return await self._request("GET", f"/contacts/{contact_id}/tasks", "Get contact tasks")
+
     async def add_note(self, contact_id: str, note: str) -> ConnectorResult:
         return await self._request("POST", f"/contacts/{contact_id}/notes", "Add note", json={"body": note})
 

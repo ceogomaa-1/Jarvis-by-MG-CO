@@ -1,5 +1,6 @@
 """TOOL 2 — Offer & Amendment Drafter. Generates a structured purchase offer
 or amendment via LLM and renders it to a branded PDF."""
+from backend.lib.business.brand_config import get_brand_config
 from backend.lib.business.connectors.base import ConnectorResult
 from backend.lib.business.document_store import save_document
 from backend.lib.business.model_router import SONNET
@@ -38,6 +39,11 @@ async def draft_offer_document(
 
     profile = await get_business_profile(user_id)
     brokerage = profile.get("company_name") or "the brokerage"
+
+    # Client deliverable: brand it with the agent's OWN business name (brand config
+    # display_name, falling back to their company name) — NEVER MG&CO.
+    brand = await get_brand_config(user_id)
+    brand_name = (brand.get("display_name") or profile.get("company_name") or "").strip()
 
     conditions = conditions or []
     conditions_str = "\n".join(f"- {c}" for c in conditions) if conditions else "- None specified"
@@ -78,7 +84,7 @@ DETAILS:
     subtitle = parsed.get("subtitle") or property_address
 
     try:
-        pdf_bytes = generate_branded_document_pdf(title, subtitle, parsed["sections"], footer_note=LIABILITY_NOTE)
+        pdf_bytes = generate_branded_document_pdf(title, subtitle, parsed["sections"], footer_note=LIABILITY_NOTE, brand_name=brand_name)
     except ImportError:
         return ConnectorResult(ok=False, error="PDF generation isn't available on the server — reportlab is missing.")
 

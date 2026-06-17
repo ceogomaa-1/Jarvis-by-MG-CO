@@ -174,6 +174,92 @@ async def scan_stale_leads(user_id: str, days_stale: int = 14, limit: int = 25, 
     return ConnectorResult(ok=True, data={"accounts": results})
 
 
+def _has_future_task(tasks: list[dict], now: datetime) -> bool:
+    """True if the contact has at least one OPEN task scheduled for the future —
+    i.e. an incomplete task whose dueDate is now or later. Completed tasks and
+    overdue/undated tasks do not count as a 'future task'."""
+    for t in tasks or []:
+        if t.get("completed"):
+            continue
+        due = _parse_dt(t.get("dueDate") or t.get("due_date"))
+        if due and due >= now:
+            return True
+    return False
+
+
+async def export_contacts_without_future_tasks(
+    user_id: str, account_label: str = "default", max_contacts: int = 300
+) -> ConnectorResult:
+    """Find every CRM contact with NO open/future task and export them as a clean CSV.
+
+    Live verification required: this depends on the connected GoHighLevel account's
+    contacts + tasks. The filtering core (_has_future_task) is unit-tested.
+    """
+    from backend.lib.business.csv_export import export_csv_document
+
+    ghl = await get_connector_for_user(user_id, "gohighlevel", account_label)
+    if not ghl:
+        accounts = await list_user_connections_for_type(user_id, "gohighlevel")
+        if not accounts:
+            return ConnectorResult(ok=False, error=GHL_NOT_CONNECTED)
+        # Fall back to the first active account if the default label wasn't found.
+        active = [a for a in accounts if a.get("status") == "active"]
+        if not active:
+            return ConnectorResult(ok=False, error=GHL_NOT_CONNECTED)
+        ghl = await get_connector_for_user(user_id, "gohighlevel", active[0]["account_label"])
+        if not ghl:
+            return ConnectorResult(ok=False, error=GHL_NOT_CONNECTED)
+
+    # Page through contacts (capped to keep the per-contact task lookups bounded).
+    all_contacts: list[dict] = []
+    cursor_id = None
+    for _ in range(max(1, max_contacts // 100)):
+        result = await ghl.list_contacts_v2(limit=100, start_after_id=cursor_id)
+        if not result.ok:
+            return result
+        page = (result.data or {}).get("contacts", [])
+        all_contacts.extend(page)
+        cursor_id = ((result.data or {}).get("meta", {}) or {}).get("startAfterId")
+        if not cursor_id or not page:
+            break
+
+    now = datetime.now(timezone.utc)
+    sem = asyncio.Semaphore(6)
+
+    async def _check(contact: dict) -> dict | None:
+        async with sem:
+            tasks_result = await ghl.get_contact_tasks(contact["id"])
+            tasks = (tasks_result.data or {}).get("tasks", []) if tasks_result.ok else []
+            if _has_future_task(tasks, now):
+                return None
+            return {
+                "name": _contact_name(contact),
+                "phone": contact.get("phone") or "",
+                "email": contact.get("email") or "",
+                "last_activity": contact.get("dateUpdated") or contact.get("dateAdded") or "",
+                "contact_id": contact.get("id") or "",
+            }
+
+    checked = await asyncio.gather(*[_check(c) for c in all_contacts])
+    no_task_contacts = [c for c in checked if c]
+
+    doc, count = export_csv_document(
+        no_task_contacts,
+        filename="contacts-no-future-task.csv",
+        columns=["name", "phone", "email", "last_activity", "contact_id"],
+    )
+    return ConnectorResult(
+        ok=True,
+        data={
+            "download_url": doc["download_url"],
+            "filename": doc["filename"],
+            "scanned_contacts": len(all_contacts),
+            "no_future_task_count": count,
+            "preview": no_task_contacts[:10],
+        },
+    )
+
+
 async def add_note(user_id: str, contact_id: str, note: str, account_label: str = "default") -> ConnectorResult:
     if not contact_id or not note:
         return ConnectorResult(ok=False, error="contact_id and note are both required.")

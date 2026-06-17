@@ -5,6 +5,7 @@ backend.lib.business.real_estate.profile.is_real_estate_user). Tool names use
 the `realestate__` prefix and are dispatched specially in tool_executor (not
 via the connector registry, since these aren't all simple connector wrappers).
 """
+from backend.lib.business.brand_config import get_brand_config
 from backend.lib.business.connectors.base import ConnectorResult
 from backend.lib.business.pptx_generator import generate_presentation
 from backend.lib.business.real_estate import contact_enrichment, ghl_leads, offer_drafter, orea_form_filler, pdf_form_filler, seller_research, showing_booker
@@ -21,6 +22,17 @@ REAL_ESTATE_TOOLS: dict[str, dict] = {
                 "days_stale": {"type": "integer", "description": "Flag contacts with no activity in this many days (default 14)"},
                 "limit": {"type": "integer", "description": "Max stale leads to return per account (default 25)"},
                 "account_label": {"type": "string", "description": "Which connected GoHighLevel account to scan (see Connected Tools for labels), or 'all' (default) to scan every connected account"},
+            },
+            "required": [],
+        },
+    },
+    "realestate__ghl_contacts_no_future_task": {
+        "description": "[Real Estate / GoHighLevel] Find every CRM contact that has NO open/future task (no incomplete task due now or later) and export them as a clean, downloadable CSV (name, phone, email, last activity). Use when the user asks for contacts with no upcoming/scheduled task or no follow-up planned. Pass account_label to pick which connected GoHighLevel account (defaults to 'default').",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "account_label": {"type": "string", "description": "Which connected GoHighLevel account to scan (see Connected Tools for labels). Defaults to 'default'."},
+                "max_contacts": {"type": "integer", "description": "Max contacts to scan (default 300)."},
             },
             "required": [],
         },
@@ -136,7 +148,7 @@ REAL_ESTATE_TOOLS: dict[str, dict] = {
         },
     },
     "realestate__generate_presentation": {
-        "description": "[Real Estate] Generate a branded PowerPoint deck — listing presentation, CMA, buyer guide, or custom — using the MG&CO template.",
+        "description": "[Real Estate] Generate a PowerPoint deck — listing presentation, CMA, buyer guide, or custom — branded with the agent's OWN business name (never MG&CO).",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -157,6 +169,13 @@ async def execute_real_estate_tool(action_name: str, tool_input: dict, user_id: 
             days_stale=tool_input.get("days_stale", 14),
             limit=tool_input.get("limit", 25),
             account_label=tool_input.get("account_label", "all"),
+        )
+
+    if action_name == "ghl_contacts_no_future_task":
+        return await ghl_leads.export_contacts_without_future_tasks(
+            user_id,
+            account_label=tool_input.get("account_label", "default"),
+            max_contacts=tool_input.get("max_contacts", 300),
         )
 
     if action_name == "ghl_add_note":
@@ -220,10 +239,15 @@ async def execute_real_estate_tool(action_name: str, tool_input: dict, user_id: 
         )
 
     if action_name == "generate_presentation":
+        # Brand the deck with the agent's own business name (brand config display_name),
+        # never MG&CO.
+        _brand = await get_brand_config(user_id)
+        _brand_name = (_brand.get("display_name") or "").strip()
         return await generate_presentation(
             deck_type=tool_input.get("type", "custom"),
             title=tool_input.get("title", ""),
             content=tool_input.get("content"),
+            brand_name=_brand_name,
         )
 
     return ConnectorResult(ok=False, error=f"Unknown Real Estate tool: {action_name}")

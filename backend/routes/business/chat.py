@@ -668,14 +668,19 @@ async def business_chat_stream(request: BusinessChatRequest):
                 if is_new_conv:
                     asyncio.create_task(_auto_title(sb, conv_id, request.message))
 
-                new_memories = await extract_and_store_memories(
-                    request.user_id, conv_id, request.message, final_text, sb
+                # Memory extraction makes its own LLM call (several seconds). Running it
+                # inline here held the SSE connection open AFTER [DONE], and the frontend
+                # only re-enables the input when the stream actually closes — that was the
+                # ~4-5s post-response lockout (P5). Run it in the background so the stream
+                # closes immediately after the (fast, essential) message save and the user
+                # can send their next message right away. The message itself is already
+                # persisted above; only the best-effort memory_born thought-trace is
+                # skipped on this connection as a result.
+                asyncio.create_task(
+                    extract_and_store_memories(
+                        request.user_id, conv_id, request.message, final_text, sb
+                    )
                 )
-                # Mind thought-trace: announce newly-born memories. Sent after [DONE] —
-                # the frontend's outer SSE read loop keeps consuming until the stream
-                # actually closes, so this still arrives.
-                if new_memories:
-                    yield f'data: {json.dumps({"type": "memory_born", "memories": new_memories})}\n\n'
             except Exception as e:
                 print(f"Post-stream persistence error: {e}")
 

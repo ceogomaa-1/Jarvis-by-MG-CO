@@ -54,10 +54,14 @@ def _set_text(text_frame, text, size, color, bold=False, align=PP_ALIGN.LEFT):
     run.font.name = FONT
 
 
-def _add_footer(slide, dark_bg=False):
+def _add_footer(slide, dark_bg=False, brand_name=""):
+    # Client deliverable footer: the agent's own business name, or nothing. Never MG&CO.
+    text = brand_name.strip() if brand_name and brand_name.strip() else ""
+    if not text:
+        return
     box = slide.shapes.add_textbox(Inches(0.5), SLIDE_H - Inches(0.4), Inches(6), Inches(0.3))
     color = RGBColor(0x66, 0x66, 0x66) if dark_bg else GRAY
-    _set_text(box.text_frame, "Powered by Jarvis OS1", 9, color)
+    _set_text(box.text_frame, text, 9, color)
 
 
 def _add_accent_bar(slide):
@@ -71,7 +75,7 @@ def _blank_slide(prs):
     return prs.slides.add_slide(prs.slide_layouts[6])
 
 
-def _add_title_slide(prs, title, subtitle):
+def _add_title_slide(prs, title, subtitle, brand_name=""):
     slide = _blank_slide(prs)
 
     bg = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0, SLIDE_W, SLIDE_H)
@@ -84,8 +88,10 @@ def _add_title_slide(prs, title, subtitle):
     accent.fill.fore_color.rgb = BLUE
     accent.line.fill.background()
 
-    brand_box = slide.shapes.add_textbox(Inches(0.9), Inches(0.6), Inches(6), Inches(0.4))
-    _set_text(brand_box.text_frame, "JARVIS OS1 · MG&CO", 12, BLUE, bold=True)
+    # Top brand line: the agent's own business name when known, omitted otherwise. Never MG&CO.
+    if brand_name and brand_name.strip():
+        brand_box = slide.shapes.add_textbox(Inches(0.9), Inches(0.6), Inches(6), Inches(0.4))
+        _set_text(brand_box.text_frame, brand_name.strip().upper(), 12, BLUE, bold=True)
 
     title_box = slide.shapes.add_textbox(Inches(0.9), Inches(2.9), Inches(11.5), Inches(1.5))
     _set_text(title_box.text_frame, title, 40, WHITE, bold=True)
@@ -94,11 +100,11 @@ def _add_title_slide(prs, title, subtitle):
         sub_box = slide.shapes.add_textbox(Inches(0.9), Inches(4.1), Inches(11.5), Inches(0.8))
         _set_text(sub_box.text_frame, subtitle, 18, RGBColor(0x9A, 0xA0, 0xA6))
 
-    _add_footer(slide, dark_bg=True)
+    _add_footer(slide, dark_bg=True, brand_name=brand_name)
     return slide
 
 
-def _add_content_slide(prs, heading, bullets):
+def _add_content_slide(prs, heading, bullets, brand_name=""):
     slide = _blank_slide(prs)
     _add_accent_bar(slide)
 
@@ -117,11 +123,11 @@ def _add_content_slide(prs, heading, bullets):
         run.font.name = FONT
         p.space_after = Pt(10)
 
-    _add_footer(slide)
+    _add_footer(slide, brand_name=brand_name)
     return slide
 
 
-def _add_table_slide(prs, heading, headers, rows):
+def _add_table_slide(prs, heading, headers, rows, brand_name=""):
     slide = _blank_slide(prs)
     _add_accent_bar(slide)
 
@@ -158,7 +164,7 @@ def _add_table_slide(prs, heading, headers, rows):
                     run.font.name = FONT
                     run.font.color.rgb = BODY_TEXT
 
-    _add_footer(slide)
+    _add_footer(slide, brand_name=brand_name)
     return slide
 
 
@@ -188,7 +194,7 @@ Keep bullets short (under 15 words), 3-6 bullets per slide."""
     return parsed
 
 
-async def generate_presentation(deck_type: str, title: str = "", content=None) -> ConnectorResult:
+async def generate_presentation(deck_type: str, title: str = "", content=None, brand_name: str = "") -> ConnectorResult:
     deck_type = (deck_type or "custom").strip().lower()
     if deck_type not in SLIDE_PLANS:
         deck_type = "custom"
@@ -205,13 +211,13 @@ async def generate_presentation(deck_type: str, title: str = "", content=None) -
     prs.slide_height = SLIDE_H
 
     deck_title = structured.get("title") or title
-    _add_title_slide(prs, deck_title, structured.get("subtitle", ""))
+    _add_title_slide(prs, deck_title, structured.get("subtitle", ""), brand_name)
 
     for slide_data in structured.get("slides", []):
         if slide_data.get("type") == "table":
-            _add_table_slide(prs, slide_data.get("heading", ""), slide_data.get("headers", []), slide_data.get("rows", []))
+            _add_table_slide(prs, slide_data.get("heading", ""), slide_data.get("headers", []), slide_data.get("rows", []), brand_name)
         else:
-            _add_content_slide(prs, slide_data.get("heading", ""), slide_data.get("bullets", []))
+            _add_content_slide(prs, slide_data.get("heading", ""), slide_data.get("bullets", []), brand_name)
 
     buf = io.BytesIO()
     prs.save(buf)
