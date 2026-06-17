@@ -367,3 +367,97 @@ async def delete_skill(user_id: str, skill_id: str) -> bool:
 
 async def set_enabled(user_id: str, skill_id: str, enabled: bool) -> dict | None:
     return await update_skill(user_id, skill_id, {"enabled": enabled})
+
+
+# ── Phase 2: per-turn retrieval + injection ───────────────────────────────────
+
+async def retrieve_knowledge_chunks(user_id: str, query: str, top_k: int = 6) -> list[dict]:
+    """Embed the query and pull the most relevant skill-knowledge chunks via pgvector
+    (match_skill_chunks). Best-effort: returns [] if there's no embedding backend or on
+    any error — a chat turn must never fail because of skills."""
+    if not SUPABASE_URL or not SUPABASE_KEY or not (query or "").strip():
+        return []
+    try:
+        from backend.routes.documents import _embed
+    except Exception:
+        return []
+    try:
+        embeddings = await _embed([query])
+        if not embeddings:
+            return []
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                f"{SUPABASE_URL}/rest/v1/rpc/match_skill_chunks",
+                headers=_write_headers(),
+                json={"p_user_id": user_id, "p_embedding": embeddings[0], "p_top_k": top_k},
+                timeout=15.0,
+            )
+        if resp.status_code == 200:
+            return resp.json() or []
+        print(f"SKILLS: retrieve rpc {resp.status_code}: {resp.text[:200]}")
+    except Exception as e:
+        print(f"SKILLS: retrieve error: {e}")
+    return []
+
+
+def _knowledge_block_from(chunks: list[dict], name_by_id: dict, min_similarity: float = 0.25) -> str:
+    """Pure formatter (unit-tested): build the grounded knowledge block from retrieved
+    chunks, keeping only chunks that belong to an ENABLED knowledge skill and clear the
+    relevance threshold. Empty string when nothing qualifies."""
+    relevant = [
+        c for c in chunks
+        if c.get("skill_id") in name_by_id and (c.get("similarity") or 0) >= min_similarity
+    ]
+    if not relevant:
+        return ""
+    lines = [
+        "## RELEVANT KNOWLEDGE (from the user's own Skills)",
+        "Ground your answer in the material below and cite the skill by name. Do NOT "
+        "invent details beyond it; if it doesn't cover something, say so.",
+    ]
+    for c in relevant[:6]:
+        name = name_by_id.get(c["skill_id"], "skill")
+        lines.append(f"\n[Skill: {name}]\n{(c.get('content') or '').strip()}")
+    return "\n".join(lines)
+
+
+def _behavior_block_from(behavior_skills: list[dict]) -> str:
+    """Pure formatter (unit-tested): build the always-on operating-rules block from the
+    user's enabled behavior skills."""
+    items = [s for s in behavior_skills if (s.get("operating_instructions") or "").strip()]
+    if not items:
+        return ""
+    lines = [
+        "## YOUR OPERATING SKILLS (user-authored — follow these every relevant turn)",
+    ]
+    for s in items[:12]:
+        lines.append(f"- {s.get('name', 'Skill')}: {s['operating_instructions'].strip()}")
+    return "\n".join(lines)
+
+
+async def build_skill_prompt_block(user_id: str, user_message: str) -> str:
+    """Assemble the per-turn skills injection: always-on behavior operating-rules +
+    progressively-disclosed knowledge chunks relevant to this message. Never raises."""
+    try:
+        skills = await list_skills(user_id)
+    except Exception:
+        return ""
+    enabled = [s for s in skills if s.get("enabled", True)]
+    if not enabled:
+        return ""
+
+    behavior = [s for s in enabled if s.get("skill_type") in ("behavior", "both")]
+    knowledge = {s["id"]: s.get("name", "skill") for s in enabled if s.get("skill_type") in ("knowledge", "both")}
+
+    parts = []
+    behavior_block = _behavior_block_from(behavior)
+    if behavior_block:
+        parts.append(behavior_block)
+
+    if knowledge:
+        chunks = await retrieve_knowledge_chunks(user_id, user_message)
+        kb = _knowledge_block_from(chunks, knowledge)
+        if kb:
+            parts.append(kb)
+
+    return "\n\n".join(parts)

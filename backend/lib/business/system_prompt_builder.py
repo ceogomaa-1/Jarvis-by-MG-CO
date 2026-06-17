@@ -435,6 +435,11 @@ async def build_system_prompt(user_id: str, user_message: str) -> tuple[str, lis
     from backend.lib.business.morning_queue import queue_digest_for_prompt
     queue_block = await queue_digest_for_prompt(user_id) if user_id else ""
 
+    # Inject user-authored Skills: always-on behavior operating-rules + knowledge
+    # chunks relevant to this message (progressive disclosure). Best-effort.
+    from backend.lib.business.jarvis_skills import build_skill_prompt_block
+    skills_block = await build_skill_prompt_block(user_id, user_message) if user_id else ""
+
     # Inject connected tools context — skip if no connectors active
     connector_block = await available_connectors_summary(user_id) if user_id else ""
     has_connectors = connector_block and not connector_block.startswith("No connectors")
@@ -455,6 +460,8 @@ async def build_system_prompt(user_id: str, user_message: str) -> tuple[str, lis
         parts.append(memory_block)
     if queue_block:
         parts.append(queue_block)
+    if skills_block:
+        parts.append(skills_block)
     parts.append(base_prompt)
     parts.append(GROUNDING_CONTRACT)
     parts.append(JARVIS_CORE_CONTRACT)

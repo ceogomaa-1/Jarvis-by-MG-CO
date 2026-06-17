@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import { BookOpen, Upload, X, Trash2 } from 'lucide-react'
+import { BookOpen, Upload, X, Trash2, Eye, Pencil } from 'lucide-react'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 const ACCEPT = '.pdf,.png,.jpg,.jpeg,.txt,.md,.csv,.docx,.zip'
@@ -8,6 +8,12 @@ const ACCEPT = '.pdf,.png,.jpg,.jpeg,.txt,.md,.csv,.docx,.zip'
 const SOURCE_LABELS = {
   text: 'TEXT', pasted: 'TEXT', url: 'URL', pdf: 'PDF',
   docx: 'DOCX', image: 'IMAGE', zip: 'ZIP',
+}
+
+const SKILL_TYPE_BADGE = {
+  knowledge: { label: 'KNOWLEDGE', color: '#2d7ff9' },
+  behavior: { label: 'BEHAVIOR', color: '#c84b31' },
+  both: { label: 'KNOWLEDGE + BEHAVIOR', color: '#9b6dff' },
 }
 
 function applyProgressEvent(prev, evt) {
@@ -27,8 +33,10 @@ function applyProgressEvent(prev, evt) {
 function formatStatusSuffix(item) {
   if (item.status === 'analyzing') return ''
   if (item.status === 'learned') {
-    const n = item.fact_count || 0
-    return `[LEARNED ${n} fact${n === 1 ? '' : 's'}]`
+    const type = item.skill_type ? ` (${item.skill_type})` : ''
+    const name = item.name ? ` '${item.name}'` : ''
+    const change = item.what_changes ? ` — ${item.what_changes}` : ''
+    return `[LEARNED ✓ — created skill${name}${type}]${change}`
   }
   if (item.status === 'skipped') return `[SKIPPED${item.error ? ` — ${item.error}` : ''}]`
   if (item.status === 'error') return `[ERROR — ${item.error || 'unknown'}]`
@@ -54,6 +62,10 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
   const [sources, setSources] = useState([])
   const [sourcesLoading, setSourcesLoading] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
+  const [togglingId, setTogglingId] = useState(null)
+  const [editingSkill, setEditingSkill] = useState(null)
+  const [editMode, setEditMode] = useState(false)
+  const [skillSaving, setSkillSaving] = useState(false)
   const [wishText, setWishText] = useState('')
   const [wishSubmitting, setWishSubmitting] = useState(false)
   const [wishSubmitted, setWishSubmitted] = useState(false)
@@ -154,6 +166,64 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
       console.error('Delete knowledge source failed', e)
     }
     setDeletingId(null)
+  }
+
+  async function toggleSkill(id, enabled) {
+    if (!userId) return
+    setTogglingId(id)
+    setSources(prev => prev.map(s => (s.id === id ? { ...s, enabled } : s)))  // optimistic
+    try {
+      await fetch(`${BACKEND}/api/business/skills/${id}/toggle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, enabled }),
+      })
+    } catch (e) {
+      console.error('Toggle skill failed', e)
+      setSources(prev => prev.map(s => (s.id === id ? { ...s, enabled: !enabled } : s)))  // revert
+    }
+    setTogglingId(null)
+  }
+
+  async function openSkill(id, mode) {
+    if (!userId) return
+    try {
+      const res = await fetch(`${BACKEND}/api/business/skills/${id}?user_id=${encodeURIComponent(userId)}`)
+      const data = await res.json()
+      if (data.skill) {
+        setEditingSkill(data.skill)
+        setEditMode(mode === 'edit')
+      }
+    } catch (e) {
+      console.error('Open skill failed', e)
+    }
+  }
+
+  async function saveSkill() {
+    if (!editingSkill || skillSaving) return
+    setSkillSaving(true)
+    try {
+      const fields = {
+        name: editingSkill.name,
+        description: editingSkill.description,
+        skill_type: editingSkill.skill_type,
+        full_content: editingSkill.full_content,
+        operating_instructions: editingSkill.operating_instructions,
+      }
+      const res = await fetch(`${BACKEND}/api/business/skills/${editingSkill.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, fields }),
+      })
+      if (res.ok) {
+        setEditingSkill(null)
+        setEditMode(false)
+        loadSources()
+      }
+    } catch (e) {
+      console.error('Save skill failed', e)
+    }
+    setSkillSaving(false)
   }
 
   async function handleWishSubmit() {
@@ -398,23 +468,28 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
                   </div>
                 </div>
               )}
-              {sources.map(source => (
+              {sources.map(source => {
+                const isSkill = source.kind === 'skill'
+                const badge = isSkill ? (SKILL_TYPE_BADGE[source.skill_type] || SKILL_TYPE_BADGE.knowledge) : null
+                const enabled = source.enabled !== false
+                return (
                 <div key={source.id} style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
                   padding: '12px 14px', marginBottom: 8,
                   background: 'rgba(232,232,232,0.03)',
                   border: '1px solid rgba(232,232,232,0.1)',
-                  borderRadius: 10,
+                  borderRadius: 10, opacity: isSkill && !enabled ? 0.5 : 1,
                 }}>
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                       <span style={{
                         fontFamily: 'var(--font-pixel), monospace',
                         fontSize: 8, letterSpacing: '0.08em',
-                        color: '#2d7ff9', border: '1px solid rgba(45,127,249,0.4)',
+                        color: badge ? badge.color : '#2d7ff9',
+                        border: `1px solid ${badge ? badge.color : 'rgba(45,127,249,0.4)'}55`,
                         borderRadius: 4, padding: '2px 5px', flexShrink: 0,
                       }}>
-                        {SOURCE_LABELS[source.source_type] || 'TEXT'}
+                        {badge ? badge.label : (SOURCE_LABELS[source.source_type] || 'TEXT')}
                       </span>
                       <span style={{
                         color: '#e8e8e8', fontSize: 13,
@@ -424,19 +499,53 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
                       </span>
                     </div>
                     <div className="os1-serif-micro" style={{ fontSize: 9, color: 'rgba(232,232,232,0.4)' }}>
-                      {formatDate(source.created_at)} · {source.fact_count} fact{source.fact_count === 1 ? '' : 's'}
+                      {formatDate(source.created_at)} · {(SOURCE_LABELS[source.source_type] || 'text').toLowerCase()}
+                      {isSkill && !enabled ? ' · off' : ''}
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleDelete(source.id)}
-                    disabled={deletingId === source.id}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexShrink: 0, padding: 6 }}
-                    title="Delete"
-                  >
-                    <Trash2 size={15} color="rgba(232,232,232,0.4)" />
-                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                    {isSkill && (
+                      <button
+                        onClick={() => toggleSkill(source.id, !enabled)}
+                        disabled={togglingId === source.id}
+                        title={enabled ? 'Enabled — click to turn off' : 'Disabled — click to turn on'}
+                        style={{
+                          width: 34, height: 18, borderRadius: 9, border: 'none', cursor: 'pointer',
+                          background: enabled ? '#2d7ff9' : 'rgba(232,232,232,0.18)',
+                          position: 'relative', transition: 'background 150ms ease', marginRight: 4, flexShrink: 0,
+                        }}
+                      >
+                        <span style={{
+                          position: 'absolute', top: 2, left: enabled ? 18 : 2,
+                          width: 14, height: 14, borderRadius: '50%', background: '#fff',
+                          transition: 'left 150ms ease',
+                        }} />
+                      </button>
+                    )}
+                    {isSkill && (
+                      <button onClick={() => openSkill(source.id, 'view')}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 6 }} title="View full content">
+                        <Eye size={15} color="rgba(232,232,232,0.45)" />
+                      </button>
+                    )}
+                    {isSkill && (
+                      <button onClick={() => openSkill(source.id, 'edit')}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 6 }} title="Edit">
+                        <Pencil size={14} color="rgba(232,232,232,0.45)" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDelete(source.id)}
+                      disabled={deletingId === source.id}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 6 }}
+                      title="Delete"
+                    >
+                      <Trash2 size={15} color="rgba(232,232,232,0.4)" />
+                    </button>
+                  </div>
                 </div>
-              ))}
+                )
+              })}
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
               <button
@@ -543,7 +652,120 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
             )}
           </div>
         )}
+
+        {/* Skill view / edit overlay */}
+        {editingSkill && (
+          <div
+            onClick={() => { setEditingSkill(null); setEditMode(false) }}
+            style={{
+              position: 'fixed', inset: 0, zIndex: 1001,
+              background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter: 'blur(10px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+            }}
+          >
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{
+                width: '100%', maxWidth: 640, maxHeight: '86vh',
+                background: 'rgba(15,15,18,0.92)',
+                border: '1px solid rgba(232,232,232,0.15)', borderRadius: 18, padding: 24,
+                display: 'flex', flexDirection: 'column', gap: 12,
+                fontFamily: 'system-ui, sans-serif',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ fontFamily: 'var(--font-pixel), monospace', fontSize: 11, color: '#2d7ff9', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                  {editMode ? 'Edit Skill' : 'Skill'}
+                </div>
+                <button onClick={() => { setEditingSkill(null); setEditMode(false) }} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 4 }}>
+                  <X size={16} color="rgba(232,232,232,0.6)" />
+                </button>
+              </div>
+
+              <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }} className="os1-scroll">
+                <label style={{ fontSize: 10, color: 'rgba(232,232,232,0.5)' }}>Name</label>
+                <input
+                  value={editingSkill.name || ''}
+                  readOnly={!editMode}
+                  onChange={e => setEditingSkill({ ...editingSkill, name: e.target.value })}
+                  style={inputStyle(editMode)}
+                />
+
+                <label style={{ fontSize: 10, color: 'rgba(232,232,232,0.5)' }}>Type</label>
+                <select
+                  value={editingSkill.skill_type || 'knowledge'}
+                  disabled={!editMode}
+                  onChange={e => setEditingSkill({ ...editingSkill, skill_type: e.target.value })}
+                  style={inputStyle(editMode)}
+                >
+                  <option value="knowledge">Knowledge</option>
+                  <option value="behavior">Behavior</option>
+                  <option value="both">Knowledge + Behavior</option>
+                </select>
+
+                <label style={{ fontSize: 10, color: 'rgba(232,232,232,0.5)' }}>Description (when this skill applies)</label>
+                <input
+                  value={editingSkill.description || ''}
+                  readOnly={!editMode}
+                  onChange={e => setEditingSkill({ ...editingSkill, description: e.target.value })}
+                  style={inputStyle(editMode)}
+                />
+
+                {(editingSkill.skill_type === 'behavior' || editingSkill.skill_type === 'both') && (
+                  <>
+                    <label style={{ fontSize: 10, color: 'rgba(232,232,232,0.5)' }}>Operating instructions (how Jarvis should act)</label>
+                    <textarea
+                      value={editingSkill.operating_instructions || ''}
+                      readOnly={!editMode}
+                      onChange={e => setEditingSkill({ ...editingSkill, operating_instructions: e.target.value })}
+                      rows={3}
+                      style={{ ...inputStyle(editMode), resize: 'vertical', fontFamily: 'ui-monospace, monospace' }}
+                    />
+                  </>
+                )}
+
+                <label style={{ fontSize: 10, color: 'rgba(232,232,232,0.5)' }}>Full content (stored verbatim)</label>
+                <textarea
+                  value={editingSkill.full_content || ''}
+                  readOnly={!editMode}
+                  onChange={e => setEditingSkill({ ...editingSkill, full_content: e.target.value })}
+                  rows={12}
+                  style={{ ...inputStyle(editMode), resize: 'vertical', fontFamily: 'ui-monospace, monospace', fontSize: 12, lineHeight: 1.6 }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                {!editMode ? (
+                  <button onClick={() => setEditMode(true)} style={primaryBtnStyle(false)}>Edit</button>
+                ) : (
+                  <button onClick={saveSkill} disabled={skillSaving} style={primaryBtnStyle(skillSaving)}>
+                    {skillSaving ? 'Saving...' : 'Save changes'}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
+}
+
+function inputStyle(editable) {
+  return {
+    width: '100%', boxSizing: 'border-box',
+    background: editable ? 'rgba(232,232,232,0.06)' : 'rgba(232,232,232,0.02)',
+    border: '1px solid rgba(232,232,232,0.12)', borderRadius: 8,
+    padding: '9px 12px', color: '#e8e8e8', fontSize: 13, outline: 'none',
+    fontFamily: 'system-ui, sans-serif',
+  }
+}
+
+function primaryBtnStyle(busy) {
+  return {
+    background: busy ? 'rgba(45,127,249,0.4)' : '#2d7ff9', border: 'none', borderRadius: 12,
+    padding: '9px 22px', color: '#0a0a0a', fontSize: 13, fontWeight: 500,
+    fontFamily: 'system-ui, sans-serif', cursor: busy ? 'default' : 'pointer',
+  }
 }

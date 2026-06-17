@@ -103,6 +103,38 @@ async def _async_zero(*a, **k):
     return 0
 
 
+def test_behavior_block_lists_operating_instructions():
+    block = js._behavior_block_from([
+        {"name": "Greeting Rules", "operating_instructions": "Greet in one short line; end with a next-step question."},
+        {"name": "No-instr skill", "operating_instructions": ""},  # skipped
+    ])
+    assert "Greeting Rules" in block
+    assert "next-step question" in block
+    assert "No-instr skill" not in block
+
+
+def test_behavior_block_empty_when_none():
+    assert js._behavior_block_from([]) == ""
+
+
+def test_knowledge_block_filters_disabled_and_low_similarity():
+    name_by_id = {"s1": "Pricing Sheet"}  # only s1 is enabled-knowledge
+    chunks = [
+        {"skill_id": "s1", "content": "Premium plan is $499/mo.", "similarity": 0.81},
+        {"skill_id": "s1", "content": "irrelevant", "similarity": 0.10},   # below threshold
+        {"skill_id": "s2", "content": "from a disabled skill", "similarity": 0.92},  # not enabled
+    ]
+    block = js._knowledge_block_from(chunks, name_by_id)
+    assert "Pricing Sheet" in block          # cited by skill name
+    assert "$499/mo" in block
+    assert "irrelevant" not in block         # similarity filtered
+    assert "disabled skill" not in block     # enabled-filtered
+
+
+def test_knowledge_block_empty_when_nothing_relevant():
+    assert js._knowledge_block_from([], {"s1": "X"}) == ""
+
+
 def test_empty_ingest_text_is_honest_error_not_skip():
     # Behavioral guarantee: empty pasted text -> honest 'error', never a silent
     # 'skipped'/'nothing useful' content judgment.
