@@ -1,9 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { listStudyNotes, deleteStudyNote, updateStudyNote, listStudyChats, deleteStudyChat } from '../../lib/studyApi'
+import { listStudyNotes, deleteStudyNote, listStudyChats, deleteStudyChat } from '../../lib/studyApi'
+import StudyNoteView from './StudyNoteView'
 
 const CREAM = '#F3EAD9'
 const ACCENT = 'var(--accent, #ff9072)'
@@ -19,11 +18,7 @@ export default function StudyDrawer({
   const [notes, setNotes] = useState([])
   const [chats, setChats] = useState([])
   const [loading, setLoading] = useState(false)
-  const [openNoteId, setOpenNoteId] = useState(null)   // expanded (view) note
-  const [editId, setEditId] = useState(null)           // note being edited
-  const [editText, setEditText] = useState('')
-  const [editCat, setEditCat] = useState('')
-  const [savingEdit, setSavingEdit] = useState(false)
+  const [viewNote, setViewNote] = useState(null)       // full-screen note
 
   useEffect(() => {
     if (!open || !userId) return
@@ -50,16 +45,6 @@ export default function StudyDrawer({
   const removeNote = async (id) => {
     setNotes(prev => prev.filter(n => n.id !== id))
     try { await deleteStudyNote(userId, id) } catch (e) { console.error(e) }
-  }
-  const startEdit = (n) => { setEditId(n.id); setEditText(n.content); setEditCat(n.category || 'General'); setOpenNoteId(n.id) }
-  const saveEdit = async (id) => {
-    const content = editText.trim()
-    const category = editCat.trim() || 'General'
-    if (!content) return
-    setSavingEdit(true)
-    setNotes(prev => prev.map(n => n.id === id ? { ...n, content, category } : n))
-    try { await updateStudyNote(userId, id, { content, category }) } catch (e) { console.error(e) }
-    setSavingEdit(false); setEditId(null)
   }
   const removeChat = async (id) => {
     setChats(prev => prev.filter(c => c.id !== id))
@@ -137,53 +122,32 @@ export default function StudyDrawer({
                   {cat} · {items.length}
                 </div>
                 {items.map(n => {
-                  const expanded = openNoteId === n.id
-                  const editing = editId === n.id
                   const preview = (n.content || '').replace(/^#+\s*/gm, '').replace(/\s+/g, ' ').trim()
-                  if (editing) {
-                    return (
-                      <div key={n.id} style={{ marginBottom: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,144,114,0.3)', borderRadius: 10, padding: 10 }}>
-                        <input value={editCat} onChange={e => setEditCat(e.target.value)} placeholder="Subject"
-                          style={{ width: '100%', boxSizing: 'border-box', marginBottom: 8, background: '#1A1A1A', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '7px 10px', color: CREAM, fontFamily: 'var(--sans)', fontSize: 12.5, outline: 'none' }} />
-                        <textarea value={editText} onChange={e => setEditText(e.target.value)} rows={8}
-                          style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', background: '#1A1A1A', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '8px 10px', color: CREAM, fontFamily: 'var(--sans)', fontSize: 13, lineHeight: 1.5, outline: 'none' }} />
-                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
-                          <button onClick={() => setEditId(null)} style={{ background: 'none', border: 0, color: 'rgba(243,234,217,0.55)', cursor: 'pointer', fontFamily: 'var(--sans)', fontSize: 13, padding: '6px 10px' }}>Cancel</button>
-                          <button onClick={() => saveEdit(n.id)} disabled={savingEdit} style={{ background: ACCENT, border: 0, borderRadius: 999, color: '#1a0e08', cursor: 'pointer', fontFamily: 'var(--sans)', fontSize: 13, fontWeight: 600, padding: '6px 16px' }}>{savingEdit ? 'Saving…' : 'Save'}</button>
-                        </div>
-                      </div>
-                    )
-                  }
+                  const title = (n.content || '').match(/^#\s*(.+)$/m)?.[1]?.trim()
+                  const imgCount = (n.images || []).length
                   return (
-                    <div key={n.id} style={{ marginBottom: 6, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, overflow: 'hidden' }}>
-                      <div style={{ position: 'relative', padding: '10px 60px 10px 12px' }}>
-                        <div
-                          onClick={() => setOpenNoteId(expanded ? null : n.id)}
-                          style={{ cursor: 'pointer', color: CREAM, fontFamily: 'var(--sans)' }}
-                        >
-                          {expanded ? (
-                            <div className="study-prose study-note-prose">
-                              <ReactMarkdown remarkPlugins={[remarkGfm]}>{n.content || ''}</ReactMarkdown>
-                            </div>
-                          ) : (
-                            <div style={{ fontSize: 13.5, lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                              {preview || '(empty note)'}
-                            </div>
-                          )}
+                    <div key={n.id} style={{ position: 'relative', marginBottom: 6, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10 }}>
+                      <button
+                        onClick={() => setViewNote(n)}
+                        style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'none', border: 0, color: CREAM, fontFamily: 'var(--sans)', padding: '10px 34px 10px 12px' }}
+                      >
+                        {title && <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>}
+                        <div style={{ fontSize: 12.5, lineHeight: 1.5, opacity: 0.7, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                          {preview || '(empty note)'}
                         </div>
-                        <button onClick={() => startEdit(n)} aria-label="edit note"
-                          style={{ position: 'absolute', top: 8, right: 34, background: 'none', border: 0, color: 'rgba(243,234,217,0.4)', cursor: 'pointer', padding: 2 }}
-                          onMouseEnter={e => e.currentTarget.style.color = ACCENT}
-                          onMouseLeave={e => e.currentTarget.style.color = 'rgba(243,234,217,0.4)'}>
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z" /></svg>
-                        </button>
-                        <button onClick={() => removeNote(n.id)} aria-label="delete note"
-                          style={{ position: 'absolute', top: 8, right: 8, background: 'none', border: 0, color: 'rgba(243,234,217,0.35)', cursor: 'pointer', padding: 2 }}
-                          onMouseEnter={e => e.currentTarget.style.color = '#fca5a5'}
-                          onMouseLeave={e => e.currentTarget.style.color = 'rgba(243,234,217,0.35)'}>
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
-                        </button>
-                      </div>
+                        {imgCount > 0 && (
+                          <div style={{ marginTop: 5, fontSize: 11, color: 'rgba(243,234,217,0.5)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="8.5" cy="8.5" r="1.6" /><path d="M21 15l-5-5L5 21" /></svg>
+                            {imgCount}
+                          </div>
+                        )}
+                      </button>
+                      <button onClick={() => removeNote(n.id)} aria-label="delete note"
+                        style={{ position: 'absolute', top: 8, right: 8, background: 'none', border: 0, color: 'rgba(243,234,217,0.3)', cursor: 'pointer', padding: 2 }}
+                        onMouseEnter={e => e.currentTarget.style.color = '#fca5a5'}
+                        onMouseLeave={e => e.currentTarget.style.color = 'rgba(243,234,217,0.3)'}>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+                      </button>
                     </div>
                   )
                 })}
@@ -227,6 +191,16 @@ export default function StudyDrawer({
           )}
         </div>
       </div>
+
+      {viewNote && (
+        <StudyNoteView
+          note={viewNote}
+          userId={userId}
+          onClose={() => setViewNote(null)}
+          onSaved={(updated) => { setNotes(prev => prev.map(n => n.id === updated.id ? updated : n)); setViewNote(updated) }}
+          onDeleted={(id) => setNotes(prev => prev.filter(n => n.id !== id))}
+        />
+      )}
     </>
   )
 }

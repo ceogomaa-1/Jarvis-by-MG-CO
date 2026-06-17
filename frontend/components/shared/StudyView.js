@@ -6,8 +6,9 @@ import remarkGfm from 'remark-gfm'
 import StudyDrawer from './StudyDrawer'
 import { JarvisVoice } from '../../lib/jarvisVoice'
 import {
-  createStudyNote, createStudyChat, updateStudyChat, getStudyChat, captureStudyNote,
+  createStudyNote, createStudyChat, updateStudyChat, getStudyChat, captureStudyNote, updateStudyNote,
 } from '../../lib/studyApi'
+import { uploadChatAttachment, getAttachmentSignedUrl } from '../../lib/attachments'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Study Mode — Jarvis Personal
@@ -87,6 +88,15 @@ const fileToDataUrl = (file) => new Promise((resolve, reject) => {
 })
 
 const isImageType = (t) => (t || '').startsWith('image/')
+
+function dataUrlToFile(dataUrl, name, type) {
+  const arr = dataUrl.split(',')
+  const bstr = atob(arr[1])
+  let n = bstr.length
+  const u8 = new Uint8Array(n)
+  while (n--) u8[n] = bstr.charCodeAt(n)
+  return new File([u8], name, { type: type || 'image/jpeg' })
+}
 
 // Strip heavy data URLs before persisting a chat row
 function serializeMessages(msgs) {
@@ -177,6 +187,14 @@ export default function StudyView({ name, onToggle, userId, backend }) {
     const attachmentsMeta = atts.map(a => ({ name: a.name, type: a.type, size: a.size }))
     const previews = atts.filter(a => isImageType(a.type)).map(a => a.dataUrl)
 
+    // Upload attachments to storage so they survive a reload (resolved before persist)
+    const metaUploadPromise = Promise.all(atts.map(async (a) => {
+      let storage_path = null
+      const file = a.file || (a.dataUrl ? dataUrlToFile(a.dataUrl, a.name || 'file', a.type) : null)
+      if (file) { try { storage_path = await uploadChatAttachment(file, userId) } catch (e) { console.error('[StudyMode] attachment upload failed', e) } }
+      return { name: a.name, type: a.type, size: a.size, storage_path }
+    }))
+
     msgIdRef.current += 1
     const userRowId = msgIdRef.current
     const userRow = { id: userRowId, role: 'user', content: apiText, attachmentsMeta, previews }
@@ -262,8 +280,10 @@ export default function StudyView({ name, onToggle, userId, backend }) {
       setLoading(false)
     }
 
-    // Persist the full turn
-    const finalConvo = [...snapshot, userRow, { role: 'assistant', content: accumulated }]
+    // Persist the full turn — with uploaded attachment paths so images survive reload
+    const resolvedMeta = await metaUploadPromise.catch(() => attachmentsMeta)
+    const persistedUserRow = { ...userRow, attachmentsMeta: resolvedMeta }
+    const finalConvo = [...snapshot, persistedUserRow, { role: 'assistant', content: accumulated }]
     persistChat(finalConvo)
   }
 
@@ -276,9 +296,16 @@ export default function StudyView({ name, onToggle, userId, backend }) {
   const selectChat = async (chatId) => {
     try {
       const chat = await getStudyChat(userId, chatId)
-      const restored = (chat.messages || []).map((m, i) => ({
-        id: 1000 + i, role: m.role, content: m.content,
-        attachmentsMeta: m.attachmentsMeta || [],
+      const restored = await Promise.all((chat.messages || []).map(async (m, i) => {
+        const metas = m.attachmentsMeta || []
+        const previews = []
+        for (const a of metas) {
+          if (isImageType(a.type) && a.storage_path) {
+            const url = await getAttachmentSignedUrl(a.storage_path).catch(() => null)
+            if (url) previews.push(url)
+          }
+        }
+        return { id: 1000 + i, role: m.role, content: m.content, attachmentsMeta: metas, previews }
       }))
       msgIdRef.current = 1000 + restored.length + 1
       setMessages(restored); messagesRef.current = restored
@@ -313,6 +340,19 @@ export default function StudyView({ name, onToggle, userId, backend }) {
         type: p.type,
       }))
       const res = await captureStudyNote(userId, images)
+      // Keep the original page photos in the note (so they're viewable like Apple Notes)
+      try {
+        const noteImages = []
+        for (let i = 0; i < pages.length; i++) {
+          const p = pages[i]
+          const file = dataUrlToFile(p.dataUrl, `page-${i + 1}.jpg`, p.type)
+          const path = await uploadChatAttachment(file, userId)
+          if (path) noteImages.push({ path, name: `page-${i + 1}` })
+        }
+        if (noteImages.length && res?.note?.id) {
+          await updateStudyNote(userId, res.note.id, { images: noteImages })
+        }
+      } catch (e) { console.error('[StudyMode] attach capture images failed', e) }
       setCapturePages([])
       setDrawerRefreshKey(k => k + 1)
       setFlash({ subject: res.subject || 'General', title: res.title || '', pages: images.length })
@@ -342,7 +382,7 @@ export default function StudyView({ name, onToggle, userId, backend }) {
       if (file.size > 25 * 1024 * 1024) { console.warn('[StudyMode] file over 25MB skipped', file.name); continue }
       try {
         const dataUrl = await fileToDataUrl(file)
-        setAttachments(prev => [...prev, { id: `${Date.now()}-${file.name}`, name: file.name, type: file.type, size: file.size, dataUrl }])
+        setAttachments(prev => [...prev, { id: `${Date.now()}-${file.name}`, name: file.name, type: file.type, size: file.size, dataUrl, file }])
       } catch (err) { console.error('[StudyMode] file read failed', err) }
     }
   }

@@ -49,11 +49,13 @@ def _now() -> str:
 class StudyNoteCreate(BaseModel):
     content: str
     category: str | None = None
+    images: list[dict] | None = None
 
 
 class StudyNoteUpdate(BaseModel):
     content: str | None = None
     category: str | None = None
+    images: list[dict] | None = None
 
 
 class StudyCaptureImage(BaseModel):
@@ -210,6 +212,7 @@ async def create_study_note(user_id: str, body: StudyNoteCreate):
         "user_id": user_id,
         "content": content,
         "category": (body.category or "General").strip() or "General",
+        "images": body.images or [],
     }
     async with httpx.AsyncClient() as client:
         r = await client.post(
@@ -231,6 +234,8 @@ async def update_study_note(user_id: str, note_id: str, body: StudyNoteUpdate):
         patch["content"] = body.content.strip()
     if body.category is not None:
         patch["category"] = (body.category.strip() or "General")
+    if body.images is not None:
+        patch["images"] = body.images
     async with httpx.AsyncClient() as client:
         r = await client.patch(
             f"{_SUPABASE_URL}/rest/v1/{_NOTES_TABLE}",
