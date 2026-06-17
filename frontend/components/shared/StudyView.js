@@ -6,7 +6,7 @@ import remarkGfm from 'remark-gfm'
 import StudyDrawer from './StudyDrawer'
 import { JarvisVoice } from '../../lib/jarvisVoice'
 import {
-  createStudyNote, createStudyChat, updateStudyChat, getStudyChat,
+  createStudyNote, createStudyChat, updateStudyChat, getStudyChat, captureStudyNote,
 } from '../../lib/studyApi'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -118,6 +118,12 @@ export default function StudyView({ name, onToggle, userId, backend }) {
   const [noteCategory, setNoteCategory] = useState('')
   const [noteRemind, setNoteRemind] = useState('')
   const [noteSaving, setNoteSaving] = useState(false)
+
+  // Capture (photo → auto note)
+  const [captureChoiceOpen, setCaptureChoiceOpen] = useState(false)
+  const [capturing, setCapturing] = useState(false)
+  const [flash, setFlash] = useState(null) // { subject, title }
+  const captureInputRef = useRef(null)
 
   const msgIdRef = useRef(1)
   const messagesRef = useRef([])
@@ -277,9 +283,31 @@ export default function StudyView({ name, onToggle, userId, backend }) {
     } catch (e) { console.error('[StudyMode] load chat failed', e) }
   }
 
+  // ── Capture: photo → extract text + subject → auto-filed note ───────────────
+  const onCapturePhoto = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setCaptureChoiceOpen(false)
+    setCapturing(true)
+    try {
+      const dataUrl = await fileToDataUrl(file)
+      const res = await captureStudyNote(userId, dataUrl, file.type || 'image/jpeg')
+      setDrawerRefreshKey(k => k + 1)
+      setFlash({ subject: res.subject || 'General', title: res.title || '' })
+      setTimeout(() => setFlash(null), 7000)
+    } catch (err) {
+      console.error('[StudyMode] capture failed', err)
+      setFlash({ subject: null, title: '', error: true })
+      setTimeout(() => setFlash(null), 6000)
+    } finally {
+      setCapturing(false)
+    }
+  }
+
   // ── Quick actions ──────────────────────────────────────────────────────────
   const actions = {
-    note: () => setNoteOpen(true),
+    note: () => setCaptureChoiceOpen(true),
     quiz: () => send('Quiz me. Ask one question at a time, wait for my answer, then give feedback before the next one.'),
     summarize: () => send('Summarize the key points of what we have been studying into tight, easy-to-revise notes.'),
     research: () => send('I want to research a topic. Ask me what I want to learn about, then give me a clear, sourced overview.'),
@@ -380,6 +408,23 @@ export default function StudyView({ name, onToggle, userId, backend }) {
         </div>
       </div>
 
+      {flash && (
+        <div
+          onClick={() => { if (!flash.error) { setDrawerOpen(true) } setFlash(null) }}
+          style={{
+            margin: '0 16px 8px', padding: '12px 14px', borderRadius: 14, cursor: flash.error ? 'default' : 'pointer',
+            background: flash.error ? 'rgba(90,0,0,0.25)' : 'rgba(255,144,114,0.12)',
+            border: `1px solid ${flash.error ? 'rgba(239,68,68,0.4)' : 'rgba(255,144,114,0.35)'}`,
+            color: CREAM, fontFamily: 'var(--sans)', fontSize: 13.5, lineHeight: 1.45,
+            animation: 'fadeUp 240ms ease both',
+          }}
+        >
+          {flash.error
+            ? "Couldn't read that photo — try a clearer shot."
+            : <>Captured ✓ Filed under <strong>{flash.subject}</strong>{flash.title ? ` — ${flash.title}` : ''}. Tap to view & edit in your notes.</>}
+        </div>
+      )}
+
       {!hasConversation ? (
         <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 32, overflowY: 'auto' }}>
           <img src="/jarvis-logo-mono.png" alt="" style={{ width: 77, height: 77, objectFit: 'contain', userSelect: 'none' }} draggable={false} />
@@ -450,6 +495,46 @@ export default function StudyView({ name, onToggle, userId, backend }) {
         currentChatId={currentChatId} onSelectChat={selectChat} onNewChat={newChat}
         refreshKey={drawerRefreshKey}
       />
+
+      {/* Hidden capture input — camera on mobile, library on desktop */}
+      <input ref={captureInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={onCapturePhoto} />
+
+      {/* Capture choice sheet */}
+      {captureChoiceOpen && (
+        <div onClick={() => setCaptureChoiceOpen(false)} style={{ position: 'absolute', inset: 0, zIndex: 20, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 480, background: '#232323', borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '20px 18px calc(20px + env(safe-area-inset-bottom))', animation: 'fadeUp 220ms ease both' }}>
+            <div style={{ fontFamily: 'var(--font-display-round), var(--sans)', fontSize: 18, fontWeight: 600, color: CREAM, marginBottom: 6 }}>Capture a note</div>
+            <div style={{ fontFamily: 'var(--sans)', fontSize: 13, color: 'rgba(243,234,217,0.55)', marginBottom: 16, lineHeight: 1.45 }}>
+              Snap your study material — Jarvis reads it, pulls out the text, and files it under the right subject. Forget about it; it’s saved.
+            </div>
+            <button
+              onClick={() => captureInputRef.current?.click()}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 14, marginBottom: 10, cursor: 'pointer', background: 'var(--accent, #ff9072)', border: 0, color: '#1a0e08', fontFamily: 'var(--sans)', fontSize: 15, fontWeight: 600 }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>
+              Snap or choose a photo
+            </button>
+            <button
+              onClick={() => { setCaptureChoiceOpen(false); setNoteOpen(true) }}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 14, cursor: 'pointer', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: CREAM, fontFamily: 'var(--sans)', fontSize: 15, fontWeight: 500 }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z" /></svg>
+              Write it myself
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Processing overlay */}
+      {capturing && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 25, background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+          <span style={{ width: 12, height: 12, borderRadius: '50%', background: 'var(--accent, #ff9072)', animation: 'inkPulse 1s ease-in-out infinite' }} />
+          <div style={{ fontFamily: 'var(--font-display-round), var(--sans)', fontSize: 17, fontWeight: 600, color: CREAM }}>Reading your photo…</div>
+          <div style={{ fontFamily: 'var(--sans)', fontSize: 13, color: 'rgba(243,234,217,0.55)', textAlign: 'center', maxWidth: 260, lineHeight: 1.45 }}>
+            Extracting the text and filing it under the right subject.
+          </div>
+        </div>
+      )}
 
       {/* Note composer */}
       {noteOpen && (

@@ -9,6 +9,8 @@ Uses the Supabase REST API directly with the service-role key (same pattern as
 backend/agent.py notes helpers).
 """
 
+import json
+import re
 from datetime import datetime, timezone
 
 import httpx
@@ -21,6 +23,7 @@ router = APIRouter()
 
 _NOTES_TABLE = "study_notes"
 _CHATS_TABLE = "study_chats"
+_CAPTURE_MODEL = "claude-sonnet-4-6"
 
 
 def _headers(prefer: str = "return=representation") -> dict:
@@ -53,6 +56,11 @@ class StudyNoteUpdate(BaseModel):
     category: str | None = None
 
 
+class StudyCapture(BaseModel):
+    image_base64: str
+    image_type: str | None = "image/jpeg"
+
+
 class StudyChatCreate(BaseModel):
     title: str | None = None
     messages: list[dict] | None = None
@@ -61,6 +69,95 @@ class StudyChatCreate(BaseModel):
 class StudyChatUpdate(BaseModel):
     title: str | None = None
     messages: list[dict] | None = None
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Capture — photo → OCR text + subject detection → saved study note
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_CAPTURE_PROMPT = (
+    "You are Jarvis Study Capture. A student just snapped a photo of study material "
+    "(a worksheet, textbook page, whiteboard, handwritten notes, slides, etc.).\n\n"
+    "Do THREE things and return STRICT JSON only (no prose, no code fences):\n"
+    "1. \"text\": Extract ALL the text/content from the image, cleanly and completely. "
+    "Preserve structure (headings, numbered questions, bullet points, equations) using "
+    "simple Markdown. Fix obvious OCR noise but do NOT invent content. If there are "
+    "diagrams, briefly describe them in [brackets].\n"
+    "2. \"subject\": The single best school subject/folder name for this material "
+    "(e.g. \"Mathematics\", \"Biology\", \"History\", \"Chemistry\", \"English\", "
+    "\"Physics\", \"Computer Science\"). One short Title-Case label.\n"
+    "3. \"title\": A short 3-7 word title describing this specific note "
+    "(e.g. \"Simultaneous Equations Worksheet\").\n\n"
+    "Return exactly: {\"subject\": \"...\", \"title\": \"...\", \"text\": \"...\"}"
+)
+
+
+def _parse_capture_json(raw: str) -> dict:
+    """Best-effort extraction of the JSON object from the model output."""
+    s = (raw or "").strip()
+    if s.startswith("```"):
+        s = re.sub(r"^```(?:json)?\s*", "", s)
+        s = re.sub(r"\s*```$", "", s)
+    try:
+        return json.loads(s)
+    except Exception:
+        pass
+    m = re.search(r"\{.*\}", s, re.DOTALL)
+    if m:
+        try:
+            return json.loads(m.group(0))
+        except Exception:
+            pass
+    # Total fallback — keep whatever text we got so the note isn't lost
+    return {"subject": "General", "title": "Captured note", "text": s}
+
+
+@router.post("/study/capture/{user_id}")
+async def capture_study_note(user_id: str, body: StudyCapture):
+    """Photo → extract all text + detect subject → save as a categorized note."""
+    _require_supabase()
+    from backend.llm import _client
+
+    raw_b64 = body.image_base64.split(",")[1] if "," in body.image_base64 else body.image_base64
+    media_type = body.image_type or "image/jpeg"
+    if not media_type.startswith("image/"):
+        media_type = "image/jpeg"
+
+    try:
+        msg = await _client.messages.create(
+            model=_CAPTURE_MODEL,
+            max_tokens=3000,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": raw_b64}},
+                    {"type": "text", "text": _CAPTURE_PROMPT},
+                ],
+            }],
+        )
+        out = "".join(b.text for b in msg.content if getattr(b, "type", "") == "text")
+    except Exception as e:
+        raise HTTPException(502, f"Could not read the photo: {e}")
+
+    data = _parse_capture_json(out)
+    subject = (data.get("subject") or "General").strip() or "General"
+    title = (data.get("title") or "").strip()
+    text = (data.get("text") or "").strip()
+    if not text:
+        raise HTTPException(422, "No readable text found in the photo.")
+
+    content = f"# {title}\n\n{text}" if title else text
+    row = {"user_id": user_id, "content": content, "category": subject}
+    async with httpx.AsyncClient() as client:
+        r = await client.post(
+            f"{_SUPABASE_URL}/rest/v1/{_NOTES_TABLE}",
+            headers=_headers(),
+            json=row,
+            timeout=15,
+        )
+    if r.status_code >= 400:
+        raise HTTPException(r.status_code, r.text)
+    return {"note": r.json()[0], "subject": subject, "title": title}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
