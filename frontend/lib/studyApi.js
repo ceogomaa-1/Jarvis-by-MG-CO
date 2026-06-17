@@ -8,11 +8,12 @@ async function j(res) {
   return res.json()
 }
 
-// ── Capture (photo → extracted, categorized note) ───────────────────────────
-export async function captureStudyNote(userId, imageBase64, imageType) {
+// ── Capture (one or more photos → one combined, categorized note) ────────────
+// images: [{ base64, type }]
+export async function captureStudyNote(userId, images) {
   return j(await fetch(`${BACKEND}/api/study/capture/${userId}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ image_base64: imageBase64, image_type: imageType }),
+    body: JSON.stringify({ images }),
   }))
 }
 

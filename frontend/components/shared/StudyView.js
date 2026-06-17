@@ -119,11 +119,14 @@ export default function StudyView({ name, onToggle, userId, backend }) {
   const [noteRemind, setNoteRemind] = useState('')
   const [noteSaving, setNoteSaving] = useState(false)
 
-  // Capture (photo → auto note)
+  // Capture (one or more photos → one combined note)
   const [captureChoiceOpen, setCaptureChoiceOpen] = useState(false)
   const [capturing, setCapturing] = useState(false)
-  const [flash, setFlash] = useState(null) // { subject, title }
-  const captureInputRef = useRef(null)
+  const [flash, setFlash] = useState(null) // { subject, title, pages }
+  const [trayOpen, setTrayOpen] = useState(false)
+  const [capturePages, setCapturePages] = useState([]) // {id, dataUrl, type}
+  const camInputRef = useRef(null)
+  const libInputRef = useRef(null)
 
   const msgIdRef = useRef(1)
   const messagesRef = useRef([])
@@ -283,22 +286,40 @@ export default function StudyView({ name, onToggle, userId, backend }) {
     } catch (e) { console.error('[StudyMode] load chat failed', e) }
   }
 
-  // ── Capture: photo → extract text + subject → auto-filed note ───────────────
-  const onCapturePhoto = async (e) => {
-    const file = e.target.files?.[0]
+  // ── Capture: 1+ photos → extract text + subject → one auto-filed note ────────
+  const openTray = () => { setCaptureChoiceOpen(false); setTrayOpen(true) }
+
+  const onPagesPicked = async (e) => {
+    const files = Array.from(e.target.files || [])
     e.target.value = ''
-    if (!file) return
-    setCaptureChoiceOpen(false)
+    for (const f of files) {
+      if (!f.type?.startsWith('image/')) continue
+      if (f.size > 25 * 1024 * 1024) { console.warn('[StudyMode] page over 25MB skipped'); continue }
+      try {
+        const dataUrl = await fileToDataUrl(f)
+        setCapturePages(prev => [...prev, { id: `${Date.now()}-${f.name}-${prev.length}`, dataUrl, type: f.type }])
+      } catch (err) { console.error('[StudyMode] page read failed', err) }
+    }
+  }
+
+  const saveCapture = async () => {
+    if (capturePages.length === 0) return
+    const pages = capturePages
+    setTrayOpen(false)
     setCapturing(true)
     try {
-      const dataUrl = await fileToDataUrl(file)
-      const res = await captureStudyNote(userId, dataUrl, file.type || 'image/jpeg')
+      const images = pages.map(p => ({
+        base64: p.dataUrl.includes(',') ? p.dataUrl.split(',')[1] : p.dataUrl,
+        type: p.type,
+      }))
+      const res = await captureStudyNote(userId, images)
+      setCapturePages([])
       setDrawerRefreshKey(k => k + 1)
-      setFlash({ subject: res.subject || 'General', title: res.title || '' })
+      setFlash({ subject: res.subject || 'General', title: res.title || '', pages: images.length })
       setTimeout(() => setFlash(null), 7000)
     } catch (err) {
       console.error('[StudyMode] capture failed', err)
-      setFlash({ subject: null, title: '', error: true })
+      setFlash({ error: true })
       setTimeout(() => setFlash(null), 6000)
     } finally {
       setCapturing(false)
@@ -420,8 +441,8 @@ export default function StudyView({ name, onToggle, userId, backend }) {
           }}
         >
           {flash.error
-            ? "Couldn't read that photo — try a clearer shot."
-            : <>Captured ✓ Filed under <strong>{flash.subject}</strong>{flash.title ? ` — ${flash.title}` : ''}. Tap to view & edit in your notes.</>}
+            ? "Couldn't read those photos — try clearer shots."
+            : <>Captured ✓ {flash.pages > 1 ? `${flash.pages} pages → ` : ''}filed under <strong>{flash.subject}</strong>{flash.title ? ` — ${flash.title}` : ''}. Tap to view & edit in your notes.</>}
         </div>
       )}
 
@@ -483,6 +504,7 @@ export default function StudyView({ name, onToggle, userId, backend }) {
         <StudyInputBar
           input={input} setInput={setInput} onSubmit={submit}
           onAttach={() => fileInputRef.current?.click()}
+          onCapture={() => setTrayOpen(true)}
           onVoice={toggleVoice} voiceOn={voiceOn} voiceConnecting={voiceConnecting}
           disabled={loading} textareaRef={textareaRef}
         />
@@ -496,8 +518,57 @@ export default function StudyView({ name, onToggle, userId, backend }) {
         refreshKey={drawerRefreshKey}
       />
 
-      {/* Hidden capture input — camera on mobile, library on desktop */}
-      <input ref={captureInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={onCapturePhoto} />
+      {/* Hidden capture inputs — camera (single shot) + library (multi-select) */}
+      <input ref={camInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={onPagesPicked} />
+      <input ref={libInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={onPagesPicked} />
+
+      {/* Multi-page capture tray */}
+      {trayOpen && (
+        <div onClick={() => setTrayOpen(false)} style={{ position: 'absolute', inset: 0, zIndex: 22, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 480, background: '#232323', borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '20px 18px calc(20px + env(safe-area-inset-bottom))', animation: 'fadeUp 220ms ease both' }}>
+            <div style={{ fontFamily: 'var(--font-display-round), var(--sans)', fontSize: 18, fontWeight: 600, color: CREAM, marginBottom: 4 }}>
+              Capture pages{capturePages.length > 0 ? ` · ${capturePages.length}` : ''}
+            </div>
+            <div style={{ fontFamily: 'var(--sans)', fontSize: 12.5, color: 'rgba(243,234,217,0.55)', marginBottom: 14, lineHeight: 1.45 }}>
+              Add as many pages as you want — they’ll be merged into one note, filed under the right subject.
+            </div>
+
+            {capturePages.length > 0 && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+                {capturePages.map((p, i) => (
+                  <div key={p.id} style={{ position: 'relative' }}>
+                    <img src={p.dataUrl} alt={`page ${i + 1}`} style={{ width: 64, height: 84, objectFit: 'cover', borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)', display: 'block' }} />
+                    <span style={{ position: 'absolute', bottom: 3, left: 3, background: 'rgba(0,0,0,0.65)', color: '#fff', fontFamily: 'var(--sans)', fontSize: 9, borderRadius: 4, padding: '1px 5px' }}>{i + 1}</span>
+                    <button onClick={() => setCapturePages(prev => prev.filter(x => x.id !== p.id))} aria-label="remove page"
+                      style={{ position: 'absolute', top: -7, right: -7, width: 20, height: 20, borderRadius: '50%', background: '#000', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+              <button onClick={() => camInputRef.current?.click()}
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px', borderRadius: 12, cursor: 'pointer', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: CREAM, fontFamily: 'var(--sans)', fontSize: 13.5, fontWeight: 500 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>
+                Take photo
+              </button>
+              <button onClick={() => libInputRef.current?.click()}
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px', borderRadius: 12, cursor: 'pointer', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: CREAM, fontFamily: 'var(--sans)', fontSize: 13.5, fontWeight: 500 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="8.5" cy="8.5" r="1.6" /><path d="M21 15l-5-5L5 21" /></svg>
+                From library
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => { setTrayOpen(false); setCapturePages([]) }} style={{ background: 'none', border: 0, color: 'rgba(243,234,217,0.55)', cursor: 'pointer', fontFamily: 'var(--sans)', fontSize: 14, padding: '10px 14px' }}>Cancel</button>
+              <button onClick={saveCapture} disabled={capturePages.length === 0}
+                style={{ background: capturePages.length ? 'var(--accent, #ff9072)' : 'rgba(255,255,255,0.1)', color: capturePages.length ? '#1a0e08' : 'rgba(243,234,217,0.4)', border: 0, borderRadius: 999, cursor: capturePages.length ? 'pointer' : 'default', fontFamily: 'var(--sans)', fontSize: 14, fontWeight: 600, padding: '10px 22px' }}>
+                Save note{capturePages.length ? ` (${capturePages.length})` : ''}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Capture choice sheet */}
       {captureChoiceOpen && (
@@ -508,11 +579,11 @@ export default function StudyView({ name, onToggle, userId, backend }) {
               Snap your study material — Jarvis reads it, pulls out the text, and files it under the right subject. Forget about it; it’s saved.
             </div>
             <button
-              onClick={() => captureInputRef.current?.click()}
+              onClick={openTray}
               style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 14, marginBottom: 10, cursor: 'pointer', background: 'var(--accent, #ff9072)', border: 0, color: '#1a0e08', fontFamily: 'var(--sans)', fontSize: 15, fontWeight: 600 }}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>
-              Snap or choose a photo
+              Snap pages (one or many)
             </button>
             <button
               onClick={() => { setCaptureChoiceOpen(false); setNoteOpen(true) }}
@@ -594,8 +665,9 @@ function StudyMessage({ msg }) {
 }
 
 // ─── Light input bar — auto-growing textarea ───────────────────────────────────
-function StudyInputBar({ input, setInput, onSubmit, onAttach, onVoice, voiceOn, voiceConnecting, disabled, textareaRef }) {
+function StudyInputBar({ input, setInput, onSubmit, onAttach, onCapture, onVoice, voiceOn, voiceConnecting, disabled, textareaRef }) {
   const iconColor = '#5A5A5A'
+  const [menuOpen, setMenuOpen] = useState(false)
   const handleKey = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSubmit() }
   }
@@ -614,11 +686,32 @@ function StudyInputBar({ input, setInput, onSubmit, onAttach, onVoice, voiceOn, 
       padding: '10px 12px', background: '#ECECEC', borderRadius: 20,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0, color: iconColor, paddingBottom: 5 }}>
-        <button aria-label="attach image or file" onClick={onAttach} style={iconBtn}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-            <rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="8.5" cy="8.5" r="1.6" /><path d="M21 15l-5-5L5 21" />
-          </svg>
-        </button>
+        <div style={{ position: 'relative', display: 'flex' }}>
+          <button aria-label="photo or file" onClick={() => setMenuOpen(o => !o)} style={iconBtn}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="8.5" cy="8.5" r="1.6" /><path d="M21 15l-5-5L5 21" />
+            </svg>
+          </button>
+          {menuOpen && (
+            <>
+              <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 14 }} />
+              <div style={{
+                position: 'absolute', bottom: 'calc(100% + 10px)', left: 0, zIndex: 15,
+                background: '#2A2A2A', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12,
+                padding: 6, width: 188, boxShadow: '0 8px 24px rgba(0,0,0,0.5)', animation: 'fadeUp 160ms ease both',
+              }}>
+                <button onClick={() => { setMenuOpen(false); onCapture?.() }} style={menuItem}>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>
+                  Capture to notes
+                </button>
+                <button onClick={() => { setMenuOpen(false); onAttach?.() }} style={menuItem}>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" /></svg>
+                  Attach to chat
+                </button>
+              </div>
+            </>
+          )}
+        </div>
         <button aria-label="code" onClick={() => setInput(input + '\n```\n\n```')} style={iconBtn}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M8 6l-5 6 5 6M16 6l5 6-5 6" /></svg>
         </button>
@@ -653,4 +746,11 @@ function StudyInputBar({ input, setInput, onSubmit, onAttach, onVoice, voiceOn, 
 const iconBtn = {
   background: 'none', border: 0, padding: 0, cursor: 'pointer',
   display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'inherit',
+}
+
+const menuItem = {
+  width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+  padding: '9px 10px', borderRadius: 8, cursor: 'pointer',
+  background: 'none', border: 0, color: '#F3EAD9',
+  fontFamily: 'var(--sans)', fontSize: 13.5, textAlign: 'left',
 }

@@ -56,8 +56,15 @@ class StudyNoteUpdate(BaseModel):
     category: str | None = None
 
 
+class StudyCaptureImage(BaseModel):
+    base64: str
+    type: str | None = "image/jpeg"
+
+
 class StudyCapture(BaseModel):
-    image_base64: str
+    images: list[StudyCaptureImage] | None = None
+    # Legacy single-image fields (still accepted)
+    image_base64: str | None = None
     image_type: str | None = "image/jpeg"
 
 
@@ -76,13 +83,16 @@ class StudyChatUpdate(BaseModel):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 _CAPTURE_PROMPT = (
-    "You are Jarvis Study Capture. A student just snapped a photo of study material "
-    "(a worksheet, textbook page, whiteboard, handwritten notes, slides, etc.).\n\n"
+    "You are Jarvis Study Capture. A student just snapped one or more photos of study "
+    "material (worksheet, textbook pages, whiteboard, handwritten notes, slides, etc.). "
+    "When multiple images are given, treat them as consecutive PAGES of the SAME material "
+    "and combine them into ONE coherent note in reading order.\n\n"
     "Do THREE things and return STRICT JSON only (no prose, no code fences):\n"
-    "1. \"text\": Extract ALL the text/content from the image, cleanly and completely. "
+    "1. \"text\": Extract ALL the text/content from every image, cleanly and completely. "
     "Preserve structure (headings, numbered questions, bullet points, equations) using "
-    "simple Markdown. Fix obvious OCR noise but do NOT invent content. If there are "
-    "diagrams, briefly describe them in [brackets].\n"
+    "simple Markdown. Merge the pages into one continuous note; do not repeat a 'page 1/2' "
+    "header for each image unless it's part of the content. Fix obvious OCR noise but do "
+    "NOT invent content. If there are diagrams, briefly describe them in [brackets].\n"
     "2. \"subject\": The single best school subject/folder name for this material "
     "(e.g. \"Mathematics\", \"Biology\", \"History\", \"Chemistry\", \"English\", "
     "\"Physics\", \"Computer Science\"). One short Title-Case label.\n"
@@ -118,22 +128,32 @@ async def capture_study_note(user_id: str, body: StudyCapture):
     _require_supabase()
     from backend.llm import _client
 
-    raw_b64 = body.image_base64.split(",")[1] if "," in body.image_base64 else body.image_base64
-    media_type = body.image_type or "image/jpeg"
-    if not media_type.startswith("image/"):
-        media_type = "image/jpeg"
+    # Collect images (new multi-image list, or legacy single field)
+    raw_images: list[tuple[str, str]] = []  # (base64, media_type)
+    if body.images:
+        for img in body.images[:10]:
+            b64 = img.base64.split(",")[1] if "," in img.base64 else img.base64
+            mt = img.type or "image/jpeg"
+            raw_images.append((b64, mt if mt.startswith("image/") else "image/jpeg"))
+    elif body.image_base64:
+        b64 = body.image_base64.split(",")[1] if "," in body.image_base64 else body.image_base64
+        mt = body.image_type or "image/jpeg"
+        raw_images.append((b64, mt if mt.startswith("image/") else "image/jpeg"))
+
+    if not raw_images:
+        raise HTTPException(422, "No image provided.")
+
+    content_blocks = [
+        {"type": "image", "source": {"type": "base64", "media_type": mt, "data": b64}}
+        for (b64, mt) in raw_images
+    ]
+    content_blocks.append({"type": "text", "text": _CAPTURE_PROMPT})
 
     try:
         msg = await _client.messages.create(
             model=_CAPTURE_MODEL,
-            max_tokens=3000,
-            messages=[{
-                "role": "user",
-                "content": [
-                    {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": raw_b64}},
-                    {"type": "text", "text": _CAPTURE_PROMPT},
-                ],
-            }],
+            max_tokens=4000,
+            messages=[{"role": "user", "content": content_blocks}],
         )
         out = "".join(b.text for b in msg.content if getattr(b, "type", "") == "text")
     except Exception as e:
