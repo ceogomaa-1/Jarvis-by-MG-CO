@@ -402,10 +402,10 @@ async def business_chat_stream(request: BusinessChatRequest):
         # Limit check — yield friendly message and bail
         if limit_exceeded:
             limit = limit_usage_info.get("limit", 32)
-            window = limit_usage_info.get("window_minutes", 90)
+            window = limit_usage_info.get("window_label", "4 hours")
             resets = limit_usage_info.get("resets_in", "soon")
             msg = (
-                f"You've hit your limit for now — {limit} messages per {window} minutes. "
+                f"You've hit your limit for now — {limit} messages per {window}. "
                 f"Your next slot opens in {resets}. Jarvis will be here."
             )
             yield f"data: {json.dumps(msg)}\n\n"

@@ -1,9 +1,12 @@
 """
-Rolling message window for Jarvis (Personal + Business).
+Fixed message window for Jarvis (Personal + Business).
 
-Each user gets DAILY_MESSAGE_LIMIT messages per WINDOW_MINUTES rolling window.
-As each message ages past WINDOW_MINUTES, that slot frees up automatically.
-Max wait is always WINDOW_MINUTES — no timezone dependency.
+Each user gets DAILY_MESSAGE_LIMIT messages per FIXED WINDOW_MINUTES window.
+The window is anchored at the user's first message in the window. Once the user
+hits the limit, they are blocked until that window fully elapses — and then the
+whole allowance resets at once. (A previous rolling-window design let the oldest
+message expire within seconds of hitting the cap, so the limit appeared to reset
+instantly and never actually held — this fixed window prevents that.)
 """
 
 import json
@@ -11,15 +14,30 @@ import os
 from datetime import datetime, timedelta, timezone
 
 # ========== CONFIGURATION ==========
-DAILY_MESSAGE_LIMIT = 32          # messages per rolling window
-WINDOW_MINUTES = 90               # 1.5 hours rolling window
+DAILY_MESSAGE_LIMIT = 32          # messages per fixed window
+WINDOW_MINUTES = 240              # 4-hour fixed window (fully resets when it elapses)
 
-# Admin user IDs — unlimited, no cap, no counter shown
-ADMIN_USER_IDS: set[str] = set(
+# Owner / admin user IDs — unlimited, no cap, no counter shown. The owner's Supabase
+# user id is included in BOTH the raw (dashed) and business ("user_" + hex) forms so
+# the exemption holds regardless of which product / id format is in play. Additional
+# ids can still be supplied via the ADMIN_USER_IDS env var (comma-separated).
+_DEFAULT_ADMIN_IDS: set[str] = {
+    "3363afdc-9bca-4b88-893c-f535c62a6687",
+    "user_3363afdc9bca4b88893cf535c62a6687",
+}
+ADMIN_USER_IDS: set[str] = _DEFAULT_ADMIN_IDS | set(
     uid.strip()
     for uid in os.getenv("ADMIN_USER_IDS", "").split(",")
     if uid.strip()
 )
+
+
+def _window_label() -> str:
+    """Human-friendly window size for limit messages (e.g. '4 hours')."""
+    if WINDOW_MINUTES % 60 == 0:
+        hours = WINDOW_MINUTES // 60
+        return f"{hours} hour" + ("s" if hours != 1 else "")
+    return f"{WINDOW_MINUTES} minutes"
 
 # Admin emails as fallback (checked against Supabase auth when needed)
 ADMIN_EMAILS: set[str] = {
@@ -42,13 +60,26 @@ def _window_start() -> datetime:
     return _now_utc() - timedelta(minutes=WINDOW_MINUTES)
 
 
+def _parse_timestamps(raw) -> list[datetime]:
+    """Parse the stored message_timestamps blob into a list of UTC datetimes."""
+    timestamps_raw = json.loads(raw) if isinstance(raw, str) else (raw or [])
+    parsed: list[datetime] = []
+    for ts in timestamps_raw:
+        try:
+            parsed.append(datetime.fromisoformat(ts).replace(tzinfo=timezone.utc))
+        except Exception:
+            pass
+    return parsed
+
+
 def _get_window_timestamps(user_id: str, supabase) -> list[datetime]:
     """
-    Fetch all message timestamps for this user within the rolling window.
-    Returns list of UTC datetimes, newest first.
-    """
-    window_start = _window_start()
+    Return this user's message timestamps for the CURRENT fixed window, newest first.
 
+    The window is anchored at the earliest stored message. If WINDOW_MINUTES have
+    elapsed since that anchor, the window is over and the count fully resets (returns
+    []). Otherwise every stored timestamp counts toward the current window.
+    """
     try:
         result = (
             supabase.table("business_daily_usage")
@@ -61,22 +92,17 @@ def _get_window_timestamps(user_id: str, supabase) -> list[datetime]:
         if not result.data:
             return []
 
-        raw = result.data[0].get("message_timestamps") or "[]"
-        if isinstance(raw, str):
-            timestamps_raw = json.loads(raw)
-        else:
-            timestamps_raw = raw  # already parsed by driver
+        parsed = _parse_timestamps(result.data[0].get("message_timestamps") or "[]")
+        if not parsed:
+            return []
 
-        active: list[datetime] = []
-        for ts in timestamps_raw:
-            try:
-                dt = datetime.fromisoformat(ts).replace(tzinfo=timezone.utc)
-                if dt >= window_start:
-                    active.append(dt)
-            except Exception:
-                pass
+        anchor = min(parsed)
+        # Fixed window: once the 4h window from the first message has elapsed, the
+        # allowance resets entirely.
+        if _now_utc() >= anchor + timedelta(minutes=WINDOW_MINUTES):
+            return []
 
-        return sorted(active, reverse=True)  # newest first
+        return sorted(parsed, reverse=True)  # newest first
 
     except Exception as e:
         print(f"[USAGE] Error fetching timestamps for {user_id}: {e}")
@@ -118,6 +144,7 @@ def get_usage(user_id: str, supabase) -> dict:
             "is_admin": True,
             "resets_in": "",
             "window_minutes": WINDOW_MINUTES,
+            "window_label": _window_label(),
         }
 
     active_timestamps = _get_window_timestamps(user_id, supabase)
@@ -126,8 +153,9 @@ def get_usage(user_id: str, supabase) -> dict:
 
     resets_in = ""
     if used >= DAILY_MESSAGE_LIMIT and active_timestamps:
-        oldest = min(active_timestamps)
-        resets_in = _get_reset_in_display(oldest)
+        # Anchor = first message of the window; the allowance resets WINDOW_MINUTES later.
+        anchor = min(active_timestamps)
+        resets_in = _get_reset_in_display(anchor)
 
     return {
         "used": used,
@@ -136,6 +164,7 @@ def get_usage(user_id: str, supabase) -> dict:
         "is_admin": False,
         "resets_in": resets_in,
         "window_minutes": WINDOW_MINUTES,
+        "window_label": _window_label(),
     }
 
 
@@ -158,7 +187,6 @@ def increment_usage(user_id: str, supabase) -> dict:
         return get_usage(user_id, supabase)
 
     now = _now_utc()
-    window_start = _window_start()
 
     try:
         result = (
@@ -171,14 +199,15 @@ def increment_usage(user_id: str, supabase) -> dict:
 
         if result.data:
             row = result.data[0]
-            raw = row.get("message_timestamps") or "[]"
-            existing = json.loads(raw) if isinstance(raw, str) else raw
+            parsed = _parse_timestamps(row.get("message_timestamps") or "[]")
 
-            # Prune expired + append new
-            active = [
-                ts for ts in existing
-                if datetime.fromisoformat(ts).replace(tzinfo=timezone.utc) >= window_start
-            ]
+            # Fixed window: keep the existing timestamps only while we're still inside
+            # the current window (anchored at the earliest message). Once the window has
+            # elapsed, start a fresh window containing just this message.
+            if parsed and now < min(parsed) + timedelta(minutes=WINDOW_MINUTES):
+                active = [dt.isoformat() for dt in parsed]
+            else:
+                active = []
             active.append(now.isoformat())
 
             supabase.table("business_daily_usage").update({
