@@ -2242,6 +2242,8 @@ export default function Home() {
           name={studyName}
           onToggle={toggleStudyMode}
           onMenu={() => setDrawerOpen(true)}
+          userId={userId}
+          backend={BACKEND}
         />
       )}
 

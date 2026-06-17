@@ -28,6 +28,7 @@ class ChatRequest(BaseModel):
     image_type: str | None = None
     attachments: list[dict] = []  # [{url, file_type, file_id}] — future URL-based attachment flow
     voice_mode: bool = False  # True → inject voice system prompt, TTS response on frontend
+    study_mode: bool = False  # True → inject Study Mode tutor brain (Personal)
 
 
 class ChatResponse(BaseModel):

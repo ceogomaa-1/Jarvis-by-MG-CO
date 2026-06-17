@@ -240,6 +240,26 @@ def detect_emotional_tone(message: str) -> str:
     return "neutral"
 
 
+# ─── Study Mode tutor brain ───────────────────────────────────────────────────
+
+STUDY_MODE_INSTRUCTION = (
+    "[STUDY MODE — you are now the user's personal study tutor]\n"
+    "The user opened Study Mode. Shift into tutor mode for this turn:\n"
+    "- Teach for real understanding, not just answers. Be patient, clear, and encouraging.\n"
+    "- Break concepts into simple steps. Use plain language first, then the precise terms.\n"
+    "- Prefer the Socratic method for problems: guide with questions before giving the full answer, "
+    "and check understanding as you go.\n"
+    "- When asked to QUIZ: ask ONE question at a time, wait for the answer, then give specific, "
+    "kind feedback before the next question. Keep score lightly.\n"
+    "- When asked to SUMMARIZE: produce tight, well-structured notes (headers + bullets) that are easy to revise from.\n"
+    "- When asked to RESEARCH: give a clear, organized overview and cite sources using your tools when useful.\n"
+    "- If the user sends a PHOTO (a textbook page, handwritten notes, a problem, a diagram): read it carefully, "
+    "transcribe or interpret what matters, then teach from it.\n"
+    "- Use Markdown (headers, bold, lists, simple tables) so the material is easy to read.\n"
+    "- Keep the warm, real Jarvis voice — a sharp study partner, never a dry textbook."
+)
+
+
 TONE_INSTRUCTIONS = {
     "stressed": (
         "The user seems stressed or overwhelmed right now. "
@@ -574,7 +594,8 @@ async def chat_stream(request: ChatRequest):
 
         response_text = _FALLBACK_LLM_ERROR
         debug_str = None
-        _combined_tone = "\n\n".join(b for b in (tone_context, _relationship_injection, _fb_injection) if b)
+        _study_injection = STUDY_MODE_INSTRUCTION if (request.study_mode and not system_override) else ""
+        _combined_tone = "\n\n".join(b for b in (_study_injection, tone_context, _relationship_injection, _fb_injection) if b)
         try:
             response_text = await jarvis_think(
                 user_message=user_content,

@@ -227,6 +227,26 @@ html, body {
 .prose code { background: rgba(243,234,217,0.08); border-radius: 3px; padding: 0.1em 0.35em; font-size: 0.85em; font-family: monospace; color: var(--accent); }
 .prose blockquote { border-left: 2px solid var(--accent); padding-left: 1rem; margin: 0.5rem 0; opacity: 0.75; }
 
+/* Study Mode tutor markdown — readable on #1A1A1A */
+.study-prose h1, .study-prose h2, .study-prose h3, .study-prose h4 { font-family: var(--font-display-round), var(--sans); color: #F3EAD9; line-height: 1.3; }
+.study-prose h1 { font-size: 1.3rem; font-weight: 600; margin: 1rem 0 0.5rem; }
+.study-prose h2 { font-size: 1.15rem; font-weight: 600; margin: 1rem 0 0.5rem; }
+.study-prose h3 { font-size: 1.02rem; font-weight: 600; margin: 0.8rem 0 0.4rem; }
+.study-prose p { margin: 0.5rem 0; line-height: 1.6; }
+.study-prose strong { color: #ffffff; font-weight: 600; }
+.study-prose ul { padding-left: 1.4rem; margin: 0.5rem 0; list-style: disc; }
+.study-prose ol { padding-left: 1.4rem; margin: 0.5rem 0; list-style: decimal; }
+.study-prose li { margin: 0.3rem 0; }
+.study-prose hr { border: none; border-top: 1px solid rgba(255,255,255,0.12); margin: 1rem 0; }
+.study-prose a { color: var(--accent); text-decoration: underline; }
+.study-prose code { background: rgba(255,255,255,0.08); border-radius: 4px; padding: 0.1em 0.35em; font-size: 0.85em; font-family: monospace; color: #ffcdbf; }
+.study-prose pre { background: #111; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 0.8rem 1rem; overflow-x: auto; margin: 0.6rem 0; }
+.study-prose pre code { background: none; padding: 0; color: #F3EAD9; }
+.study-prose blockquote { border-left: 2px solid var(--accent); padding-left: 1rem; margin: 0.5rem 0; opacity: 0.8; }
+.study-prose table { border-collapse: collapse; margin: 0.6rem 0; width: 100%; font-size: 0.92em; }
+.study-prose th, .study-prose td { border: 1px solid rgba(255,255,255,0.14); padding: 0.4rem 0.6rem; text-align: left; }
+.study-prose th { background: rgba(255,255,255,0.05); font-weight: 600; }
+
 * { box-sizing: border-box; }
 
 ::-webkit-scrollbar { width: 4px; }
