@@ -7,6 +7,7 @@ import remarkGfm from 'remark-gfm'
 import { supabase } from '../lib/supabase'
 import { getJarvisMode, setJarvisMode } from '../lib/userPreferences'
 import ModeToggle from '../components/shared/ModeToggle'
+import StudyView, { StudyToggle } from '../components/shared/StudyView'
 import SignOutDrawer from '../components/shared/SignOutDrawer'
 import NotesPanel from '../components/shared/NotesPanel'
 import TimezoneStep from '../components/onboarding/TimezoneStep'
@@ -1386,6 +1387,7 @@ export default function Home() {
   const [isMobile, setIsMobile] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [usage, setUsage] = useState(null)
+  const [studyMode, setStudyMode] = useState(false)
   const mobileScrollRef = useRef(null)
   const mobileStickRef = useRef(true)
   const [showMobileJump, setShowMobileJump] = useState(false)
@@ -1410,6 +1412,27 @@ export default function Home() {
     window.addEventListener('resize', check)
     return () => window.removeEventListener('resize', check)
   }, [])
+
+  // Study Mode — persisted across refresh (localStorage)
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('jarvis_study_mode') === '1') setStudyMode(true)
+    } catch (_) {}
+  }, [])
+
+  const toggleStudyMode = () => {
+    setStudyMode(prev => {
+      const next = !prev
+      try { localStorage.setItem('jarvis_study_mode', next ? '1' : '0') } catch (_) {}
+      return next
+    })
+  }
+
+  // First name for the Study greeting
+  const studyName = (() => {
+    const full = user?.user_metadata?.full_name || user?.user_metadata?.name || ''
+    return full.trim().split(/\s+/)[0] || ''
+  })()
 
   useEffect(() => {
     const el = mobileScrollRef.current
@@ -2213,6 +2236,15 @@ export default function Home() {
         />
       )}
 
+      {/* Study Mode view — overlays normal chat when enabled */}
+      {studyMode && (
+        <StudyView
+          name={studyName}
+          onToggle={toggleStudyMode}
+          onMenu={() => setDrawerOpen(true)}
+        />
+      )}
+
       {/* Film grain */}
       <svg style={{ position: 'fixed', top: 0, left: 0, width: 0, height: 0, overflow: 'hidden' }}>
         <defs>
@@ -2302,7 +2334,7 @@ export default function Home() {
               <span style={{ display: 'block', width: 18, height: 1.5, background: 'var(--ink-soft)', borderRadius: 1 }} />
             </button>
             <Wordmark />
-            <StatusPill state={orbState} />
+            <StudyToggle studyMode={false} onToggle={toggleStudyMode} />
           </div>
 
           {/* Scrollable content — scrolls over the fixed orb, z:10 */}
@@ -2460,6 +2492,7 @@ export default function Home() {
           <div style={{ gridArea: 'topR', padding: '20px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <StatusPill state={orbState} />
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
+              <StudyToggle studyMode={false} onToggle={toggleStudyMode} />
               <PermissionChip icon="◉" label="Screen"   granted />
               <PermissionChip icon="⌖" label="Cursor"   granted />
               <PermissionChip icon="✦" label="Calendar" granted />
