@@ -7,13 +7,31 @@ Knowledge Base routes.
 """
 import json
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Body, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
+from backend.lib.business import jarvis_skills
 from backend.lib.business import knowledge_base as kb
 from backend.tools.url_fetch import extract_urls
 
 router = APIRouter()
+
+
+def _skill_as_source(s: dict) -> dict:
+    """Map a jarvis_skills row into the shape the 'What Jarvis knows' list expects,
+    while carrying the richer skill fields for the upgraded UI."""
+    return {
+        "id": s.get("id"),
+        "label": s.get("name") or s.get("source_filename") or "Skill",
+        "name": s.get("name"),
+        "source_type": s.get("source_type", "text"),
+        "skill_type": s.get("skill_type", "knowledge"),
+        "description": s.get("description", ""),
+        "enabled": s.get("enabled", True),
+        "fact_count": 0,
+        "created_at": s.get("created_at"),
+        "kind": "skill",
+    }
 
 _EXT_KIND = {
     ".pdf": "pdf", ".docx": "docx", ".txt": "text", ".md": "text", ".csv": "text",
@@ -94,14 +112,67 @@ async def ingest_knowledge(
 
 @router.get("/business/knowledge")
 async def list_knowledge(user_id: str = ""):
+    """Skills (new, lossless) first, then any legacy knowledge sources — so nothing the
+    user previously fed Jarvis disappears from the 'What Jarvis knows' list."""
     if not user_id:
         raise HTTPException(status_code=400, detail="user_id required")
-    return {"sources": await kb.list_sources(user_id)}
+    skills = [_skill_as_source(s) for s in await jarvis_skills.list_skills(user_id)]
+    legacy = [{**s, "kind": "legacy"} for s in await kb.list_sources(user_id)]
+    return {"sources": skills + legacy}
 
 
 @router.delete("/business/knowledge/{source_id}")
 async def delete_knowledge(source_id: str, user_id: str = ""):
     if not user_id:
         raise HTTPException(status_code=400, detail="user_id required")
+    # New skills first; fall back to legacy knowledge sources.
+    if await jarvis_skills.delete_skill(user_id, source_id):
+        return {"ok": True}
     ok = await kb.delete_source(user_id, source_id)
     return {"ok": ok}
+
+
+# ── Skills manager API (powers the upgraded Skills UI) ─────────────────────────
+
+@router.get("/business/skills")
+async def list_skills_route(user_id: str = ""):
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id required")
+    return {"skills": await jarvis_skills.list_skills(user_id)}
+
+
+@router.get("/business/skills/{skill_id}")
+async def get_skill_route(skill_id: str, user_id: str = ""):
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id required")
+    skill = await jarvis_skills.get_skill(user_id, skill_id)
+    if not skill:
+        raise HTTPException(status_code=404, detail="skill not found")
+    return {"skill": skill}
+
+
+@router.patch("/business/skills/{skill_id}")
+async def update_skill_route(skill_id: str, user_id: str = Body(...), fields: dict = Body(...)):
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id required")
+    updated = await jarvis_skills.update_skill(user_id, skill_id, fields or {})
+    if not updated:
+        raise HTTPException(status_code=404, detail="skill not found or update failed")
+    return {"skill": updated}
+
+
+@router.post("/business/skills/{skill_id}/toggle")
+async def toggle_skill_route(skill_id: str, user_id: str = Body(...), enabled: bool = Body(...)):
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id required")
+    updated = await jarvis_skills.set_enabled(user_id, skill_id, enabled)
+    if not updated:
+        raise HTTPException(status_code=404, detail="skill not found")
+    return {"skill": updated}
+
+
+@router.delete("/business/skills/{skill_id}")
+async def delete_skill_route(skill_id: str, user_id: str = ""):
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id required")
+    return {"ok": await jarvis_skills.delete_skill(user_id, skill_id)}

@@ -17,6 +17,7 @@ import zipfile
 
 import httpx
 
+from backend.lib.business import jarvis_skills
 from backend.lib.business.mind.ingest import process_new_memory
 from backend.tools.url_fetch import fetch_url_content
 
@@ -213,22 +214,23 @@ async def _update_fact_count(client: httpx.AsyncClient, source_id: str, fact_cou
 
 
 async def ingest_text(user_id: str, text: str, label: str = "Pasted text", source_type: str = "text") -> dict:
-    """Extract facts from a text blob and store them. Returns a progress-line result dict."""
-    if not SUPABASE_URL or not SUPABASE_KEY:
-        return {"label": label, "status": "error", "fact_count": 0, "error": "Supabase not configured"}
-    if not text or not text.strip():
-        return {"label": label, "status": "skipped", "fact_count": 0, "error": "empty"}
+    """Store a text blob LOSSLESSLY as a Jarvis skill (full content kept verbatim).
 
-    user_uuid = _user_id_to_uuid(user_id)
-    async with httpx.AsyncClient() as client:
-        facts = await _extract_facts(client, text, label)
-        if not facts:
-            return {"label": label, "status": "skipped", "fact_count": 0, "error": "nothing useful found"}
-        source_id = await _create_source(client, user_uuid, label, source_type)
-        stored = await _store_facts(client, user_uuid, source_id, facts)
-        if source_id:
-            await _update_fact_count(client, source_id, stored)
-        return {"label": label, "status": "learned", "fact_count": stored, "source_id": source_id}
+    This NEVER discards the user's input: the only failure is genuinely empty text.
+    The old lossy fact-extraction path that discarded narrative/strategic docs is
+    gone — the LLM now only adds metadata and can never block saving.
+    """
+    if not text or not text.strip():
+        return {"label": label, "status": "error", "fact_count": 0, "error": "There was no readable text to learn from."}
+
+    filename = label if label and label != "Pasted text" else None
+    result = await jarvis_skills.create_skill(
+        user_id, text, source_type=source_type, source_filename=filename,
+    )
+    # Normalize to the progress-line shape the ingest route/UI expects.
+    result.setdefault("label", label)
+    result["fact_count"] = result.get("chunks", 0)
+    return result
 
 
 async def ingest_url(user_id: str, url: str) -> dict:
@@ -250,9 +252,10 @@ async def ingest_pdf(user_id: str, content: bytes, filename: str) -> dict:
     try:
         text = _pdf_text(content)
     except Exception as e:
-        return {"label": filename, "status": "error", "fact_count": 0, "error": f"could not parse PDF: {e}"}
+        return {"label": filename, "status": "error", "fact_count": 0, "error": f"Couldn't read this PDF — it may be corrupt ({e})."}
     if not text.strip():
-        return {"label": filename, "status": "skipped", "fact_count": 0, "error": "no extractable text"}
+        return {"label": filename, "status": "error", "fact_count": 0,
+                "error": "Couldn't read this PDF — it looks scanned or image-only (no selectable text). Try exporting a text PDF, or upload a screenshot so I can read it as an image."}
     return await ingest_text(user_id, text, label=filename, source_type="pdf")
 
 
@@ -266,27 +269,64 @@ async def ingest_docx(user_id: str, content: bytes, filename: str) -> dict:
     try:
         text = _docx_text(content)
     except Exception as e:
-        return {"label": filename, "status": "error", "fact_count": 0, "error": f"could not parse DOCX: {e}"}
+        return {"label": filename, "status": "error", "fact_count": 0, "error": f"Couldn't read this Word file — it may be corrupt ({e})."}
     if not text.strip():
-        return {"label": filename, "status": "skipped", "fact_count": 0, "error": "no extractable text"}
+        return {"label": filename, "status": "error", "fact_count": 0, "error": "This Word file has no readable text in it."}
     return await ingest_text(user_id, text, label=filename, source_type="docx")
 
 
-async def ingest_image(user_id: str, content: bytes, media_type: str, filename: str) -> dict:
-    if not SUPABASE_URL or not SUPABASE_KEY:
-        return {"label": filename, "status": "error", "fact_count": 0, "error": "Supabase not configured"}
+_IMAGE_TO_TEXT_PROMPT = (
+    "Transcribe and describe everything in this image as plain text so it can be stored "
+    "and searched later. Transcribe ALL visible text exactly (pricing, numbers, names, "
+    "dates, labels, tables). Then briefly describe what the image shows. Output only the "
+    "transcription + description — no preamble."
+)
 
-    user_uuid = _user_id_to_uuid(user_id)
+
+async def _image_to_text(client: httpx.AsyncClient, content_b64: str, media_type: str) -> str:
+    if not ANTHROPIC_API_KEY:
+        return ""
+    try:
+        resp = await client.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": HAIKU,
+                "max_tokens": 2000,
+                "messages": [{
+                    "role": "user",
+                    "content": [
+                        {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": content_b64}},
+                        {"type": "text", "text": _IMAGE_TO_TEXT_PROMPT},
+                    ],
+                }],
+            },
+            timeout=60.0,
+        )
+        if resp.status_code != 200:
+            print(f"KB: image-to-text API error {resp.status_code}: {resp.text[:200]}")
+            return ""
+        return resp.json().get("content", [{}])[0].get("text", "").strip()
+    except Exception as e:
+        print(f"KB: image-to-text error: {e}")
+        return ""
+
+
+async def ingest_image(user_id: str, content: bytes, media_type: str, filename: str) -> dict:
+    """OCR/describe the image to text, then store that text losslessly as a skill."""
     b64 = base64.b64encode(content).decode("ascii")
     async with httpx.AsyncClient() as client:
-        facts = await _extract_facts_from_image(client, b64, media_type, filename)
-        if not facts:
-            return {"label": filename, "status": "skipped", "fact_count": 0, "error": "nothing useful found"}
-        source_id = await _create_source(client, user_uuid, filename, "image")
-        stored = await _store_facts(client, user_uuid, source_id, facts)
-        if source_id:
-            await _update_fact_count(client, source_id, stored)
-        return {"label": filename, "status": "learned", "fact_count": stored, "source_id": source_id}
+        text = await _image_to_text(client, b64, media_type)
+    if not text.strip():
+        return {"label": filename, "status": "error", "fact_count": 0,
+                "error": "Couldn't read this image — it may be blank, too low-resolution, or unreadable."}
+    # Prefix so the stored content notes its origin, then store the full transcription.
+    body = f"[Transcribed from image: {filename}]\n\n{text}"
+    return await ingest_text(user_id, body, label=filename, source_type="image")
 
 
 _ZIP_KIND = {
