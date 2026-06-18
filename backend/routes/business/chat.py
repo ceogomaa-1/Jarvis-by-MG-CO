@@ -637,7 +637,27 @@ async def business_chat_stream(request: BusinessChatRequest):
                         tool_inp = block.get("input", {})
 
                         yield f'data: {json.dumps({"type": "tool_call", "name": tool_name, "status": "executing"})}\n\n'
-                        result_str = await execute_tool(tool_name, tool_inp, request.user_id)
+
+                        # Run the tool as a task while draining a progress queue, so
+                        # long steps (web research) stream human-readable status
+                        # ("Checking 6 sources…", "2 unreachable, read 3…") instead of
+                        # sitting silent. Keeps the SSE connection alive throughout.
+                        progress_q: asyncio.Queue = asyncio.Queue()
+
+                        async def _progress_cb(msg: str):
+                            await progress_q.put(msg)
+
+                        tool_task = asyncio.create_task(
+                            execute_tool(tool_name, tool_inp, request.user_id, progress_cb=_progress_cb)
+                        )
+                        while not tool_task.done() or not progress_q.empty():
+                            try:
+                                msg = await asyncio.wait_for(progress_q.get(), timeout=0.4)
+                            except asyncio.TimeoutError:
+                                continue
+                            yield f'data: {json.dumps({"type": "tool_progress", "name": tool_name, "value": msg})}\n\n'
+                        result_str = await tool_task
+
                         yield f'data: {json.dumps({"type": "tool_call", "name": tool_name, "status": "complete"})}\n\n'
 
                         tool_results.append({

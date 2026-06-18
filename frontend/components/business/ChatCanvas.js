@@ -18,6 +18,7 @@ import UsageCounter from './UsageCounter'
 import { supabase } from '../../lib/supabase'
 import TetrisLoader from '../ui/TetrisLoader'
 import ThinkingIndicator from './ThinkingIndicator'
+import UniqueLoading from '@/components/ui/morph-loading'
 import { uploadChatAttachment } from '../../lib/business/attachments'
 import { AttachmentsRow } from './AttachmentDisplay'
 
@@ -74,26 +75,36 @@ function UserBubble({ content, attachments }) {
   )
 }
 
+// Morph loader shown while Jarvis is laying down a response (before the first
+// token arrives). `.dark` forces the loader squares to render in light (white)
+// so they're visible on the dark OS1 chat surface.
 function ThinkingDots() {
   return (
-    <div style={{ display: 'flex', gap: 5, marginBottom: 16, paddingTop: 4 }}>
-      {[0, 1, 2].map(i => (
-        <motion.div
-          key={i}
-          style={{ width: 6, height: 6, background: 'var(--os1-text-dim)' }}
-          animate={{ opacity: [0.3, 1, 0.3], scale: [0.85, 1.1, 0.85] }}
-          transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut', delay: i * 0.15 }}
-        />
-      ))}
+    <div
+      className="dark"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        minHeight: 56,
+        paddingLeft: 20,
+        marginBottom: 8,
+        overflow: 'visible',
+      }}
+    >
+      <UniqueLoading variant="morph" size="sm" />
     </div>
   )
 }
 
-function ToolStatusPill({ toolName }) {
-  // Format "google__list_calendar_events" → "google → list calendar events"
-  const pretty = toolName
-    .replace('__', ' → ')
-    .replace(/_/g, ' ')
+function ToolStatusPill({ toolName, progress }) {
+  // Prefer a human-readable progress message (e.g. "Checking 6 sources…") when
+  // the tool is streaming one; otherwise format the tool name nicely.
+  // "google__list_calendar_events" → "google → list calendar events"
+  const pretty = progress
+    ? progress
+    : toolName
+        .replace('__', ' → ')
+        .replace(/_/g, ' ') + '…'
   return (
     <motion.div
       initial={{ opacity: 0, y: -4 }}
@@ -115,15 +126,15 @@ function ToolStatusPill({ toolName }) {
       />
       <span className="font-pixel" style={{
         fontSize: 11, letterSpacing: '0.05em',
-        color: 'var(--os1-blue)', textTransform: 'lowercase',
+        color: 'var(--os1-blue)', textTransform: progress ? 'none' : 'lowercase',
       }}>
-        {pretty}…
+        {pretty}
       </span>
     </motion.div>
   )
 }
 
-function AssistantBubble({ content, chunks, streaming, toolStatus }) {
+function AssistantBubble({ content, chunks, streaming, toolStatus, toolProgress }) {
   const hasChunks = chunks && chunks.length > 0
 
   return (
@@ -142,8 +153,12 @@ function AssistantBubble({ content, chunks, streaming, toolStatus }) {
       </span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <AnimatePresence>
-          {streaming && toolStatus && (
-            <ToolStatusPill key={toolStatus} toolName={toolStatus} />
+          {streaming && (toolStatus || toolProgress) && (
+            <ToolStatusPill
+              key={toolProgress || toolStatus}
+              toolName={toolStatus || ''}
+              progress={toolProgress}
+            />
           )}
         </AnimatePresence>
         <div
@@ -202,7 +217,9 @@ export default function ChatCanvas({
   const [loading, setLoading] = useState(false)
   const [briefing, setBriefing] = useState(null)
   const [toolStatus, setToolStatus] = useState(null)  // active tool name during execution
+  const [toolProgress, setToolProgress] = useState(null)  // human-readable progress (e.g. web research)
   const [readiness, setReadiness] = useState(null)
+  const [readinessRefresh, setReadinessRefresh] = useState(0)
   const [autonomousEnabled, setAutonomousEnabled] = useState(false)
   const [usage, setUsage] = useState(null)
   const [isThinking, setIsThinking] = useState(false)
@@ -858,6 +875,7 @@ export default function ChatCanvas({
 
     streamingConvRef.current = null
     setToolStatus(null)
+    setToolProgress(null)
 
     if (!result.gotChunk) {
       setIsThinking(false)
@@ -870,6 +888,9 @@ export default function ChatCanvas({
       onConversationsUpdated?.()
     }
     setLoading(false)
+    // An action/turn may have changed readiness (memory stored, tool connected).
+    // Nudge the bar to refresh — it's throttled to once/60s internally.
+    setReadinessRefresh(n => n + 1)
   }
 
   // Runs one attempt of the chat stream for assistant message `aId`. Returns
@@ -942,9 +963,13 @@ export default function ChatCanvas({
               } else if (chunk.type === 'tool_call') {
                 if (chunk.status === 'executing') {
                   setToolStatus(chunk.name)
+                  setToolProgress(null)
                 } else if (chunk.status === 'complete') {
                   setToolStatus(null)
+                  setToolProgress(null)
                 }
+              } else if (chunk.type === 'tool_progress') {
+                setToolProgress(chunk.value)
               } else if (chunk.type === 'pending_action') {
                 if (!gotChunk) {
                   gotChunk = true
@@ -967,6 +992,7 @@ export default function ChatCanvas({
               firstChunkTimer = null
             }
             setIsThinking(false)
+            setToolProgress(null)
             acc += chunk
             pendingBatch += chunk
             if (!batchTimer) {
@@ -1011,6 +1037,7 @@ export default function ChatCanvas({
       <ReadinessBar
         userId={userId}
         apiUrl={BACKEND}
+        refreshSignal={readinessRefresh}
         onReadinessUpdate={(data) => {
           setReadiness(data)
           if (data?.memory_count != null) onMemoryCountUpdate?.(data.memory_count)
@@ -1105,6 +1132,7 @@ export default function ChatCanvas({
                         chunks={m.chunks}
                         streaming={m.streaming}
                         toolStatus={m.streaming ? toolStatus : null}
+                        toolProgress={m.streaming ? toolProgress : null}
                       />
                       {m.pending_action && !m.action_resolved && (
                         <ConfirmActionButton

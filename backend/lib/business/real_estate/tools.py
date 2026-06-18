@@ -162,7 +162,7 @@ REAL_ESTATE_TOOLS: dict[str, dict] = {
 }
 
 
-async def execute_real_estate_tool(action_name: str, tool_input: dict, user_id: str) -> ConnectorResult:
+async def execute_real_estate_tool(action_name: str, tool_input: dict, user_id: str, progress_cb=None) -> ConnectorResult:
     if action_name == "ghl_scan_stale_leads":
         return await ghl_leads.scan_stale_leads(
             user_id,
@@ -215,6 +215,7 @@ async def execute_real_estate_tool(action_name: str, tool_input: dict, user_id: 
         return await seller_research.research_seller_contacts(
             query=tool_input.get("query", ""),
             region=tool_input.get("region", ""),
+            progress_cb=progress_cb,
         )
 
     if action_name == "fill_pdf_form":
@@ -228,6 +229,7 @@ async def execute_real_estate_tool(action_name: str, tool_input: dict, user_id: 
         return await contact_enrichment.enrich_contacts(
             people=tool_input.get("people") or [],
             region=tool_input.get("region", ""),
+            progress_cb=progress_cb,
         )
 
     if action_name == "fill_orea_form":

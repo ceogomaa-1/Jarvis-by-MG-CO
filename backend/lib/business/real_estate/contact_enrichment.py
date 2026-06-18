@@ -29,7 +29,7 @@ _EXTRACT_SYSTEM = (
 )
 
 
-async def _research_person(person: dict, region: str) -> dict:
+async def _research_person(person: dict, region: str, progress_cb=None) -> dict:
     name = (person.get("name") or "").strip()
     if not name:
         return {
@@ -70,7 +70,9 @@ async def _research_person(person: dict, region: str) -> dict:
             seen.add(u)
             dedup_urls.append(u)
 
-    pages, _used_playwright = await fetch_pages(dedup_urls, max_pages=MAX_PAGES_PER_PERSON)
+    pages, _used_playwright = await fetch_pages(
+        dedup_urls, max_pages=MAX_PAGES_PER_PERSON, progress_cb=progress_cb
+    )
     for url, text in pages:
         combined += f"\n\nSOURCE: {url}\n{text}"
 
@@ -113,7 +115,7 @@ If nothing reliable was found, return {{"found_phones": [], "found_emails": [], 
     }
 
 
-async def enrich_contacts(people: list[dict], region: str = "") -> ConnectorResult:
+async def enrich_contacts(people: list[dict], region: str = "", progress_cb=None) -> ConnectorResult:
     if not people:
         return ConnectorResult(ok=False, error="people is required — a list of at least one row with a 'name'.")
 
@@ -121,8 +123,15 @@ async def enrich_contacts(people: list[dict], region: str = "") -> ConnectorResu
     people = people[:MAX_PEOPLE]
 
     results = []
-    for person in people:
-        results.append(await _research_person(person, region))
+    total = len(people)
+    for i, person in enumerate(people, 1):
+        if progress_cb:
+            name = (person.get("name") or "this lead").strip()
+            try:
+                await progress_cb(f"Researching {name} ({i} of {total})…")
+            except Exception:
+                pass
+        results.append(await _research_person(person, region, progress_cb=progress_cb))
 
     found = sum(1 for r in results if r["status"] == "found")
     total = len(results)

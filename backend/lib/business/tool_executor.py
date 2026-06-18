@@ -20,9 +20,13 @@ from backend.lib.business.scheduled_emails import (
 from backend.lib.business.web_scrape import execute_web_tool
 
 
-async def execute_tool(tool_name: str, tool_input: dict, user_id: str) -> str:
+async def execute_tool(tool_name: str, tool_input: dict, user_id: str, progress_cb=None) -> str:
     """
     Execute one tool call. Returns a JSON string (success data or error object).
+
+    `progress_cb(message: str)` is an optional async callback for tools that
+    stream human-readable progress (e.g. web research). Tools that don't support
+    it simply ignore it.
     """
     parts = tool_name.split("__", 1)
     if len(parts) != 2:
@@ -34,7 +38,7 @@ async def execute_tool(tool_name: str, tool_input: dict, user_id: str) -> str:
     # checks its own connector dependencies (GHL, Google) internally.
     if connector_type == "realestate":
         try:
-            result: ConnectorResult = await execute_real_estate_tool(action_name, tool_input, user_id)
+            result: ConnectorResult = await execute_real_estate_tool(action_name, tool_input, user_id, progress_cb=progress_cb)
         except Exception as e:
             return json.dumps({"error": f"Tool execution error: {e}"})
 

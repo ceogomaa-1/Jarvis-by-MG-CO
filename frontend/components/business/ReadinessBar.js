@@ -1,19 +1,35 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 
-export default function ReadinessBar({ userId, apiUrl, onReadinessUpdate }) {
+// Minimum gap between readiness fetches. Readiness barely changes minute-to-minute,
+// so polling it every second (the old behavior) just floods the backend and
+// compounds latency. Fetch on mount + after an action change, but never more than
+// once per this window.
+const MIN_FETCH_INTERVAL_MS = 60000
+
+export default function ReadinessBar({ userId, apiUrl, onReadinessUpdate, refreshSignal }) {
   const [readiness, setReadiness] = useState(null)
   const [isExpanded, setIsExpanded] = useState(false)
+  const lastFetchRef = useRef(0)
 
   useEffect(() => {
     if (!userId) return
-    fetchReadiness()
-    const interval = setInterval(fetchReadiness, 30000)
+    fetchReadiness(true)
+    const interval = setInterval(() => fetchReadiness(true), MIN_FETCH_INTERVAL_MS)
     return () => clearInterval(interval)
   }, [userId])
 
-  async function fetchReadiness() {
+  // Refresh after a connection/action change — but throttled to once per window.
+  useEffect(() => {
+    if (!userId || !refreshSignal) return
+    fetchReadiness(false)
+  }, [refreshSignal])
+
+  async function fetchReadiness(force = false) {
+    const now = Date.now()
+    if (!force && now - lastFetchRef.current < MIN_FETCH_INTERVAL_MS) return
+    lastFetchRef.current = now
     try {
       const res = await fetch(`${apiUrl}/api/business/readiness?user_id=${encodeURIComponent(userId)}`)
       const data = await res.json()

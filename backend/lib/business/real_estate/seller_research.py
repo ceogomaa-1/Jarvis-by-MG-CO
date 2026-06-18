@@ -16,22 +16,50 @@ _EXTRACT_SYSTEM = (
 )
 
 
-async def research_seller_contacts(query: str, region: str = "") -> ConnectorResult:
+async def research_seller_contacts(query: str, region: str = "", progress_cb=None) -> ConnectorResult:
     if not query:
         return ConnectorResult(ok=False, error="query (address or owner name) is required.")
 
-    search_query = f"{query} {region} owner contact for sale by owner".strip()
-    try:
-        search_text = await web_search(search_query)
-    except Exception as e:
-        return ConnectorResult(ok=False, error=f"Web search failed: {e}")
+    async def _emit(msg: str) -> None:
+        if not progress_cb:
+            return
+        try:
+            await progress_cb(msg)
+        except Exception:
+            pass
 
-    urls = re.findall(r"URL: (\S+)", search_text)[:MAX_PAGES]
-    pages, used_playwright = await fetch_pages(urls)
+    await _emit("Searching the web…")
+
+    # Broaden the candidate set — concurrent + budgeted fetching means more
+    # queries doesn't mean slower. Dedup URLs across queries.
+    search_queries = [
+        f"{query} {region} owner contact for sale by owner".strip(),
+        f"{query} {region} phone email contact".strip(),
+    ]
+    search_text = ""
+    urls: list[str] = []
+    seen: set[str] = set()
+    for sq in search_queries:
+        try:
+            text = await web_search(sq)
+        except Exception as e:
+            if not search_text:
+                return ConnectorResult(ok=False, error=f"Web search failed: {e}")
+            continue
+        search_text += f"\n\n--- search: {sq} ---\n{text}"
+        for u in re.findall(r"URL: (\S+)", text):
+            if u not in seen:
+                seen.add(u)
+                urls.append(u)
+    urls = urls[:MAX_PAGES]
+
+    pages, used_playwright = await fetch_pages(urls, progress_cb=progress_cb)
 
     combined = search_text
     for url, text in pages:
         combined += f"\n\nSOURCE: {url}\n{text}"
+
+    await _emit("Reading what I found…")
 
     region_note = f" (region: {region})" if region else ""
     prompt = f"""Research target: "{query}"{region_note}
@@ -53,7 +81,10 @@ If nothing relevant is found, return {{"contacts": []}}."""
         print(f"SELLER_RESEARCH: extraction error: {e}")
 
     sources_block = "Sources:\n" + "\n".join(f"- {u}" for u in urls) if urls else "Sources: none found"
-    note = "" if used_playwright else "Playwright wasn't available at runtime, so this is based on web search results only."
+    # Static httpx fetch runs regardless of Playwright now; only note degradation
+    # when no page content was read at all and we fell back to search snippets.
+    got_pages = bool(pages)
+    note = "" if got_pages else "Couldn't read the candidate pages directly, so this is based on web search results only."
 
     return ConnectorResult(
         ok=True,
@@ -62,7 +93,7 @@ If nothing relevant is found, return {{"contacts": []}}."""
             "contacts": parsed.get("contacts", []),
             "sources": urls,
             "sources_block": sources_block,
-            "degraded_to_web_search_only": not used_playwright,
+            "degraded_to_web_search_only": not got_pages,
             "note": note,
         },
     )
