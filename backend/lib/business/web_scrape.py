@@ -24,6 +24,9 @@ import trafilatura
 from pypdf import PdfReader
 
 from backend.lib.business.connectors.base import ConnectorResult
+from backend.tools.citation_context import add_source
+from backend.tools.url_fetch import fetch_url_content
+from backend.tools.web_search import web_search
 
 USER_AGENT = "Mozilla/5.0 (compatible; JarvisOS1Bot/1.0; +https://jarvis-by-mg-co.vercel.app)"
 HTTPX_TIMEOUT = 5.0
@@ -277,6 +280,35 @@ async def scrape(url: str, max_pages: int = 1) -> dict:
 
 async def execute_web_tool(action_name: str, inp: dict) -> ConnectorResult:
     """Dispatch for the always-on `web__*` tool family (no connector required)."""
+    if action_name == "search":
+        query = (inp.get("query") or "").strip()
+        if not query:
+            return ConnectorResult(ok=False, error="`query` is required")
+        # web_search returns a numbered, citation-registered results block (it calls
+        # add_source internally so [1], [2] line up with the request's source list).
+        text = await web_search(query)
+        return ConnectorResult(ok=True, data={"query": query, "results": text})
+
+    if action_name == "fetch_url":
+        url = (inp.get("url") or "").strip()
+        if not url:
+            return ConnectorResult(ok=False, error="`url` is required")
+        result = await fetch_url_content(url)
+        if result.get("error"):
+            return ConnectorResult(ok=False, error=f"Could not fetch {url}: {result['error']}")
+        idx = add_source(
+            url=result["url"],
+            title=result["title"],
+            snippet=result["content"][:200],
+            source_type="fetched",
+        )
+        return ConnectorResult(ok=True, data={
+            "source_index": idx,
+            "url": result["url"],
+            "title": result["title"],
+            "content": result["content"],
+        })
+
     if action_name == "scrape_website":
         url = (inp.get("url") or "").strip()
         if not url:

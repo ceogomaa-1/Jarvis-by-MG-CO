@@ -20,6 +20,7 @@ from backend.lib.business.document_store import save_document
 from backend.lib.business.real_estate.profile import is_real_estate_user
 from backend.lib.business.intent_router import classify_message_intent
 from backend.usage_limits import check_limit, increment_usage, get_usage
+from backend.tools.citation_context import init_collector
 
 router = APIRouter()
 
@@ -399,6 +400,12 @@ async def business_chat_stream(request: BusinessChatRequest):
             conv_id = request.conversation_id
 
     async def generate():
+        # Per-request citation collector — so web__search / web__fetch_url register
+        # sources and their inline [1], [2] numbering lines up. Tools run in tasks
+        # whose context is copied AFTER this set(), and add_source mutates the shared
+        # list, so appends remain visible across those tasks.
+        init_collector()
+
         # Limit check — yield friendly message and bail
         if limit_exceeded:
             limit = limit_usage_info.get("limit", 32)

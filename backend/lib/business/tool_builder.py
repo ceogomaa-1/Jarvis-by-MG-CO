@@ -15,6 +15,37 @@ from backend.lib.business.real_estate.tools import REAL_ESTATE_TOOLS
 # Always-on tools: available to every user regardless of connected connectors.
 # ─────────────────────────────────────────────────────────────────────────────
 _ALWAYS_ON_TOOLS: dict[str, dict] = {
+    "web__search": {
+        "description": (
+            "Search the web for current or real-time information — news, sports scores/schedules, "
+            "prices, weather, facts, and people/business lookups. Returns numbered results; cite them "
+            "inline as [1], [2]. Use this whenever the user asks about anything you don't already know "
+            "or that is time-sensitive — never refuse a general question by claiming you can't search. "
+            "Follow up with web__fetch_url on the most relevant result when you need the full details."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "The search query. Keep it short and specific, 2-6 words."},
+            },
+            "required": ["query"],
+        },
+    },
+    "web__fetch_url": {
+        "description": (
+            "Fetch and read the full text content of a specific URL (a link from web__search results or "
+            "one the user mentioned). Use for a fast read of a single page. For JavaScript-heavy sites "
+            "(Wix, Squarespace, etc.) or to auto-discover a homepage's sub-pages and linked PDFs, use "
+            "web__scrape_website instead."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "The full URL to fetch (must start with http:// or https://)"},
+            },
+            "required": ["url"],
+        },
+    },
     "web__scrape_website": {
         "description": (
             "Fetch and read the full content of a URL. Renders JavaScript-heavy pages "
