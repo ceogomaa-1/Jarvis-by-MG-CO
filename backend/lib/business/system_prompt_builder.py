@@ -13,8 +13,9 @@ from backend.lib.business.bible_loader import load_bible, get_industry_filename
 from backend.lib.business.intent_classifier import classify_intent
 from backend.lib.business.connectors.registry import available_connectors_summary
 from backend.lib.business.brand_config import get_brand_config
-from backend.lib.grounding import GROUNDING_CONTRACT
+from backend.lib.grounding import GROUNDING_CONTRACT, CAPABILITY_CONTRACT, render_capability_manifest
 from backend.lib.jarvis_core import JARVIS_CORE_CONTRACT
+from backend.lib.business.connectors.registry import _CONNECTOR_LABELS, list_user_connections
 
 SUPABASE_URL = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
@@ -384,6 +385,68 @@ def _fetch_user_profile(user_id: str) -> dict:
         return {}
 
 
+# Friendly labels for tool-name prefixes (connector_type__action) when rendering
+# the live capability manifest. Anything not listed falls back to the raw prefix.
+_TOOL_GROUP_LABELS: dict[str, str] = {
+    "web": "Web (live search + read pages)",
+    "stripe": "Stripe",
+    "twilio": "Twilio SMS",
+    "smtp": "Email (SMTP)",
+    "elevenlabs": "ElevenLabs voice agents",
+    "notion": "Notion",
+    "google": "Google Calendar + Gmail",
+    "gohighlevel": "GoHighLevel CRM",
+    "github": "GitHub",
+    "vercel": "Vercel",
+    "supabase_project": "Supabase projects",
+    "buffer": "Buffer social",
+    "realestate": "Real-estate operator suite",
+}
+
+
+async def build_capability_manifest_block(user_id: str) -> str:
+    """Assemble the live capability manifest from the user's REAL available tools
+    and active connections (Business). This is what makes Jarvis know itself —
+    so it can admit "I can't do that yet" instead of inventing.
+    """
+    from backend.lib.business.tool_builder import build_tools_for_user
+
+    tools = await build_tools_for_user(user_id) if user_id else await build_tools_for_user("")
+    by_prefix: dict[str, list[str]] = {}
+    for t in tools:
+        prefix, _, action = t["name"].partition("__")
+        by_prefix.setdefault(prefix, []).append(action or prefix)
+
+    can_do: list[str] = []
+    for prefix in sorted(by_prefix):
+        label = _TOOL_GROUP_LABELS.get(prefix, prefix)
+        actions = ", ".join(sorted(set(by_prefix[prefix])))
+        can_do.append(f"{label} — {actions}")
+    can_do.append("Build a deliverable (campaign, landing page, deck, multi-section doc) via the Creation engine — only when the user explicitly asks you to build one")
+
+    active: set[str] = set()
+    if user_id:
+        try:
+            rows = await list_user_connections(_user_id_to_uuid(user_id))
+            active = {r["connector_type"] for r in rows if r.get("status") == "active"}
+        except Exception:
+            active = set()
+    connected = [_CONNECTOR_LABELS.get(t, t) for t in sorted(active)]
+
+    not_connected = [label for t, label in _CONNECTOR_LABELS.items() if t not in active]
+    cannot_do: list[str] = []
+    if not_connected:
+        cannot_do.append(
+            "Act on services that aren't connected yet: "
+            + ", ".join(not_connected)
+            + " (the user connects these in Settings → Connections)."
+        )
+    if not ({"github", "vercel"} <= active):
+        cannot_do.append("Deploy a website live — needs both GitHub and Vercel connected.")
+
+    return render_capability_manifest(can_do, connected, cannot_do)
+
+
 async def build_system_prompt(user_id: str, user_message: str) -> tuple[str, list[str]]:
     """
     Build the full system prompt for a business chat message.
@@ -469,7 +532,14 @@ async def build_system_prompt(user_id: str, user_message: str) -> tuple[str, lis
         parts.append(skills_block)
     parts.append(base_prompt)
     parts.append(GROUNDING_CONTRACT)
+    parts.append(CAPABILITY_CONTRACT)
     parts.append(JARVIS_CORE_CONTRACT)
+    # Live capability manifest — what Jarvis can actually do this turn (real tools +
+    # connections), so it stays grounded about its own abilities. Best-effort.
+    try:
+        parts.append(await build_capability_manifest_block(user_id))
+    except Exception as _manifest_err:
+        print(f"CAPABILITY_MANIFEST: skipped ({_manifest_err})")
     parts.append(_WEBDEV_BUILDER)
     parts.append(_WEB_RESEARCH_CAPABILITIES)
     if has_connectors:

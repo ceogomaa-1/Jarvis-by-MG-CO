@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 import anthropic
 from backend.utils.env import ANTHROPIC_API_KEY
 from backend.tools.soul import get_soul
-from backend.lib.grounding import GROUNDING_CONTRACT
+from backend.lib.grounding import GROUNDING_CONTRACT, CAPABILITY_CONTRACT, render_capability_manifest
 from backend.lib.jarvis_core import JARVIS_CORE_CONTRACT
 
 logger = logging.getLogger(__name__)
@@ -357,6 +357,7 @@ def _build_system_prompt(
 
     system_prompt += _CITATION_RULES
     system_prompt += f"\n\n{GROUNDING_CONTRACT}"
+    system_prompt += f"\n\n{CAPABILITY_CONTRACT}"
     system_prompt += f"\n\n{JARVIS_CORE_CONTRACT}"
     system_prompt += _TESTING_PHASE_AWARENESS
     system_prompt += _INTERNAL_DISCRETION
@@ -416,6 +417,21 @@ async def jarvis_think(
     system_prompt = _build_system_prompt(memory_context, user_model_context, system_override, tone_context, live_context, moment_block=moment_block, voice_mode=voice_mode, user_id=user_id)
     if not system_override:
         system_prompt = "YOU ARE NOT IN ONBOARDING MODE. ALL TOOLS ARE ACTIVE. CALL THEM WITHOUT HESITATION.\n\n" + system_prompt
+        # Live capability manifest from the REAL tool list, so Personal Jarvis knows
+        # itself and admits limits instead of inventing. Only when tools are active.
+        if available_tools:
+            try:
+                _tool_names = sorted({t["name"] for t in all_tools})
+                _can_do = []
+                if any("search" in n for n in _tool_names):
+                    _can_do.append("Search the live web and read pages for current facts (news, scores, prices, weather, lookups)")
+                _can_do.append("Tools available this turn: " + ", ".join(_tool_names))
+                _cannot_do = [
+                    "Act on Business services like Stripe, a CRM, social publishing, or website deploys — that's Jarvis OS1 (Business mode), not Personal.",
+                ]
+                system_prompt += "\n\n" + render_capability_manifest(_can_do, [], _cannot_do)
+            except Exception as _manifest_err:
+                print(f"PERSONAL_MANIFEST: skipped ({_manifest_err})")
 
     messages = [{"role": m["role"], "content": m["content"]} for m in conversation_history]
     messages.append({"role": "user", "content": user_message})
