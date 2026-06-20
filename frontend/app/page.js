@@ -7,6 +7,7 @@ import remarkGfm from 'remark-gfm'
 import { supabase } from '../lib/supabase'
 import { getJarvisMode, setJarvisMode } from '../lib/userPreferences'
 import ModeToggle from '../components/shared/ModeToggle'
+import WhatsNewBell from '../components/shared/WhatsNew'
 import StudyView, { StudyToggle } from '../components/shared/StudyView'
 import SignOutDrawer from '../components/shared/SignOutDrawer'
 import NotesPanel from '../components/shared/NotesPanel'
@@ -2494,6 +2495,7 @@ export default function Home() {
             <StatusPill state={orbState} />
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
               <StudyToggle studyMode={false} onToggle={toggleStudyMode} />
+              {userId && <WhatsNewBell userId={userId} variant="personal" />}
               <PermissionChip icon="◉" label="Screen"   granted />
               <PermissionChip icon="⌖" label="Cursor"   granted />
               <PermissionChip icon="✦" label="Calendar" granted />

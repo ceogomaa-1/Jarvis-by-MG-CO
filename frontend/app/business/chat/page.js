@@ -5,6 +5,7 @@ import { supabase } from '../../../lib/supabase'
 import ChatCanvas from '../../../components/business/ChatCanvas'
 import ChatSidebar from '../../../components/business/ChatSidebar'
 import ChatHeaderMenu from '../../../components/business/ChatHeaderMenu'
+import WhatsNewBell from '../../../components/shared/WhatsNew'
 import { getBusinessUser } from '../../../lib/userPreferences'
 import { useFontPref } from '../../../lib/fontPref'
 import TetrisLoader from '../../../components/ui/TetrisLoader'
@@ -202,6 +203,13 @@ export default function BusinessChatPage() {
         >
           Sign in
         </button>
+      )}
+
+      {/* What's New bell — fixed beside the hamburger */}
+      {userId && (
+        <div style={{ position: 'fixed', top: 20, right: 66, zIndex: 50 }}>
+          <WhatsNewBell userId={userId} variant="business" />
+        </div>
       )}
 
       {/* Right-side menu: hamburger (fixed top-right) + slide panel + modals */}

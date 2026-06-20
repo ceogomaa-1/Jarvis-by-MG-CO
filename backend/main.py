@@ -50,6 +50,7 @@ from backend.cron.business_risk_cron import run_business_risk_briefings
 from backend.routes.user_preferences import router as user_preferences_router
 from backend.routes.export import router as export_router
 from backend.routes.documents import router as documents_router
+from backend.routes.announcements_routes import router as announcements_router
 from backend.routes.business.readiness_routes import router as business_readiness_router
 from backend.routes.business.onboarding_routes import router as business_onboarding_router
 from backend.routes.business.documents import router as business_documents_router
@@ -187,6 +188,7 @@ app.include_router(business_morning_queue_router, prefix="/api")
 app.include_router(business_mind_router, prefix="/api")
 app.include_router(business_feedback_router, prefix="/api")
 app.include_router(business_email_router, prefix="/api")
+app.include_router(announcements_router, prefix="/api")
 
 
 @app.on_event("startup")
