@@ -1,7 +1,11 @@
 """
-Stripe financial data connector. Read-only for v1 — we read transactions,
-customers, revenue, balance. Write operations (creating invoices, refunds)
-deferred to Batch 21.
+Stripe financial data connector.
+
+Reads: transactions, customers, revenue, balance.
+Writes: products + prices (create_product / create_price / create_subscription_product)
+— used to set up pricing tiers / subscription plans on Stripe. Writes are gated by
+hold-to-confirm in the chat flow (WRITE_ACTIONS) before they ever run, and only
+real Stripe-confirmed IDs are returned (never invented).
 """
 import httpx
 
@@ -11,7 +15,7 @@ from backend.lib.business.connectors.base import BaseConnector, ConnectorResult
 class StripeConnector(BaseConnector):
     CONNECTOR_TYPE = "stripe"
     DISPLAY_NAME = "Stripe"
-    DESCRIPTION = "Read your real-time revenue, customers, and transactions."
+    DESCRIPTION = "Read revenue and transactions, and create products / pricing tiers."
     DOCS_URL = "https://dashboard.stripe.com/apikeys"
     REQUIRED_FIELDS = {
         "secret_key": {
@@ -27,6 +31,27 @@ class StripeConnector(BaseConnector):
 
     def _auth(self) -> tuple[str, str]:
         return (self.credentials["secret_key"], "")
+
+    def _mode(self) -> str:
+        """'live' or 'test', inferred from the connected secret key prefix."""
+        key = self.credentials.get("secret_key", "") or ""
+        return "live" if key.startswith("sk_live_") else "test"
+
+    @staticmethod
+    def _flatten(prefix: str, mapping: dict | None) -> dict:
+        """Flatten a dict into Stripe's bracketed form-encoding (metadata[key]=val)."""
+        out: dict = {}
+        for k, v in (mapping or {}).items():
+            if v is not None:
+                out[f"{prefix}[{k}]"] = str(v)
+        return out
+
+    @staticmethod
+    def _stripe_error(resp) -> str:
+        try:
+            return resp.json().get("error", {}).get("message") or f"Stripe {resp.status_code}"
+        except Exception:
+            return f"Stripe {resp.status_code}: {resp.text[:200]}"
 
     async def test(self) -> ConnectorResult:
         missing = self._missing_fields()
@@ -142,3 +167,118 @@ class StripeConnector(BaseConnector):
             )
         except Exception as e:
             return ConnectorResult(ok=False, error=f"Revenue summary exception: {e}")
+
+    # ─── Writes: products + prices ──────────────────────────────────────────
+    async def create_product(
+        self,
+        name: str,
+        description: str | None = None,
+        metadata: dict | None = None,
+    ) -> ConnectorResult:
+        """Create a Stripe Product. Returns the real prod_… id on a 2xx; never invents one."""
+        if not name:
+            return ConnectorResult(ok=False, error="Product name is required.")
+        data = {"name": name}
+        if description:
+            data["description"] = description
+        data.update(self._flatten("metadata", metadata))
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(f"{self.BASE}/products", auth=self._auth(), data=data, timeout=15.0)
+            if resp.status_code != 200:
+                return ConnectorResult(ok=False, error=self._stripe_error(resp))
+            p = resp.json()
+            return ConnectorResult(ok=True, data={
+                "product_id": p.get("id"),
+                "name": p.get("name"),
+                "livemode": p.get("livemode"),
+                "mode": self._mode(),
+            })
+        except Exception as e:
+            return ConnectorResult(ok=False, error=f"Create product exception: {e}")
+
+    async def create_price(
+        self,
+        product_id: str,
+        unit_amount: int,
+        currency: str = "usd",
+        interval: str | None = None,
+        nickname: str | None = None,
+        metadata: dict | None = None,
+    ) -> ConnectorResult:
+        """Create a Stripe Price for a product. `unit_amount` is in the minor unit
+        (cents). Pass `interval` ('day'|'week'|'month'|'year') for a recurring
+        subscription price; omit it for a one-time price. Returns the real price_… id."""
+        if not product_id:
+            return ConnectorResult(ok=False, error="product_id is required to create a price.")
+        try:
+            amount = int(unit_amount)
+        except (TypeError, ValueError):
+            return ConnectorResult(ok=False, error="unit_amount must be an integer number of cents.")
+        if amount <= 0:
+            return ConnectorResult(ok=False, error="unit_amount must be greater than 0 (in cents).")
+
+        data: dict = {"product": product_id, "unit_amount": amount, "currency": (currency or "usd").lower()}
+        if interval:
+            data["recurring[interval]"] = interval
+        if nickname:
+            data["nickname"] = nickname
+        data.update(self._flatten("metadata", metadata))
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(f"{self.BASE}/prices", auth=self._auth(), data=data, timeout=15.0)
+            if resp.status_code != 200:
+                return ConnectorResult(ok=False, error=self._stripe_error(resp))
+            pr = resp.json()
+            return ConnectorResult(ok=True, data={
+                "price_id": pr.get("id"),
+                "product_id": pr.get("product"),
+                "unit_amount": pr.get("unit_amount"),
+                "currency": pr.get("currency"),
+                "interval": (pr.get("recurring") or {}).get("interval"),
+                "livemode": pr.get("livemode"),
+                "mode": self._mode(),
+            })
+        except Exception as e:
+            return ConnectorResult(ok=False, error=f"Create price exception: {e}")
+
+    async def create_subscription_product(
+        self,
+        name: str,
+        amount_cents: int,
+        description: str | None = None,
+        interval: str = "month",
+        currency: str = "usd",
+        metadata: dict | None = None,
+    ) -> ConnectorResult:
+        """Convenience: create a Product AND a recurring Price in one call — i.e. a
+        full subscription pricing tier. Returns both real IDs (prod_…/price_…)."""
+        prod = await self.create_product(name=name, description=description, metadata=metadata)
+        if not prod.ok:
+            return prod
+        product_id = prod.data["product_id"]
+        price = await self.create_price(
+            product_id=product_id,
+            unit_amount=amount_cents,
+            currency=currency,
+            interval=interval,
+            nickname=name,
+            metadata=metadata,
+        )
+        if not price.ok:
+            # Product was created but the price failed — report honestly with the real
+            # product id so nothing is silently orphaned or misrepresented as complete.
+            return ConnectorResult(
+                ok=False,
+                error=f"Created product {product_id} but the price failed: {price.error}",
+                data={"product_id": product_id, "mode": self._mode()},
+            )
+        return ConnectorResult(ok=True, data={
+            "product_id": product_id,
+            "price_id": price.data["price_id"],
+            "name": name,
+            "amount_cents": int(amount_cents),
+            "currency": (currency or "usd").lower(),
+            "interval": interval,
+            "mode": self._mode(),
+        })

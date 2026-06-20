@@ -658,6 +658,9 @@ export default function ChatCanvas({
     const userMsgId = msgIdRef.current
     setMessages(prev => [...prev, { id: userMsgId, role: 'user', content: text, attachments }])
     setLoading(true)
+    // Show the working indicator within <1s — before the intent-classification
+    // round-trip — so there's never dead air while we decide how to route.
+    setIsThinking(true)
 
     // Single backend classification call decides chat vs show-me-how vs
     // create — replaces the old independent regex-detector cascade

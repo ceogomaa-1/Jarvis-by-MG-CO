@@ -85,6 +85,27 @@ async def _dispatch(connector, connector_type: str, action_name: str, inp: dict,
             return await connector.list_recent_charges(limit=int(inp.get("limit", 10)))
         if action_name == "revenue_summary":
             return await connector.revenue_summary_last_30_days()
+        if action_name == "create_subscription_tier":
+            return await connector.create_subscription_product(
+                name=inp["name"],
+                amount_cents=int(inp["amount_cents"]),
+                description=inp.get("description"),
+                interval=inp.get("interval", "month"),
+                currency=inp.get("currency", "usd"),
+            )
+        if action_name == "create_product":
+            return await connector.create_product(
+                name=inp["name"],
+                description=inp.get("description"),
+            )
+        if action_name == "create_price":
+            return await connector.create_price(
+                product_id=inp["product_id"],
+                unit_amount=int(inp["unit_amount"]),
+                currency=inp.get("currency", "usd"),
+                interval=inp.get("interval"),
+                nickname=inp.get("nickname"),
+            )
 
     # ── Twilio ────────────────────────────────────────────────────────────────
     if connector_type == "twilio":

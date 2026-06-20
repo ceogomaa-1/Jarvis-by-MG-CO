@@ -46,6 +46,9 @@ WRITE_ACTIONS = frozenset({
     "elevenlabs__update_agent",
     "elevenlabs__delete_agent",
     "gohighlevel__create_contact",
+    "stripe__create_subscription_tier",
+    "stripe__create_product",
+    "stripe__create_price",
     "buffer__create_post",
     "buffer__schedule_post",
     "buffer__add_to_queue",
@@ -92,6 +95,19 @@ def _describe_action(tool_name: str, tool_input: dict) -> str:
         first = tool_input.get("firstName", "")
         last = tool_input.get("lastName", "")
         return f"Create contact: {(first + ' ' + last).strip() or '?'}"
+    if tool_name == "stripe__create_subscription_tier":
+        amount = tool_input.get("amount_cents", 0) or 0
+        interval = tool_input.get("interval", "month")
+        cur = (tool_input.get("currency", "usd") or "usd").upper()
+        return f"Create Stripe tier: {tool_input.get('name', '?')} — {cur} {amount / 100:.2f}/{interval}"
+    if tool_name == "stripe__create_product":
+        return f"Create Stripe product: {tool_input.get('name', '?')}"
+    if tool_name == "stripe__create_price":
+        amount = tool_input.get("unit_amount", 0) or 0
+        cur = (tool_input.get("currency", "usd") or "usd").upper()
+        interval = tool_input.get("interval")
+        suffix = f"/{interval}" if interval else " one-time"
+        return f"Create Stripe price on {tool_input.get('product_id', '?')}: {cur} {amount / 100:.2f}{suffix}"
     if tool_name == "realestate__ghl_add_note":
         note = (tool_input.get("note") or "")[:80]
         return f"Add CRM note: {note or '?'}"
@@ -788,6 +804,15 @@ async def confirm_action(request: ConfirmActionRequest):
 def _make_fallback_confirmation(tool_name: str, result_data: dict) -> str:
     if "error" in result_data:
         return f"Action failed: {result_data['error']}"
+    if tool_name.startswith("stripe__create"):
+        mode = result_data.get("mode", "")
+        mode_note = f" ({mode} mode)" if mode else ""
+        price_id = result_data.get("price_id")
+        product_id = result_data.get("product_id")
+        if price_id and product_id:
+            return f"Created on Stripe{mode_note}: product {product_id}, price {price_id}."
+        if product_id:
+            return f"Created Stripe product {product_id}{mode_note}."
     if result_data.get("status") == "deleted":
         return "Deleted successfully."
     if result_data.get("status") == "updated":

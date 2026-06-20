@@ -88,6 +88,59 @@ _TOOLS: dict[str, dict] = {
         "description": "[Stripe] Get gross revenue summary for the last 30 days — total, count, and currency.",
         "input_schema": {"type": "object", "properties": {}, "required": []},
     },
+    "stripe__create_subscription_tier": {
+        "description": (
+            "[Stripe] WRITE: Create a real subscription pricing tier on Stripe — a Product plus a "
+            "recurring Price in one step (e.g. 'Pro at $249/mo'). Use this for setting up pricing "
+            "tiers / plans. amount_cents is in cents ($249 = 24900). First show the user the exact "
+            "tiers, amounts, and billing interval and let the system require hold-to-confirm; then "
+            "report the REAL prod_…/price_… IDs the tool returns. Never invent IDs or claim it was "
+            "created without a successful result."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Tier / product name, e.g. 'Pro' or 'Operator'"},
+                "amount_cents": {"type": "integer", "description": "Price in cents ($249/mo = 24900)"},
+                "interval": {"type": "string", "enum": ["day", "week", "month", "year"], "description": "Billing interval (default month)"},
+                "currency": {"type": "string", "description": "3-letter currency code (default usd)"},
+                "description": {"type": "string", "description": "Optional product description"},
+            },
+            "required": ["name", "amount_cents"],
+        },
+    },
+    "stripe__create_product": {
+        "description": (
+            "[Stripe] WRITE: Create a single Stripe Product (no price). Prefer create_subscription_tier "
+            "when you also need a recurring price. Confirm with the user first; report the real prod_… id."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Product name"},
+                "description": {"type": "string", "description": "Optional product description"},
+            },
+            "required": ["name"],
+        },
+    },
+    "stripe__create_price": {
+        "description": (
+            "[Stripe] WRITE: Create a Price for an existing Stripe product. unit_amount is in cents. "
+            "Pass interval for a recurring/subscription price; omit it for a one-time price. Confirm "
+            "first; report the real price_… id."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product_id": {"type": "string", "description": "Existing Stripe product id (prod_…)"},
+                "unit_amount": {"type": "integer", "description": "Amount in cents ($10 = 1000)"},
+                "currency": {"type": "string", "description": "3-letter currency code (default usd)"},
+                "interval": {"type": "string", "enum": ["day", "week", "month", "year"], "description": "Recurring interval; omit for one-time price"},
+                "nickname": {"type": "string", "description": "Optional price nickname"},
+            },
+            "required": ["product_id", "unit_amount"],
+        },
+    },
 
     # ── Twilio ────────────────────────────────────────────────────────────────
     "twilio__send_sms": {

@@ -12,7 +12,6 @@ from supabase import create_client
 from backend.lib.business.connectors.registry import list_user_connections
 from backend.lib.business.connectors.registry import get_connector_for_user
 from backend.lib.business.creation.deploy_pipeline import run_deploy_pipeline
-from backend.lib.business.creation.deployment_phase import deploy_project_after_creation
 from backend.lib.business.creation.orchestrator import orchestrate_creation
 from backend.lib.business.creation.persistence import (
     complete_creation_row,
@@ -52,6 +51,14 @@ _DEPLOY_OFFER_RE = re.compile(
     r"(github\s*\+\s*vercel|vercel.*github|github.*vercel|trigger live url|live url generation|"
     r"push all files|spawn a sub-agent.*deploy|deployment)",
     re.IGNORECASE | re.DOTALL,
+)
+
+# Appended to a website/landing-page artifact so the user can choose to deploy.
+# Mentions "GitHub + Vercel" so the explicit "deploy it" path (_DEPLOY_OFFER_RE)
+# can later find this artifact. We never deploy without this confirmation.
+_DEPLOY_OFFER_SUFFIX = (
+    "\n\n---\n\n🚀 **Want this live?** Say **\"deploy it\"** and I'll push it to "
+    "GitHub + Vercel and hand you the live URL. Nothing is deployed until you do."
 )
 
 
@@ -124,12 +131,6 @@ def _save_message(sb, conv_id: str, content: str) -> str | None:
     return res.data[0]["id"] if res.data else None
 
 
-def _update_message(sb, message_id: str, content: str) -> None:
-    sb.table("business_messages").update({
-        "content": content,
-    }).eq("id", message_id).execute()
-
-
 def _load_deploy_confirmation_artifact(sb, user_id: str, conv_id: str | None) -> str:
     """Find the recent assistant artifact that offered GitHub + Vercel deployment."""
     if not sb or not user_id or not conv_id:
@@ -160,18 +161,6 @@ def _load_deploy_confirmation_artifact(sb, user_id: str, conv_id: str | None) ->
         if _DEPLOY_OFFER_RE.search(content):
             return content
     return ""
-
-
-async def _collect_deploy_events(user_id: str, deploy_content: str, user_message: str) -> list[dict]:
-    """Collect all deployment SSE events into a list (enables timeout wrapping)."""
-    events = []
-    async for ev in deploy_project_after_creation(
-        user_id=user_id,
-        artifact_markdown=deploy_content,
-        user_message=user_message,
-    ):
-        events.append(ev)
-    return events
 
 
 async def _await_with_status(coro, status_message: str, interval: float = 8.0):
@@ -258,7 +247,6 @@ async def business_create(request: CreateRequest):
     async def generate():
         creation_id = None
         artifact = ""
-        code_for_deployment = ""
         has_error = False
         error_msg = ""
         conv_id = request.conversation_id
@@ -372,10 +360,15 @@ async def business_create(request: CreateRequest):
 
                 elif event["type"] == "artifact":
                     artifact = event.get("content", "")
+                    # For website builds with deploy connectors, OFFER deployment —
+                    # never auto-deploy. The offer text (mentioning GitHub + Vercel)
+                    # is what the explicit "deploy it" confirmation path keys off of.
+                    if _is_website_build(request.message) and has_deploy_connectors:
+                        artifact = artifact.rstrip() + _DEPLOY_OFFER_SUFFIX
+                        event["content"] = artifact
 
                 elif event["type"] == "code_artifact":
-                    # Designer's raw code — not shown in chat, passed to deployment
-                    code_for_deployment = event.get("content", "")
+                    # Designer's raw code — never shown in chat (FIX 4: no raw code dumps).
                     continue  # do NOT forward to frontend
 
                 elif event["type"] == "error":
@@ -407,102 +400,12 @@ async def business_create(request: CreateRequest):
 
                 yield f"data: {json.dumps(event)}\n\n"
 
-            # ── DEPLOYMENT PHASE — isolated try/except ──
-            # Creation output is already persisted above; a crash here is non-fatal.
-            if artifact and not has_error and request.user_id:
-
-                if _is_website_build(request.message) and has_deploy_connectors:
-                    # ── NEW PATH: deterministic Next.js build + real URL ──────────
-                    try:
-                        yield f'data: {json.dumps({"type": "deployment_status", "message": "Generating Next.js codebase…"})}\n\n'
-                        site = None
-                        async for result in _await_with_status(
-                            generate_site(request.message, {**context, "artifact": artifact}),
-                            "Still generating the Next.js codebase…",
-                        ):
-                            if isinstance(result, dict) and "files" in result:
-                                site = result
-                            else:
-                                yield f"data: {json.dumps(result)}\n\n"
-
-                        if not site:
-                            raise RuntimeError("site generator returned no files")
-                        if site.get("is_fallback"):
-                            fallback_notice = (
-                                "The custom build step hit an issue, so I deployed a clean generic "
-                                "starter instead, it will not match the design brief above. "
-                                "Say \"rebuild the site\" to retry the custom version."
-                            )
-                            yield f'data: {json.dumps({"type": "deployment_status", "message": fallback_notice})}\n\n'
-                        file_count = len(site.get("files", []))
-                        yield f'data: {json.dumps({"type": "deployment_status", "message": f"Generated {file_count} files — starting deploy pipeline…"})}\n\n'
-
-                        deploy_url: str | None = None
-                        deploy_msg: str | None = None
-                        async for dev in run_deploy_pipeline(request.user_id, site, request.message, creation_id):
-                            yield f"data: {json.dumps(dev)}\n\n"
-                            if dev.get("type") == "deployment_complete":
-                                deploy_url = dev.get("url")
-                                deploy_msg = dev.get("message", "")
-                            elif dev.get("type") == "deployment_pending":
-                                await mark_deployment_pending(
-                                    creation_id,
-                                    dev.get("deployment_id", ""),
-                                    repo_url=dev.get("repo_url", ""),
-                                    expected_url=dev.get("expected_url", ""),
-                                )
-
-                        if saved_msg_id and deploy_url and conv_id:
-                            try:
-                                sb = _get_supabase()
-                                if sb:
-                                    updated = artifact + "\n\n---\n\n" + (deploy_msg or f"🚀 Deployed: {deploy_url}")
-                                    await asyncio.to_thread(_update_message, sb, saved_msg_id, updated)
-                            except Exception as upd_err:
-                                print(f"[CREATE] DB update post-deploy failed (non-fatal): {upd_err}")
-
-                    except Exception as dep_err:
-                        print(f"[CREATE] Website build failed: {dep_err}")
-                        yield f'data: {json.dumps({"type": "deployment_error", "value": "⚠️ Website build hit an error. The design was saved — say \'deploy the last project\' to retry."})}\n\n'
-
-                else:
-                    # ── OLD PATH: LLM tool-loop deployment (non-website creations) ──
-                    deploy_content = (
-                        code_for_deployment
-                        if (has_deploy_connectors and code_for_deployment)
-                        else artifact
-                    )
-
-                    try:
-                        deploy_events = await asyncio.wait_for(
-                            _collect_deploy_events(request.user_id, deploy_content, request.message),
-                            timeout=45.0,
-                        )
-
-                        deploy_url = None
-                        deploy_msg = None
-                        for dev in deploy_events:
-                            yield f"data: {json.dumps(dev)}\n\n"
-                            if dev.get("type") == "deployment_complete":
-                                deploy_url = dev.get("url")
-                                deploy_msg = dev.get("message", "")
-
-                        if saved_msg_id and deploy_url and conv_id:
-                            try:
-                                sb = _get_supabase()
-                                if sb:
-                                    updated = artifact + "\n\n---\n\n" + (deploy_msg or f"🚀 Deployed: {deploy_url}")
-                                    await asyncio.to_thread(_update_message, sb, saved_msg_id, updated)
-                            except Exception as upd_err:
-                                print(f"[CREATE] DB update post-deploy failed (non-fatal): {upd_err}")
-
-                    except asyncio.TimeoutError:
-                        print("[CREATE] Deployment timed out after 45s")
-                        yield f'data: {json.dumps({"type": "deployment_error", "value": "⚠️ Deployment timed out after 45s. The code was saved — say \'deploy the last project\' to retry."})}\n\n'
-
-                    except Exception as dep_err:
-                        print(f"[CREATE] Deployment phase failed: {dep_err}")
-                        yield f'data: {json.dumps({"type": "deployment_error", "value": "⚠️ The website was designed, but deployment hit an error. Say \'deploy the last project\' to retry."})}\n\n'
+            # NOTE: deployment NEVER runs automatically here. A site/page is only
+            # pushed to GitHub + Vercel when the user explicitly confirms it — that
+            # path is handled at the top of this function via _is_deploy_confirmation.
+            # (This is the fix for the phantom auto-deploy that shipped websites no
+            # one asked for. For website builds, the artifact above ends with a
+            # "say 'deploy it'" offer instead.)
 
             yield "data: [DONE]\n\n"
 
