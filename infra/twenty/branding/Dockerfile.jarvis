@@ -1,0 +1,40 @@
+# Jarvis CRM — branded build of our Twenty fork.
+#
+# Build from the FORK root (where jarvis-branding/ lives), after pinning to the
+# upstream release tag (see ../FORK.md):
+#
+#   ./jarvis-branding/apply.sh        # overlay branding onto the source tree
+#   docker build -f infra/twenty/branding/Dockerfile.jarvis \
+#                -t ghcr.io/MG-CO/jarvis-crm:v0.42.0 .
+#
+# We build from source (not FROM twentycrm/twenty) because the app name, logo and
+# login screen are compiled into the frontend bundle — overlaying a prebuilt image
+# can't fully remove them. apply.sh must have already run so the overlay is in src.
+#
+# This mirrors upstream's own multi-stage build; keep the base image/tooling in step
+# with the pinned tag (Twenty publishes its Dockerfile under packages/twenty-docker).
+
+# Pin to the SAME upstream tag the rest of Phase 1 is pinned to.
+ARG TWENTY_VERSION=v0.42.0
+
+# Reuse upstream's build as the base so we inherit their toolchain, then rebuild the
+# frontend with our overlay applied. If upstream changes their Dockerfile between tags,
+# re-sync this against packages/twenty-docker/twenty/Dockerfile on the new tag.
+FROM twentycrm/twenty:${TWENTY_VERSION} AS upstream
+
+# --- Branded frontend rebuild -------------------------------------------------
+# apply.sh has already copied jarvis-branding/{logo,favicon,strings,theme} into the
+# source tree. Rebuild only the front package so branding is compiled in.
+WORKDIR /app
+COPY --chown=1000:1000 . /app
+RUN yarn nx build twenty-front
+
+# --- Final image --------------------------------------------------------------
+FROM twentycrm/twenty:${TWENTY_VERSION}
+# Replace the served frontend with our branded build.
+COPY --from=upstream /app/packages/twenty-front/build /app/packages/twenty-front/build
+# Branded favicon/static (belt-and-suspenders over the rebuild).
+COPY infra/twenty/branding/favicon/ /app/packages/twenty-front/build/
+LABEL org.opencontainers.image.title="Jarvis CRM" \
+      org.opencontainers.image.vendor="MG&CO" \
+      org.opencontainers.image.source="https://github.com/MG-CO/jarvis-crm"

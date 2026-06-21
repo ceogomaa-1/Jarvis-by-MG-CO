@@ -80,9 +80,12 @@ def _stage_field_names(targets: dict[str, list[tuple[str, str]]]) -> list[str]:
 
 
 async def execute_twenty_tool(action_name: str, inp: dict, user_id: str) -> ConnectorResult:
-    client = TwentyClient.from_env()
+    # Resolve THIS user's workspace (Phase 2) — their own tenant key, or the shared
+    # instance as fallback. The per-user key is the data-isolation boundary: it can
+    # only ever read/write its own workspace's records.
+    client = await TwentyClient.for_user(user_id)
     if not client:
-        return ConnectorResult(ok=False, error="Owned CRM (Twenty) is not configured on the server.")
+        return ConnectorResult(ok=False, error="Jarvis CRM is not configured for this account.")
 
     schema_res = await introspect(client)
     schema: TwentySchema = schema_res.data

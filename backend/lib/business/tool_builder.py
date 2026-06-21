@@ -979,9 +979,10 @@ async def build_tools_for_user(user_id: str) -> list[dict]:
             for name, defn in REAL_ESTATE_TOOLS.items()
         ]
 
-    # Owned CRM (Twenty) — env-gated single shared instance. Offered whenever the
-    # server has TWENTY_API_URL + TWENTY_API_KEY set.
-    if TwentyClient.configured():
+    # Jarvis CRM (self-hosted Twenty). Offered when the user has their OWN
+    # provisioned workspace (Phase 2) OR the server has a shared instance via
+    # TWENTY_API_URL + TWENTY_API_KEY (Phase 1 fallback).
+    if await TwentyClient.configured_for_user(user_id):
         tools += [
             {"name": name, "description": defn["description"], "input_schema": defn["input_schema"]}
             for name, defn in TWENTY_TOOLS.items()

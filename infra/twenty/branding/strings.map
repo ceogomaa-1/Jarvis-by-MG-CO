@@ -1,0 +1,9 @@
+# Jarvis CRM string replacements — old<TAB>new (TAB-separated, # = comment).
+# apply.sh sed-replaces these across twenty-front/src and twenty-emails/src.
+# Order matters: put longer/more-specific strings first so they win.
+# Keep this conservative — only user-visible product naming, never code identifiers,
+# package names, or import paths (those would break the build).
+Twenty CRM	Jarvis CRM
+Welcome to Twenty	Welcome to Jarvis CRM
+Twenty	Jarvis CRM
+twenty.com	jarvismgco.com

@@ -1,0 +1,7 @@
+# External link replacements — old<TAB>new (TAB-separated, # = comment).
+# Replace Twenty's outbound docs/support/marketing links with ours (or a neutral page).
+# AGPL source link is added separately in the footer (see AGPL-COMPLIANCE.md), not here.
+https://twenty.com/developers	https://jarvismgco.com
+https://docs.twenty.com	https://jarvismgco.com
+https://twenty.com/contact	https://jarvismgco.com
+https://twenty.com	https://jarvismgco.com

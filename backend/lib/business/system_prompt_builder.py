@@ -556,9 +556,10 @@ async def build_system_prompt(user_id: str, user_message: str) -> tuple[str, lis
             parts.append(_VOICE_AGENT_STYLE_GUIDE)
     if industry and get_industry_filename(industry) == "real_estate.md":
         parts.append(_REAL_ESTATE_CAPABILITIES)
-    # Owned CRM (Twenty) — advertise only when the server has it configured.
+    # Jarvis CRM (self-hosted Twenty) — advertise when the user has their own
+    # provisioned workspace (Phase 2) or the shared instance is configured (Phase 1).
     from backend.lib.business.twenty.client import TwentyClient
-    if TwentyClient.configured():
+    if await TwentyClient.configured_for_user(user_id):
         parts.append(_OWNED_CRM_CAPABILITIES)
     if autonomous_enabled:
         parts.append(_AUTONOMOUS_MODE_NOTE)

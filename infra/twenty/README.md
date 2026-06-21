@@ -1,11 +1,18 @@
-# Jarvis-owned CRM — self-hosted Twenty (Phase 1)
+# Jarvis CRM — self-hosted, white-labeled Twenty
 
-This is the owned CRM foundation. We run [Twenty](https://twenty.com) (open-source,
-AGPL — commercial use approved for this project) on our own VPS, then mirror a client's
-GoHighLevel structure + data into it. GHL stays connected and read-only.
+This is the owned CRM. We run a **white-labeled fork of [Twenty](https://twenty.com)**
+(AGPL-3.0 — commercial self-hosting approved) on our own VPS as **Jarvis CRM**, mirror a
+client's GoHighLevel structure + data into it, and give each client their own isolated
+workspace. GHL stays connected and read-only.
 
 > This holds **real client data**. The image tag in `docker-compose.yml` is pinned and
 > there is a backup plan below — follow it.
+
+**Phase docs:**
+- [`FORK.md`](./FORK.md) — fork + rebase workflow (how we stay upgradeable).
+- [`branding/`](./branding/README.md) — the Jarvis CRM white-label overlay (dark luxury theme).
+- [`AGPL-COMPLIANCE.md`](./AGPL-COMPLIANCE.md) — how we satisfy AGPL source-availability. **Read before go-live.**
+- Per-client workspaces: see [§7 below](#7-per-client-workspaces-phase-2).
 
 ---
 
@@ -104,5 +111,45 @@ Restore: `gunzip -c twenty-YYYY-MM-DD.sql.gz | docker compose exec -T db psql -U
 
 When both are set, the Jarvis business agent gains `twenty__*` tools and the GHL→Twenty
 importer (`backend/lib/business/twenty/`, run via `backend/scripts/import_ghl_to_twenty.py`)
-becomes available. Twenty is a single shared instance in Phase 1; per-client workspaces
-come in Phase 2 (white-label fork).
+becomes available. This single shared instance remains a valid fallback; Phase 2 adds
+per-client workspaces on top (below).
+
+---
+
+## 7. Per-client workspaces (Phase 2)
+
+Each client gets their **own data-isolated Twenty workspace**, reached at
+`<client>.crm.jarvismgco.com`. Jarvis resolves the right workspace per `user_id`.
+
+**One-time infra:**
+1. Wildcard DNS `*.crm.jarvismgco.com` → the VPS, and wildcard TLS (Caddy:
+   `*.crm.jarvismgco.com { reverse_proxy localhost:3000 }` with a DNS-01 cert).
+2. `IS_MULTIWORKSPACE_ENABLED=true` (already in `docker-compose.yml` / `.env.example`).
+3. Run the branded image (`JARVIS_CRM_IMAGE`) — see [`FORK.md`](./FORK.md).
+4. Apply the Jarvis migration so the backend can store workspace keys:
+   `supabase/migrations/batch58_twenty_workspaces.sql` (table `crm_client_workspaces`).
+
+**Provision a new client (repeatable):**
+1. In Jarvis CRM, create the client's workspace + pick a subdomain (e.g. `acme`).
+2. In that workspace: **Settings → API & Webhooks → Create Key** (copy once).
+3. Register it against the client's Jarvis `user_id`:
+   ```bash
+   python -m backend.scripts.provision_twenty_workspace \
+     --user-id <uuid> \
+     --base-url https://acme.crm.jarvismgco.com \
+     --api-key <workspace key> \
+     --display-name "Acme Realty"
+   ```
+   This verifies the key, applies Jarvis CRM defaults, and stores the mapping.
+4. Import their GHL data into *their* workspace:
+   `python -m backend.scripts.import_ghl_to_twenty --user-id <uuid>`
+   (the importer resolves the same per-user workspace automatically).
+
+**Isolation:** a workspace API key is scoped to one workspace, so client A's `user_id`
+can never resolve client B's records. Proven in
+`backend/tests/test_twenty_workspaces.py`.
+
+| Env var (Jarvis backend) | Meaning |
+|---|---|
+| `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | Back the `crm_client_workspaces` registry. |
+| `TWENTY_API_URL` / `TWENTY_API_KEY` | Optional Phase-1 shared instance (used as fallback when a user has no workspace). |

@@ -7,9 +7,15 @@ Twenty exposes TWO GraphQL endpoints off the same base URL:
 
 Auth is a Bearer API key (Settings -> API & Webhooks). Both share the same key.
 
-Configured purely from env so the feature is a single shared instance in Phase 1:
-  TWENTY_API_URL  — base URL, e.g. https://crm.yourdomain.com  (no trailing /graphql)
-  TWENTY_API_KEY  — the API key
+Two ways to build a client:
+  - Phase 1 (single shared instance, from env):
+      TWENTY_API_URL  — base URL, e.g. https://crm.yourdomain.com  (no trailing /graphql)
+      TWENTY_API_KEY  — the API key
+  - Phase 2 (per-client workspace, from the workspace registry):
+      TwentyClient.for_user(user_id) resolves the client's OWN workspace base_url +
+      api_key (crm_client_workspaces), falling back to env if they have none. This is
+      how data isolation is enforced: each user_id resolves to its own tenant's key,
+      and a key only ever sees its own workspace's records.
 
 Returns ConnectorResult to match the rest of the business layer (see connectors/base.py).
 """
@@ -18,6 +24,7 @@ import os
 import httpx
 
 from backend.lib.business.connectors.base import ConnectorResult
+from backend.lib.business.twenty import workspaces
 
 
 class TwentyClient:
@@ -38,8 +45,32 @@ class TwentyClient:
 
     @staticmethod
     def configured() -> bool:
-        """True iff both env vars are set — used to gate tools without building a client."""
+        """True iff both env vars are set — the single shared instance (Phase 1)."""
         return bool(os.getenv("TWENTY_API_URL", "").strip() and os.getenv("TWENTY_API_KEY", "").strip())
+
+    @classmethod
+    async def for_user(cls, user_id: str) -> "TwentyClient | None":
+        """Resolve the Twenty client for a specific user (Phase 2 multi-tenant).
+
+        Order:
+          1. The user's OWN provisioned workspace (crm_client_workspaces) — its
+             base_url + workspace-scoped api_key. This is the isolation boundary:
+             one client's key never resolves another client's records.
+          2. Fall back to the single shared instance from env (Phase 1) so existing
+             single-workspace deployments keep working unchanged.
+          3. None if neither is configured.
+        """
+        ws = await workspaces.get_workspace(user_id)
+        if ws and ws.get("base_url") and ws.get("api_key"):
+            return cls(ws["base_url"], ws["api_key"])
+        return cls.from_env()
+
+    @staticmethod
+    async def configured_for_user(user_id: str) -> bool:
+        """True iff this user can reach a CRM — their own workspace OR the shared env instance."""
+        if TwentyClient.configured():
+            return True
+        return await workspaces.has_workspace(user_id)
 
     # ── low-level GraphQL ────────────────────────────────────────────────────
     def _headers(self) -> dict:

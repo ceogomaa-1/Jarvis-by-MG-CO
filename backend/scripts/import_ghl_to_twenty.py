@@ -30,9 +30,14 @@ from backend.lib.business.twenty.introspect import introspect, log_schema
 
 
 async def _run(user_id: str, account_label: str, dry_run: bool, max_records: int | None) -> int:
-    client = TwentyClient.from_env()
+    # Resolve the client's OWN workspace (Phase 2) — imports land in their tenant,
+    # not the shared instance. Falls back to env (Phase 1) if they have no workspace.
+    client = await TwentyClient.for_user(user_id)
     if not client:
-        print("ERROR: Twenty not configured — set TWENTY_API_URL and TWENTY_API_KEY. Nothing to do.")
+        print("ERROR: No Jarvis CRM workspace for this user and no shared instance configured.")
+        print("       Register one first:  python -m backend.scripts.provision_twenty_workspace --user-id "
+              f"{user_id} --base-url <url> --api-key <key>")
+        print("       (or set TWENTY_API_URL + TWENTY_API_KEY for the single shared instance).")
         return 1
 
     # Step 2 — introspect (no guessing)
