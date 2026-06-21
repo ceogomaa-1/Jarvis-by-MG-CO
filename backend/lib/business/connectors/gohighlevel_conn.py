@@ -153,6 +153,50 @@ class GoHighLevelConnector(BaseConnector):
         params = {"location_id": self._location_id(), "pipeline_id": pipeline_id}
         return await self._request("GET", "/opportunities/search", "List opportunities", params=params)
 
+    # ─── Read-only structure + bulk reads (used by the Twenty CRM mirror/import) ───
+    async def get_custom_fields(self) -> ConnectorResult:
+        """List the location's custom field definitions (v2). Read-only.
+        Returns {customFields: [{id, name, dataType, options, model, ...}]}."""
+        return await self._request(
+            "GET",
+            f"/locations/{self._location_id()}/customFields",
+            "List custom fields",
+        )
+
+    async def get_tags(self) -> ConnectorResult:
+        """List the location's tags (v2). Read-only. Returns {tags: [{id, name}]}."""
+        return await self._request(
+            "GET",
+            f"/locations/{self._location_id()}/tags",
+            "List tags",
+        )
+
+    async def list_businesses(self) -> ConnectorResult:
+        """List businesses (GHL's company records) for the location (v2). Read-only."""
+        params = {"locationId": self._location_id()}
+        return await self._request("GET", "/businesses/", "List businesses", params=params)
+
+    async def search_opportunities_page(
+        self,
+        pipeline_id: str,
+        *,
+        limit: int = 100,
+        start_after: str | None = None,
+        start_after_id: str | None = None,
+    ) -> ConnectorResult:
+        """One page of opportunities in a pipeline (v2 /opportunities/search).
+        Response includes meta.startAfter / meta.startAfterId for cursoring."""
+        params = {
+            "location_id": self._location_id(),
+            "pipeline_id": pipeline_id,
+            "limit": limit,
+        }
+        if start_after:
+            params["startAfter"] = start_after
+        if start_after_id:
+            params["startAfterId"] = start_after_id
+        return await self._request("GET", "/opportunities/search", "Search opportunities", params=params, timeout=20.0)
+
     async def list_appointments(self) -> ConnectorResult:
         cal_result = await self._request("GET", "/calendars/", "List calendars", params={"locationId": self._location_id()})
         if not cal_result.ok:

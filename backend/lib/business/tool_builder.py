@@ -6,6 +6,7 @@ Returns [] if nothing is connected — never pass an empty list to Anthropic (om
 from backend.lib.business.connectors.registry import list_user_connections
 from backend.lib.business.real_estate.profile import is_real_estate_user
 from backend.lib.business.real_estate.tools import REAL_ESTATE_TOOLS
+from backend.lib.business.twenty.client import TwentyClient
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Static tool registry: tool_name → {description, input_schema}
@@ -890,6 +891,60 @@ _TOOLS: dict[str, dict] = {
     },
 }
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Jarvis-owned CRM (self-hosted Twenty). Env-gated: only offered when
+# TWENTY_API_URL + TWENTY_API_KEY are set. Read-only over the imported data.
+# Dispatched specially in tool_executor (connector_type == "twenty").
+# ─────────────────────────────────────────────────────────────────────────────
+TWENTY_TOOLS: dict[str, dict] = {
+    "twenty__list_people": {
+        "description": "[Owned CRM] List People (contacts) in Jarvis's own CRM (the imported GoHighLevel data lives here). Returns name + email. Use for 'who's in my CRM' style questions.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"limit": {"type": "integer", "description": "Max people to return (default 25)"}},
+            "required": [],
+        },
+    },
+    "twenty__search_people": {
+        "description": "[Owned CRM] Search People in Jarvis's own CRM by name or email substring. Returns matching name + email + id.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Name or email text to match"},
+                "limit": {"type": "integer", "description": "Max results (default 25)"},
+            },
+            "required": ["query"],
+        },
+    },
+    "twenty__list_opportunities": {
+        "description": "[Owned CRM] List Opportunities (deals) in Jarvis's own CRM, optionally filtered to a pipeline stage by its GHL stage name. Returns deal names.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "stage": {"type": "string", "description": "Optional pipeline stage name (as it was in GoHighLevel) to filter by"},
+                "limit": {"type": "integer", "description": "Max opportunities to return (default 50)"},
+            },
+            "required": [],
+        },
+    },
+    "twenty__count_opportunities_in_stage": {
+        "description": "[Owned CRM] Count how many Opportunities are in a given pipeline stage in Jarvis's own CRM. Answers 'how many opps in <stage> in my CRM'. Pass the stage name as it was in GoHighLevel.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"stage": {"type": "string", "description": "Pipeline stage name to count"}},
+            "required": ["stage"],
+        },
+    },
+    "twenty__person_notes_tasks": {
+        "description": "[Owned CRM] Look up one person in Jarvis's own CRM by name/email and return their notes and tasks.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"query": {"type": "string", "description": "Name or email of the person"}},
+            "required": ["query"],
+        },
+    },
+}
+
 # Maps each tool name to its connector_type
 _TOOL_TO_CONNECTOR: dict[str, str] = {k: k.split("__")[0] for k in _TOOLS}
 
@@ -922,6 +977,14 @@ async def build_tools_for_user(user_id: str) -> list[dict]:
         tools += [
             {"name": name, "description": defn["description"], "input_schema": defn["input_schema"]}
             for name, defn in REAL_ESTATE_TOOLS.items()
+        ]
+
+    # Owned CRM (Twenty) — env-gated single shared instance. Offered whenever the
+    # server has TWENTY_API_URL + TWENTY_API_KEY set.
+    if TwentyClient.configured():
+        tools += [
+            {"name": name, "description": defn["description"], "input_schema": defn["input_schema"]}
+            for name, defn in TWENTY_TOOLS.items()
         ]
 
     return tools

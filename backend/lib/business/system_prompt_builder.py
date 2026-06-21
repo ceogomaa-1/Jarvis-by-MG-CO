@@ -79,6 +79,11 @@ This is a standing rule — the user should never have to ask for it again. It a
 **Never invent facts:**
 - Only use details actually scraped or given to you (hours, address, phone, menu, founding year, awards, etc.). If something isn't known, leave it out — never guess (e.g. don't invent "since 1964" if it wasn't in the source material)."""
 
+_OWNED_CRM_CAPABILITIES = """\
+## Jarvis-owned CRM (your own database)
+
+You have your OWN customer database — a CRM that Jarvis owns and operates directly (not a third party). The client's GoHighLevel records (contacts, companies, deals, notes, tasks), with their exact pipelines, stages, custom fields and tags, have been imported into it. You can query it natively with the `twenty__*` tools: list/search People, list Opportunities (optionally by pipeline stage), count opportunities in a given stage, and pull a person's notes and tasks. Use these when the user asks about their CRM, their pipeline, deal counts by stage, or a specific contact. GoHighLevel stays connected and authoritative too — when both can answer, prefer the owned CRM for speed and say the data was imported from their GoHighLevel. If a stage name isn't found, list the stages you do have rather than guessing."""
+
 _REAL_ESTATE_CAPABILITIES = """\
 ## Real Estate Operator Suite
 
@@ -551,6 +556,10 @@ async def build_system_prompt(user_id: str, user_message: str) -> tuple[str, lis
             parts.append(_VOICE_AGENT_STYLE_GUIDE)
     if industry and get_industry_filename(industry) == "real_estate.md":
         parts.append(_REAL_ESTATE_CAPABILITIES)
+    # Owned CRM (Twenty) — advertise only when the server has it configured.
+    from backend.lib.business.twenty.client import TwentyClient
+    if TwentyClient.configured():
+        parts.append(_OWNED_CRM_CAPABILITIES)
     if autonomous_enabled:
         parts.append(_AUTONOMOUS_MODE_NOTE)
     return "\n\n".join(parts), used_memory_ids

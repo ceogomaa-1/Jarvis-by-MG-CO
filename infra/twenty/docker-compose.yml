@@ -1,0 +1,83 @@
+# Jarvis-owned CRM — self-hosted Twenty (https://twenty.com)
+#
+# Official stack: NestJS `server` + background `worker` + Postgres + Redis.
+# Deploy on any Ubuntu VPS. See README.md for full instructions.
+#
+# Image tag is PINNED — this is real client data, never track :latest.
+# Bump deliberately and back up the db first (README has the pg_dump command).
+
+name: twenty
+
+services:
+  server:
+    image: twentycrm/twenty:v0.42.0
+    restart: always
+    ports:
+      - "3000:3000"
+    volumes:
+      - server-local-data:/app/packages/twenty-server/.local-storage
+    environment:
+      NODE_PORT: 3000
+      SERVER_URL: ${SERVER_URL}
+      PG_DATABASE_URL: postgres://${PG_DATABASE_USER}:${PG_DATABASE_PASSWORD}@db:5432/default
+      REDIS_URL: redis://redis:6379
+      APP_SECRET: ${APP_SECRET}
+      STORAGE_TYPE: local
+      # Disable signups once the workspace + API key exist (see README).
+      IS_SIGN_UP_ENABLED: ${IS_SIGN_UP_ENABLED:-true}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    healthcheck:
+      test: curl --fail http://localhost:3000/healthz
+      interval: 15s
+      timeout: 10s
+      retries: 6
+
+  worker:
+    image: twentycrm/twenty:v0.42.0
+    restart: always
+    command: ["yarn", "worker:prod"]
+    volumes:
+      - server-local-data:/app/packages/twenty-server/.local-storage
+    environment:
+      SERVER_URL: ${SERVER_URL}
+      PG_DATABASE_URL: postgres://${PG_DATABASE_USER}:${PG_DATABASE_PASSWORD}@db:5432/default
+      REDIS_URL: redis://redis:6379
+      APP_SECRET: ${APP_SECRET}
+      STORAGE_TYPE: local
+      DISABLE_DB_MIGRATIONS: "true"   # only `server` runs migrations
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  db:
+    image: postgres:16
+    restart: always
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${PG_DATABASE_USER}
+      POSTGRES_PASSWORD: ${PG_DATABASE_PASSWORD}
+      POSTGRES_DB: default
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${PG_DATABASE_USER}", "-d", "default"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    restart: always
+    command: ["redis-server", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redis-data:/data
+
+volumes:
+  db-data:
+  server-local-data:
+  redis-data:
