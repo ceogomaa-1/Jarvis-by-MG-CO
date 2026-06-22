@@ -1,0 +1,38 @@
+# Jarvis CRM — Caddy edge config (Hostinger DNS, on-demand TLS, no DNS plugin).
+#
+# Per-subdomain HTTPS is issued on first request (HTTP-01/TLS-ALPN), gated by an "ask"
+# to the Jarvis backend so certs are only minted for real provisioned workspaces.
+# New-workspace signup (apex) is locked to the Jarvis backend's egress IPs; the
+# per-client subdomains stay fully public for normal login/use.
+#
+# Paste to /etc/caddy/Caddyfile on the VPS, then: sudo systemctl reload caddy
+
+{
+    # Caddy asks Jarvis before issuing any on-demand cert (anti-abuse).
+    on_demand_tls {
+        ask https://jarvis-backend-4oz6.onrender.com/api/business/crm/tls-check
+    }
+}
+
+crm.jarvismgco.com, *.crm.jarvismgco.com {
+    # Per-hostname certs issued on demand — no wildcard, no DNS plugin needed.
+    tls {
+        on_demand
+    }
+
+    # Let the Jarvis app embed the cockpit (Phase 3).
+    header -X-Frame-Options
+    header Content-Security-Policy "frame-ancestors 'self' https://jarvismgco.com https://*.jarvismgco.com"
+
+    route {
+        # New-workspace signup happens at the APEX. Allow the apex only from the Jarvis
+        # backend (Render egress); block the public. Subdomains are unaffected (public).
+        @apex_not_backend {
+            host crm.jarvismgco.com
+            not remote_ip 74.220.48.0/24 74.220.56.0/24
+        }
+        respond @apex_not_backend "Forbidden" 403
+
+        reverse_proxy localhost:3000
+    }
+}

@@ -45,26 +45,26 @@ Add an A record (and AAAA if you use IPv6) for the wildcard **and** the apex:
 crm.jarvismgco.com     A   <your VPS IP>
 ```
 
-## 3. Wildcard TLS (Caddy)
+## 3. TLS — on-demand, no DNS plugin (Hostinger)
 
-Wildcard certs require the **DNS-01** challenge, so Caddy needs your DNS provider's plugin +
-an API token. Example for Cloudflare (`caddy-dns/cloudflare` build):
+DNS is **Hostinger**, and Caddy is the stock apt build (no DNS plugins), so we use
+**on-demand TLS**: each subdomain's cert is issued on first request via HTTP-01/TLS-ALPN —
+no wildcard cert, no DNS-01, no API token. Caddy "asks" the Jarvis backend before issuing a
+cert, so certs are only minted for real provisioned workspaces (anti-abuse), and the apex
+(where new-workspace signup happens) is locked to the Render backend IPs.
 
-```caddyfile
-*.crm.jarvismgco.com, crm.jarvismgco.com {
-    reverse_proxy localhost:3000
-    tls {
-        dns cloudflare {env.CF_API_TOKEN}
-    }
-    # Allow the Jarvis app to embed the cockpit (Phase 3).
-    header Content-Security-Policy "frame-ancestors 'self' https://jarvismgco.com https://*.jarvismgco.com"
-    header -X-Frame-Options
-}
-```
+The exact config is **[`Caddyfile`](./Caddyfile)** in this folder — paste it to
+`/etc/caddy/Caddyfile` then `sudo systemctl reload caddy`. It relies on the backend ask
+endpoint `GET /api/business/crm/tls-check?domain=<host>` (200 = apex or a provisioned
+subdomain, else 403).
 
-Set `CF_API_TOKEN` in Caddy's environment (a token scoped to that zone's DNS edit). Other
-providers: swap the `dns` directive (route53, digitalocean, etc.) and rebuild Caddy with that
-plugin.
+> Signup lockdown note: Twenty's `signUp` is a GraphQL mutation on `POST /metadata`, not a
+> distinct URL, so it can't be matched by route. But **new-workspace creation only happens at
+> the apex** `crm.jarvismgco.com` — end users operate entirely on their subdomain. So the
+> Caddyfile blocks the apex from everyone except the Render egress ranges
+> (`74.220.48.0/24`, `74.220.56.0/24`); subdomains stay public. This keeps
+> `IS_SIGN_UP_ENABLED=true` (needed for the backend's service flow) without exposing public
+> workspace creation.
 
 ## 4. Jarvis backend env (Render)
 

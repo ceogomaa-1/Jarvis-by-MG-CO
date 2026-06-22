@@ -80,6 +80,31 @@ async def has_workspace(user_id: str) -> bool:
     return await get_workspace(user_id) is not None
 
 
+async def domain_is_provisioned(host: str) -> bool:
+    """True iff `host` (e.g. acme.crm.jarvismgco.com) belongs to a provisioned workspace.
+
+    Backs Caddy's on-demand-TLS `ask` so certs are only minted for real workspaces.
+    Matched against the stored base_url; host is pre-validated by the caller.
+    """
+    host = (host or "").strip().lower()
+    if not _enabled() or not host:
+        return False
+    sub = host.split(".", 1)[0]
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{SUPABASE_URL}/rest/v1/crm_client_workspaces",
+                headers=_headers(),
+                params={"select": "user_id", "or": f"(base_url.ilike.*{host}*,subdomain.eq.{sub})", "limit": "1"},
+                timeout=5.0,
+            )
+        if resp.status_code == 200:
+            return bool(resp.json())
+    except Exception as e:
+        print(f"TWENTY.workspaces: domain_is_provisioned failed: {e}")
+    return False
+
+
 async def upsert_workspace(
     user_id: str,
     *,

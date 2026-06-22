@@ -5,12 +5,33 @@ Tells the frontend whether to show the "CRM" nav item for this user and where to
 their white-labeled Jarvis CRM. Resolves the SAME per-user workspace the agent uses
 (Phase 2 routing), so the cockpit shows exactly the tenant Jarvis writes to.
 """
-from fastapi import APIRouter
+import re
+
+from fastapi import APIRouter, Response
 
 from backend.lib.business.twenty import workspaces
 from backend.lib.business.twenty.client import TwentyClient
 
 router = APIRouter()
+
+# The CRM root domain. The apex + any provisioned subdomain may get an on-demand cert.
+CRM_ROOT = "crm.jarvismgco.com"
+_HOST_RE = re.compile(r"^[a-z0-9-]+\.crm\.jarvismgco\.com$")
+
+
+@router.get("/business/crm/tls-check")
+async def tls_check(domain: str = ""):
+    """Caddy on-demand-TLS `ask`: 200 = issue a cert, anything else = refuse.
+
+    Allows the apex and any subdomain that maps to a provisioned workspace, so certs
+    are only ever minted for real Jarvis CRM workspaces (prevents cert-abuse). Fast.
+    """
+    host = (domain or "").strip().lower().split(":")[0]
+    if host == CRM_ROOT:
+        return Response(status_code=200)
+    if _HOST_RE.match(host) and await workspaces.domain_is_provisioned(host):
+        return Response(status_code=200)
+    return Response(status_code=403)
 
 
 @router.get("/business/crm/workspace")
