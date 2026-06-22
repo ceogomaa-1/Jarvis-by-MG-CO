@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Inbox, BookOpen, Wrench, Star, User } from 'lucide-react'
+import { Inbox, BookOpen, Wrench, Star, User, Database } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { setJarvisMode } from '../../lib/userPreferences'
 
@@ -12,6 +12,7 @@ import ConnectionsModal from './ConnectionsModal'
 import KnowledgeBaseModal from './KnowledgeBaseModal'
 import ProfileModal from './ProfileModal'
 import FontToggle from './FontToggle'
+import CrmCockpit from './CrmCockpit'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
@@ -102,6 +103,8 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
   const [openModal, setOpenModal] = useState(null)
   const [authUser, setAuthUser] = useState(null)
   const [unreadCount, setUnreadCount] = useState(0)
+  const [crmWorkspace, setCrmWorkspace] = useState(null)   // null until checked; {provisioned,...}
+  const [crmOpen, setCrmOpen] = useState(false)
 
   useEffect(() => {
     if (!supabase) return
@@ -109,6 +112,15 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
       .then(({ data }) => setAuthUser(data?.user || null))
       .catch(() => setAuthUser(null))
   }, [])
+
+  // Gate the CRM nav item: only show it when this user's Jarvis CRM workspace exists.
+  useEffect(() => {
+    if (!userId) return
+    fetch(`${BACKEND}/api/business/crm/workspace?user_id=${encodeURIComponent(userId)}`)
+      .then(r => r.json())
+      .then(d => setCrmWorkspace(d))
+      .catch(() => setCrmWorkspace({ provisioned: false }))
+  }, [userId])
 
   useEffect(() => {
     if (!userId) return
@@ -143,6 +155,12 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
 
   const items = [
     { label: 'Morning Queue',         icon: <Inbox size={17} />,    badge: unreadCount > 0, onClick: () => openM('queue') },
+    // CRM cockpit — only when the user's Jarvis CRM workspace is provisioned.
+    ...(crmWorkspace?.provisioned ? [{
+      label: 'CRM', icon: <Database size={17} />,
+      hint: 'your Jarvis CRM — view it and let me edit it live',
+      onClick: () => { onClose?.(); setCrmOpen(true) },
+    }] : []),
     { label: 'Knowledge Base',        icon: <BookOpen size={17} />, hint: "stuff you're ready to paste and want me to know right away", onClick: () => openM('knowledge') },
     { label: 'Connections',           icon: <Wrench size={17} />,   onClick: () => openM('connections') },
     { label: 'Brand Personalization', icon: <Star size={17} />,     onClick: () => openM('brand') },
@@ -255,6 +273,9 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
       <ConnectionsModal   open={openModal === 'connections'} onClose={close} userId={userId} />
       <KnowledgeBaseModal open={openModal === 'knowledge'}   onClose={close} userId={userId} userEmail={authUser?.email} />
       <ProfileModal       open={openModal === 'profile'}     onClose={close} />
+
+      {/* Phase 3 — embedded Jarvis CRM cockpit with docked chat */}
+      <CrmCockpit open={crmOpen} onClose={() => setCrmOpen(false)} userId={userId} workspace={crmWorkspace} />
     </>
   )
 }

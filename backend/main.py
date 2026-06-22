@@ -59,6 +59,7 @@ from backend.routes.business.morning_queue_routes import router as business_morn
 from backend.routes.business.mind import router as business_mind_router
 from backend.routes.business.feedback_routes import router as business_feedback_router
 from backend.routes.business.email_routes import router as business_email_router
+from backend.routes.business.crm_routes import router as business_crm_router
 from backend.cron.synapse_cron import run_weekly_synapse_generation
 from backend.cron.scheduled_emails_cron import run_scheduled_emails
 
@@ -188,6 +189,7 @@ app.include_router(business_morning_queue_router, prefix="/api")
 app.include_router(business_mind_router, prefix="/api")
 app.include_router(business_feedback_router, prefix="/api")
 app.include_router(business_email_router, prefix="/api")
+app.include_router(business_crm_router, prefix="/api")
 app.include_router(announcements_router, prefix="/api")
 
 

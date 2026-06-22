@@ -153,3 +153,36 @@ can never resolve client B's records. Proven in
 |---|---|
 | `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | Back the `crm_client_workspaces` registry. |
 | `TWENTY_API_URL` / `TWENTY_API_KEY` | Optional Phase-1 shared instance (used as fallback when a user has no workspace). |
+
+---
+
+## 8. CRM cockpit — embedding in Jarvis (Phase 3)
+
+Jarvis shows the user's CRM inside the app: a **"CRM"** item in the Business menu opens a
+cockpit that embeds `<client>.crm.jarvismgco.com` in an iframe with the Jarvis chat docked
+beside it. The chat can now **read AND write** the CRM (create/update contacts &
+opportunities, move stages, notes, tasks, tags). Deletes are hold-to-confirm. Writes go to
+Twenty only — GHL stays read-only. After a write, the embed auto-refreshes.
+
+**Two things must be configured for the embed (Mohamed):**
+
+1. **Allow framing from the Jarvis origin.** By default Twenty may send `X-Frame-Options` /
+   a restrictive CSP `frame-ancestors`, which blocks the iframe. Configure the reverse proxy
+   (Caddy/nginx) in front of Twenty to set:
+   ```
+   Content-Security-Policy: frame-ancestors 'self' https://<jarvis-app-domain>;
+   ```
+   and remove any `X-Frame-Options: DENY/SAMEORIGIN`. The cockpit has an "Open in new tab"
+   fallback if framing stays blocked.
+
+2. **Avoid double login (SSO / session pass-through).** The CRM has its own session, separate
+   from Jarvis's Supabase auth. Options, easiest first:
+   - **Shared Google OAuth:** enable Google sign-in on Twenty with the same Google project, so
+     a user already signed into Google is one click in. (Lowest effort.)
+   - **OIDC SSO:** point Twenty's SSO at the same IdP as Jarvis so the iframe session is
+     established transparently. (Cleanest; needs Twenty SSO config.)
+   - Document whichever is chosen here once decided. ⚠️ Flag — Mohamed to pick.
+
+The embed URL Jarvis uses is resolved server-side from the user's workspace
+(`GET /api/business/crm/workspace`) — the SAME per-user routing the agent writes through, so
+the cockpit always shows the exact tenant Jarvis is editing.

@@ -210,6 +210,7 @@ export default function ChatCanvas({
   onConversationsUpdated,
   onMemoryCountUpdate,
   injectPrompt,
+  onCrmChanged,   // Phase 3: fired after a successful Jarvis CRM write so the cockpit can refresh
 }) {
   const [messages, setMessages] = useState([])
   const [messagesLoading, setMessagesLoading] = useState(false)
@@ -560,6 +561,8 @@ export default function ChatCanvas({
       })
       const result = await res.json()
       const toolResult = result.tool_result || {}
+      // Confirmed Jarvis CRM write (e.g. delete) — refresh the embedded CRM.
+      if (result.crm_changed) onCrmChanged?.()
       msgIdRef.current += 1
       setMessages(prev => [...prev, {
         id: msgIdRef.current,
@@ -973,6 +976,9 @@ export default function ChatCanvas({
                 }
               } else if (chunk.type === 'tool_progress') {
                 setToolProgress(chunk.value)
+              } else if (chunk.type === 'crm_changed') {
+                // A Jarvis CRM write landed — tell the cockpit to refresh the embed.
+                onCrmChanged?.()
               } else if (chunk.type === 'pending_action') {
                 if (!gotChunk) {
                   gotChunk = true

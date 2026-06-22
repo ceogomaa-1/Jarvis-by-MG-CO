@@ -47,8 +47,9 @@ async def execute_tool(tool_name: str, tool_input: dict, user_id: str, progress_
             return json.dumps(result.data or {}, default=str)
         return json.dumps({"error": result.error or "Action failed with no error message"})
 
-    # Owned CRM (Twenty) — env-configured single shared instance, not a per-user
-    # connector. Dispatched like web tools (client built from env inside the executor).
+    # Jarvis CRM (Twenty) — read + write. execute_twenty_tool resolves the user's
+    # OWN workspace (Phase 2 for_user) before any read/write, so every operation is
+    # scoped to that client's tenant. Writes go to Twenty only, never GHL.
     if connector_type == "twenty":
         try:
             result: ConnectorResult = await execute_twenty_tool(action_name, tool_input, user_id)

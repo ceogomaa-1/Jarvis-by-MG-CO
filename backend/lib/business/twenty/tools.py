@@ -14,7 +14,7 @@ Filtering is done client-side after paging, to avoid Twenty's version-sensitive
 GraphQL filter DSL — correctness over cleverness for Phase 1.
 """
 from backend.lib.business.connectors.base import ConnectorResult
-from backend.lib.business.twenty import store
+from backend.lib.business.twenty import store, writes
 from backend.lib.business.twenty.client import TwentyClient
 from backend.lib.business.twenty.introspect import TwentySchema, introspect
 
@@ -95,6 +95,12 @@ async def execute_twenty_tool(action_name: str, inp: dict, user_id: str) -> Conn
     people_plural = schema.obj("person").name_plural
     opp_obj = schema.obj("opportunity")
     opp_plural = opp_obj.name_plural if opp_obj else "opportunities"
+
+    # ── WRITE actions (Phase 3) — scoped to this user's workspace via for_user above.
+    # Destructive ones (delete_*) are gated by chat.py WRITE_ACTIONS before reaching here.
+    write_handler = writes.WRITE_HANDLERS.get(action_name)
+    if write_handler:
+        return await write_handler(client, schema, user_id, inp)
 
     if action_name in ("list_people", "search_people"):
         limit = int(inp.get("limit", 25))

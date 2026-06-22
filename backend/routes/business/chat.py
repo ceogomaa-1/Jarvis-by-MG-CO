@@ -54,6 +54,20 @@ WRITE_ACTIONS = frozenset({
     "buffer__add_to_queue",
     "realestate__ghl_add_note",
     "realestate__book_showing",
+    # Jarvis CRM (Twenty) destructive writes — hold-to-confirm before executing.
+    "twenty__delete_person",
+    "twenty__delete_opportunity",
+})
+
+# Jarvis CRM (Twenty) writes whose success should refresh the embedded CRM view
+# ("feels live"). Non-destructive ones run inline in the stream loop; deletes run
+# via /confirm-action (the frontend refreshes there too).
+CRM_WRITE_ACTIONS = frozenset({
+    "twenty__create_person", "twenty__update_person",
+    "twenty__create_opportunity", "twenty__update_opportunity",
+    "twenty__move_opportunity_stage", "twenty__add_note", "twenty__add_task",
+    "twenty__complete_task", "twenty__add_tag", "twenty__remove_tag",
+    "twenty__delete_person", "twenty__delete_opportunity",
 })
 
 
@@ -108,6 +122,12 @@ def _describe_action(tool_name: str, tool_input: dict) -> str:
         interval = tool_input.get("interval")
         suffix = f"/{interval}" if interval else " one-time"
         return f"Create Stripe price on {tool_input.get('product_id', '?')}: {cur} {amount / 100:.2f}{suffix}"
+    if tool_name == "twenty__delete_person":
+        who = tool_input.get("query") or tool_input.get("person_id") or "?"
+        return f"Delete contact from Jarvis CRM: {who}"
+    if tool_name == "twenty__delete_opportunity":
+        what = tool_input.get("query") or tool_input.get("opportunity_id") or "?"
+        return f"Delete opportunity from Jarvis CRM: {what}"
     if tool_name == "realestate__ghl_add_note":
         note = (tool_input.get("note") or "")[:80]
         return f"Add CRM note: {note or '?'}"
@@ -683,6 +703,11 @@ async def business_chat_stream(request: BusinessChatRequest):
 
                         yield f'data: {json.dumps({"type": "tool_call", "name": tool_name, "status": "complete"})}\n\n'
 
+                        # "Feels live": signal the embedded CRM view to refresh after a
+                        # successful Jarvis CRM write (skip on error results).
+                        if tool_name in CRM_WRITE_ACTIONS and '"error"' not in (result_str or ""):
+                            yield f'data: {json.dumps({"type": "crm_changed"})}\n\n'
+
                         tool_results.append({
                             "type": "tool_result",
                             "tool_use_id": tool_id,
@@ -798,7 +823,12 @@ async def confirm_action(request: ConfirmActionRequest):
             except Exception as e:
                 print(f"confirm-action: DB save error: {e}")
 
-    return {"response": confirmation_text, "tool_result": result_data}
+    return {
+        "response": confirmation_text,
+        "tool_result": result_data,
+        # Tell the cockpit to refresh the embedded CRM after a confirmed write (e.g. delete).
+        "crm_changed": request.tool_name in CRM_WRITE_ACTIONS and "error" not in result_data,
+    }
 
 
 def _make_fallback_confirmation(tool_name: str, result_data: dict) -> str:
