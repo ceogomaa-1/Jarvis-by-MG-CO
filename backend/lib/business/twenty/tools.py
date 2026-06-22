@@ -14,7 +14,7 @@ Filtering is done client-side after paging, to avoid Twenty's version-sensitive
 GraphQL filter DSL — correctness over cleverness for Phase 1.
 """
 from backend.lib.business.connectors.base import ConnectorResult
-from backend.lib.business.twenty import writes
+from backend.lib.business.twenty import metadata, writes
 from backend.lib.business.twenty.client import TwentyClient
 from backend.lib.business.twenty.introspect import TwentySchema, introspect
 
@@ -73,6 +73,13 @@ async def execute_twenty_tool(action_name: str, inp: dict, user_id: str) -> Conn
     client = await TwentyClient.for_user(user_id)
     if not client:
         return ConnectorResult(ok=False, error="Jarvis CRM is not configured for this account.")
+
+    # ── METADATA actions (structure-level) — operate on the /metadata API and don't
+    # need the core-object schema, so dispatch before the core introspect (which would
+    # fail for, or ignore, custom objects). Structural deletes are gated in chat.py.
+    meta_handler = metadata.METADATA_HANDLERS.get(action_name)
+    if meta_handler:
+        return await meta_handler(client, user_id, inp)
 
     schema_res = await introspect(client)
     schema: TwentySchema = schema_res.data

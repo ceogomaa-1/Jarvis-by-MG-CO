@@ -14,7 +14,10 @@ from backend.lib.business.farida_loader import FARIDA_USER_ID, load_greeting as 
 from backend.lib.business.model_router import select_model, OPUS
 from backend.lib.business.memory import extract_and_store_memories
 from backend.lib.business.mind.graph import record_activity
-from backend.lib.business.tool_builder import build_tools_for_user, TWENTY_WRITE_TOOLS, TWENTY_DESTRUCTIVE_TOOLS
+from backend.lib.business.tool_builder import (
+    build_tools_for_user, TWENTY_WRITE_TOOLS, TWENTY_DESTRUCTIVE_TOOLS,
+    TWENTY_METADATA_TOOLS, TWENTY_METADATA_WRITE, TWENTY_METADATA_DESTRUCTIVE,
+)
 from backend.lib.business.tool_executor import execute_tool
 from backend.lib.business.document_store import save_document
 from backend.lib.business.real_estate.profile import is_real_estate_user
@@ -54,15 +57,15 @@ WRITE_ACTIONS = frozenset({
     "buffer__add_to_queue",
     "realestate__ghl_add_note",
     "realestate__book_showing",
-    # Jarvis CRM (Twenty) destructive writes — every delete + the raw-GraphQL escape
-    # hatch. Derived from the tool registry so new destructive tools stay gated.
+    # Jarvis CRM (Twenty) destructive writes — record deletes + raw-GraphQL escape
+    # hatch + structural deletes (field/object/view). Derived from the tool registry.
     *TWENTY_DESTRUCTIVE_TOOLS,
+    *TWENTY_METADATA_DESTRUCTIVE,
 })
 
-# Every Jarvis CRM write refreshes the embedded CRM view ("feels live"). Derived from
-# the write-tool registry so new tools are covered automatically. Non-destructive ones
-# run inline in the stream loop; deletes run via /confirm-action (refreshes there too).
-CRM_WRITE_ACTIONS = frozenset(TWENTY_WRITE_TOOLS.keys())
+# Every Jarvis CRM write — record-level AND structural — refreshes the embedded CRM
+# view ("feels live"). Derived from the registries so new tools are covered automatically.
+CRM_WRITE_ACTIONS = frozenset(TWENTY_WRITE_TOOLS.keys()) | TWENTY_METADATA_WRITE
 
 
 def _describe_action(tool_name: str, tool_input: dict) -> str:
@@ -122,6 +125,12 @@ def _describe_action(tool_name: str, tool_input: dict) -> str:
                or tool_input.get("person_id") or tool_input.get("note_id")
                or tool_input.get("task_id") or "?")
         return f"Delete {obj} from Jarvis CRM: {who}"
+    if tool_name == "twenty__delete_field":
+        return f"Delete CRM field '{tool_input.get('field', '?')}' from {tool_input.get('object', '?')}"
+    if tool_name == "twenty__delete_object":
+        return f"Delete CRM type '{tool_input.get('name', '?')}' (and all its records)"
+    if tool_name == "twenty__delete_view":
+        return f"Delete CRM list '{tool_input.get('name') or tool_input.get('view_id', '?')}'"
     if tool_name == "twenty__run_graphql_mutation":
         m = (tool_input.get("mutation") or "").strip().replace("\n", " ")
         return f"Run a custom Jarvis CRM mutation: {m[:90]}"

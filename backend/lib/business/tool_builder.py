@@ -1099,6 +1099,77 @@ TWENTY_DESTRUCTIVE_TOOLS = frozenset({
     "twenty__delete_person", "twenty__delete_company", "twenty__delete_opportunity",
     "twenty__delete_task", "twenty__delete_note", "twenty__run_graphql_mutation",
 })
+
+# METADATA tools (structure-level) — let Jarvis reshape the CRM: custom fields,
+# custom objects ("types"), and views/lists. Gated like other CRM tools; resolved
+# per-user. Structural deletes are confirm-gated via chat.py.
+TWENTY_METADATA_TOOLS: dict[str, dict] = {
+    "twenty__list_objects": {
+        "description": "[Owned CRM STRUCTURE] List the CRM's objects/types and their fields. Use this to see the current structure before changing it. Pass custom_only=true for just custom types.",
+        "input_schema": {"type": "object", "properties": {"custom_only": {"type": "boolean"}}, "required": []},
+    },
+    "twenty__list_views": {
+        "description": "[Owned CRM STRUCTURE] List the saved views/lists, optionally for one object.",
+        "input_schema": {"type": "object", "properties": {"object": {"type": "string"}}, "required": []},
+    },
+    "twenty__create_field": {
+        "description": "[Owned CRM STRUCTURE] Add a custom field to an object. field_type: text, number, currency, date, boolean, select, multi-select, phone, email, link. For select/multi-select pass options (array of strings).",
+        "input_schema": {"type": "object", "properties": {
+            "object": {"type": "string", "description": "Object name, e.g. People, Companies, Opportunities"},
+            "name": {"type": "string", "description": "Field label, e.g. Budget"},
+            "field_type": {"type": "string"},
+            "options": {"type": "array", "items": {"type": "string"}, "description": "Choices for select/multi-select"}},
+            "required": ["object", "name", "field_type"]},
+    },
+    "twenty__update_field": {
+        "description": "[Owned CRM STRUCTURE] Update a custom field: rename (new_label), change select options, or activate/deactivate (is_active).",
+        "input_schema": {"type": "object", "properties": {
+            "object": {"type": "string"}, "field": {"type": "string"},
+            "new_label": {"type": "string"}, "options": {"type": "array", "items": {"type": "string"}},
+            "is_active": {"type": "boolean"}}, "required": ["object", "field"]},
+    },
+    "twenty__delete_field": {
+        "description": "[Owned CRM STRUCTURE — DESTRUCTIVE] Delete a custom field from an object. Requires hold-to-confirm. Standard fields can't be deleted.",
+        "input_schema": {"type": "object", "properties": {"object": {"type": "string"}, "field": {"type": "string"}}, "required": ["object", "field"]},
+    },
+    "twenty__create_object": {
+        "description": "[Owned CRM STRUCTURE] Create a new object/type (e.g. Properties) with optional initial fields. fields = array of {name, type, options?}. type values as in create_field.",
+        "input_schema": {"type": "object", "properties": {
+            "name": {"type": "string", "description": "Type name, e.g. Properties"},
+            "name_singular": {"type": "string"}, "name_plural": {"type": "string"}, "icon": {"type": "string"},
+            "fields": {"type": "array", "items": {"type": "object", "properties": {
+                "name": {"type": "string"}, "type": {"type": "string"},
+                "options": {"type": "array", "items": {"type": "string"}}}}}},
+            "required": ["name"]},
+    },
+    "twenty__delete_object": {
+        "description": "[Owned CRM STRUCTURE — DESTRUCTIVE] Delete a custom object/type and all its records. Requires hold-to-confirm. Standard objects can't be deleted.",
+        "input_schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]},
+    },
+    "twenty__create_view": {
+        "description": "[Owned CRM STRUCTURE] Create a custom list/view on an object. view_type: table or kanban. Optional sort_by (field) + sort_direction (asc/desc), group_by (kanban grouping field), and columns (array of field names).",
+        "input_schema": {"type": "object", "properties": {
+            "object": {"type": "string"}, "name": {"type": "string"},
+            "view_type": {"type": "string", "description": "table | kanban"},
+            "sort_by": {"type": "string"}, "sort_direction": {"type": "string"},
+            "group_by": {"type": "string"}, "columns": {"type": "array", "items": {"type": "string"}}},
+            "required": ["object"]},
+    },
+    "twenty__update_view": {
+        "description": "[Owned CRM STRUCTURE] Rename a view/list. Identify by view_id or name; pass new_name.",
+        "input_schema": {"type": "object", "properties": {
+            "view_id": {"type": "string"}, "name": {"type": "string"}, "new_name": {"type": "string"}}, "required": []},
+    },
+    "twenty__delete_view": {
+        "description": "[Owned CRM STRUCTURE — DESTRUCTIVE] Delete a view/list. Identify by view_id or name. Requires hold-to-confirm.",
+        "input_schema": {"type": "object", "properties": {"view_id": {"type": "string"}, "name": {"type": "string"}}, "required": []},
+    },
+}
+
+# Metadata writes (everything except the two list_* reads) trigger a cockpit refresh.
+TWENTY_METADATA_WRITE = frozenset(k for k in TWENTY_METADATA_TOOLS if not k.endswith(("list_objects", "list_views")))
+# Structural deletes require hold-to-confirm.
+TWENTY_METADATA_DESTRUCTIVE = frozenset({"twenty__delete_field", "twenty__delete_object", "twenty__delete_view"})
 # Maps each tool name to its connector_type
 _TOOL_TO_CONNECTOR: dict[str, str] = {k: k.split("__")[0] for k in _TOOLS}
 
@@ -1139,7 +1210,7 @@ async def build_tools_for_user(user_id: str) -> list[dict]:
     if await TwentyClient.configured_for_user(user_id):
         tools += [
             {"name": name, "description": defn["description"], "input_schema": defn["input_schema"]}
-            for name, defn in {**TWENTY_TOOLS, **TWENTY_WRITE_TOOLS}.items()
+            for name, defn in {**TWENTY_TOOLS, **TWENTY_WRITE_TOOLS, **TWENTY_METADATA_TOOLS}.items()
         ]
 
     return tools
