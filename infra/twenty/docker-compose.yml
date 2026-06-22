@@ -34,6 +34,11 @@ services:
       IS_SIGN_UP_ENABLED: ${IS_SIGN_UP_ENABLED:-true}
       # ── Phase 2: per-client workspaces (subdomain-routed) ──
       IS_MULTIWORKSPACE_ENABLED: ${IS_MULTIWORKSPACE_ENABLED:-true}
+      # Twenty defaults this to TRUE, which blocks our (non-admin) service signups from
+      # creating their own workspace -> "Workspace creation is restricted to admins".
+      # MUST be false for Option A auto-provisioning; abuse is already prevented by the
+      # Caddy apex lockdown (signUp only reachable from the Render backend). See AUTO-PROVISION.md.
+      IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS: ${IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS:-false}
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-${SERVER_URL}}
       DEFAULT_SUBDOMAIN: ${DEFAULT_SUBDOMAIN:-app}
       # ── Rebranded transactional email (invites, resets) on our domain ──
@@ -70,6 +75,7 @@ services:
       STORAGE_TYPE: local
       DISABLE_DB_MIGRATIONS: "true"   # only `server` runs migrations
       IS_MULTIWORKSPACE_ENABLED: ${IS_MULTIWORKSPACE_ENABLED:-true}
+      IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS: ${IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS:-false}
       # Worker sends the transactional emails — needs the same mail config.
       EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-crm@jarvismgco.com}
       EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-Jarvis CRM}

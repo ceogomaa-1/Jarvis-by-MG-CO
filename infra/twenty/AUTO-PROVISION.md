@@ -17,6 +17,12 @@ optional — without all of it, isolation is not real.**
 # Multi-tenant: each client gets their own workspace, reached by subdomain.
 IS_MULTIWORKSPACE_ENABLED=true
 
+# Twenty DEFAULTS this to true, which means only server admins may create workspaces.
+# Our service signups are NOT admins, so leaving it true fails signUpInNewWorkspace with
+# "Workspace creation is restricted to admins". MUST be false (abuse is already blocked by
+# the apex lockdown in step 3).
+IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS=false
+
 # Allow the programmatic signUp flow to create workspaces.
 IS_SIGN_UP_ENABLED=true
 AUTH_PASSWORD_ENABLED=true
@@ -91,6 +97,26 @@ curl "https://jarvis-backend-4oz6.onrender.com/api/business/crm/workspace?user_i
 
 If `--auto` still reports `"New workspace setup is disabled"`, step 1 didn't take effect
 (re-check the env + `docker compose up -d`, and that you restarted the **server** container).
+
+If `--auto` reports `signUpInNewWorkspace: Workspace creation is restricted to admins`,
+then `IS_MULTIWORKSPACE_ENABLED` took effect but the **next** guard is biting:
+`IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS` (Twenty's default is **true**). Set it to
+`false` on both `server` and `worker`, then `docker compose up -d`:
+
+```bash
+# in the same docker-compose.override.yml that carries the other flags
+IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS=false
+# verify it reached the container:
+docker compose exec server printenv IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS   # -> false
+```
+
+> Retry note: a service signup that gets *past* `signUp` but fails a later step leaves an
+> orphaned service user `crm+<hex>@jarvismgco.com` in Twenty. Because the service password is
+> random and only stored on success, that exact user_id can't be re-provisioned until the
+> orphan is deleted in Twenty (Settings → Members) — re-running `--auto` collides on the email.
+> New signups are unaffected (they succeed on the first attempt once the flag above is set).
+> Follow-up hardening (deterministic, recoverable service password + signIn fallback) is
+> tracked so retries become self-healing; it must be verified live from Render.
 
 ---
 
