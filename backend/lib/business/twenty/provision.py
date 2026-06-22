@@ -26,8 +26,10 @@ Isolation note: a workspace API key is scoped to ONE Twenty workspace. Storing i
 against a single user_id means that user can only ever read/write that workspace's
 records — that is the data-isolation boundary (proven in tests/test_twenty_workspaces.py).
 """
+import base64
+import hashlib
+import hmac
 import os
-import secrets
 
 import httpx
 
@@ -143,15 +145,20 @@ async def register_workspace(
 
 
 # ── Option A: fully programmatic per-user provisioning ───────────────────────────
-async def _auth_call(http: httpx.AsyncClient, query: str, variables: dict, *, token: str | None = None, origin: str | None = None) -> tuple[dict | None, str | None]:
-    """One GraphQL call to the metadata/auth endpoint, with an optional bearer + origin."""
+async def _auth_call(http: httpx.AsyncClient, query: str, variables: dict, *, token: str | None = None,
+                     origin: str | None = None, path: str = "/metadata") -> tuple[dict | None, str | None]:
+    """One GraphQL call to the auth endpoint, with an optional bearer + origin.
+
+    `path` defaults to /metadata (where this Twenty build serves the auth + api-key
+    mutations); callers can pass /graphql for resolvers only on the core schema.
+    """
     headers = {"Content-Type": "application/json"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
     if origin:
         headers["Origin"] = origin
     try:
-        resp = await http.post(f"{PROVISION_BASE_URL}/metadata", headers=headers,
+        resp = await http.post(f"{PROVISION_BASE_URL}{path}", headers=headers,
                                json={"query": query, "variables": variables}, timeout=45.0)
         body = resp.json()
     except Exception as e:
@@ -161,28 +168,92 @@ async def _auth_call(http: httpx.AsyncClient, query: str, variables: dict, *, to
     return body.get("data") or {}, None
 
 
+def _service_password(user_id: str) -> str:
+    """Deterministic, recoverable password for the per-user CRM service account.
+
+    Must be STABLE for a given user_id: a retry needs to sign IN to a service account a
+    prior (failed) attempt already created — that is what makes provisioning self-healing
+    instead of colliding on the (deterministic) service email. Derived via HMAC from a
+    server secret; the secret must never change (accounts created under an old secret could
+    no longer be recovered and would have to be deleted in Twenty). Shaped to satisfy any
+    min-length / charset policy.
+    """
+    secret = (os.getenv("TWENTY_SERVICE_SECRET") or os.getenv("APP_SECRET")
+              or os.getenv("SUPABASE_SERVICE_ROLE_KEY") or "jarvis-crm-service").encode()
+    hex_id = (user_id or "").removeprefix("user_").replace("-", "")
+    digest = hmac.new(secret, hex_id.encode(), hashlib.sha256).digest()
+    return base64.urlsafe_b64encode(digest).decode().rstrip("=")[:28] + "Aa1!"
+
+
+def _is_already_exists(err: str) -> bool:
+    """True if a signUp error means the service user already exists (prior attempt)."""
+    e = (err or "").lower()
+    return any(s in e for s in ("already exist", "already taken", "already used", "already registered"))
+
+
+def _pick_api_key_role(roles: list[dict]) -> str | None:
+    """Pick the role id to attach to the backend API key.
+
+    Prefer a role that (a) can be assigned to API keys and (b) has full settings access
+    (Admin). Falls back gracefully if a version exposes neither flag.
+    """
+    if not roles:
+        return None
+    pool = [r for r in roles if r.get("canBeAssignedToApiKeys")] or roles
+    for r in pool:                                   # full-admin role first
+        if r.get("canUpdateAllSettings"):
+            return r.get("id")
+    for r in pool:                                   # else an explicitly-named Admin role
+        if (r.get("label") or "").strip().lower() == "admin":
+            return r.get("id")
+    return pool[0].get("id")
+
+
+async def _get_agnostic_token(http: httpx.AsyncClient, email: str, password: str) -> tuple[str | None, str | None]:
+    """signUp the service account, or signIn if a prior attempt already created it.
+
+    Both signUp and signIn return the same AvailableWorkspacesAndAccessTokensDTO, so the
+    workspace-agnostic token is read identically. Self-heal: a prior attempt that got past
+    signUp (e.g. failed later at createApiKey) left this exact account behind; re-running
+    must recover it, not collide.
+    """
+    d, e = await _auth_call(http,
+        "mutation S($email:String!,$password:String!){ signUp(email:$email,password:$password){ tokens { accessOrWorkspaceAgnosticToken { token } } } }",
+        {"email": email, "password": password})
+    if not e:
+        tok = (((d or {}).get("signUp") or {}).get("tokens") or {}).get("accessOrWorkspaceAgnosticToken", {}).get("token")
+        return (tok, None) if tok else (None, "signUp returned no token")
+    if not _is_already_exists(e):
+        return None, f"signUp: {e}"
+    # Recover the pre-existing service account.
+    d, e2 = await _auth_call(http,
+        "mutation SI($email:String!,$password:String!){ signIn(email:$email,password:$password){ tokens { accessOrWorkspaceAgnosticToken { token } } } }",
+        {"email": email, "password": password})
+    if e2:
+        return None, f"signUp said user exists but signIn recovery failed ({e2}) — likely an orphan from before deterministic passwords; delete {email} in Twenty."
+    tok = (((d or {}).get("signIn") or {}).get("tokens") or {}).get("accessOrWorkspaceAgnosticToken", {}).get("token")
+    return (tok, None) if tok else (None, "signIn recovery returned no token")
+
+
 async def _run_signup_flow(user_id: str, display_name: str) -> ConnectorResult:
     """signUp → signUpInNewWorkspace → token → activate → createApiKey → generateApiKeyToken.
 
-    Returns ConnectorResult(data={base_url, api_key, workspace_id, subdomain, service_email,
-    service_secret}). Shapes validated by live introspection (see AUTO-PROVISION.md).
+    signUp → (signIn recovery) → signUpInNewWorkspace → token → activate → getRoles →
+    createApiKey(roleId) → generateApiKeyToken. Returns ConnectorResult(data={base_url,
+    api_key, workspace_id, subdomain, service_email, service_secret}). Shapes validated by
+    live introspection (see AUTO-PROVISION.md).
     """
     if not PROVISION_BASE_URL:
         return ConnectorResult(ok=False, error="TWENTY_PROVISION_BASE_URL is not set.")
     hex_id = (user_id or "").removeprefix("user_").replace("-", "")
     email = f"crm+{hex_id}@{SERVICE_EMAIL_DOMAIN}"
-    password = secrets.token_urlsafe(24) + "Aa1!"  # satisfy any min-length/charset policy
+    password = _service_password(user_id)  # deterministic → retries can sign back in
 
     async with httpx.AsyncClient() as http:
-        # 1. service signUp → workspace-agnostic token
-        d, e = await _auth_call(http,
-            "mutation S($email:String!,$password:String!){ signUp(email:$email,password:$password){ tokens { accessOrWorkspaceAgnosticToken { token } } } }",
-            {"email": email, "password": password})
+        # 1. service signUp (or signIn if a prior attempt already created the account)
+        agnostic, e = await _get_agnostic_token(http, email, password)
         if e:
-            return ConnectorResult(ok=False, error=f"signUp: {e}")
-        agnostic = (((d or {}).get("signUp") or {}).get("tokens") or {}).get("accessOrWorkspaceAgnosticToken", {}).get("token")
-        if not agnostic:
-            return ConnectorResult(ok=False, error="signUp returned no token")
+            return ConnectorResult(ok=False, error=e)
 
         # 2. create the new isolated workspace
         d, e = await _auth_call(http,
@@ -213,17 +284,31 @@ async def _run_signup_flow(user_id: str, display_name: str) -> ConnectorResult:
             "mutation A($d:ActivateWorkspaceInput!){ activateWorkspace(data:$d){ id } }",
             {"d": {"displayName": display_name or "Jarvis CRM"}}, token=access, origin=base_url)
 
-        # 5. create an API key record
+        # 5. pick a role for the key — this Twenty build requires roleId on createApiKey.
+        d, e = await _auth_call(http,
+            "query Roles { getRoles { id label canUpdateAllSettings canBeAssignedToApiKeys } }",
+            {}, token=access, origin=base_url)
+        if e and ("getRoles" in e or "Cannot query field" in e):   # core-schema fallback
+            d, e = await _auth_call(http,
+                "query Roles { getRoles { id label canUpdateAllSettings canBeAssignedToApiKeys } }",
+                {}, token=access, origin=base_url, path="/graphql")
+        if e:
+            return ConnectorResult(ok=False, error=f"getRoles: {e}")
+        role_id = _pick_api_key_role((d or {}).get("getRoles") or [])
+        if not role_id:
+            return ConnectorResult(ok=False, error="getRoles returned no role assignable to an API key")
+
+        # 6. create an API key record (scoped to the admin role)
         d, e = await _auth_call(http,
             "mutation K($i:CreateApiKeyInput!){ createApiKey(input:$i){ id } }",
-            {"i": {"name": "Jarvis Backend", "expiresAt": _FAR_FUTURE}}, token=access, origin=base_url)
+            {"i": {"name": "Jarvis Backend", "expiresAt": _FAR_FUTURE, "roleId": role_id}}, token=access, origin=base_url)
         if e:
             return ConnectorResult(ok=False, error=f"createApiKey: {e}")
         api_key_id = ((d or {}).get("createApiKey") or {}).get("id")
         if not api_key_id:
             return ConnectorResult(ok=False, error="createApiKey returned no id")
 
-        # 6. mint the bearer token the backend will store + use
+        # 7. mint the bearer token the backend will store + use
         d, e = await _auth_call(http,
             "mutation G($id:UUID!,$exp:String!){ generateApiKeyToken(apiKeyId:$id, expiresAt:$exp){ token } }",
             {"id": api_key_id, "exp": _FAR_FUTURE}, token=access, origin=base_url)

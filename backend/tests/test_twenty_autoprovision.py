@@ -103,15 +103,16 @@ async def test_marks_failed_after_max_attempts(store, monkeypatch):
     assert store["job"]["user_d"]["status"] == "failed"   # admin-flag state
 
 
-@pytest.mark.asyncio
-async def test_signup_flow_call_sequence(monkeypatch):
-    """_run_signup_flow walks signUp → new workspace → token → activate → createApiKey → token."""
-    monkeypatch.setattr(provision, "PROVISION_BASE_URL", "https://crm.jarvismgco.com")
-    seq = []
-
-    async def _auth_call(http, query, variables, *, token=None, origin=None):
+def _flow_auth_call(seq, *, captured=None, signup_exists=False):
+    """Build a fake _auth_call that walks the full provisioning GraphQL sequence."""
+    async def _auth_call(http, query, variables, *, token=None, origin=None, path="/metadata"):
         if "signUp(" in query:
-            seq.append("signUp"); return {"signUp": {"tokens": {"accessOrWorkspaceAgnosticToken": {"token": "agnostic"}}}}, None
+            seq.append("signUp")
+            if signup_exists:
+                return None, "User already exists"
+            return {"signUp": {"tokens": {"accessOrWorkspaceAgnosticToken": {"token": "agnostic"}}}}, None
+        if "signIn(" in query:
+            seq.append("signIn"); return {"signIn": {"tokens": {"accessOrWorkspaceAgnosticToken": {"token": "agnostic"}}}}, None
         if "signUpInNewWorkspace" in query:
             seq.append("newWorkspace")
             return {"signUpInNewWorkspace": {"loginToken": {"token": "lt"},
@@ -120,16 +121,68 @@ async def test_signup_flow_call_sequence(monkeypatch):
             seq.append("exchange"); return {"getAuthTokensFromLoginToken": {"tokens": {"accessOrWorkspaceAgnosticToken": {"token": "access"}}}}, None
         if "activateWorkspace" in query:
             seq.append("activate"); return {"activateWorkspace": {"id": "ws9"}}, None
+        if "getRoles" in query:
+            seq.append("getRoles"); return {"getRoles": [
+                {"id": "role-member", "label": "Member", "canUpdateAllSettings": False, "canBeAssignedToApiKeys": True},
+                {"id": "role-admin", "label": "Admin", "canUpdateAllSettings": True, "canBeAssignedToApiKeys": True},
+            ]}, None
         if "createApiKey" in query:
-            seq.append("createApiKey"); return {"createApiKey": {"id": "ak1"}}, None
+            seq.append("createApiKey")
+            if captured is not None:
+                captured["roleId"] = variables["i"].get("roleId")
+            return {"createApiKey": {"id": "ak1"}}, None
         if "generateApiKeyToken" in query:
             seq.append("genToken"); return {"generateApiKeyToken": {"token": "FINAL-KEY"}}, None
         return {}, None
-    monkeypatch.setattr(provision, "_auth_call", _auth_call)
+    return _auth_call
+
+
+@pytest.mark.asyncio
+async def test_signup_flow_call_sequence(monkeypatch):
+    """Full walk: signUp → new workspace → token → activate → getRoles → createApiKey(roleId) → token."""
+    monkeypatch.setattr(provision, "PROVISION_BASE_URL", "https://crm.jarvismgco.com")
+    seq, captured = [], {}
+    monkeypatch.setattr(provision, "_auth_call", _flow_auth_call(seq, captured=captured))
 
     res = await provision._run_signup_flow("user_e", "Acme Realty")
     assert res.ok
-    assert seq == ["signUp", "newWorkspace", "exchange", "activate", "createApiKey", "genToken"]
+    assert seq == ["signUp", "newWorkspace", "exchange", "activate", "getRoles", "createApiKey", "genToken"]
+    assert captured["roleId"] == "role-admin"            # full-settings role chosen for the key
     assert res.data["api_key"] == "FINAL-KEY"
     assert res.data["base_url"] == "https://acme.crm.jarvismgco.com"
     assert res.data["subdomain"] == "acme"
+
+
+@pytest.mark.asyncio
+async def test_signup_flow_self_heals_existing_service_user(monkeypatch):
+    """If signUp says the user exists (prior failed attempt), recover via signIn and continue."""
+    monkeypatch.setattr(provision, "PROVISION_BASE_URL", "https://crm.jarvismgco.com")
+    seq = []
+    monkeypatch.setattr(provision, "_auth_call", _flow_auth_call(seq, signup_exists=True))
+
+    res = await provision._run_signup_flow("user_f", "Acme Realty")
+    assert res.ok
+    assert seq[:3] == ["signUp", "signIn", "newWorkspace"]   # signUp collided → signIn recovered
+    assert res.data["api_key"] == "FINAL-KEY"
+
+
+def test_service_password_is_deterministic_and_policy_safe():
+    a = provision._service_password("user_1a85bf0d3508480cb1aa0d4b602b4de5")
+    b = provision._service_password("1a85bf0d-3508-480c-b1aa-0d4b602b4de5")  # same id, hyphenated
+    c = provision._service_password("user_ffffffffffffffffffffffffffffffff")
+    assert a == b and a != c                               # stable per user, unique across users
+    assert len(a) >= 12 and a.endswith("Aa1!")             # min-length + charset policy
+
+
+def test_pick_api_key_role_prefers_admin():
+    roles = [
+        {"id": "m", "label": "Member", "canUpdateAllSettings": False, "canBeAssignedToApiKeys": True},
+        {"id": "a", "label": "Admin", "canUpdateAllSettings": True, "canBeAssignedToApiKeys": True},
+    ]
+    assert provision._pick_api_key_role(roles) == "a"
+    # skips roles that can't back an API key
+    assert provision._pick_api_key_role([
+        {"id": "x", "label": "Admin", "canUpdateAllSettings": True, "canBeAssignedToApiKeys": False},
+        {"id": "y", "label": "Ops", "canUpdateAllSettings": False, "canBeAssignedToApiKeys": True},
+    ]) == "y"
+    assert provision._pick_api_key_role([]) is None

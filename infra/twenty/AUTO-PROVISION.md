@@ -77,6 +77,8 @@ subdomain, else 403).
 ```
 TWENTY_PROVISION_BASE_URL=https://crm.jarvismgco.com   # apex used for signUp/auth calls
 TWENTY_SERVICE_EMAIL_DOMAIN=jarvismgco.com             # service signups use crm+<id>@<domain>
+TWENTY_SERVICE_SECRET=<long-random-string-set-once>    # HMAC key for the deterministic
+                                                       # service password — NEVER rotate it
 # (SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY already set — back the workspace + job tables.)
 ```
 
@@ -110,13 +112,21 @@ IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS=false
 docker compose exec server printenv IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS   # -> false
 ```
 
-> Retry note: a service signup that gets *past* `signUp` but fails a later step leaves an
-> orphaned service user `crm+<hex>@jarvismgco.com` in Twenty. Because the service password is
-> random and only stored on success, that exact user_id can't be re-provisioned until the
-> orphan is deleted in Twenty (Settings → Members) — re-running `--auto` collides on the email.
-> New signups are unaffected (they succeed on the first attempt once the flag above is set).
-> Follow-up hardening (deterministic, recoverable service password + signIn fallback) is
-> tracked so retries become self-healing; it must be verified live from Render.
+If `--auto` reports `createApiKey: Field "roleId" of required type "UUID!" was not provided`,
+you're on a Twenty build whose `createApiKey` requires a role. The flow now handles this:
+it calls `getRoles` and attaches the full-settings (Admin) role to the backend key — no
+action needed.
+
+> Self-heal / retry: provisioning is now idempotent. The service password is **deterministic**
+> (HMAC of the user_id), so a retry that finds the service user `crm+<hex>@jarvismgco.com`
+> already created by a prior failed attempt **signs in** and continues instead of colliding.
+> Set **`TWENTY_SERVICE_SECRET`** (a long random string) in the Jarvis backend env and never
+> change it — it's the HMAC key; rotating it makes previously-created service accounts
+> unrecoverable. (Falls back to `APP_SECRET`, then `SUPABASE_SERVICE_ROLE_KEY`, if unset.)
+>
+> One-time cleanup: service accounts created **before** this deterministic-password change
+> have random passwords we never stored, so signIn can't recover them — delete those orphans
+> in Twenty (Settings → Members) once, then re-run `--auto`. New signups are unaffected.
 
 ---
 
