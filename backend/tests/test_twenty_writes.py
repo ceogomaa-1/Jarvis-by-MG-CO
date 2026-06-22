@@ -33,18 +33,24 @@ def _schema() -> TwentySchema:
         ],
     )
     note = TwentyObject(id="obj-note", name_singular="note", name_plural="notes", label_singular="Note",
-                        fields=[TwentyField(id="n1", name="body", label="Body", type="TEXT", is_custom=False)])
+                        fields=[TwentyField(id="n1", name="bodyV2", label="Body", type="RICH_TEXT", is_custom=False),
+                                TwentyField(id="n2", name="title", label="Title", type="TEXT", is_custom=False)])
+    company = TwentyObject(id="obj-co", name_singular="company", name_plural="companies", label_singular="Company",
+                           fields=[TwentyField(id="cc1", name="name", label="Name", type="TEXT", is_custom=False)])
+    # person.company relation so link_records can set companyId
+    person.fields.append(TwentyField(id="pc", name="company", label="Company", type="RELATION", is_custom=False))
     note_t = TwentyObject(id="obj-nt", name_singular="noteTarget", name_plural="noteTargets", label_singular="NoteTarget", fields=[])
-    return TwentySchema(objects={"person": person, "opportunity": opp, "note": note, "noteTarget": note_t}, field_types=set())
+    return TwentySchema(objects={"person": person, "opportunity": opp, "note": note, "company": company, "noteTarget": note_t}, field_types=set())
 
 
 class FakeClient:
     """Records mutations; answers people/opportunity reads from seeded data."""
-    def __init__(self, *, api_key="key", people=None, opps=None):
+    def __init__(self, *, api_key="key", people=None, opps=None, cos=None):
         self.api_key = api_key
         self.mutations = []
         self._people = people or []
         self._opps = opps or []
+        self._cos = cos or []
 
     async def query_data(self, query, variables=None, *, action=""):
         from backend.lib.business.connectors.base import ConnectorResult
@@ -55,11 +61,16 @@ class FakeClient:
             return ConnectorResult(ok=True, data={
                 "createPerson": {"id": "new-person"}, "createOpportunity": {"id": "new-opp"},
                 "createNote": {"id": "new-note"}, "createNoteTarget": {"id": "nt"},
+                "createCompany": {"id": "new-co"},
                 "updatePerson": {"id": (variables or {}).get("id")},
                 "updateOpportunity": {"id": (variables or {}).get("id")},
+                "updateCompany": {"id": (variables or {}).get("id")},
                 "deletePerson": {"id": (variables or {}).get("id")},
                 "deleteOpportunity": {"id": (variables or {}).get("id")},
+                "deleteCompany": {"id": (variables or {}).get("id")},
             })
+        if "companies" in q:
+            return ConnectorResult(ok=True, data={"companies": {"edges": [{"node": n} for n in self._cos]}})
         if "people" in q:
             return ConnectorResult(ok=True, data={"people": {"edges": [{"node": n} for n in self._people]}})
         if "opportunities" in q:
@@ -155,6 +166,52 @@ def test_deletes_are_confirm_gated():
     assert "twenty__create_person" not in WRITE_ACTIONS
     # but every write does signal a CRM refresh
     assert "twenty__create_person" in CRM_WRITE_ACTIONS
+
+
+@pytest.mark.asyncio
+async def test_create_company_idempotent_on_name():
+    c = FakeClient(cos=[{"id": "co1", "name": "Acme Inc"}])
+    res = await writes.create_company(c, _schema(), "u", {"name": "Acme Inc"})
+    assert res.ok and res.data["created"] is False and res.data["id"] == "co1"
+    assert c.mutations == []  # no create fired
+
+
+@pytest.mark.asyncio
+async def test_delete_company():
+    c = FakeClient(cos=[{"id": "co9", "name": "Globex"}])
+    res = await writes.delete_company(c, _schema(), "u", {"query": "Globex"})
+    assert res.ok and res.data["status"] == "deleted"
+    assert c.mutations[0][0] == "Delete company"
+
+
+@pytest.mark.asyncio
+async def test_link_person_to_company_sets_fk():
+    c = FakeClient(people=[{"id": "p1", "name": {"firstName": "A", "lastName": "B"}, "emails": {}}],
+                   cos=[{"id": "co1", "name": "Acme"}])
+    res = await writes.link_records(c, _schema(), "u", {"from_type": "person", "to_type": "company",
+                                                        "from_query": "A B", "to_query": "Acme"})
+    assert res.ok
+    # owning side is person; FK companyId set to the company id
+    upd = [m for m in c.mutations if m[0] == "Update person"][0]
+    assert upd[1]["data"] == {"companyId": "co1"}
+
+
+@pytest.mark.asyncio
+async def test_add_note_uses_bodyV2_when_no_body_field():
+    c = FakeClient(people=[{"id": "p1", "name": {"firstName": "A", "lastName": "B"}, "emails": {}}])
+    res = await writes.add_note(c, _schema(), "u", {"body": "hello world", "person_query": "A B"})
+    assert res.ok
+    create = [m for m in c.mutations if m[0] == "Create note"][0]
+    assert create[1]["data"]["bodyV2"] == {"markdown": "hello world"}
+
+
+@pytest.mark.asyncio
+async def test_run_graphql_rejects_non_mutation():
+    c = FakeClient()
+    res = await writes.run_graphql_mutation(c, _schema(), "u", {"mutation": "query { people { edges { node { id } } } }"})
+    assert not res.ok and "mutation" in res.error.lower()
+    res2 = await writes.run_graphql_mutation(c, _schema(), "u", {"mutation": "mutation { __schema }"})
+    assert not res2.ok  # introspection blocked
 
 
 @pytest.mark.asyncio

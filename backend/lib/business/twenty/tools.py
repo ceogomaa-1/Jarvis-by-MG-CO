@@ -98,6 +98,18 @@ async def execute_twenty_tool(action_name: str, inp: dict, user_id: str) -> Conn
             rows = [r for r in rows if q in r["name"].lower() or q in r["email"].lower()][:limit]
         return ConnectorResult(ok=True, data={"count": len(rows), "people": rows})
 
+    if action_name in ("list_companies", "search_companies"):
+        co_obj = schema.obj("company")
+        if not co_obj:
+            return ConnectorResult(ok=False, error="This CRM has no Company object.")
+        limit = int(inp.get("limit", 25))
+        cos = await _page(client, co_obj.name_plural, "id name", max_records=500 if action_name == "search_companies" else limit)
+        rows = [{"id": c.get("id"), "name": c.get("name")} for c in cos]
+        if action_name == "search_companies":
+            q = (inp.get("query") or "").strip().lower()
+            rows = [r for r in rows if q in (r["name"] or "").lower()][:limit]
+        return ConnectorResult(ok=True, data={"count": len(rows), "companies": rows})
+
     if action_name in ("list_opportunities", "count_opportunities_in_stage"):
         # Stages resolve from the GHL import map AND Twenty's native stage options.
         targets = await writes.stage_label_map(user_id, schema)
@@ -142,20 +154,26 @@ async def execute_twenty_tool(action_name: str, inp: dict, user_id: str) -> Conn
 
 
 async def _read_targets(client: TwentyClient, target_plural: str, child: str, person_id: str) -> list[dict]:
-    """Best-effort read of a person's notes/tasks via the target join object."""
-    query = f"""
-    query Targets {{
-      {target_plural}(first: 100, filter: {{ personId: {{ eq: "{person_id}" }} }}) {{
-        edges {{ node {{ {child} {{ id title body }} }} }}
-      }}
-    }}
-    """
-    res = await client.query_data(query, action=f"Read {target_plural}")
-    if not res.ok:
-        return []
-    out = []
-    for edge in ((res.data or {}).get(target_plural) or {}).get("edges") or []:
-        node = (edge.get("node") or {}).get(child) or {}
-        if node:
-            out.append({"title": node.get("title"), "body": node.get("body")})
-    return out
+    """Best-effort read of a person's notes/tasks via the target join object.
+
+    Twenty's join filter field is `targetPersonId` (not `personId`), and the body lives
+    in `bodyV2` (RICH_TEXT) on current Twenty — fall back to legacy `body` if needed."""
+    for body_sel, getter in (("bodyV2 { markdown }", lambda n: (n.get("bodyV2") or {}).get("markdown")),
+                             ("body", lambda n: n.get("body"))):
+        query = f"""
+        query Targets {{
+          {target_plural}(first: 100, filter: {{ targetPersonId: {{ eq: "{person_id}" }} }}) {{
+            edges {{ node {{ {child} {{ id title {body_sel} }} }} }}
+          }}
+        }}
+        """
+        res = await client.query_data(query, action=f"Read {target_plural}")
+        if not res.ok:
+            continue
+        out = []
+        for edge in ((res.data or {}).get(target_plural) or {}).get("edges") or []:
+            node = (edge.get("node") or {}).get(child) or {}
+            if node:
+                out.append({"title": node.get("title"), "body": getter(node)})
+        return out
+    return []

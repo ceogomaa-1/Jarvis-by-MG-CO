@@ -943,142 +943,162 @@ TWENTY_TOOLS: dict[str, dict] = {
             "required": ["query"],
         },
     },
-}
-
-# WRITE tools (Phase 3) — Jarvis can modify the owned CRM. Same gating as reads
-# (only when the user's workspace is provisioned). Writes go to Twenty ONLY, never
-# GHL. delete_* are intercepted by chat.py WRITE_ACTIONS for hold-to-confirm.
-TWENTY_WRITE_TOOLS: dict[str, dict] = {
-    "twenty__create_person": {
-        "description": "[Owned CRM WRITE] Create a contact (Person) in Jarvis's own CRM. Idempotent on email — if a contact with that email exists it is returned, not duplicated.",
+    "twenty__list_companies": {
+        "description": "[Owned CRM] List Companies in Jarvis's own CRM. Returns name + id.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"limit": {"type": "integer", "description": "Max companies (default 25)"}},
+            "required": [],
+        },
+    },
+    "twenty__search_companies": {
+        "description": "[Owned CRM] Search Companies by name substring. Returns matching name + id.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "first_name": {"type": "string"},
-                "last_name": {"type": "string"},
-                "email": {"type": "string"},
-                "phone": {"type": "string"},
-                "city": {"type": "string"},
-                "job_title": {"type": "string"},
+                "query": {"type": "string", "description": "Company name text to match"},
+                "limit": {"type": "integer", "description": "Max results (default 25)"},
             },
-            "required": [],
+            "required": ["query"],
         },
+    },
+}
+
+# WRITE tools (Phase 3) — full CRUD over the owned CRM. Same gating as reads (only
+# when the user's workspace is provisioned). Writes go to Twenty ONLY, never GHL.
+# Destructive tools (TWENTY_DESTRUCTIVE_TOOLS) are intercepted by chat.py WRITE_ACTIONS
+# for hold-to-confirm before executing.
+_P = {"person_id": {"type": "string"}, "company_id": {"type": "string"}, "opportunity_id": {"type": "string"},
+      "person_query": {"type": "string"}, "company_query": {"type": "string"}, "opportunity_query": {"type": "string"}}
+
+TWENTY_WRITE_TOOLS: dict[str, dict] = {
+    # ── People ──
+    "twenty__create_person": {
+        "description": "[Owned CRM WRITE] Create a contact (Person). Idempotent on email. Optionally link to a company via company_query/company_id.",
+        "input_schema": {"type": "object", "properties": {
+            "first_name": {"type": "string"}, "last_name": {"type": "string"}, "email": {"type": "string"},
+            "phone": {"type": "string"}, "city": {"type": "string"}, "job_title": {"type": "string"},
+            "company_query": {"type": "string"}, "company_id": {"type": "string"}}, "required": []},
     },
     "twenty__update_person": {
-        "description": "[Owned CRM WRITE] Update a contact. Identify by person_id, or by `query` (name/email). Only the fields you pass are changed.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "person_id": {"type": "string"},
-                "query": {"type": "string", "description": "Name/email to find the contact if no person_id"},
-                "first_name": {"type": "string"}, "last_name": {"type": "string"},
-                "email": {"type": "string"}, "phone": {"type": "string"},
-                "city": {"type": "string"}, "job_title": {"type": "string"},
-            },
-            "required": [],
-        },
-    },
-    "twenty__create_opportunity": {
-        "description": "[Owned CRM WRITE] Create an Opportunity (deal). Optionally set a pipeline stage (by its GHL stage name), an amount, and link a contact via person_query/person_id.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "name": {"type": "string"},
-                "amount": {"type": "number", "description": "Deal value in the major currency unit (e.g. 5000 for $5,000)"},
-                "currency": {"type": "string", "description": "ISO code, default USD"},
-                "stage": {"type": "string", "description": "Pipeline stage name (as in GoHighLevel)"},
-                "person_query": {"type": "string"}, "person_id": {"type": "string"},
-            },
-            "required": ["name"],
-        },
-    },
-    "twenty__update_opportunity": {
-        "description": "[Owned CRM WRITE] Update an Opportunity's name or amount. Identify by opportunity_id or `query` (name).",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "opportunity_id": {"type": "string"}, "query": {"type": "string"},
-                "name": {"type": "string"}, "amount": {"type": "number"}, "currency": {"type": "string"},
-            },
-            "required": [],
-        },
-    },
-    "twenty__move_opportunity_stage": {
-        "description": "[Owned CRM WRITE] Move an Opportunity to a different pipeline stage. Identify the deal by opportunity_id or `query` (name); pass the target stage name (as in GoHighLevel).",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "opportunity_id": {"type": "string"}, "query": {"type": "string"},
-                "stage": {"type": "string"},
-            },
-            "required": ["stage"],
-        },
-    },
-    "twenty__add_note": {
-        "description": "[Owned CRM WRITE] Add a note to a contact. Identify the contact by person_id or `query` (name/email); pass the note `body`.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "person_id": {"type": "string"}, "query": {"type": "string"},
-                "title": {"type": "string"}, "body": {"type": "string"},
-            },
-            "required": ["body"],
-        },
-    },
-    "twenty__add_task": {
-        "description": "[Owned CRM WRITE] Create a task. Optionally attach it to a contact via person_query/person_id and set a due date (ISO 8601).",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "title": {"type": "string"}, "body": {"type": "string"},
-                "due_at": {"type": "string", "description": "ISO 8601 datetime"},
-                "person_query": {"type": "string"}, "person_id": {"type": "string"},
-            },
-            "required": ["title"],
-        },
-    },
-    "twenty__complete_task": {
-        "description": "[Owned CRM WRITE] Mark a task complete. Requires the task_id.",
-        "input_schema": {
-            "type": "object",
-            "properties": {"task_id": {"type": "string"}},
-            "required": ["task_id"],
-        },
-    },
-    "twenty__add_tag": {
-        "description": "[Owned CRM WRITE] Add a tag to a contact (idempotent). Identify by person_id or `query`; pass `tag`.",
-        "input_schema": {
-            "type": "object",
-            "properties": {"person_id": {"type": "string"}, "query": {"type": "string"}, "tag": {"type": "string"}},
-            "required": ["tag"],
-        },
-    },
-    "twenty__remove_tag": {
-        "description": "[Owned CRM WRITE] Remove a tag from a contact (idempotent). Identify by person_id or `query`; pass `tag`.",
-        "input_schema": {
-            "type": "object",
-            "properties": {"person_id": {"type": "string"}, "query": {"type": "string"}, "tag": {"type": "string"}},
-            "required": ["tag"],
-        },
+        "description": "[Owned CRM WRITE] Update a contact. Identify by person_id or `query` (name/email). Only passed fields change.",
+        "input_schema": {"type": "object", "properties": {
+            "person_id": {"type": "string"}, "query": {"type": "string"},
+            "first_name": {"type": "string"}, "last_name": {"type": "string"}, "email": {"type": "string"},
+            "phone": {"type": "string"}, "city": {"type": "string"}, "job_title": {"type": "string"}}, "required": []},
     },
     "twenty__delete_person": {
-        "description": "[Owned CRM WRITE — DESTRUCTIVE] Delete a contact. Identify by person_id or `query`. Requires user confirmation (the system gates this with hold-to-confirm).",
-        "input_schema": {
-            "type": "object",
-            "properties": {"person_id": {"type": "string"}, "query": {"type": "string"}},
-            "required": [],
-        },
+        "description": "[Owned CRM WRITE — DESTRUCTIVE] Delete a contact. Identify by person_id or `query`. Requires hold-to-confirm.",
+        "input_schema": {"type": "object", "properties": {"person_id": {"type": "string"}, "query": {"type": "string"}}, "required": []},
+    },
+    # ── Companies ──
+    "twenty__create_company": {
+        "description": "[Owned CRM WRITE] Create a Company. Idempotent on name. Optional domain, city.",
+        "input_schema": {"type": "object", "properties": {
+            "name": {"type": "string"}, "domain": {"type": "string"}, "city": {"type": "string"}}, "required": ["name"]},
+    },
+    "twenty__update_company": {
+        "description": "[Owned CRM WRITE] Update a Company's name or domain. Identify by company_id or `query`.",
+        "input_schema": {"type": "object", "properties": {
+            "company_id": {"type": "string"}, "query": {"type": "string"}, "name": {"type": "string"}, "domain": {"type": "string"}}, "required": []},
+    },
+    "twenty__delete_company": {
+        "description": "[Owned CRM WRITE — DESTRUCTIVE] Delete a Company. Identify by company_id or `query`. Requires hold-to-confirm.",
+        "input_schema": {"type": "object", "properties": {"company_id": {"type": "string"}, "query": {"type": "string"}}, "required": []},
+    },
+    # ── Opportunities ──
+    "twenty__create_opportunity": {
+        "description": "[Owned CRM WRITE] Create an Opportunity. Optional stage (GHL or native name), amount, and links via person_query/company_query.",
+        "input_schema": {"type": "object", "properties": {
+            "name": {"type": "string"}, "amount": {"type": "number"}, "currency": {"type": "string"}, "stage": {"type": "string"},
+            "person_query": {"type": "string"}, "person_id": {"type": "string"},
+            "company_query": {"type": "string"}, "company_id": {"type": "string"}}, "required": ["name"]},
+    },
+    "twenty__update_opportunity": {
+        "description": "[Owned CRM WRITE] Update an Opportunity's name or amount. Identify by opportunity_id or `query`.",
+        "input_schema": {"type": "object", "properties": {
+            "opportunity_id": {"type": "string"}, "query": {"type": "string"}, "name": {"type": "string"},
+            "amount": {"type": "number"}, "currency": {"type": "string"}}, "required": []},
+    },
+    "twenty__move_opportunity_stage": {
+        "description": "[Owned CRM WRITE] Move an Opportunity to a different pipeline stage (by name). Identify by opportunity_id or `query`.",
+        "input_schema": {"type": "object", "properties": {
+            "opportunity_id": {"type": "string"}, "query": {"type": "string"}, "stage": {"type": "string"}}, "required": ["stage"]},
     },
     "twenty__delete_opportunity": {
-        "description": "[Owned CRM WRITE — DESTRUCTIVE] Delete an Opportunity. Identify by opportunity_id or `query`. Requires user confirmation (hold-to-confirm).",
-        "input_schema": {
-            "type": "object",
-            "properties": {"opportunity_id": {"type": "string"}, "query": {"type": "string"}},
-            "required": [],
-        },
+        "description": "[Owned CRM WRITE — DESTRUCTIVE] Delete an Opportunity. Identify by opportunity_id or `query`. Requires hold-to-confirm.",
+        "input_schema": {"type": "object", "properties": {"opportunity_id": {"type": "string"}, "query": {"type": "string"}}, "required": []},
+    },
+    # ── Tasks ──
+    "twenty__create_task": {
+        "description": "[Owned CRM WRITE] Create a task. Optionally assign to a person/company/opportunity (via *_query/*_id) and set due_at (ISO 8601).",
+        "input_schema": {"type": "object", "properties": {
+            "title": {"type": "string"}, "body": {"type": "string"}, "due_at": {"type": "string"}, **_P}, "required": ["title"]},
+    },
+    "twenty__update_task": {
+        "description": "[Owned CRM WRITE] Update a task (title/body/due_at/status). Requires task_id.",
+        "input_schema": {"type": "object", "properties": {
+            "task_id": {"type": "string"}, "title": {"type": "string"}, "body": {"type": "string"},
+            "due_at": {"type": "string"}, "status": {"type": "string", "description": "TODO | IN_PROGRESS | DONE"}}, "required": ["task_id"]},
+    },
+    "twenty__complete_task": {
+        "description": "[Owned CRM WRITE] Mark a task complete. Requires task_id.",
+        "input_schema": {"type": "object", "properties": {"task_id": {"type": "string"}}, "required": ["task_id"]},
+    },
+    "twenty__delete_task": {
+        "description": "[Owned CRM WRITE — DESTRUCTIVE] Delete a task. Requires task_id. Requires hold-to-confirm.",
+        "input_schema": {"type": "object", "properties": {"task_id": {"type": "string"}}, "required": ["task_id"]},
+    },
+    # ── Notes ──
+    "twenty__add_note": {
+        "description": "[Owned CRM WRITE] Create a note and attach it to a person/company/opportunity (via *_query/*_id).",
+        "input_schema": {"type": "object", "properties": {
+            "title": {"type": "string"}, "body": {"type": "string"}, **_P}, "required": ["body"]},
+    },
+    "twenty__update_note": {
+        "description": "[Owned CRM WRITE] Update a note's title/body. Requires note_id.",
+        "input_schema": {"type": "object", "properties": {
+            "note_id": {"type": "string"}, "title": {"type": "string"}, "body": {"type": "string"}}, "required": ["note_id"]},
+    },
+    "twenty__delete_note": {
+        "description": "[Owned CRM WRITE — DESTRUCTIVE] Delete a note. Requires note_id. Requires hold-to-confirm.",
+        "input_schema": {"type": "object", "properties": {"note_id": {"type": "string"}}, "required": ["note_id"]},
+    },
+    # ── Tags ──
+    "twenty__add_tag": {
+        "description": "[Owned CRM WRITE] Add a tag to a record (idempotent). object_type = person|company|opportunity; identify by *_id or `query`.",
+        "input_schema": {"type": "object", "properties": {
+            "object_type": {"type": "string"}, "person_id": {"type": "string"}, "company_id": {"type": "string"},
+            "opportunity_id": {"type": "string"}, "query": {"type": "string"}, "tag": {"type": "string"}}, "required": ["tag"]},
+    },
+    "twenty__remove_tag": {
+        "description": "[Owned CRM WRITE] Remove a tag from a record (idempotent). object_type = person|company|opportunity; identify by *_id or `query`.",
+        "input_schema": {"type": "object", "properties": {
+            "object_type": {"type": "string"}, "person_id": {"type": "string"}, "company_id": {"type": "string"},
+            "opportunity_id": {"type": "string"}, "query": {"type": "string"}, "tag": {"type": "string"}}, "required": ["tag"]},
+    },
+    # ── Relationships ──
+    "twenty__link_records": {
+        "description": "[Owned CRM WRITE] Link two records: person↔company, opportunity↔company, or opportunity↔person. Give from_type/to_type plus from_query/to_query (or *_id).",
+        "input_schema": {"type": "object", "properties": {
+            "from_type": {"type": "string"}, "to_type": {"type": "string"},
+            "from_query": {"type": "string"}, "to_query": {"type": "string"},
+            "from_id": {"type": "string"}, "to_id": {"type": "string"}}, "required": ["from_type", "to_type"]},
+    },
+    # ── Advanced escape hatch (confirm-gated) ──
+    "twenty__run_graphql_mutation": {
+        "description": "[Owned CRM WRITE — ADVANCED] Run a raw Twenty GraphQL mutation for rare ops the structured tools don't cover. Prefer the structured tools. Requires hold-to-confirm.",
+        "input_schema": {"type": "object", "properties": {
+            "mutation": {"type": "string", "description": "A GraphQL mutation string"},
+            "variables": {"type": "object", "description": "Variables for the mutation"}}, "required": ["mutation"]},
     },
 }
 
+# Deletes + the raw-GraphQL escape hatch require hold-to-confirm (chat.py WRITE_ACTIONS).
+TWENTY_DESTRUCTIVE_TOOLS = frozenset({
+    "twenty__delete_person", "twenty__delete_company", "twenty__delete_opportunity",
+    "twenty__delete_task", "twenty__delete_note", "twenty__run_graphql_mutation",
+})
 # Maps each tool name to its connector_type
 _TOOL_TO_CONNECTOR: dict[str, str] = {k: k.split("__")[0] for k in _TOOLS}
 

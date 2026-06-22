@@ -172,16 +172,20 @@ class Importer:
 
     # ── attach a Note/Task to a Person via the target join object ─────────────
     async def _attach_target(self, target_obj_alias: str, parent_id: str, person_id: str):
-        """Best-effort: create noteTarget/taskTarget linking the record to the person."""
-        if self.dry_run or not self.schema.obj(target_obj_alias):
+        """Best-effort: create noteTarget/taskTarget linking the record to the person.
+
+        The join objects aren't in the introspected core set, so the mutation name is
+        fixed by convention (NoteTarget/TaskTarget)."""
+        if self.dry_run:
             return
-        cap = _cap(self.schema.obj(target_obj_alias).name_singular)
+        cap = _cap(target_obj_alias)   # noteTarget -> NoteTarget
         key = target_obj_alias.replace("Target", "")  # note / task
         mutation = f"""
         mutation Create{cap}($data: {cap}CreateInput!) {{ create{cap}(data: $data) {{ id }} }}
         """
+        # Twenty's join FK is target{Person,...}Id, not personId.
         await self.client.query_data(
-            mutation, {"data": {f"{key}Id": parent_id, "personId": person_id}}, action=f"Attach {target_obj_alias}"
+            mutation, {"data": {f"{key}Id": parent_id, "targetPersonId": person_id}}, action=f"Attach {target_obj_alias}"
         )
 
     # ── per-type import ───────────────────────────────────────────────────────
@@ -222,10 +226,13 @@ class Importer:
                     self.summary["note"]["skipped"] += 1
                 continue
             data = {}
+            body_text = note.get("body") or ""
             if self._has("note", "title"):
                 data["title"] = (note.get("body") or "Note")[:60]
             if self._has("note", "body"):
-                data["body"] = note.get("body") or ""
+                data["body"] = body_text
+            elif self._has("note", "bodyV2"):
+                data["bodyV2"] = {"markdown": body_text}
             new_id = await self._create("note", nid, data)
             if new_id and not str(new_id).startswith("dry-"):
                 await self._attach_target("noteTarget", new_id, person_id)
@@ -242,6 +249,8 @@ class Importer:
                 data["title"] = task.get("title") or "Task"
             if self._has("task", "body"):
                 data["body"] = task.get("body") or ""
+            elif self._has("task", "bodyV2"):
+                data["bodyV2"] = {"markdown": task.get("body") or ""}
             if self._has("task", "dueAt") and task.get("dueDate"):
                 data["dueAt"] = task["dueDate"]
             new_id = await self._create("task", tid, data)

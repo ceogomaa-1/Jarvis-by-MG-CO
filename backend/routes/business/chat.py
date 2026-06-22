@@ -14,7 +14,7 @@ from backend.lib.business.farida_loader import FARIDA_USER_ID, load_greeting as 
 from backend.lib.business.model_router import select_model, OPUS
 from backend.lib.business.memory import extract_and_store_memories
 from backend.lib.business.mind.graph import record_activity
-from backend.lib.business.tool_builder import build_tools_for_user
+from backend.lib.business.tool_builder import build_tools_for_user, TWENTY_WRITE_TOOLS, TWENTY_DESTRUCTIVE_TOOLS
 from backend.lib.business.tool_executor import execute_tool
 from backend.lib.business.document_store import save_document
 from backend.lib.business.real_estate.profile import is_real_estate_user
@@ -54,21 +54,15 @@ WRITE_ACTIONS = frozenset({
     "buffer__add_to_queue",
     "realestate__ghl_add_note",
     "realestate__book_showing",
-    # Jarvis CRM (Twenty) destructive writes — hold-to-confirm before executing.
-    "twenty__delete_person",
-    "twenty__delete_opportunity",
+    # Jarvis CRM (Twenty) destructive writes — every delete + the raw-GraphQL escape
+    # hatch. Derived from the tool registry so new destructive tools stay gated.
+    *TWENTY_DESTRUCTIVE_TOOLS,
 })
 
-# Jarvis CRM (Twenty) writes whose success should refresh the embedded CRM view
-# ("feels live"). Non-destructive ones run inline in the stream loop; deletes run
-# via /confirm-action (the frontend refreshes there too).
-CRM_WRITE_ACTIONS = frozenset({
-    "twenty__create_person", "twenty__update_person",
-    "twenty__create_opportunity", "twenty__update_opportunity",
-    "twenty__move_opportunity_stage", "twenty__add_note", "twenty__add_task",
-    "twenty__complete_task", "twenty__add_tag", "twenty__remove_tag",
-    "twenty__delete_person", "twenty__delete_opportunity",
-})
+# Every Jarvis CRM write refreshes the embedded CRM view ("feels live"). Derived from
+# the write-tool registry so new tools are covered automatically. Non-destructive ones
+# run inline in the stream loop; deletes run via /confirm-action (refreshes there too).
+CRM_WRITE_ACTIONS = frozenset(TWENTY_WRITE_TOOLS.keys())
 
 
 def _describe_action(tool_name: str, tool_input: dict) -> str:
@@ -122,12 +116,15 @@ def _describe_action(tool_name: str, tool_input: dict) -> str:
         interval = tool_input.get("interval")
         suffix = f"/{interval}" if interval else " one-time"
         return f"Create Stripe price on {tool_input.get('product_id', '?')}: {cur} {amount / 100:.2f}{suffix}"
-    if tool_name == "twenty__delete_person":
-        who = tool_input.get("query") or tool_input.get("person_id") or "?"
-        return f"Delete contact from Jarvis CRM: {who}"
-    if tool_name == "twenty__delete_opportunity":
-        what = tool_input.get("query") or tool_input.get("opportunity_id") or "?"
-        return f"Delete opportunity from Jarvis CRM: {what}"
+    if tool_name.startswith("twenty__delete_"):
+        obj = tool_name.replace("twenty__delete_", "")
+        who = (tool_input.get("query") or tool_input.get(f"{obj}_id")
+               or tool_input.get("person_id") or tool_input.get("note_id")
+               or tool_input.get("task_id") or "?")
+        return f"Delete {obj} from Jarvis CRM: {who}"
+    if tool_name == "twenty__run_graphql_mutation":
+        m = (tool_input.get("mutation") or "").strip().replace("\n", " ")
+        return f"Run a custom Jarvis CRM mutation: {m[:90]}"
     if tool_name == "realestate__ghl_add_note":
         note = (tool_input.get("note") or "")[:80]
         return f"Add CRM note: {note or '?'}"

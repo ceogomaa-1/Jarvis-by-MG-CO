@@ -1,24 +1,26 @@
 """
-Phase 3 — read/WRITE tools for the owned Jarvis CRM (Twenty), GUARDED.
+Jarvis CRM write layer (Twenty) — full CRUD across every core object, GUARDED.
 
-Mutations mirror the proven Phase-1 importer shape (createOne/updateOne/deleteOne
-generated CRUD, composite name/emails/phones/amount inputs, note/task target joins)
-and are built DEFENSIVELY from the introspected schema — a field is only sent if the
-object actually has it. Never guesses field names.
+Mutations use Twenty's generated CRUD (create/update/delete{Object}) and are built
+DEFENSIVELY from the introspected schema — a field is only sent if the object actually
+has it. Never guesses field names. Every write is scoped to the per-user workspace by
+the caller (tools.execute_twenty_tool resolves TwentyClient.for_user(user_id) first), so
+a write can only ever touch that client's tenant — the Phase-2 isolation boundary.
 
-Every write is scoped to the per-user workspace by the caller (tools.execute_twenty_tool
-resolves `TwentyClient.for_user(user_id)` first), so a write can only ever touch that
-client's workspace — the isolation boundary from Phase 2.
+Coverage:
+  People         create / update / delete / link-to-company
+  Companies      create / update / delete
+  Opportunities  create / update / move-stage / delete   (+ company & contact links)
+  Tasks          create / update / complete / delete      (+ assign to person/company/opp)
+  Notes          create / update / delete                 (+ attach to person/company/opp)
+  Tags           add / remove on person/company/opportunity (any MULTI_SELECT tag field)
+  Relationships  link_records (person↔company, opportunity↔company, opportunity↔person)
+  Advanced       run_graphql_mutation (escape hatch; confirm-gated — see report)
 
-Guardrails:
-  - additive writes (create/update/move/note/task/tag) execute directly and return a
-    clear summary of what changed;
-  - DESTRUCTIVE writes (delete_person, delete_opportunity) are listed in chat.py's
-    WRITE_ACTIONS, so the chat stream intercepts them and requires hold-to-confirm
-    BEFORE this code runs;
-  - create_person is idempotent on email (returns the existing person instead of a dup);
-    add/remove_tag are set-semantics idempotent.
-GHL is never written to here — writes go to Twenty only.
+Guardrails: deletes + run_graphql_mutation are listed in chat.py WRITE_ACTIONS so the
+chat stream intercepts them for hold-to-confirm BEFORE this code runs. Creates are
+idempotent on a natural key where sensible (person→email, company→name; tags are
+set-semantics). Each write returns a clear `summary`. GHL is never written here.
 """
 from backend.lib.business.connectors.base import ConnectorResult
 from backend.lib.business.twenty import store
@@ -42,6 +44,11 @@ def _full_name(node: dict) -> str:
     return str(n or "")
 
 
+def _label(alias: str, node: dict) -> str:
+    return _full_name(node) if alias == "person" else (node.get("name") or "")
+
+
+# ── generic CRUD ────────────────────────────────────────────────────────────────
 async def _create(client: TwentyClient, schema: TwentySchema, alias: str, data: dict) -> ConnectorResult:
     obj = schema.obj(alias)
     if not obj:
@@ -51,8 +58,7 @@ async def _create(client: TwentyClient, schema: TwentySchema, alias: str, data: 
     res = await client.query_data(mutation, {"data": data}, action=f"Create {alias}")
     if not res.ok:
         return res
-    rec = (res.data or {}).get(f"create{cap}") or {}
-    return ConnectorResult(ok=True, data={"id": rec.get("id")})
+    return ConnectorResult(ok=True, data={"id": ((res.data or {}).get(f"create{cap}") or {}).get("id")})
 
 
 async def _update(client: TwentyClient, schema: TwentySchema, alias: str, record_id: str, data: dict) -> ConnectorResult:
@@ -60,14 +66,9 @@ async def _update(client: TwentyClient, schema: TwentySchema, alias: str, record
     if not obj:
         return ConnectorResult(ok=False, error=f"This CRM has no '{alias}' object.")
     cap = _cap(obj.name_singular)
-    mutation = (
-        f"mutation Update{cap}($id: UUID!, $data: {cap}UpdateInput!) "
-        f"{{ update{cap}(id: $id, data: $data) {{ id }} }}"
-    )
+    mutation = f"mutation Update{cap}($id: UUID!, $data: {cap}UpdateInput!) {{ update{cap}(id: $id, data: $data) {{ id }} }}"
     res = await client.query_data(mutation, {"id": record_id, "data": data}, action=f"Update {alias}")
-    if not res.ok:
-        return res
-    return ConnectorResult(ok=True, data={"id": record_id})
+    return res if not res.ok else ConnectorResult(ok=True, data={"id": record_id})
 
 
 async def _delete(client: TwentyClient, schema: TwentySchema, alias: str, record_id: str) -> ConnectorResult:
@@ -77,76 +78,57 @@ async def _delete(client: TwentyClient, schema: TwentySchema, alias: str, record
     cap = _cap(obj.name_singular)
     mutation = f"mutation Delete{cap}($id: UUID!) {{ delete{cap}(id: $id) {{ id }} }}"
     res = await client.query_data(mutation, {"id": record_id}, action=f"Delete {alias}")
-    if not res.ok:
-        return res
-    return ConnectorResult(ok=True, data={"id": record_id})
+    return res if not res.ok else ConnectorResult(ok=True, data={"id": record_id})
 
 
 # ── lookups ───────────────────────────────────────────────────────────────────
-async def _find_person(client: TwentyClient, schema: TwentySchema, query: str) -> dict | None:
-    """Find a person by name or email (client-side match, version-safe)."""
-    plural = schema.obj("person").name_plural
+async def _find(client: TwentyClient, schema: TwentySchema, alias: str, query: str) -> dict | None:
+    """Find a record by a human query: person by name/email, company/opportunity by name."""
+    obj = schema.obj(alias)
+    if not obj:
+        return None
     q = (query or "").strip().lower()
     if not q:
         return None
+    if alias == "person":
+        sel = "id name { firstName lastName } emails { primaryEmail }"
+    else:
+        sel = "id name"
     res = await client.query_data(
-        f"query P {{ {plural}(first: 200) {{ edges {{ node {{ id name {{ firstName lastName }} "
-        f"emails {{ primaryEmail }} }} }} }} }}",
-        action="Find person",
+        f"query Find {{ {obj.name_plural}(first: 200) {{ edges {{ node {{ {sel} }} }} }} }}",
+        action=f"Find {alias}",
     )
     if not res.ok:
         return None
-    for edge in ((res.data or {}).get(plural) or {}).get("edges") or []:
+    for edge in ((res.data or {}).get(obj.name_plural) or {}).get("edges") or []:
         node = edge.get("node") or {}
-        email = ((node.get("emails") or {}).get("primaryEmail") or "").lower()
-        if q in _full_name(node).lower() or (q and q in email):
-            return node
-    return None
-
-
-async def _find_opportunity(client: TwentyClient, schema: TwentySchema, query: str) -> dict | None:
-    obj = schema.obj("opportunity")
-    if not obj:
-        return None
-    plural = obj.name_plural
-    q = (query or "").strip().lower()
-    res = await client.query_data(
-        f"query O {{ {plural}(first: 200) {{ edges {{ node {{ id name }} }} }} }}",
-        action="Find opportunity",
-    )
-    if not res.ok:
-        return None
-    for edge in ((res.data or {}).get(plural) or {}).get("edges") or []:
-        node = edge.get("node") or {}
-        if q in (node.get("name") or "").lower():
+        if alias == "person":
+            email = ((node.get("emails") or {}).get("primaryEmail") or "").lower()
+            if q in _full_name(node).lower() or q in email:
+                return node
+        elif q in (node.get("name") or "").lower():
             return node
     return None
 
 
 async def _resolve_id(client, schema, alias, inp, id_key) -> tuple[str | None, str]:
-    """Resolve a record id from an explicit id or a `query` string. Returns (id, label)."""
     rid = inp.get(id_key)
     if rid:
         return rid, rid
-    query = inp.get("query") or inp.get("name")
-    finder = _find_person if alias == "person" else _find_opportunity
-    node = await finder(client, schema, query)
+    node = await _find(client, schema, alias, inp.get("query") or inp.get("name"))
     if not node:
-        return None, query or ""
-    label = _full_name(node) if alias == "person" else (node.get("name") or "")
-    return node.get("id"), label
+        return None, (inp.get("query") or inp.get("name") or "")
+    return node.get("id"), _label(alias, node)
 
 
+# ── stages ──────────────────────────────────────────────────────────────────────
 async def stage_label_map(user_id: str, schema: TwentySchema) -> dict[str, list[tuple[str, str]]]:
     """stage label/value (lower) -> [(field_name, option_value)].
 
-    Merges two sources so stages resolve whether or not a GHL import has run:
-      1. the GHL structure map (imported pipeline-stage labels), and
-      2. the live Opportunity SELECT field options (Twenty's native stages, e.g.
-         New/Screening/Meeting/Proposal/Customer) — matched by option value OR label.
+    Merges the GHL structure map with Twenty's native Opportunity SELECT options so
+    stages resolve whether or not a GHL import has run.
     """
     out: dict[str, list[tuple[str, str]]] = {}
-    # 1) GHL structure map
     for (kind, _), row in (await store.load_structure_map(user_id)).items():
         if kind != "stage":
             continue
@@ -154,7 +136,6 @@ async def stage_label_map(user_id: str, schema: TwentySchema) -> dict[str, list[
         label = (extra.get("label") or "").strip().lower()
         if label and extra.get("field_name"):
             out.setdefault(label, []).append((extra["field_name"], row["twenty_id"]))
-    # 2) native Opportunity SELECT options
     opp = schema.obj("opportunity") if schema else None
     if opp:
         stage_f = opp.field_by_name("stage")
@@ -172,27 +153,70 @@ async def stage_label_map(user_id: str, schema: TwentySchema) -> dict[str, list[
     return out
 
 
-async def _resolve_stage(user_id: str, schema: TwentySchema, stage_str: str) -> tuple[str | None, str | None, list[str]]:
-    """Resolve a stage name to (field_name, option_value, known_labels)."""
+async def _resolve_stage(user_id, schema, stage_str) -> tuple[str | None, str | None, list[str]]:
     want = (stage_str or "").strip().lower()
     targets = await stage_label_map(user_id, schema)
-    known = sorted(targets)
     pairs = targets.get(want)
     if pairs:
-        return pairs[0][0], pairs[0][1], known
-    return None, None, known
+        return pairs[0][0], pairs[0][1], sorted(targets)
+    return None, None, sorted(targets)
 
 
-def _tag_field(schema: TwentySchema) -> str | None:
-    """The multi-select field holding tags (importer mirrors GHL tags into `ghlTags`)."""
+def _tag_field(schema: TwentySchema, alias: str) -> str | None:
+    """A MULTI_SELECT field usable as tags on `alias` (importer mirrors GHL tags into ghlTags)."""
+    obj = schema.obj(alias)
+    if not obj:
+        return None
     for cand in ("ghlTags", "tags"):
-        if _has(schema, "person", cand):
+        f = obj.field_by_name(cand)
+        if f and f.type == "MULTI_SELECT":
             return cand
+    for f in obj.fields:
+        if f.type == "MULTI_SELECT" and "tag" in f.name.lower():
+            return f.name
     return None
 
 
-# ── input builders (defensive) ─────────────────────────────────────────────────
-def _person_input(schema: TwentySchema, inp: dict) -> dict:
+def _set_body(schema, alias: str, data: dict, body: str) -> None:
+    """Set a note/task body, handling both the legacy `body` (TEXT) and the current
+    `bodyV2` (RICH_TEXT, takes {markdown}) field shapes across Twenty versions."""
+    if not body:
+        return
+    if _has(schema, alias, "body"):
+        data["body"] = body
+    elif _has(schema, alias, "bodyV2"):
+        data["bodyV2"] = {"markdown": body}
+
+
+async def _attach_target(client, schema, kind: str, parent_id: str, inp: dict) -> list[str]:
+    """Create {kind}Target rows linking a note/task to any provided person/company/opp.
+
+    The join objects (NoteTarget/TaskTarget) aren't in the introspected core-object set,
+    so the mutation names are fixed by convention. Join FKs are target{Person,Company,
+    Opportunity}Id (NOT personId).
+    """
+    cap = _cap(kind) + "Target"   # NoteTarget / TaskTarget
+    attached: list[str] = []
+    for ttype in ("person", "company", "opportunity"):
+        if not (inp.get(f"{ttype}_id") or inp.get(f"{ttype}_query")):
+            continue
+        tid, _ = await _resolve_id(
+            client, schema, ttype,
+            {f"{ttype}_id": inp.get(f"{ttype}_id"), "query": inp.get(f"{ttype}_query")},
+            f"{ttype}_id",
+        )
+        if not tid:
+            continue
+        data = {f"{kind}Id": parent_id, f"target{_cap(ttype)}Id": tid}
+        mutation = f"mutation Attach($data: {cap}CreateInput!) {{ create{cap}(data: $data) {{ id }} }}"
+        r = await client.query_data(mutation, {"data": data}, action=f"Attach {cap}")
+        if r.ok:
+            attached.append(ttype)
+    return attached
+
+
+# ── input builders ──────────────────────────────────────────────────────────────
+def _person_input(schema, inp) -> dict:
     data: dict = {}
     first, last = inp.get("first_name"), inp.get("last_name")
     if (first is not None or last is not None) and _has(schema, "person", "name"):
@@ -208,16 +232,20 @@ def _person_input(schema: TwentySchema, inp: dict) -> dict:
     return data
 
 
-# ── public write actions ────────────────────────────────────────────────────────
+def _amount(inp):
+    try:
+        return {"amountMicros": int(float(inp["amount"]) * 1_000_000), "currencyCode": (inp.get("currency") or "USD").upper()}
+    except (TypeError, ValueError, KeyError):
+        return None
+
+
+# ══ PEOPLE ════════════════════════════════════════════════════════════════════
 async def create_person(client, schema, user_id, inp) -> ConnectorResult:
-    # Idempotent on email: return the existing person rather than duplicating.
     if inp.get("email"):
-        existing = await _find_person(client, schema, inp["email"])
+        existing = await _find(client, schema, "person", inp["email"])
         if existing:
-            return ConnectorResult(ok=True, data={
-                "id": existing.get("id"), "name": _full_name(existing),
-                "created": False, "summary": f"{_full_name(existing)} already exists — no duplicate created.",
-            })
+            return ConnectorResult(ok=True, data={"id": existing.get("id"), "created": False,
+                                                  "summary": f"{_full_name(existing)} already exists — no duplicate created."})
     data = _person_input(schema, inp)
     if not data:
         return ConnectorResult(ok=False, error="Provide at least a name or email for the contact.")
@@ -225,8 +253,12 @@ async def create_person(client, schema, user_id, inp) -> ConnectorResult:
     if not res.ok:
         return res
     name = f"{inp.get('first_name', '')} {inp.get('last_name', '')}".strip() or inp.get("email", "contact")
-    return ConnectorResult(ok=True, data={"id": res.data["id"], "name": name, "created": True,
-                                          "summary": f"Created contact {name}."})
+    # optional company link
+    if inp.get("company_query") or inp.get("company_id"):
+        cid, clabel = await _resolve_id(client, schema, "company", {"company_id": inp.get("company_id"), "query": inp.get("company_query")}, "company_id")
+        if cid and _has(schema, "person", "company"):
+            await _update(client, schema, "person", res.data["id"], {"companyId": cid})
+    return ConnectorResult(ok=True, data={"id": res.data["id"], "created": True, "summary": f"Created contact {name}."})
 
 
 async def update_person(client, schema, user_id, inp) -> ConnectorResult:
@@ -237,24 +269,70 @@ async def update_person(client, schema, user_id, inp) -> ConnectorResult:
     if not data:
         return ConnectorResult(ok=False, error="No updatable fields provided.")
     res = await _update(client, schema, "person", pid, data)
-    if not res.ok:
-        return res
-    return ConnectorResult(ok=True, data={"id": pid, "summary": f"Updated {label or 'contact'} ({', '.join(data.keys())})."})
+    return res if not res.ok else ConnectorResult(ok=True, data={"id": pid, "summary": f"Updated {label or 'contact'} ({', '.join(data.keys())})."})
 
 
+async def delete_person(client, schema, user_id, inp) -> ConnectorResult:
+    pid, label = await _resolve_id(client, schema, "person", inp, "person_id")
+    if not pid:
+        return ConnectorResult(ok=False, error=f"No contact matching '{label}'.")
+    res = await _delete(client, schema, "person", pid)
+    return res if not res.ok else ConnectorResult(ok=True, data={"id": pid, "status": "deleted", "summary": f"Deleted contact {label}."})
+
+
+# ══ COMPANIES ═════════════════════════════════════════════════════════════════
+async def create_company(client, schema, user_id, inp) -> ConnectorResult:
+    name = inp.get("name")
+    if not name:
+        return ConnectorResult(ok=False, error="A company needs a name.")
+    existing = await _find(client, schema, "company", name)
+    if existing and (existing.get("name") or "").strip().lower() == name.strip().lower():
+        return ConnectorResult(ok=True, data={"id": existing.get("id"), "created": False,
+                                              "summary": f"Company '{name}' already exists — no duplicate created."})
+    data: dict = {}
+    if _has(schema, "company", "name"):
+        data["name"] = name
+    if inp.get("domain") and _has(schema, "company", "domainName"):
+        data["domainName"] = {"primaryLinkUrl": inp["domain"], "primaryLinkLabel": "", "secondaryLinks": []}
+    if inp.get("city") and _has(schema, "company", "address"):
+        data["address"] = {"addressCity": inp["city"]}
+    res = await _create(client, schema, "company", data)
+    return res if not res.ok else ConnectorResult(ok=True, data={"id": res.data["id"], "created": True, "summary": f"Created company {name}."})
+
+
+async def update_company(client, schema, user_id, inp) -> ConnectorResult:
+    cid, label = await _resolve_id(client, schema, "company", inp, "company_id")
+    if not cid:
+        return ConnectorResult(ok=False, error=f"No company matching '{label}'.")
+    data: dict = {}
+    if inp.get("name") and _has(schema, "company", "name"):
+        data["name"] = inp["name"]
+    if inp.get("domain") and _has(schema, "company", "domainName"):
+        data["domainName"] = {"primaryLinkUrl": inp["domain"], "primaryLinkLabel": "", "secondaryLinks": []}
+    if not data:
+        return ConnectorResult(ok=False, error="No updatable fields provided.")
+    res = await _update(client, schema, "company", cid, data)
+    return res if not res.ok else ConnectorResult(ok=True, data={"id": cid, "summary": f"Updated company '{label}' ({', '.join(data.keys())})."})
+
+
+async def delete_company(client, schema, user_id, inp) -> ConnectorResult:
+    cid, label = await _resolve_id(client, schema, "company", inp, "company_id")
+    if not cid:
+        return ConnectorResult(ok=False, error=f"No company matching '{label}'.")
+    res = await _delete(client, schema, "company", cid)
+    return res if not res.ok else ConnectorResult(ok=True, data={"id": cid, "status": "deleted", "summary": f"Deleted company {label}."})
+
+
+# ══ OPPORTUNITIES ═════════════════════════════════════════════════════════════
 async def create_opportunity(client, schema, user_id, inp) -> ConnectorResult:
     if not schema.obj("opportunity"):
         return ConnectorResult(ok=False, error="This CRM has no Opportunity object.")
     data: dict = {}
     if _has(schema, "opportunity", "name"):
         data["name"] = inp.get("name") or "Opportunity"
-    if inp.get("amount") is not None and _has(schema, "opportunity", "amount"):
-        try:
-            data["amount"] = {"amountMicros": int(float(inp["amount"]) * 1_000_000),
-                              "currencyCode": (inp.get("currency") or "USD").upper()}
-        except (TypeError, ValueError):
-            pass
-    # stage
+    amt = _amount(inp)
+    if amt is not None and _has(schema, "opportunity", "amount"):
+        data["amount"] = amt
     stage_summary = ""
     if inp.get("stage"):
         fn, val, known = await _resolve_stage(user_id, schema, inp["stage"])
@@ -263,17 +341,16 @@ async def create_opportunity(client, schema, user_id, inp) -> ConnectorResult:
         if _has(schema, "opportunity", fn):
             data[fn] = val
             stage_summary = f" at stage {inp['stage']}"
-    # point of contact
     if (inp.get("person_query") or inp.get("person_id")) and _has(schema, "opportunity", "pointOfContact"):
-        person = await _find_person(client, schema, inp.get("person_query")) if inp.get("person_query") else None
-        person_id = inp.get("person_id") or (person.get("id") if person else None)
-        if person_id:
-            data["pointOfContactId"] = person_id
+        pid, _ = await _resolve_id(client, schema, "person", {"person_id": inp.get("person_id"), "query": inp.get("person_query")}, "person_id")
+        if pid:
+            data["pointOfContactId"] = pid
+    if (inp.get("company_query") or inp.get("company_id")) and _has(schema, "opportunity", "company"):
+        cid, _ = await _resolve_id(client, schema, "company", {"company_id": inp.get("company_id"), "query": inp.get("company_query")}, "company_id")
+        if cid:
+            data["companyId"] = cid
     res = await _create(client, schema, "opportunity", data)
-    if not res.ok:
-        return res
-    return ConnectorResult(ok=True, data={"id": res.data["id"], "name": data.get("name"),
-                                          "summary": f"Created opportunity '{data.get('name')}'{stage_summary}."})
+    return res if not res.ok else ConnectorResult(ok=True, data={"id": res.data["id"], "summary": f"Created opportunity '{data.get('name')}'{stage_summary}."})
 
 
 async def update_opportunity(client, schema, user_id, inp) -> ConnectorResult:
@@ -283,18 +360,13 @@ async def update_opportunity(client, schema, user_id, inp) -> ConnectorResult:
     data: dict = {}
     if inp.get("name") and _has(schema, "opportunity", "name"):
         data["name"] = inp["name"]
-    if inp.get("amount") is not None and _has(schema, "opportunity", "amount"):
-        try:
-            data["amount"] = {"amountMicros": int(float(inp["amount"]) * 1_000_000),
-                              "currencyCode": (inp.get("currency") or "USD").upper()}
-        except (TypeError, ValueError):
-            pass
+    amt = _amount(inp)
+    if amt is not None and _has(schema, "opportunity", "amount"):
+        data["amount"] = amt
     if not data:
         return ConnectorResult(ok=False, error="No updatable fields provided.")
     res = await _update(client, schema, "opportunity", oid, data)
-    if not res.ok:
-        return res
-    return ConnectorResult(ok=True, data={"id": oid, "summary": f"Updated opportunity '{label}' ({', '.join(data.keys())})."})
+    return res if not res.ok else ConnectorResult(ok=True, data={"id": oid, "summary": f"Updated opportunity '{label}' ({', '.join(data.keys())})."})
 
 
 async def move_opportunity_stage(client, schema, user_id, inp) -> ConnectorResult:
@@ -307,90 +379,128 @@ async def move_opportunity_stage(client, schema, user_id, inp) -> ConnectorResul
     if not _has(schema, "opportunity", fn):
         return ConnectorResult(ok=False, error=f"This CRM's Opportunity has no '{fn}' stage field.")
     res = await _update(client, schema, "opportunity", oid, {fn: val})
-    if not res.ok:
-        return res
-    return ConnectorResult(ok=True, data={"id": oid, "summary": f"Moved '{label}' to stage {inp['stage']}."})
+    return res if not res.ok else ConnectorResult(ok=True, data={"id": oid, "summary": f"Moved '{label}' to stage {inp['stage']}."})
 
 
-async def _attach_target(client, schema, target_alias: str, parent_id: str, person_id: str):
-    obj = schema.obj(target_alias)
-    if not obj:
-        return
-    cap = _cap(obj.name_singular)
-    key = target_alias.replace("Target", "")  # note / task
-    mutation = f"mutation Create{cap}($data: {cap}CreateInput!) {{ create{cap}(data: $data) {{ id }} }}"
-    await client.query_data(mutation, {"data": {f"{key}Id": parent_id, "personId": person_id}}, action=f"Attach {target_alias}")
+async def delete_opportunity(client, schema, user_id, inp) -> ConnectorResult:
+    oid, label = await _resolve_id(client, schema, "opportunity", inp, "opportunity_id")
+    if not oid:
+        return ConnectorResult(ok=False, error=f"No opportunity matching '{label}'.")
+    res = await _delete(client, schema, "opportunity", oid)
+    return res if not res.ok else ConnectorResult(ok=True, data={"id": oid, "status": "deleted", "summary": f"Deleted opportunity '{label}'."})
 
 
-async def add_note(client, schema, user_id, inp) -> ConnectorResult:
-    pid, label = await _resolve_id(client, schema, "person", inp, "person_id")
-    if not pid:
-        return ConnectorResult(ok=False, error=f"No contact matching '{label}' to attach the note to.")
-    body = inp.get("body") or inp.get("note") or ""
-    if not body:
-        return ConnectorResult(ok=False, error="The note body is empty.")
-    data: dict = {}
-    if _has(schema, "note", "title"):
-        data["title"] = inp.get("title") or body[:60]
-    if _has(schema, "note", "body"):
-        data["body"] = body
-    res = await _create(client, schema, "note", data)
-    if not res.ok:
-        return res
-    await _attach_target(client, schema, "noteTarget", res.data["id"], pid)
-    return ConnectorResult(ok=True, data={"id": res.data["id"], "summary": f"Added a note to {label}."})
-
-
-async def add_task(client, schema, user_id, inp) -> ConnectorResult:
+# ══ TASKS ═════════════════════════════════════════════════════════════════════
+async def create_task(client, schema, user_id, inp) -> ConnectorResult:
     title = inp.get("title")
     if not title:
         return ConnectorResult(ok=False, error="A task needs a title.")
     data: dict = {}
     if _has(schema, "task", "title"):
         data["title"] = title
-    if inp.get("body") and _has(schema, "task", "body"):
-        data["body"] = inp["body"]
+    _set_body(schema, "task", data, inp.get("body"))
     if inp.get("due_at") and _has(schema, "task", "dueAt"):
         data["dueAt"] = inp["due_at"]
     res = await _create(client, schema, "task", data)
     if not res.ok:
         return res
-    summary = f"Created task '{title}'."
-    if inp.get("person_query") or inp.get("person_id"):
-        pid, label = await _resolve_id(client, schema, "person", inp, "person_id")
-        if pid:
-            await _attach_target(client, schema, "taskTarget", res.data["id"], pid)
-            summary = f"Created task '{title}' for {label}."
-    return ConnectorResult(ok=True, data={"id": res.data["id"], "summary": summary})
+    attached = await _attach_target(client, schema, "task", res.data["id"], inp)
+    suffix = f" (assigned to {', '.join(attached)})" if attached else ""
+    return ConnectorResult(ok=True, data={"id": res.data["id"], "summary": f"Created task '{title}'{suffix}."})
+
+
+async def update_task(client, schema, user_id, inp) -> ConnectorResult:
+    tid = inp.get("task_id")
+    if not tid:
+        return ConnectorResult(ok=False, error="Provide the task_id to update.")
+    data: dict = {}
+    if inp.get("title") and _has(schema, "task", "title"):
+        data["title"] = inp["title"]
+    _set_body(schema, "task", data, inp.get("body"))
+    if inp.get("due_at") and _has(schema, "task", "dueAt"):
+        data["dueAt"] = inp["due_at"]
+    if inp.get("status") and _has(schema, "task", "status"):
+        data["status"] = inp["status"]
+    if not data:
+        return ConnectorResult(ok=False, error="No updatable fields provided.")
+    res = await _update(client, schema, "task", tid, data)
+    return res if not res.ok else ConnectorResult(ok=True, data={"id": tid, "summary": f"Updated task ({', '.join(data.keys())})."})
 
 
 async def complete_task(client, schema, user_id, inp) -> ConnectorResult:
-    # Tasks aren't searchable by the person finder — require an explicit id.
     tid = inp.get("task_id")
     if not tid:
         return ConnectorResult(ok=False, error="Provide the task_id to complete (list tasks first).")
     if not _has(schema, "task", "status"):
         return ConnectorResult(ok=False, error="This CRM's Task has no status field.")
     res = await _update(client, schema, "task", tid, {"status": "DONE"})
+    return res if not res.ok else ConnectorResult(ok=True, data={"id": tid, "summary": "Marked the task complete.", "idempotent": True})
+
+
+async def delete_task(client, schema, user_id, inp) -> ConnectorResult:
+    tid = inp.get("task_id")
+    if not tid:
+        return ConnectorResult(ok=False, error="Provide the task_id to delete.")
+    res = await _delete(client, schema, "task", tid)
+    return res if not res.ok else ConnectorResult(ok=True, data={"id": tid, "status": "deleted", "summary": "Deleted the task."})
+
+
+# ══ NOTES ═════════════════════════════════════════════════════════════════════
+async def add_note(client, schema, user_id, inp) -> ConnectorResult:
+    body = inp.get("body") or inp.get("note") or ""
+    if not body:
+        return ConnectorResult(ok=False, error="The note body is empty.")
+    data: dict = {}
+    if _has(schema, "note", "title"):
+        data["title"] = inp.get("title") or body[:60]
+    _set_body(schema, "note", data, body)
+    res = await _create(client, schema, "note", data)
     if not res.ok:
         return res
-    return ConnectorResult(ok=True, data={"id": tid, "summary": "Marked the task complete.", "idempotent": True})
+    attached = await _attach_target(client, schema, "note", res.data["id"], inp)
+    suffix = f" attached to {', '.join(attached)}" if attached else " (not attached — no target given)"
+    return ConnectorResult(ok=True, data={"id": res.data["id"], "summary": f"Added a note{suffix}."})
 
 
+async def update_note(client, schema, user_id, inp) -> ConnectorResult:
+    nid = inp.get("note_id")
+    if not nid:
+        return ConnectorResult(ok=False, error="Provide the note_id to update.")
+    data: dict = {}
+    if inp.get("title") and _has(schema, "note", "title"):
+        data["title"] = inp["title"]
+    _set_body(schema, "note", data, inp.get("body") or inp.get("note"))
+    if not data:
+        return ConnectorResult(ok=False, error="No updatable fields provided.")
+    res = await _update(client, schema, "note", nid, data)
+    return res if not res.ok else ConnectorResult(ok=True, data={"id": nid, "summary": "Updated the note."})
+
+
+async def delete_note(client, schema, user_id, inp) -> ConnectorResult:
+    nid = inp.get("note_id")
+    if not nid:
+        return ConnectorResult(ok=False, error="Provide the note_id to delete.")
+    res = await _delete(client, schema, "note", nid)
+    return res if not res.ok else ConnectorResult(ok=True, data={"id": nid, "status": "deleted", "summary": "Deleted the note."})
+
+
+# ══ TAGS (on person / company / opportunity) ══════════════════════════════════
 async def _set_tags(client, schema, user_id, inp, *, add: bool) -> ConnectorResult:
-    field = _tag_field(schema)
+    alias = (inp.get("object_type") or "person").strip().lower()
+    if alias not in ("person", "company", "opportunity"):
+        return ConnectorResult(ok=False, error="object_type must be person, company, or opportunity.")
+    field = _tag_field(schema, alias)
     if not field:
-        return ConnectorResult(ok=False, error="This CRM has no tags field on Person.")
-    pid, label = await _resolve_id(client, schema, "person", inp, "person_id")
-    if not pid:
-        return ConnectorResult(ok=False, error=f"No contact matching '{label}'.")
+        return ConnectorResult(ok=False, error=f"This CRM has no tags field on {alias} yet (tags appear after a GHL import).")
+    rid, label = await _resolve_id(client, schema, alias, inp, f"{alias}_id")
+    if not rid:
+        return ConnectorResult(ok=False, error=f"No {alias} matching '{label}'.")
     tag = (inp.get("tag") or "").strip()
     if not tag:
         return ConnectorResult(ok=False, error="No tag provided.")
-    # Read current tags, then set-union/diff (idempotent).
-    plural = schema.obj("person").name_plural
+    plural = schema.obj(alias).name_plural
     res = await client.query_data(
-        f"query T {{ {plural}(first: 1, filter: {{ id: {{ eq: \"{pid}\" }} }}) {{ edges {{ node {{ {field} }} }} }} }}",
+        f"query T {{ {plural}(first: 1, filter: {{ id: {{ eq: \"{rid}\" }} }}) {{ edges {{ node {{ {field} }} }} }} }}",
         action="Read tags",
     )
     current = []
@@ -399,19 +509,16 @@ async def _set_tags(client, schema, user_id, inp, *, add: bool) -> ConnectorResu
         if edges:
             current = (edges[0].get("node") or {}).get(field) or []
     current = [t for t in (current or []) if t]
-    if add:
-        if tag in current:
-            return ConnectorResult(ok=True, data={"id": pid, "summary": f"{label} already has tag '{tag}'.", "idempotent": True})
-        new_tags = current + [tag]
-    else:
-        if tag not in current:
-            return ConnectorResult(ok=True, data={"id": pid, "summary": f"{label} doesn't have tag '{tag}'.", "idempotent": True})
-        new_tags = [t for t in current if t != tag]
-    upd = await _update(client, schema, "person", pid, {field: new_tags})
+    if add and tag in current:
+        return ConnectorResult(ok=True, data={"id": rid, "summary": f"{label} already has tag '{tag}'.", "idempotent": True})
+    if not add and tag not in current:
+        return ConnectorResult(ok=True, data={"id": rid, "summary": f"{label} doesn't have tag '{tag}'.", "idempotent": True})
+    new_tags = current + [tag] if add else [t for t in current if t != tag]
+    upd = await _update(client, schema, alias, rid, {field: new_tags})
     if not upd.ok:
         return upd
     verb = "Added" if add else "Removed"
-    return ConnectorResult(ok=True, data={"id": pid, "summary": f"{verb} tag '{tag}' {'to' if add else 'from'} {label}."})
+    return ConnectorResult(ok=True, data={"id": rid, "summary": f"{verb} tag '{tag}' {'to' if add else 'from'} {label}."})
 
 
 async def add_tag(client, schema, user_id, inp) -> ConnectorResult:
@@ -422,38 +529,73 @@ async def remove_tag(client, schema, user_id, inp) -> ConnectorResult:
     return await _set_tags(client, schema, user_id, inp, add=False)
 
 
-async def delete_person(client, schema, user_id, inp) -> ConnectorResult:
-    pid, label = await _resolve_id(client, schema, "person", inp, "person_id")
-    if not pid:
-        return ConnectorResult(ok=False, error=f"No contact matching '{label}'.")
-    res = await _delete(client, schema, "person", pid)
-    if not res.ok:
-        return res
-    return ConnectorResult(ok=True, data={"id": pid, "status": "deleted", "summary": f"Deleted contact {label}."})
+# ══ GENERIC RELATIONSHIP LINKING ══════════════════════════════════════════════
+# (owning object, foreign-key field) for each supported {a,b} pair, order-insensitive.
+_LINKS = {
+    frozenset(("person", "company")): ("person", "companyId", "company"),
+    frozenset(("opportunity", "company")): ("opportunity", "companyId", "company"),
+    frozenset(("opportunity", "person")): ("opportunity", "pointOfContactId", "person"),
+}
 
 
-async def delete_opportunity(client, schema, user_id, inp) -> ConnectorResult:
-    oid, label = await _resolve_id(client, schema, "opportunity", inp, "opportunity_id")
+async def link_records(client, schema, user_id, inp) -> ConnectorResult:
+    a = (inp.get("from_type") or "").strip().lower()
+    b = (inp.get("to_type") or "").strip().lower()
+    spec = _LINKS.get(frozenset((a, b))) if a and b else None
+    if not spec:
+        return ConnectorResult(ok=False, error="Supported links: person↔company, opportunity↔company, opportunity↔person. (Attach notes/tasks with add_note/create_task.)")
+    owner_alias, fk_field, other_alias = spec
+    owner_q = inp.get("from_query") if a == owner_alias else inp.get("to_query")
+    owner_id = inp.get("from_id") if a == owner_alias else inp.get("to_id")
+    other_q = inp.get("to_query") if a == owner_alias else inp.get("from_query")
+    other_id = inp.get("to_id") if a == owner_alias else inp.get("from_id")
+    oid, olabel = await _resolve_id(client, schema, owner_alias, {f"{owner_alias}_id": owner_id, "query": owner_q}, f"{owner_alias}_id")
     if not oid:
-        return ConnectorResult(ok=False, error=f"No opportunity matching '{label}'.")
-    res = await _delete(client, schema, "opportunity", oid)
+        return ConnectorResult(ok=False, error=f"No {owner_alias} matching '{olabel}'.")
+    tid, tlabel = await _resolve_id(client, schema, other_alias, {f"{other_alias}_id": other_id, "query": other_q}, f"{other_alias}_id")
+    if not tid:
+        return ConnectorResult(ok=False, error=f"No {other_alias} matching '{tlabel}'.")
+    if not _has(schema, owner_alias, fk_field.replace("Id", "")):
+        return ConnectorResult(ok=False, error=f"This CRM's {owner_alias} can't link to {other_alias}.")
+    res = await _update(client, schema, owner_alias, oid, {fk_field: tid})
+    return res if not res.ok else ConnectorResult(ok=True, data={"summary": f"Linked {owner_alias} '{olabel}' to {other_alias} '{tlabel}'."})
+
+
+# ══ ADVANCED ESCAPE HATCH (confirm-gated) ═════════════════════════════════════
+async def run_graphql_mutation(client, schema, user_id, inp) -> ConnectorResult:
+    """Run a raw Twenty GraphQL MUTATION for rare operations the structured tools don't
+    cover. Hits the per-user data API only (isolation preserved). Confirm-gated in
+    chat.py. Validates it's a single mutation; never touches GHL."""
+    mutation = (inp.get("mutation") or "").strip()
+    if not mutation:
+        return ConnectorResult(ok=False, error="Provide a GraphQL `mutation` string.")
+    low = mutation.lower()
+    if not low.startswith("mutation"):
+        return ConnectorResult(ok=False, error="Only `mutation` operations are allowed here (reads use the structured tools).")
+    if "__schema" in low or "__type" in low:
+        return ConnectorResult(ok=False, error="Introspection isn't allowed through this tool.")
+    res = await client.query_data(mutation, inp.get("variables") or {}, action="Advanced GraphQL mutation")
     if not res.ok:
         return res
-    return ConnectorResult(ok=True, data={"id": oid, "status": "deleted", "summary": f"Deleted opportunity '{label}'."})
+    return ConnectorResult(ok=True, data={"result": res.data, "summary": "Ran the custom CRM mutation."})
 
 
 # action name -> handler
 WRITE_HANDLERS = {
-    "create_person": create_person,
-    "update_person": update_person,
-    "create_opportunity": create_opportunity,
-    "update_opportunity": update_opportunity,
-    "move_opportunity_stage": move_opportunity_stage,
-    "add_note": add_note,
-    "add_task": add_task,
-    "complete_task": complete_task,
-    "add_tag": add_tag,
-    "remove_tag": remove_tag,
-    "delete_person": delete_person,
-    "delete_opportunity": delete_opportunity,
+    # people
+    "create_person": create_person, "update_person": update_person, "delete_person": delete_person,
+    # companies
+    "create_company": create_company, "update_company": update_company, "delete_company": delete_company,
+    # opportunities
+    "create_opportunity": create_opportunity, "update_opportunity": update_opportunity,
+    "move_opportunity_stage": move_opportunity_stage, "delete_opportunity": delete_opportunity,
+    # tasks
+    "create_task": create_task, "update_task": update_task, "complete_task": complete_task, "delete_task": delete_task,
+    # notes
+    "add_note": add_note, "update_note": update_note, "delete_note": delete_note,
+    # tags
+    "add_tag": add_tag, "remove_tag": remove_tag,
+    # relationships + escape hatch
+    "link_records": link_records,
+    "run_graphql_mutation": run_graphql_mutation,
 }
