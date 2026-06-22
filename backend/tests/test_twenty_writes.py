@@ -107,6 +107,20 @@ async def test_move_stage_resolves_via_structure_map(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_move_stage_resolves_via_native_options_without_import():
+    """No GHL structure map — stage resolves from Twenty's native SELECT options."""
+    schema = _schema()
+    schema.obj("opportunity").field_by_name("stage").options = [
+        {"value": "NEW", "label": "New"}, {"value": "PROPOSAL", "label": "Proposal"},
+    ]
+    c = FakeClient(opps=[{"id": "o1", "name": "Deal"}])
+    res = await writes.move_opportunity_stage(c, schema, "user_x", {"query": "Deal", "stage": "Proposal"})
+    assert res.ok
+    _, vars = c.mutations[0]
+    assert vars["data"] == {"stage": "PROPOSAL"}   # matched by label → option value
+
+
+@pytest.mark.asyncio
 async def test_move_stage_unknown_lists_known(monkeypatch):
     async def _struct(_uid):
         return {("stage", "g"): {"twenty_id": "NEW", "extra": {"label": "New", "field_name": "stage"}}}

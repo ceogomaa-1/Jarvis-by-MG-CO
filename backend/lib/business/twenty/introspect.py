@@ -30,8 +30,13 @@ TARGET_OBJECTS: dict[str, tuple[str, ...]] = {
     "task": ("task",),
 }
 
+# NOTE: the metadata API's `objects` connection pages with CursorPaging, whose `after`
+# is the `ConnectionCursor` scalar — NOT String. Declaring `$after: String` fails with
+# "Variable $after of type String used in position expecting type ConnectionCursor" and,
+# since introspect() runs before every Twenty tool, that one error blocks ALL reads AND
+# writes. (The data API's people/opportunities `after` is a plain String — different API.)
 _OBJECTS_QUERY = """
-query Objects($after: String) {
+query Objects($after: ConnectionCursor) {
   objects(paging: { first: 100, after: $after }) {
     edges {
       node {

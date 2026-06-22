@@ -110,16 +110,16 @@ export default function CrmCockpit({ open, onClose, userId, workspace }) {
               <motion.div
                 key="crm-chat-dock"
                 initial={{ width: 0, opacity: 0 }}
-                animate={{ width: 420, opacity: 1 }}
+                animate={{ width: 'min(440px, 38vw)', opacity: 1 }}
                 exit={{ width: 0, opacity: 0 }}
                 transition={{ duration: 0.2, ease: 'easeOut' }}
                 style={{
                   borderLeft: '1px solid var(--os1-border-soft, rgba(255,255,255,0.08))',
                   background: '#131313', display: 'flex', flexDirection: 'column',
-                  minWidth: 0, overflow: 'hidden',
+                  minWidth: 320, flexShrink: 0, overflow: 'hidden',
                 }}
               >
-                <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+                <div style={{ flex: 1, minHeight: 0, minWidth: 0, position: 'relative' }}>
                   <ChatCanvas
                     userId={userId}
                     activeConversationId={conversationId}
@@ -127,6 +127,7 @@ export default function CrmCockpit({ open, onClose, userId, workspace }) {
                     onConversationsUpdated={() => {}}
                     onMemoryCountUpdate={() => {}}
                     onCrmChanged={refreshEmbed}
+                    compact
                   />
                 </div>
               </motion.div>

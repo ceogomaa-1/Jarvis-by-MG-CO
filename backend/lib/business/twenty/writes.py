@@ -137,9 +137,16 @@ async def _resolve_id(client, schema, alias, inp, id_key) -> tuple[str | None, s
     return node.get("id"), label
 
 
-async def _stage_targets(user_id: str) -> dict[str, list[tuple[str, str]]]:
-    """label(lower) -> [(field_name, option_value)] from the structure map."""
+async def stage_label_map(user_id: str, schema: TwentySchema) -> dict[str, list[tuple[str, str]]]:
+    """stage label/value (lower) -> [(field_name, option_value)].
+
+    Merges two sources so stages resolve whether or not a GHL import has run:
+      1. the GHL structure map (imported pipeline-stage labels), and
+      2. the live Opportunity SELECT field options (Twenty's native stages, e.g.
+         New/Screening/Meeting/Proposal/Customer) — matched by option value OR label.
+    """
     out: dict[str, list[tuple[str, str]]] = {}
+    # 1) GHL structure map
     for (kind, _), row in (await store.load_structure_map(user_id)).items():
         if kind != "stage":
             continue
@@ -147,7 +154,33 @@ async def _stage_targets(user_id: str) -> dict[str, list[tuple[str, str]]]:
         label = (extra.get("label") or "").strip().lower()
         if label and extra.get("field_name"):
             out.setdefault(label, []).append((extra["field_name"], row["twenty_id"]))
+    # 2) native Opportunity SELECT options
+    opp = schema.obj("opportunity") if schema else None
+    if opp:
+        stage_f = opp.field_by_name("stage")
+        cands = [stage_f] if (stage_f and stage_f.type in ("SELECT", "MULTI_SELECT")) else [f for f in opp.fields if f.type == "SELECT"]
+        for fld in cands:
+            for o in (fld.options or []):
+                val = o.get("value")
+                lab = o.get("label") or val or ""
+                for key in {(lab or "").strip().lower(), (val or "").strip().lower()}:
+                    if not key:
+                        continue
+                    bucket = out.setdefault(key, [])
+                    if (fld.name, val) not in bucket:
+                        bucket.append((fld.name, val))
     return out
+
+
+async def _resolve_stage(user_id: str, schema: TwentySchema, stage_str: str) -> tuple[str | None, str | None, list[str]]:
+    """Resolve a stage name to (field_name, option_value, known_labels)."""
+    want = (stage_str or "").strip().lower()
+    targets = await stage_label_map(user_id, schema)
+    known = sorted(targets)
+    pairs = targets.get(want)
+    if pairs:
+        return pairs[0][0], pairs[0][1], known
+    return None, None, known
 
 
 def _tag_field(schema: TwentySchema) -> str | None:
@@ -224,12 +257,9 @@ async def create_opportunity(client, schema, user_id, inp) -> ConnectorResult:
     # stage
     stage_summary = ""
     if inp.get("stage"):
-        targets = await _stage_targets(user_id)
-        pairs = targets.get(inp["stage"].strip().lower())
-        if not pairs:
-            known = ", ".join(sorted(targets)) or "none (run the import first)"
-            return ConnectorResult(ok=False, error=f"No stage '{inp['stage']}'. Known stages: {known}.")
-        fn, val = pairs[0]
+        fn, val, known = await _resolve_stage(user_id, schema, inp["stage"])
+        if not val:
+            return ConnectorResult(ok=False, error=f"No stage '{inp['stage']}'. Known stages: {', '.join(known) or 'none'}.")
         if _has(schema, "opportunity", fn):
             data[fn] = val
             stage_summary = f" at stage {inp['stage']}"
@@ -271,12 +301,9 @@ async def move_opportunity_stage(client, schema, user_id, inp) -> ConnectorResul
     oid, label = await _resolve_id(client, schema, "opportunity", inp, "opportunity_id")
     if not oid:
         return ConnectorResult(ok=False, error=f"No opportunity matching '{label}'.")
-    targets = await _stage_targets(user_id)
-    pairs = targets.get((inp.get("stage") or "").strip().lower())
-    if not pairs:
-        known = ", ".join(sorted(targets)) or "none (run the import first)"
-        return ConnectorResult(ok=False, error=f"No stage '{inp.get('stage')}'. Known stages: {known}.")
-    fn, val = pairs[0]
+    fn, val, known = await _resolve_stage(user_id, schema, inp.get("stage"))
+    if not val:
+        return ConnectorResult(ok=False, error=f"No stage '{inp.get('stage')}'. Known stages: {', '.join(known) or 'none'}.")
     if not _has(schema, "opportunity", fn):
         return ConnectorResult(ok=False, error=f"This CRM's Opportunity has no '{fn}' stage field.")
     res = await _update(client, schema, "opportunity", oid, {fn: val})

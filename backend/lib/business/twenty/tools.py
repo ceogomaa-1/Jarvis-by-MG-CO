@@ -14,7 +14,7 @@ Filtering is done client-side after paging, to avoid Twenty's version-sensitive
 GraphQL filter DSL — correctness over cleverness for Phase 1.
 """
 from backend.lib.business.connectors.base import ConnectorResult
-from backend.lib.business.twenty import store, writes
+from backend.lib.business.twenty import writes
 from backend.lib.business.twenty.client import TwentyClient
 from backend.lib.business.twenty.introspect import TwentySchema, introspect
 
@@ -61,19 +61,6 @@ def _primary_email(node: dict) -> str:
     return e.get("primaryEmail", "") if isinstance(e, dict) else ""
 
 
-async def _stage_label_to_targets(user_id: str) -> dict[str, list[tuple[str, str]]]:
-    """label(lower) -> [(field_name, option_value)] from the structure map."""
-    out: dict[str, list[tuple[str, str]]] = {}
-    for (kind, _), row in (await store.load_structure_map(user_id)).items():
-        if kind != "stage":
-            continue
-        extra = row.get("extra") or {}
-        label = (extra.get("label") or "").strip().lower()
-        if label and extra.get("field_name"):
-            out.setdefault(label, []).append((extra["field_name"], row["twenty_id"]))
-    return out
-
-
 def _stage_field_names(targets: dict[str, list[tuple[str, str]]]) -> list[str]:
     names = {fn for pairs in targets.values() for fn, _ in pairs}
     return sorted(names)
@@ -112,7 +99,8 @@ async def execute_twenty_tool(action_name: str, inp: dict, user_id: str) -> Conn
         return ConnectorResult(ok=True, data={"count": len(rows), "people": rows})
 
     if action_name in ("list_opportunities", "count_opportunities_in_stage"):
-        targets = await _stage_label_to_targets(user_id)
+        # Stages resolve from the GHL import map AND Twenty's native stage options.
+        targets = await writes.stage_label_map(user_id, schema)
         stage_fields = _stage_field_names(targets)
         field_sel = " ".join(stage_fields)
         opps = await _page(client, opp_plural, f"id name {field_sel}".strip(), max_records=2000)

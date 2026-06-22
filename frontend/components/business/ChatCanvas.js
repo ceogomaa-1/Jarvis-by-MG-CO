@@ -211,7 +211,10 @@ export default function ChatCanvas({
   onMemoryCountUpdate,
   injectPrompt,
   onCrmChanged,   // Phase 3: fired after a successful Jarvis CRM write so the cockpit can refresh
+  compact = false, // Phase 3: docked in the narrow CRM cockpit panel — tighter padding, no side dock
 }) {
+  // Horizontal padding shrinks when docked so text/controls aren't clipped in the panel.
+  const hPad = compact ? 14 : 40
   const [messages, setMessages] = useState([])
   const [messagesLoading, setMessagesLoading] = useState(false)
   const [input, setInput] = useState('')
@@ -1066,7 +1069,7 @@ export default function ChatCanvas({
               style={{ position: 'absolute', inset: 0 }}
             >
               {briefing && (
-                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: '20px 40px 0', zIndex: 2 }}>
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: `20px ${hPad}px 0`, zIndex: 2 }}>
                   <div style={{ maxWidth: 760, margin: '0 auto' }}>
                     <ProactiveBanner
                       briefing={briefing}
@@ -1096,7 +1099,7 @@ export default function ChatCanvas({
               style={{
                 position: 'absolute', inset: 0,
                 overflowY: 'auto',
-                padding: '76px 40px 12px',
+                padding: `76px ${hPad}px 12px`,
               }}
             >
               <div style={{ maxWidth: 760, margin: '0 auto' }}>
@@ -1189,7 +1192,7 @@ export default function ChatCanvas({
       </div>
 
       {/* Input area */}
-      <div style={{ padding: '8px 40px 26px', flexShrink: 0 }}>
+      <div style={{ padding: `8px ${hPad}px 26px`, flexShrink: 0 }}>
         <div style={{ maxWidth: 740, margin: '0 auto', position: 'relative' }}>
           {/* Mind node-context chip — set via "Talk to Jarvis about this ->" */}
           {nodeContext && (
@@ -1238,16 +1241,19 @@ export default function ChatCanvas({
             enableUpload={true}
             showViewToggle={true}
           />
-          {/* Autonomous Jarvis lever — floats to the right of the input */}
-          <div className="os1-autonomous-dock" style={{ position: 'absolute', left: 'calc(100% + 30px)', bottom: 14 }}>
-            <style>{`@media (max-width: 1180px) { .os1-autonomous-dock { display: none !important; } }`}</style>
-            <AutonomousToggle
-              userId={userId}
-              apiUrl={BACKEND}
-              isReady={readiness?.is_ready === true}
-              onToggle={setAutonomousEnabled}
-            />
-          </div>
+          {/* Autonomous Jarvis lever — floats to the right of the input. Hidden when
+              docked (compact): it sits outside the panel and would be clipped. */}
+          {!compact && (
+            <div className="os1-autonomous-dock" style={{ position: 'absolute', left: 'calc(100% + 30px)', bottom: 14 }}>
+              <style>{`@media (max-width: 1180px) { .os1-autonomous-dock { display: none !important; } }`}</style>
+              <AutonomousToggle
+                userId={userId}
+                apiUrl={BACKEND}
+                isReady={readiness?.is_ready === true}
+                onToggle={setAutonomousEnabled}
+              />
+            </div>
+          )}
         </div>
       </div>
     </motion.div>
