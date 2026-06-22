@@ -1,3 +1,4 @@
+import asyncio
 import os
 from typing import Optional
 
@@ -6,6 +7,7 @@ from pydantic import BaseModel
 from supabase import create_client
 
 from backend.lib.business.memory import _store_memory_if_new, _user_id_to_uuid
+from backend.lib.business.twenty import provision
 
 router = APIRouter()
 
@@ -62,6 +64,15 @@ async def complete_onboarding(body: OnboardCompleteRequest):
         "custom_industry": body.custom_industry,
         "role": "owner",
     }
+
+    # Auto-provision the user's OWN Jarvis CRM workspace (Option A), in the background.
+    # Best-effort + idempotent: never blocks onboarding, never surfaces an error to the
+    # user; the CRM button appears the moment provisioning finishes (gate shows "pending"
+    # meanwhile). Needs the Twenty instance configured per infra/twenty/AUTO-PROVISION.md.
+    try:
+        asyncio.create_task(provision.auto_provision_workspace(body.user_id, body.company_name or "Jarvis CRM"))
+    except Exception as e:
+        print(f"onboard: could not start CRM provisioning: {e}")
 
     # Auxiliary steps — best-effort, must not block onboarding completion.
     try:

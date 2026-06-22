@@ -27,6 +27,7 @@ async def crm_workspace(user_id: str):
     if ws and ws.get("base_url"):
         return {
             "provisioned": True,
+            "pending": False,
             "shared": False,
             "embed_url": ws["base_url"],
             "display_name": ws.get("display_name") or "Jarvis CRM",
@@ -38,10 +39,14 @@ async def crm_workspace(user_id: str):
         import os
         return {
             "provisioned": True,
+            "pending": False,
             "shared": True,
             "embed_url": os.getenv("TWENTY_API_URL", "").rstrip("/") or None,
             "display_name": "Jarvis CRM",
             "subdomain": None,
         }
 
-    return {"provisioned": False, "shared": False, "embed_url": None, "display_name": "Jarvis CRM", "subdomain": None}
+    # Not provisioned yet — distinguish "setting up your CRM…" from "never started".
+    pending = await workspaces.is_pending(user_id)
+    return {"provisioned": False, "pending": pending, "shared": False,
+            "embed_url": None, "display_name": "Jarvis CRM", "subdomain": None}

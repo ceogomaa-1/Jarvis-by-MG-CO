@@ -26,9 +26,20 @@ Isolation note: a workspace API key is scoped to ONE Twenty workspace. Storing i
 against a single user_id means that user can only ever read/write that workspace's
 records — that is the data-isolation boundary (proven in tests/test_twenty_workspaces.py).
 """
+import os
+import secrets
+
+import httpx
+
 from backend.lib.business.connectors.base import ConnectorResult
 from backend.lib.business.twenty import workspaces
 from backend.lib.business.twenty.client import TwentyClient
+
+# Apex instance used for the programmatic signUp/auth flow (Option A). Per-workspace
+# subdomains derive from here. See infra/twenty/AUTO-PROVISION.md.
+PROVISION_BASE_URL = os.getenv("TWENTY_PROVISION_BASE_URL", "").strip() or os.getenv("TWENTY_API_URL", "").strip()
+SERVICE_EMAIL_DOMAIN = os.getenv("TWENTY_SERVICE_EMAIL_DOMAIN", "jarvismgco.com").strip()
+_FAR_FUTURE = "2125-01-01T00:00:00.000Z"
 
 
 async def read_workspace_identity(client: TwentyClient) -> dict:
@@ -129,3 +140,143 @@ async def register_workspace(
             "branding_applied": branding_applied,
         },
     )
+
+
+# ── Option A: fully programmatic per-user provisioning ───────────────────────────
+async def _auth_call(http: httpx.AsyncClient, query: str, variables: dict, *, token: str | None = None, origin: str | None = None) -> tuple[dict | None, str | None]:
+    """One GraphQL call to the metadata/auth endpoint, with an optional bearer + origin."""
+    headers = {"Content-Type": "application/json"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    if origin:
+        headers["Origin"] = origin
+    try:
+        resp = await http.post(f"{PROVISION_BASE_URL}/metadata", headers=headers,
+                               json={"query": query, "variables": variables}, timeout=45.0)
+        body = resp.json()
+    except Exception as e:
+        return None, f"request failed: {e}"
+    if body.get("errors"):
+        return None, "; ".join((e.get("message") or str(e)) for e in body["errors"][:3])
+    return body.get("data") or {}, None
+
+
+async def _run_signup_flow(user_id: str, display_name: str) -> ConnectorResult:
+    """signUp → signUpInNewWorkspace → token → activate → createApiKey → generateApiKeyToken.
+
+    Returns ConnectorResult(data={base_url, api_key, workspace_id, subdomain, service_email,
+    service_secret}). Shapes validated by live introspection (see AUTO-PROVISION.md).
+    """
+    if not PROVISION_BASE_URL:
+        return ConnectorResult(ok=False, error="TWENTY_PROVISION_BASE_URL is not set.")
+    hex_id = (user_id or "").removeprefix("user_").replace("-", "")
+    email = f"crm+{hex_id}@{SERVICE_EMAIL_DOMAIN}"
+    password = secrets.token_urlsafe(24) + "Aa1!"  # satisfy any min-length/charset policy
+
+    async with httpx.AsyncClient() as http:
+        # 1. service signUp → workspace-agnostic token
+        d, e = await _auth_call(http,
+            "mutation S($email:String!,$password:String!){ signUp(email:$email,password:$password){ tokens { accessOrWorkspaceAgnosticToken { token } } } }",
+            {"email": email, "password": password})
+        if e:
+            return ConnectorResult(ok=False, error=f"signUp: {e}")
+        agnostic = (((d or {}).get("signUp") or {}).get("tokens") or {}).get("accessOrWorkspaceAgnosticToken", {}).get("token")
+        if not agnostic:
+            return ConnectorResult(ok=False, error="signUp returned no token")
+
+        # 2. create the new isolated workspace
+        d, e = await _auth_call(http,
+            "mutation { signUpInNewWorkspace { loginToken { token } workspace { id workspaceUrls { subdomainUrl } } } }",
+            {}, token=agnostic)
+        if e:
+            return ConnectorResult(ok=False, error=f"signUpInNewWorkspace: {e}")
+        sw = (d or {}).get("signUpInNewWorkspace") or {}
+        login_token = (sw.get("loginToken") or {}).get("token")
+        ws = sw.get("workspace") or {}
+        ws_id = ws.get("id")
+        base_url = ((ws.get("workspaceUrls") or {}).get("subdomainUrl") or "").rstrip("/")
+        if not (login_token and base_url):
+            return ConnectorResult(ok=False, error="signUpInNewWorkspace returned no workspace url/token")
+
+        # 3. exchange the login token for a workspace-scoped access token
+        d, e = await _auth_call(http,
+            "mutation T($t:String!,$o:String!){ getAuthTokensFromLoginToken(loginToken:$t, origin:$o){ tokens { accessOrWorkspaceAgnosticToken { token } } } }",
+            {"t": login_token, "o": base_url}, origin=base_url)
+        if e:
+            return ConnectorResult(ok=False, error=f"getAuthTokensFromLoginToken: {e}")
+        access = (((d or {}).get("getAuthTokensFromLoginToken") or {}).get("tokens") or {}).get("accessOrWorkspaceAgnosticToken", {}).get("token")
+        if not access:
+            return ConnectorResult(ok=False, error="token exchange returned no access token")
+
+        # 4. activate + name the workspace (best-effort)
+        await _auth_call(http,
+            "mutation A($d:ActivateWorkspaceInput!){ activateWorkspace(data:$d){ id } }",
+            {"d": {"displayName": display_name or "Jarvis CRM"}}, token=access, origin=base_url)
+
+        # 5. create an API key record
+        d, e = await _auth_call(http,
+            "mutation K($i:CreateApiKeyInput!){ createApiKey(input:$i){ id } }",
+            {"i": {"name": "Jarvis Backend", "expiresAt": _FAR_FUTURE}}, token=access, origin=base_url)
+        if e:
+            return ConnectorResult(ok=False, error=f"createApiKey: {e}")
+        api_key_id = ((d or {}).get("createApiKey") or {}).get("id")
+        if not api_key_id:
+            return ConnectorResult(ok=False, error="createApiKey returned no id")
+
+        # 6. mint the bearer token the backend will store + use
+        d, e = await _auth_call(http,
+            "mutation G($id:UUID!,$exp:String!){ generateApiKeyToken(apiKeyId:$id, expiresAt:$exp){ token } }",
+            {"id": api_key_id, "exp": _FAR_FUTURE}, token=access, origin=base_url)
+        if e:
+            return ConnectorResult(ok=False, error=f"generateApiKeyToken: {e}")
+        token = ((d or {}).get("generateApiKeyToken") or {}).get("token")
+        if not token:
+            return ConnectorResult(ok=False, error="generateApiKeyToken returned no token")
+
+    subdomain = base_url.split("//", 1)[-1].split(".", 1)[0]
+    return ConnectorResult(ok=True, data={
+        "base_url": base_url, "api_key": token, "workspace_id": ws_id, "subdomain": subdomain,
+        "service_email": email, "service_secret": password,
+    })
+
+
+async def auto_provision_workspace(user_id: str, display_name: str = "Jarvis CRM") -> ConnectorResult:
+    """Idempotently create a brand-new user's isolated workspace (Option A) and store it.
+
+    - Idempotent: returns immediately if the user already has a workspace.
+    - Tracks state in crm_provisioning_jobs (pending/done/failed) for the UI + retries.
+    - On transient failure, bumps the attempt count and leaves status 'pending' (a retry
+      will pick it up); after _MAX_PROVISION_ATTEMPTS, marks 'failed' (admin flag). The
+      caller (onboarding) runs this best-effort so the user never sees an error.
+    """
+    if not user_id:
+        return ConnectorResult(ok=False, error="user_id is required.")
+
+    if await workspaces.get_workspace(user_id):
+        await workspaces.upsert_job(user_id, status="done")
+        return ConnectorResult(ok=True, data={"already_provisioned": True})
+
+    job = await workspaces.get_job(user_id)
+    attempts = (job.get("attempts") if job else 0) or 0
+    await workspaces.upsert_job(user_id, status="pending", attempts=attempts + 1)
+
+    result = await _run_signup_flow(user_id, display_name)
+    if not result.ok:
+        final = "failed" if attempts + 1 >= workspaces._MAX_PROVISION_ATTEMPTS else "pending"
+        await workspaces.upsert_job(user_id, status=final, last_error=result.error)
+        if final == "failed":
+            print(f"PROVISION ADMIN-FLAG: user {user_id} failed after {attempts + 1} attempts: {result.error}")
+        return result
+
+    d = result.data
+    row = await workspaces.upsert_workspace(
+        user_id, base_url=d["base_url"], api_key=d["api_key"], subdomain=d.get("subdomain"),
+        workspace_id=d.get("workspace_id"), display_name=display_name, branding_applied=True,
+        service_email=d.get("service_email"), service_secret=d.get("service_secret"),
+    )
+    if not row:
+        await workspaces.upsert_job(user_id, status="pending", last_error="workspace created but DB store failed")
+        return ConnectorResult(ok=False, error="Workspace created but could not be saved (check Supabase env).")
+
+    await workspaces.upsert_job(user_id, status="done")
+    return ConnectorResult(ok=True, data={"base_url": d["base_url"], "subdomain": d.get("subdomain"), "workspace_id": d.get("workspace_id")})

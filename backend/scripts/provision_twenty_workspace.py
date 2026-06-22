@@ -55,6 +55,18 @@ async def _register(args: argparse.Namespace) -> int:
     return 0
 
 
+async def _auto(args: argparse.Namespace) -> int:
+    res = await provision.auto_provision_workspace(args.user_id, args.display_name or "Jarvis CRM")
+    if not res.ok:
+        print(f"ERROR: {res.error}")
+        return 1
+    if res.data.get("already_provisioned"):
+        print(f"User {args.user_id} already has a workspace — nothing to do.")
+        return 0
+    print(f"Auto-provisioned workspace {res.data.get('base_url')} (id {res.data.get('workspace_id')}).")
+    return 0
+
+
 async def _list() -> int:
     rows = await workspaces.list_workspaces()
     if not rows:
@@ -69,6 +81,7 @@ async def _list() -> int:
 def main() -> int:
     p = argparse.ArgumentParser(description="Provision/register a per-client Jarvis CRM workspace.")
     p.add_argument("--list", action="store_true", help="List registered client workspaces and exit.")
+    p.add_argument("--auto", action="store_true", help="Auto-provision a NEW isolated workspace for --user-id (Option A; needs multi-workspace enabled).")
     p.add_argument("--user-id", help="Jarvis user_id (uuid or user_<hex>) to register the workspace for.")
     p.add_argument("--base-url", help="Workspace API base URL, e.g. https://acme.crm.jarvismgco.com")
     p.add_argument("--api-key", help="Workspace-scoped API key (Settings → API & Webhooks).")
@@ -79,6 +92,11 @@ def main() -> int:
 
     if args.list:
         return asyncio.run(_list())
+
+    if args.auto:
+        if not args.user_id:
+            p.error("--user-id required with --auto.")
+        return asyncio.run(_auto(args))
 
     missing = [f for f in ("user_id", "base_url", "api_key") if not getattr(args, f.replace("-", "_"))]
     if missing:

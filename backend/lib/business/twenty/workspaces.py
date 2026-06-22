@@ -90,6 +90,8 @@ async def upsert_workspace(
     display_name: str | None = None,
     branding_applied: bool = False,
     status: str = "active",
+    service_email: str | None = None,
+    service_secret: str | None = None,
 ) -> dict | None:
     """Insert or update the user's workspace mapping. Returns the row, or None."""
     if not _enabled() or not base_url or not api_key:
@@ -105,6 +107,10 @@ async def upsert_workspace(
         "status": status,
         "updated_at": "now()",
     }
+    if service_email is not None:
+        payload["service_email"] = service_email
+    if service_secret is not None:
+        payload["service_secret"] = service_secret
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.post(
@@ -120,6 +126,59 @@ async def upsert_workspace(
     except Exception as e:
         print(f"TWENTY.workspaces: upsert_workspace failed: {e}")
     return None
+
+
+_MAX_PROVISION_ATTEMPTS = 5
+
+
+async def get_job(user_id: str) -> dict | None:
+    """Provisioning job state for a user, or None. {status, attempts, last_error}."""
+    if not _enabled():
+        return None
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{SUPABASE_URL}/rest/v1/crm_provisioning_jobs",
+                headers=_headers(),
+                params={"select": "status,attempts,last_error", "user_id": f"eq.{_user_id_to_uuid(user_id)}", "limit": "1"},
+                timeout=10.0,
+            )
+        if resp.status_code == 200:
+            rows = resp.json()
+            return rows[0] if rows else None
+    except Exception as e:
+        print(f"TWENTY.workspaces: get_job failed: {e}")
+    return None
+
+
+async def upsert_job(user_id: str, *, status: str, attempts: int | None = None, last_error: str | None = None) -> bool:
+    if not _enabled():
+        return False
+    payload = {"user_id": _user_id_to_uuid(user_id), "status": status, "updated_at": "now()"}
+    if attempts is not None:
+        payload["attempts"] = attempts
+    if last_error is not None:
+        payload["last_error"] = last_error[:1000]
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                f"{SUPABASE_URL}/rest/v1/crm_provisioning_jobs?on_conflict=user_id",
+                headers=_headers({"Prefer": "resolution=merge-duplicates,return=minimal"}),
+                json=payload,
+                timeout=10.0,
+            )
+        return resp.status_code in (200, 201, 204)
+    except Exception as e:
+        print(f"TWENTY.workspaces: upsert_job failed: {e}")
+        return False
+
+
+async def is_pending(user_id: str) -> bool:
+    """True if provisioning is in flight (job pending and no active workspace yet)."""
+    if await get_workspace(user_id):
+        return False
+    job = await get_job(user_id)
+    return bool(job and job.get("status") == "pending")
 
 
 async def list_workspaces() -> list[dict]:
