@@ -64,13 +64,13 @@ The exact config is **[`Caddyfile`](./Caddyfile)** in this folder — paste it t
 endpoint `GET /api/business/crm/tls-check?domain=<host>` (200 = apex or a provisioned
 subdomain, else 403).
 
-> Signup lockdown note: Twenty's `signUp` is a GraphQL mutation on `POST /metadata`, not a
-> distinct URL, so it can't be matched by route. But **new-workspace creation only happens at
-> the apex** `crm.jarvismgco.com` — end users operate entirely on their subdomain. So the
-> Caddyfile blocks the apex from everyone except the Render egress ranges
-> (`74.220.48.0/24`, `74.220.56.0/24`); subdomains stay public. This keeps
-> `IS_SIGN_UP_ENABLED=true` (needed for the backend's service flow) without exposing public
-> workspace creation.
+> ⚠️ Superseded — do NOT IP-lock the apex. In multi-workspace, Twenty uses a SINGLE
+> `REACT_APP_SERVER_BASE_URL` (= `SERVER_URL` = the apex) for ALL workspace frontends, exactly
+> like Cloud's shared `api.twenty.com`. So every `<sub>.crm.jarvismgco.com` browser calls the
+> apex for its API; locking the apex gives users **"Unable to Reach Back-end."** `signUp` rides
+> that same shared GraphQL API, so it can't be isolated by host or path. Public workspace
+> creation is blocked at the **app layer** instead — see “Blocking public workspace creation”
+> below. The Caddyfile no longer locks the apex.
 
 ## 4. Jarvis backend env (Render)
 
@@ -127,6 +127,57 @@ action needed.
 > One-time cleanup: service accounts created **before** this deterministic-password change
 > have random passwords we never stored, so signIn can't recover them — delete those orphans
 > in Twenty (Settings → Members) once, then re-run `--auto`. New signups are unaffected.
+
+---
+
+## Blocking public workspace creation (without breaking the cockpit)
+
+The cockpit failed with **"Unable to Reach Back-end"** because the apex was IP-locked, but the
+apex IS the shared API every workspace frontend calls. Fix = stop locking the apex and block
+public workspace creation in-app instead. Confirmed from Twenty source: `assertSignUpEnabled`
+runs first with **no admin bypass** (so `IS_SIGN_UP_ENABLED` must stay `true`), and only the
+**first-ever** user on an instance is auto-granted server admin (`shouldGrantServerAdmin =
+!hasServerAdmin()`). So one privileged account creates every workspace.
+
+**Switch to Option 2 — a shared server-admin provisioner.** Each workspace still gets its own
+workspace-scoped API key (isolation unchanged); only the *creator* changes.
+
+1. Render env: pick a provisioner identity and a strong password.
+   ```
+   TWENTY_PROVISIONER_EMAIL=crm-provisioner@jarvismgco.com
+   TWENTY_PROVISIONER_PASSWORD=<long-random>      # or omit → derived from TWENTY_SERVICE_SECRET
+   ```
+2. Create the account (apex still reachable from Render). Run from Render:
+   ```bash
+   python -m backend.scripts.provision_twenty_workspace --init-provisioner
+   ```
+3. Promote it to a server admin on the VPS (no public mutation grants this):
+   ```bash
+   docker compose exec db psql -U "$PG_DATABASE_USER" -d default -c \
+     "UPDATE core.\"user\" SET \"canAccessFullAdminPanel\"=true, \"canImpersonate\"=true \
+      WHERE email='crm-provisioner@jarvismgco.com';"
+   # (table is core.\"user\"; if your build uses public.\"user\", adjust the schema.)
+   ```
+4. Lock public creation + unlock the shared API, then reload:
+   ```bash
+   # docker-compose.override.yml (server AND worker):
+   IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS=true
+   docker compose up -d
+   # /etc/caddy/Caddyfile: drop the @apex_not_backend block (see this folder's Caddyfile),
+   sudo systemctl reload caddy
+   ```
+5. Verify:
+   ```bash
+   python -m backend.scripts.provision_twenty_workspace --auto --user-id <fresh-uuid>   # still works (admin creates it)
+   curl -s -o /dev/null -w "%{http_code}\n" https://crm.jarvismgco.com/healthz           # 200 from a normal IP now
+   # public-creation blocked: a signUp+signUpInNewWorkspace from a non-admin must return
+   #   "Workspace creation is restricted to admins"
+   ```
+   Then open a fresh signup's cockpit — the empty CRM (tables, no red error) should load.
+
+> Sequencing matters: do 1–3 BEFORE step 4. If you flip the flag to `true` before the
+> provisioner exists + is promoted, provisioning fails (`provisioner signIn …`). To roll back
+> instantly, set the flag `false` again (legacy per-user signups resume).
 
 ---
 

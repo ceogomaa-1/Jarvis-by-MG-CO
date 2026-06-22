@@ -166,6 +166,23 @@ async def test_signup_flow_self_heals_existing_service_user(monkeypatch):
     assert res.data["api_key"] == "FINAL-KEY"
 
 
+@pytest.mark.asyncio
+async def test_provisioner_mode_signs_in_as_admin(monkeypatch):
+    """With TWENTY_PROVISIONER_EMAIL set, the shared admin signs IN (no per-user signUp)."""
+    monkeypatch.setattr(provision, "PROVISION_BASE_URL", "https://crm.jarvismgco.com")
+    monkeypatch.setattr(provision, "PROVISIONER_EMAIL", "crm-provisioner@jarvismgco.com")
+    seq, captured = [], {}
+    monkeypatch.setattr(provision, "_auth_call", _flow_auth_call(seq, captured=captured))
+
+    res = await provision._run_signup_flow("user_g", "Acme Realty")
+    assert res.ok
+    assert seq[0] == "signIn" and "signUp" not in seq    # admin signs in; no public signup
+    assert seq == ["signIn", "newWorkspace", "exchange", "activate", "getRoles", "createApiKey", "genToken"]
+    assert captured["roleId"] == "role-admin"
+    assert res.data["service_email"] == "crm-provisioner@jarvismgco.com"
+    assert res.data["service_secret"] is None            # don't copy the master pw per row
+
+
 def test_service_password_is_deterministic_and_policy_safe():
     a = provision._service_password("user_1a85bf0d3508480cb1aa0d4b602b4de5")
     b = provision._service_password("1a85bf0d-3508-480c-b1aa-0d4b602b4de5")  # same id, hyphenated

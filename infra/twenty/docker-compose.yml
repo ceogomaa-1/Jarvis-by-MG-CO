@@ -34,11 +34,12 @@ services:
       IS_SIGN_UP_ENABLED: ${IS_SIGN_UP_ENABLED:-true}
       # ── Phase 2: per-client workspaces (subdomain-routed) ──
       IS_MULTIWORKSPACE_ENABLED: ${IS_MULTIWORKSPACE_ENABLED:-true}
-      # Twenty defaults this to TRUE, which blocks our (non-admin) service signups from
-      # creating their own workspace -> "Workspace creation is restricted to admins".
-      # MUST be false for Option A auto-provisioning; abuse is already prevented by the
-      # Caddy apex lockdown (signUp only reachable from the Render backend). See AUTO-PROVISION.md.
-      IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS: ${IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS:-false}
+      # TRUE blocks PUBLIC workspace creation on the shared apex API (which must stay public
+      # — every workspace frontend calls it). Provisioning still works because a privileged
+      # provisioner account (TWENTY_PROVISIONER_EMAIL, a server admin) creates the workspaces.
+      # Requires that account to exist + be promoted first (see AUTO-PROVISION.md), else flip
+      # to false temporarily. Default true is the secure end state.
+      IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS: ${IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS:-true}
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-${SERVER_URL}}
       DEFAULT_SUBDOMAIN: ${DEFAULT_SUBDOMAIN:-app}
       # ── Rebranded transactional email (invites, resets) on our domain ──
@@ -75,7 +76,7 @@ services:
       STORAGE_TYPE: local
       DISABLE_DB_MIGRATIONS: "true"   # only `server` runs migrations
       IS_MULTIWORKSPACE_ENABLED: ${IS_MULTIWORKSPACE_ENABLED:-true}
-      IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS: ${IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS:-false}
+      IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS: ${IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS:-true}
       # Worker sends the transactional emails — needs the same mail config.
       EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-crm@jarvismgco.com}
       EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-Jarvis CRM}

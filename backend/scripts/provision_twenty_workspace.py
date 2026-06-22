@@ -67,6 +67,19 @@ async def _auto(args: argparse.Namespace) -> int:
     return 0
 
 
+async def _init_provisioner() -> int:
+    res = await provision.create_provisioner_account()
+    if not res.ok:
+        print(f"ERROR: {res.error}")
+        return 1
+    print(f"Provisioner account ready: {res.data.get('email')}")
+    print("Next: promote it to a Twenty server admin, e.g. on the VPS:")
+    print('  docker compose exec db psql -U twenty -d default -c '
+          f'''"UPDATE core.\\"user\\" SET \\"canAccessFullAdminPanel\\"=true, \\"canImpersonate\\"=true WHERE email='{res.data.get('email')}';"''')
+    print("Then set IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS=true and drop the apex IP-lock.")
+    return 0
+
+
 async def _list() -> int:
     rows = await workspaces.list_workspaces()
     if not rows:
@@ -81,6 +94,7 @@ async def _list() -> int:
 def main() -> int:
     p = argparse.ArgumentParser(description="Provision/register a per-client Jarvis CRM workspace.")
     p.add_argument("--list", action="store_true", help="List registered client workspaces and exit.")
+    p.add_argument("--init-provisioner", action="store_true", help="One-time: create the shared provisioner account (TWENTY_PROVISIONER_EMAIL) so it can be promoted to server admin.")
     p.add_argument("--auto", action="store_true", help="Auto-provision a NEW isolated workspace for --user-id (Option A; needs multi-workspace enabled).")
     p.add_argument("--user-id", help="Jarvis user_id (uuid or user_<hex>) to register the workspace for.")
     p.add_argument("--base-url", help="Workspace API base URL, e.g. https://acme.crm.jarvismgco.com")
@@ -92,6 +106,9 @@ def main() -> int:
 
     if args.list:
         return asyncio.run(_list())
+
+    if args.init_provisioner:
+        return asyncio.run(_init_provisioner())
 
     if args.auto:
         if not args.user_id:

@@ -2,8 +2,15 @@
 #
 # Per-subdomain HTTPS is issued on first request (HTTP-01/TLS-ALPN), gated by an "ask"
 # to the Jarvis backend so certs are only minted for real provisioned workspaces.
-# New-workspace signup (apex) is locked to the Jarvis backend's egress IPs; the
-# per-client subdomains stay fully public for normal login/use.
+#
+# The apex (crm.jarvismgco.com) is the SHARED backend API: in multi-workspace, EVERY
+# workspace frontend at <sub>.crm.jarvismgco.com calls the one SERVER_URL = the apex
+# (Twenty uses a single REACT_APP_SERVER_BASE_URL, like Cloud's api.twenty.com). So the
+# apex CANNOT be IP-locked — that blocked every user's API calls ("Unable to Reach
+# Back-end"). Public *workspace creation* is instead blocked at the app layer:
+# IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS=true, with a privileged provisioner
+# account doing the creation (see AUTO-PROVISION.md). signUp can't be isolated by host or
+# path — it rides the shared GraphQL API — so an edge IP-lock is the wrong layer for it.
 #
 # Paste to /etc/caddy/Caddyfile on the VPS, then: sudo systemctl reload caddy
 
@@ -24,15 +31,8 @@ crm.jarvismgco.com, *.crm.jarvismgco.com {
     header -X-Frame-Options
     header Content-Security-Policy "frame-ancestors 'self' https://jarvismgco.com https://*.jarvismgco.com"
 
-    route {
-        # New-workspace signup happens at the APEX. Allow the apex only from the Jarvis
-        # backend (Render egress); block the public. Subdomains are unaffected (public).
-        @apex_not_backend {
-            host crm.jarvismgco.com
-            not remote_ip 74.220.48.0/24 74.220.56.0/24
-        }
-        respond @apex_not_backend "Forbidden" 403
-
-        reverse_proxy localhost:3000
-    }
+    # Apex + every subdomain proxy to the same Twenty server. The apex stays public
+    # because it is the shared API; public workspace creation is blocked in-app
+    # (IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS=true), not here.
+    reverse_proxy localhost:3000
 }

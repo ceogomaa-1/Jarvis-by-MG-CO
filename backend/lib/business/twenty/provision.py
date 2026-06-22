@@ -41,6 +41,15 @@ from backend.lib.business.twenty.client import TwentyClient
 # subdomains derive from here. See infra/twenty/AUTO-PROVISION.md.
 PROVISION_BASE_URL = os.getenv("TWENTY_PROVISION_BASE_URL", "").strip() or os.getenv("TWENTY_API_URL", "").strip()
 SERVICE_EMAIL_DOMAIN = os.getenv("TWENTY_SERVICE_EMAIL_DOMAIN", "jarvismgco.com").strip()
+
+# Shared privileged provisioner (Option 2). When set, every workspace is created by this
+# ONE Twenty server-admin account (signIn, not per-user signUp), so the instance can keep
+# IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS=true — which is what blocks PUBLIC workspace
+# creation on the shared apex API (the API every workspace frontend must reach, so the apex
+# can't be IP-locked). Data isolation is unchanged: each workspace still gets its own
+# workspace-scoped API key, stored per user_id. Unset → legacy per-user signUp (only safe
+# when workspace creation is unrestricted). See infra/twenty/AUTO-PROVISION.md.
+PROVISIONER_EMAIL = os.getenv("TWENTY_PROVISIONER_EMAIL", "").strip()
 _FAR_FUTURE = "2125-01-01T00:00:00.000Z"
 
 
@@ -185,6 +194,22 @@ def _service_password(user_id: str) -> str:
     return base64.urlsafe_b64encode(digest).decode().rstrip("=")[:28] + "Aa1!"
 
 
+def _provisioner_password() -> str:
+    """Password for the shared provisioner admin account (explicit env, else derived)."""
+    return os.getenv("TWENTY_PROVISIONER_PASSWORD", "").strip() or _service_password("provisioner:" + PROVISIONER_EMAIL)
+
+
+async def _signin_agnostic(http: httpx.AsyncClient, email: str, password: str) -> tuple[str | None, str | None]:
+    """signIn an existing account → workspace-agnostic token (for creating workspaces)."""
+    d, e = await _auth_call(http,
+        "mutation SI($email:String!,$password:String!){ signIn(email:$email,password:$password){ tokens { accessOrWorkspaceAgnosticToken { token } } } }",
+        {"email": email, "password": password})
+    if e:
+        return None, e
+    tok = (((d or {}).get("signIn") or {}).get("tokens") or {}).get("accessOrWorkspaceAgnosticToken", {}).get("token")
+    return (tok, None) if tok else (None, "signIn returned no workspace-agnostic token")
+
+
 def _is_already_exists(err: str) -> bool:
     """True if a signUp error means the service user already exists (prior attempt)."""
     e = (err or "").lower()
@@ -250,10 +275,18 @@ async def _run_signup_flow(user_id: str, display_name: str) -> ConnectorResult:
     password = _service_password(user_id)  # deterministic → retries can sign back in
 
     async with httpx.AsyncClient() as http:
-        # 1. service signUp (or signIn if a prior attempt already created the account)
-        agnostic, e = await _get_agnostic_token(http, email, password)
-        if e:
-            return ConnectorResult(ok=False, error=e)
+        # 1. obtain a workspace-agnostic token to create the new workspace with.
+        if PROVISIONER_EMAIL:
+            # Option 2: one shared server-admin creates every workspace, so public workspace
+            # creation can stay locked at the app layer (admins only).
+            agnostic, e = await _signin_agnostic(http, PROVISIONER_EMAIL, _provisioner_password())
+            if e:
+                return ConnectorResult(ok=False, error=f"provisioner signIn ({PROVISIONER_EMAIL}): {e} — is the account created + promoted to server admin? (--init-provisioner + the SQL in AUTO-PROVISION.md)")
+        else:
+            # Legacy: a per-user service account signs itself up (self-heals if it exists).
+            agnostic, e = await _get_agnostic_token(http, email, password)
+            if e:
+                return ConnectorResult(ok=False, error=e)
 
         # 2. create the new isolated workspace
         d, e = await _auth_call(http,
@@ -319,9 +352,35 @@ async def _run_signup_flow(user_id: str, display_name: str) -> ConnectorResult:
             return ConnectorResult(ok=False, error="generateApiKeyToken returned no token")
 
     subdomain = base_url.split("//", 1)[-1].split(".", 1)[0]
+    # In provisioner mode the workspace is owned by the shared admin; isolation is enforced
+    # by the per-workspace api_key, not the account. Record which account owns it (for iframe
+    # SSO later); don't duplicate the admin's master password into every row.
     return ConnectorResult(ok=True, data={
         "base_url": base_url, "api_key": token, "workspace_id": ws_id, "subdomain": subdomain,
-        "service_email": email, "service_secret": password,
+        "service_email": PROVISIONER_EMAIL or email,
+        "service_secret": None if PROVISIONER_EMAIL else password,
+    })
+
+
+async def create_provisioner_account() -> ConnectorResult:
+    """One-time: create the shared provisioner account so it can be promoted to server admin.
+
+    Run from Render (where the apex is reachable) BEFORE flipping
+    IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS=true. Idempotent — signs in if it already
+    exists. After this, promote it to a server admin (the SQL in AUTO-PROVISION.md), then flip
+    the flag and drop the apex IP-lock.
+    """
+    if not PROVISION_BASE_URL:
+        return ConnectorResult(ok=False, error="TWENTY_PROVISION_BASE_URL is not set.")
+    if not PROVISIONER_EMAIL:
+        return ConnectorResult(ok=False, error="TWENTY_PROVISIONER_EMAIL is not set.")
+    async with httpx.AsyncClient() as http:
+        tok, e = await _get_agnostic_token(http, PROVISIONER_EMAIL, _provisioner_password())
+    if e:
+        return ConnectorResult(ok=False, error=e)
+    return ConnectorResult(ok=True, data={
+        "email": PROVISIONER_EMAIL, "created_or_existing": bool(tok),
+        "next": "Promote to server admin, then set IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS=true.",
     })
 
 
