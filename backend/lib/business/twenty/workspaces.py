@@ -23,6 +23,23 @@ SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL"
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 
 
+def _hex_id(user_id: str) -> str:
+    """Strip the user_ prefix and any dashes → the raw 32-char hex (or whatever was given)."""
+    return (user_id or "").strip().removeprefix("user_").replace("-", "")
+
+
+def valid_user_id(user_id: str) -> bool:
+    """True iff user_id is a well-formed Jarvis id (user_<32 hex> or a 32-hex uuid).
+
+    A malformed id (e.g. a hand-typed hex with a transposed/extra digit) must be caught
+    BEFORE the provisioning flow runs — otherwise the signUp flow creates a Twenty
+    workspace under the bad id and only then fails the DB write, leaking an orphan
+    workspace that consumes a slot under Twenty's cap.
+    """
+    hid = _hex_id(user_id).lower()
+    return len(hid) == 32 and all(c in "0123456789abcdef" for c in hid)
+
+
 def _user_id_to_uuid(user_id: str) -> str:
     hex_id = (user_id or "").removeprefix("user_")
     if len(hex_id) == 32 and all(c in "0123456789abcdef" for c in hex_id.lower()):

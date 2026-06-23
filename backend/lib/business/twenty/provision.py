@@ -411,6 +411,13 @@ async def auto_provision_workspace(user_id: str, display_name: str = "Jarvis CRM
     """
     if not user_id:
         return ConnectorResult(ok=False, error="user_id is required.")
+    if not workspaces.valid_user_id(user_id):
+        # Fail BEFORE the signUp flow — a malformed id (e.g. a mistyped hex) would otherwise
+        # create a Twenty workspace and only then fail the DB write, leaking an orphan that
+        # eats a slot under the 5-workspace cap.
+        return ConnectorResult(ok=False, error=(
+            f"Malformed user_id {user_id!r}: expected user_<32 hex chars> (or a 32-hex uuid). "
+            "Check for a typo — refusing to provision so no orphan workspace is created."))
 
     if await workspaces.get_workspace(user_id):
         await workspaces.upsert_job(user_id, status="done")

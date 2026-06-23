@@ -19,6 +19,40 @@ def test_parse_keep_normalises_and_dedupes():
                             "1a85bf0d-3508-480c-b1aa-0d4b602b4de5"]).__len__() == 1
 
 
+# ── user_id validation (typo guard) ──────────────────────────────────────────────
+def test_valid_user_id_accepts_canonical_forms():
+    assert workspaces.valid_user_id("user_7ec1625c6165440bbb4239e72710dc54")
+    assert workspaces.valid_user_id("7ec1625c-6165-440b-bb42-39e72710dc54")
+    assert workspaces.valid_user_id("7ec1625c6165440bbb4239e72710dc54")
+
+
+def test_valid_user_id_rejects_typos():
+    # extra digit (33 hex) — the exact Render footgun
+    assert not workspaces.valid_user_id("user_7ec16225c6165440bbb4239e72710dc54")
+    assert not workspaces.valid_user_id("user_7ec1625c")          # too short
+    assert not workspaces.valid_user_id("user_zzzz1625c6165440bbb4239e72710dc54")  # non-hex
+    assert not workspaces.valid_user_id("")
+
+
+@pytest.mark.asyncio
+async def test_auto_provision_refuses_malformed_id_before_creating(monkeypatch):
+    ran = {"flow": False}
+
+    async def _flow(uid, dn):
+        ran["flow"] = True
+        return ConnectorResult(ok=True, data={})
+
+    async def _get_ws(uid):
+        return None
+
+    monkeypatch.setattr(provision, "_run_signup_flow", _flow)
+    monkeypatch.setattr(provision.workspaces, "get_workspace", _get_ws)
+
+    res = await provision.auto_provision_workspace("user_7ec16225c6165440bbb4239e72710dc54", "PPRE")
+    assert not res.ok and "Malformed user_id" in res.error
+    assert ran["flow"] is False          # never reached the workspace-creating flow → no orphan
+
+
 # ── deprovision_workspace: self-scoped delete + row cleanup ───────────────────────
 @pytest.mark.asyncio
 async def test_deprovision_uses_the_rows_own_key_then_drops_row(monkeypatch):

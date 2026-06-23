@@ -46,7 +46,7 @@ def store(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_idempotent_when_already_provisioned(store, monkeypatch):
-    store["workspace"]["user_a"] = {"base_url": "https://a.crm.jarvismgco.com", "api_key": "k"}
+    store["workspace"]["user_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"] = {"base_url": "https://a.crm.jarvismgco.com", "api_key": "k"}
     called = {"flow": False}
 
     async def _flow(uid, dn):
@@ -54,10 +54,10 @@ async def test_idempotent_when_already_provisioned(store, monkeypatch):
         return ConnectorResult(ok=True, data={})
     monkeypatch.setattr(provision, "_run_signup_flow", _flow)
 
-    res = await provision.auto_provision_workspace("user_a", "Acme")
+    res = await provision.auto_provision_workspace("user_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "Acme")
     assert res.ok and res.data.get("already_provisioned") is True
     assert called["flow"] is False                       # never ran the signup flow
-    assert store["job"]["user_a"]["status"] == "done"
+    assert store["job"]["user_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]["status"] == "done"
 
 
 @pytest.mark.asyncio
@@ -69,12 +69,12 @@ async def test_success_stores_workspace_and_marks_done(store, monkeypatch):
             "service_email": "crm+x@jarvismgco.com", "service_secret": "pw"})
     monkeypatch.setattr(provision, "_run_signup_flow", _flow)
 
-    res = await provision.auto_provision_workspace("user_b", "Acme")
+    res = await provision.auto_provision_workspace("user_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "Acme")
     assert res.ok
-    ws = store["workspace"]["user_b"]
+    ws = store["workspace"]["user_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]
     assert ws["base_url"] == "https://acme.crm.jarvismgco.com" and ws["api_key"] == "wk-key"
     assert ws["service_secret"] == "pw"                  # creds persisted for future iframe SSO
-    assert store["job"]["user_b"]["status"] == "done"
+    assert store["job"]["user_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]["status"] == "done"
 
 
 @pytest.mark.asyncio
@@ -83,24 +83,24 @@ async def test_transient_failure_stays_pending_and_counts(store, monkeypatch):
         return ConnectorResult(ok=False, error="signUp: temporary glitch")
     monkeypatch.setattr(provision, "_run_signup_flow", _flow)
 
-    res = await provision.auto_provision_workspace("user_c", "Acme")
+    res = await provision.auto_provision_workspace("user_cccccccccccccccccccccccccccccccc", "Acme")
     assert not res.ok
-    job = store["job"]["user_c"]
+    job = store["job"]["user_cccccccccccccccccccccccccccccccc"]
     assert job["status"] == "pending" and job["attempts"] == 1
-    assert "user_c" not in store["workspace"]
+    assert "user_cccccccccccccccccccccccccccccccc" not in store["workspace"]
 
 
 @pytest.mark.asyncio
 async def test_marks_failed_after_max_attempts(store, monkeypatch):
-    store["job"]["user_d"] = {"attempts": workspaces._MAX_PROVISION_ATTEMPTS - 1, "status": "pending"}
+    store["job"]["user_dddddddddddddddddddddddddddddddd"] = {"attempts": workspaces._MAX_PROVISION_ATTEMPTS - 1, "status": "pending"}
 
     async def _flow(uid, dn):
         return ConnectorResult(ok=False, error="signUp: still broken")
     monkeypatch.setattr(provision, "_run_signup_flow", _flow)
 
-    res = await provision.auto_provision_workspace("user_d", "Acme")
+    res = await provision.auto_provision_workspace("user_dddddddddddddddddddddddddddddddd", "Acme")
     assert not res.ok
-    assert store["job"]["user_d"]["status"] == "failed"   # admin-flag state
+    assert store["job"]["user_dddddddddddddddddddddddddddddddd"]["status"] == "failed"   # admin-flag state
 
 
 def _flow_auth_call(seq, *, captured=None, signup_exists=False):
