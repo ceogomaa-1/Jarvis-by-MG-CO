@@ -95,7 +95,8 @@ async def domain_is_provisioned(host: str) -> bool:
             resp = await client.get(
                 f"{SUPABASE_URL}/rest/v1/crm_client_workspaces",
                 headers=_headers(),
-                params={"select": "user_id", "or": f"(base_url.ilike.*{host}*,subdomain.eq.{sub})", "limit": "1"},
+                params={"select": "user_id", "status": "eq.active",
+                        "or": f"(base_url.ilike.*{host}*,subdomain.eq.{sub})", "limit": "1"},
                 timeout=5.0,
             )
         if resp.status_code == 200:
@@ -151,6 +152,71 @@ async def upsert_workspace(
     except Exception as e:
         print(f"TWENTY.workspaces: upsert_workspace failed: {e}")
     return None
+
+
+async def update_workspace_fields(user_id: str, **fields) -> bool:
+    """PATCH selected columns on a user's workspace row (e.g. repair base_url/subdomain).
+
+    Unlike upsert_workspace this touches only the given fields, so it can't clobber the
+    api_key/display_name while fixing identity. Returns True on success.
+    """
+    if not _enabled() or not user_id or not fields:
+        return False
+    payload = {**fields, "updated_at": "now()"}
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.patch(
+                f"{SUPABASE_URL}/rest/v1/crm_client_workspaces",
+                headers=_headers({"Prefer": "return=minimal"}),
+                params={"user_id": f"eq.{_user_id_to_uuid(user_id)}"},
+                json=payload,
+                timeout=10.0,
+            )
+        return resp.status_code in (200, 204)
+    except Exception as e:
+        print(f"TWENTY.workspaces: update_workspace_fields failed: {e}")
+        return False
+
+
+async def delete_workspace_row(user_id: str) -> bool:
+    """Delete a user's workspace row from the registry (used by deprovision). Idempotent."""
+    if not _enabled() or not user_id:
+        return False
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.delete(
+                f"{SUPABASE_URL}/rest/v1/crm_client_workspaces",
+                headers=_headers({"Prefer": "return=minimal"}),
+                params={"user_id": f"eq.{_user_id_to_uuid(user_id)}"},
+                timeout=10.0,
+            )
+        return resp.status_code in (200, 204)
+    except Exception as e:
+        print(f"TWENTY.workspaces: delete_workspace_row failed: {e}")
+        return False
+
+
+async def list_workspaces_with_keys() -> list[dict]:
+    """Internal/ops: every workspace row INCLUDING api_key (needed to deprovision a tenant).
+
+    Service-role only — the key is a secret. Never expose this to end users.
+    """
+    if not _enabled():
+        return []
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{SUPABASE_URL}/rest/v1/crm_client_workspaces",
+                headers=_headers(),
+                params={"select": "user_id,workspace_id,subdomain,base_url,api_key,display_name,status,created_at",
+                        "order": "created_at.asc"},
+                timeout=10.0,
+            )
+        if resp.status_code == 200:
+            return resp.json()
+    except Exception as e:
+        print(f"TWENTY.workspaces: list_workspaces_with_keys failed: {e}")
+    return []
 
 
 _MAX_PROVISION_ATTEMPTS = 5

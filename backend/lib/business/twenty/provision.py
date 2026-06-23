@@ -54,13 +54,18 @@ _FAR_FUTURE = "2125-01-01T00:00:00.000Z"
 
 
 async def read_workspace_identity(client: TwentyClient) -> dict:
-    """Best-effort read of the workspace id + subdomain the API key belongs to.
+    """Best-effort read of the workspace id + subdomain + canonical URL the key belongs to.
 
-    Returns {} if the query isn't supported on this version — provisioning still works,
-    we just won't have the workspace_id/subdomain on record.
+    `currentWorkspace` lives on the METADATA schema ({base}/metadata), NOT the core data
+    API ({base}/graphql) — querying it on /graphql errors ("Cannot query field
+    currentWorkspace on type Query"), which silently left register-path rows with a null
+    subdomain/workspace_id and an apex base_url (the MG&CO cockpit "invalid response" bug).
+    Returns {} if the query isn't supported on this version — provisioning still works, we
+    just won't have the identity on record.
     """
-    res = await client.query_data(
-        "query CurrentWorkspace { currentWorkspace { id subdomain displayName } }",
+    res = await client.query_meta(
+        "query CurrentWorkspace { currentWorkspace { id subdomain displayName "
+        "workspaceUrls { subdomainUrl } } }",
         action="Read current workspace",
     )
     if res.ok:
@@ -78,13 +83,15 @@ async def apply_branding_defaults(client: TwentyClient, display_name: str) -> bo
     """
     if not display_name:
         return False
-    res = await client.query_data(
+    # updateWorkspace is on the METADATA schema and takes `data: UpdateWorkspaceInput!`
+    # (not `input:`); calling it on /graphql silently no-op'd (branding_applied stayed false).
+    res = await client.query_meta(
         """
-        mutation SetWorkspaceName($displayName: String!) {
-          updateWorkspace(input: { displayName: $displayName }) { id displayName }
+        mutation SetWorkspaceName($data: UpdateWorkspaceInput!) {
+          updateWorkspace(data: $data) { id displayName }
         }
         """,
-        {"displayName": display_name},
+        {"data": {"displayName": display_name}},
         action="Apply Jarvis CRM workspace defaults",
     )
     return res.ok
@@ -123,6 +130,15 @@ async def register_workspace(
     workspace_id = identity.get("id")
     subdomain = subdomain or identity.get("subdomain")
     display_name = display_name or identity.get("displayName")
+
+    # Persist the workspace's REAL subdomain URL, not whatever base_url was passed. A
+    # register call often points at the shared apex (https://crm.jarvismgco.com); storing
+    # that makes the cockpit embed the apex, which redirects to the real subdomain that
+    # tls-check then refuses ("invalid response"). The workspace's own subdomainUrl is the
+    # only host that gets an on-demand cert.
+    canonical_url = ((identity.get("workspaceUrls") or {}).get("subdomainUrl") or "").rstrip("/")
+    if canonical_url:
+        base_url = canonical_url
 
     branding_applied = False
     if apply_branding and display_name:
@@ -424,3 +440,85 @@ async def auto_provision_workspace(user_id: str, display_name: str = "Jarvis CRM
 
     await workspaces.upsert_job(user_id, status="done")
     return ConnectorResult(ok=True, data={"base_url": d["base_url"], "subdomain": d.get("subdomain"), "workspace_id": d.get("workspace_id")})
+
+
+# ── Repair / deprovision ─────────────────────────────────────────────────────────
+async def repair_workspace_identity(user_id: str) -> ConnectorResult:
+    """Reconcile a stored row with the workspace its API key actually points at.
+
+    Fixes rows whose base_url is the bare apex (or whose subdomain/workspace_id are null) —
+    the cause of the cockpit "invalid response": the cockpit embeds the apex, the browser is
+    redirected to the workspace's real subdomain, and tls-check refuses a cert for a host the
+    registry doesn't know. We read the live identity (currentWorkspace on /metadata) with the
+    stored key and rewrite base_url → the real subdomainUrl, plus subdomain + workspace_id.
+    The api_key is unchanged (it already reaches the workspace). Idempotent.
+    """
+    row = await workspaces.get_workspace(user_id)
+    if not row:
+        return ConnectorResult(ok=False, error=f"No active workspace row for {user_id}.")
+    client = TwentyClient(row["base_url"], row["api_key"])
+    identity = await read_workspace_identity(client)
+    if not identity:
+        return ConnectorResult(ok=False, error="Could not read the live workspace identity (key invalid or unreachable).")
+
+    canonical_url = ((identity.get("workspaceUrls") or {}).get("subdomainUrl") or "").rstrip("/")
+    subdomain = identity.get("subdomain")
+    workspace_id = identity.get("id")
+    fields: dict = {}
+    if canonical_url and canonical_url != (row.get("base_url") or "").rstrip("/"):
+        fields["base_url"] = canonical_url
+    if subdomain and subdomain != row.get("subdomain"):
+        fields["subdomain"] = subdomain
+    if workspace_id and workspace_id != row.get("workspace_id"):
+        fields["workspace_id"] = workspace_id
+    if not fields:
+        return ConnectorResult(ok=True, data={"changed": False, "base_url": row.get("base_url"),
+                                              "subdomain": row.get("subdomain"), "workspace_id": row.get("workspace_id")})
+
+    ok = await workspaces.update_workspace_fields(user_id, **fields)
+    if not ok:
+        return ConnectorResult(ok=False, error="Read live identity but failed to persist the repair (check Supabase service-role env).")
+    return ConnectorResult(ok=True, data={"changed": True, **{
+        "base_url": fields.get("base_url", row.get("base_url")),
+        "subdomain": fields.get("subdomain", row.get("subdomain")),
+        "workspace_id": fields.get("workspace_id", row.get("workspace_id")),
+    }})
+
+
+async def deprovision_workspace(row: dict, *, delete_remote: bool = True) -> ConnectorResult:
+    """Delete one client's Twenty workspace and its registry row, freeing a slot.
+
+    A workspace's own API key can delete only its own workspace (`deleteCurrentWorkspace`
+    takes no args and acts on the token's workspace), so this is structurally unable to
+    touch any other tenant — the deprovision is self-scoped to `row`. Steps:
+      1. deleteCurrentWorkspace via the row's own key (frees the slot under Twenty's cap).
+         If the workspace is already gone (key/host dead), we still drop the stale row.
+      2. delete the crm_client_workspaces row.
+    Returns data={remote_deleted, row_deleted, already_gone}.
+    """
+    user_id = row.get("user_id")
+    base_url, api_key = row.get("base_url"), row.get("api_key")
+    remote_deleted = False
+    already_gone = False
+    if delete_remote and base_url and api_key:
+        res = await TwentyClient(base_url, api_key).query_meta(
+            "mutation DeleteWorkspace { deleteCurrentWorkspace { id } }",
+            action="Delete Twenty workspace",
+        )
+        if res.ok:
+            remote_deleted = True
+        else:
+            err = (res.error or "").lower()
+            # Treat an unreachable/already-deleted workspace as "gone" so a stale row can
+            # still be cleaned; surface a genuine auth/permission failure instead.
+            if any(s in err for s in ("not found", "does not exist", "no workspace", "unauthor", "404")) \
+               or "failed:" in err and any(s in err for s in ("getaddrinfo", "connect", "timed out", "ssl", "certificate")):
+                already_gone = True
+            else:
+                return ConnectorResult(ok=False, error=f"Workspace delete failed for {user_id}: {res.error}")
+
+    row_deleted = await workspaces.delete_workspace_row(user_id) if user_id else False
+    return ConnectorResult(ok=True, data={
+        "user_id": user_id, "subdomain": row.get("subdomain"), "display_name": row.get("display_name"),
+        "remote_deleted": remote_deleted, "already_gone": already_gone, "row_deleted": row_deleted,
+    })
