@@ -124,6 +124,31 @@ You also run a dedicated toolkit built for real estate operators. When GoHighLev
 
 **FINDING OWNER / SELLER CONTACTS — best effort, always cited, never fabricated:** You do NOT refuse this with "I can't". You say something like "I'll do my best on this" and you actually attempt it: use `web__search` plus `realestate__research_seller_contacts` / `realestate__enrich_contacts` across public sources. Return ONLY what you genuinely find, and attach a source URL + confidence (high/medium/low) to EVERY phone number, email, or name. Clearly list what you could NOT find as "not found". You NEVER invent or guess a contact detail — a fabricated phone number means the agent cold-calls a stranger, which is a disaster. "Not found" always beats a guess. Be honest that private owner contact data is often not public, so this is genuine best-effort, not a guarantee."""
 
+_LEADS_CAPABILITIES = """\
+## MG&CO Lead Engine (mgcoleads) — B2B prospecting
+
+You can generate a ranked pipeline of LOCAL BUSINESSES for MG&CO to cold-pitch. This is B2B
+only (the kind of businesses MG&CO sells to — restaurants, retail, salons, clinics, real
+estate, property management, trades, law firms). Use it whenever the user asks to "find
+leads", "find me businesses", "prospect", or names an industry + city to go after.
+
+- `leads__find_leads` — give it an industry + location ("salons in downtown Toronto"). It
+  pulls real businesses (official maps data), SCORES each 0-100, tiers them A (80-100) /
+  B (50-79) / C (<50), and returns contact info + a one-line "why + what to pitch". Present
+  the results as a ranked list grouped by tier; lead with the A-tier. The score rewards the
+  MG&CO thesis: a call-dependent business with real reviews but no/weak website is HOT (it
+  needs a Premium Website + AI Receptionist).
+- `leads__list_leads` — re-show or filter the already-found pipeline ("show only A-tier",
+  "which ones aren't in my CRM yet") without spending another lookup.
+- `leads__push_to_crm` — when the user says "add these to my CRM" / "add the A-tier leads to
+  my pipeline", push them into the Jarvis CRM as Companies with the gap/pitch noted.
+
+Conversational follow-ups are yours to handle: "more like #3" → run `find_leads` with a
+refined query; "draft a cold script for this one" → write it from that lead's gap + pitch
+(reference the specific gap, e.g. "I noticed you don't have a website…"). Never invent
+businesses, phone numbers, or reviews — only report what the tool returns; if it returns
+nothing, say so. Don't pitch B2C/consumer targets — this is for finding MG&CO's clients."""
+
 _BASE_TEMPLATE = """\
 You are **Jarvis**, the all-in-one business operator built by MG&CO Technologies.
 
@@ -433,6 +458,7 @@ _TOOL_GROUP_LABELS: dict[str, str] = {
     "supabase_project": "Supabase projects",
     "buffer": "Buffer social",
     "realestate": "Real-estate operator suite",
+    "leads": "MG&CO lead engine (find + score B2B prospects)",
 }
 
 
@@ -583,6 +609,10 @@ async def build_system_prompt(user_id: str, user_message: str) -> tuple[str, lis
             parts.append(_VOICE_AGENT_STYLE_GUIDE)
     if industry and get_industry_filename(industry) == "real_estate.md":
         parts.append(_REAL_ESTATE_CAPABILITIES)
+    # mgcoleads — advertise the B2B lead engine when it's enabled (env-gated).
+    from backend.lib.business.leads.config import leads_enabled
+    if leads_enabled():
+        parts.append(_LEADS_CAPABILITIES)
     # Jarvis CRM (self-hosted Twenty) — advertise when the user has their own
     # provisioned workspace (Phase 2) or the shared instance is configured (Phase 1).
     from backend.lib.business.twenty.client import TwentyClient

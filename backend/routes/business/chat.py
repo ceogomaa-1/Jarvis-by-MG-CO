@@ -65,7 +65,8 @@ WRITE_ACTIONS = frozenset({
 
 # Every Jarvis CRM write — record-level AND structural — refreshes the embedded CRM
 # view ("feels live"). Derived from the registries so new tools are covered automatically.
-CRM_WRITE_ACTIONS = frozenset(TWENTY_WRITE_TOOLS.keys()) | TWENTY_METADATA_WRITE
+# leads__push_to_crm creates Companies in the CRM, so it triggers a refresh too.
+CRM_WRITE_ACTIONS = frozenset(TWENTY_WRITE_TOOLS.keys()) | TWENTY_METADATA_WRITE | {"leads__push_to_crm"}
 
 
 def _describe_action(tool_name: str, tool_input: dict) -> str:

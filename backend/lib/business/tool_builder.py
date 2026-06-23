@@ -4,6 +4,8 @@ Only includes tools for connectors the user has actually connected (status=activ
 Returns [] if nothing is connected — never pass an empty list to Anthropic (omit the param instead).
 """
 from backend.lib.business.connectors.registry import list_user_connections
+from backend.lib.business.leads.config import leads_enabled
+from backend.lib.business.leads.tools import LEADS_TOOLS
 from backend.lib.business.real_estate.profile import is_real_estate_user
 from backend.lib.business.real_estate.tools import REAL_ESTATE_TOOLS
 from backend.lib.business.twenty.client import TwentyClient
@@ -1211,6 +1213,13 @@ async def build_tools_for_user(user_id: str) -> list[dict]:
         tools += [
             {"name": name, "description": defn["description"], "input_schema": defn["input_schema"]}
             for name, defn in {**TWENTY_TOOLS, **TWENTY_WRITE_TOOLS, **TWENTY_METADATA_TOOLS}.items()
+        ]
+
+    # mgcoleads — MG&CO's B2B lead engine. Additive + env-gated (LEADS_MAPS_API_KEY).
+    if leads_enabled():
+        tools += [
+            {"name": name, "description": defn["description"], "input_schema": defn["input_schema"]}
+            for name, defn in LEADS_TOOLS.items()
         ]
 
     return tools
