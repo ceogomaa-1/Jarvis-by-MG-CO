@@ -51,6 +51,7 @@ def _public_view(rows: list[dict]) -> list[dict]:
             "category": r.get("category"), "address": r.get("address"), "phone": r.get("phone"),
             "website": r.get("website") or None, "rating": r.get("rating"),
             "review_count": r.get("review_count"), "why": r.get("why"), "pitch": r.get("pitch"),
+            "lat": r.get("lat"), "lng": r.get("lng"),
             "pushed_to_crm": r.get("pushed_to_crm", False),
         })
     return out
@@ -99,7 +100,7 @@ async def run_search(user_id: str, query: str, max_results: int | None = None) -
         if lid:
             await store.update_lead(lid, {k: row[k] for k in
                 ("run_id", "score", "tier", "signals", "why", "pitch", "rating",
-                 "review_count", "website", "has_hours", "business_status", "raw")})
+                 "review_count", "website", "has_hours", "business_status", "lat", "lng", "raw")})
             updated += 1
         else:
             new_rows.append(row)
@@ -116,6 +117,7 @@ def _db_row(user_id: str, run_id: str | None, l: dict) -> dict:
     return {
         "user_id": store._user_id_to_uuid(user_id), "run_id": run_id, "place_id": l.get("place_id"),
         "name": l.get("name") or "Unknown", "category": l.get("category"), "address": l.get("address"),
+        "lat": l.get("lat"), "lng": l.get("lng"),
         "phone": l.get("phone"), "website": l.get("website"), "rating": l.get("rating"),
         "review_count": l.get("review_count"), "price_level": l.get("price_level"),
         "business_status": l.get("business_status"), "has_hours": l.get("has_hours", False),

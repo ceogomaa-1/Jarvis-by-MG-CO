@@ -27,6 +27,7 @@ _FIELD_MASK = ",".join([
     "places.rating", "places.userRatingCount", "places.businessStatus",
     "places.regularOpeningHours.weekdayDescriptions", "places.priceLevel",
     "places.primaryType", "places.primaryTypeDisplayName", "places.types",
+    "places.location",
     "nextPageToken",
 ])
 _PRICE_LEVELS = {
@@ -57,11 +58,14 @@ class GooglePlacesProvider(BaseProvider):
         price = _PRICE_LEVELS.get(p.get("priceLevel")) if p.get("priceLevel") else None
         hours = (p.get("regularOpeningHours") or {}).get("weekdayDescriptions") or []
         cat = (p.get("primaryTypeDisplayName") or {}).get("text") or p.get("primaryType") or ""
+        loc = p.get("location") or {}
         return {
             "place_id": p.get("id"),
             "name": (p.get("displayName") or {}).get("text") or "",
             "category": cat,
             "address": p.get("formattedAddress"),
+            "lat": loc.get("latitude"),
+            "lng": loc.get("longitude"),
             "phone": p.get("nationalPhoneNumber") or p.get("internationalPhoneNumber"),
             "website": p.get("websiteUri") or None,
             "rating": p.get("rating"),

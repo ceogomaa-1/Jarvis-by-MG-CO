@@ -131,7 +131,7 @@ async def list_leads(user_id: str, *, tier: str | None = None, limit: int = 50,
                      pushed: bool | None = None) -> list[dict]:
     if not enabled():
         return []
-    params = {"select": "id,place_id,name,category,address,phone,website,rating,review_count,"
+    params = {"select": "id,place_id,name,category,address,lat,lng,phone,website,rating,review_count,"
                         "price_level,score,tier,why,pitch,pushed_to_crm,crm_company_id",
               "user_id": f"eq.{_user_id_to_uuid(user_id)}",
               "order": "score.desc", "limit": str(limit)}
@@ -157,7 +157,7 @@ async def list_leads_for_run(user_id: str, run_id: str, limit: int = 50) -> list
     try:
         async with httpx.AsyncClient() as c:
             resp = await c.get(f"{SUPABASE_URL}/rest/v1/mgco_leads", headers=_headers(),
-                               params={"select": "id,place_id,name,category,address,phone,website,"
+                               params={"select": "id,place_id,name,category,address,lat,lng,phone,website,"
                                                  "rating,review_count,price_level,score,tier,why,pitch,pushed_to_crm",
                                        "user_id": f"eq.{_user_id_to_uuid(user_id)}",
                                        "run_id": f"eq.{run_id}",

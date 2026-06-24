@@ -40,6 +40,26 @@ async def leads_list(user_id: str, tier: str = "", pushed: str = "", limit: int 
     return {"enabled": True, "count": len(rows), "leads": rows, "tier_counts": counts}
 
 
+@router.post("/business/leads/discover")
+async def leads_discover(payload: dict):
+    """Run a lead discovery (the cockpit's "Discover Businesses" button).
+
+    Mirrors the chat tool find_leads exactly — same engine, scoring, dedupe and cache.
+    Accepts a free-form `query` ("salons in Toronto"), or a `niche` + `city` pair that we
+    join into the same "<niche> in <city>" shape the engine parses.
+    """
+    user_id = payload.get("user_id") or ""
+    if not config.leads_enabled():
+        return {"ok": False, "error": "Lead engine is off (LEADS_MAPS_API_KEY not set).", "data": None}
+    query = (payload.get("query") or "").strip()
+    if not query:
+        niche = (payload.get("niche") or "").strip()
+        city = (payload.get("city") or "").strip()
+        query = f"{niche} in {city}".strip() if city else niche
+    res = await engine.run_search(user_id, query, payload.get("max_results"))
+    return {"ok": res.ok, "error": res.error, "data": res.data}
+
+
 @router.post("/business/leads/push")
 async def leads_push(payload: dict):
     """Bulk push selected leads into the Jarvis CRM (the cockpit's "push to CRM" button).
