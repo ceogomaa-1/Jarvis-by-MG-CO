@@ -62,6 +62,19 @@ class UsageAccumulator:
         # message_start carries a small initial output_tokens; the final count
         # arrives on message_delta, so don't add it here (avoid double counting).
 
+    def add_sdk_usage(self, usage) -> None:
+        """Apply the `usage` object returned by a non-streaming SDK call (one round).
+
+        The SDK returns final per-call counts, so input AND output are added here.
+        """
+        if usage is None:
+            return
+        self.rounds += 1
+        self.input_tokens += int(getattr(usage, "input_tokens", 0) or 0)
+        self.cache_creation_input_tokens += int(getattr(usage, "cache_creation_input_tokens", 0) or 0)
+        self.cache_read_input_tokens += int(getattr(usage, "cache_read_input_tokens", 0) or 0)
+        self.output_tokens += int(getattr(usage, "output_tokens", 0) or 0)
+
     def add_round_output(self, output_tokens: int) -> None:
         """Apply the final output_tokens for one completed round.
 

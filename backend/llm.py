@@ -11,6 +11,8 @@ from backend.utils.env import ANTHROPIC_API_KEY
 from backend.tools.soul import get_soul
 from backend.lib.grounding import GROUNDING_CONTRACT, CAPABILITY_CONTRACT, render_capability_manifest
 from backend.lib.jarvis_core import JARVIS_CORE_CONTRACT
+from backend.lib.business.model_router import select_personal_model, SONNET
+from backend.lib.business.cost import UsageAccumulator
 
 logger = logging.getLogger(__name__)
 
@@ -436,10 +438,32 @@ async def jarvis_think(
     messages = [{"role": m["role"], "content": m["content"]} for m in conversation_history]
     messages.append({"role": "user", "content": user_message})
 
+    # ── Model tiering ─────────────────────────────────────────────────────────
+    # Greetings/acks → Haiku; everything else stays on Sonnet (companion default).
+    # Onboarding and image turns are pinned to Sonnet for quality.
+    if system_override or not isinstance(user_message, str):
+        model = SONNET
+    else:
+        model = select_personal_model(user_message)
+
+    # ── Prompt caching ────────────────────────────────────────────────────────
+    # The system prompt and tools are identical across this turn's tool rounds, and
+    # the tools are identical across turns — so cache them. Render order is
+    # tools → system → messages: the tools breakpoint caches the tool list even
+    # across plain-chat turns (tools are sent every turn), and the system
+    # breakpoint caches the whole prompt within a multi-round tool turn.
+    system_blocks = [{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}]
+    if available_tools and all_tools:
+        all_tools = list(all_tools)
+        all_tools[-1] = {**all_tools[-1], "cache_control": {"type": "ephemeral"}}
+
+    # Per-turn cost accounting across every tool round.
+    usage_acc = UsageAccumulator(model)
+
     kwargs: dict = {
-        "model": "claude-sonnet-4-6",
+        "model": model,
         "max_tokens": 1024,
-        "system": system_prompt,
+        "system": system_blocks,
         "messages": messages,  # type: ignore[arg-type]
     }
     if available_tools:
@@ -449,6 +473,7 @@ async def jarvis_think(
     print(f"LLM_TOOLS_OFFERED: {tools_offered if tools_offered else 'NONE'}")
 
     result = await _client.messages.create(**kwargs)
+    usage_acc.add_sdk_usage(getattr(result, "usage", None))
     print(f"LLM_RESPONSE_TYPES: {[block.type for block in result.content]}")
 
     # Native tool-use loop.
@@ -502,12 +527,18 @@ async def jarvis_think(
         messages.append({"role": "user", "content": tool_results})
 
         result = await _client.messages.create(
-            model="claude-sonnet-4-6",
+            model=model,
             max_tokens=1024,
-            system=system_prompt,
+            system=system_blocks,
             messages=messages,  # type: ignore[arg-type]
             tools=all_tools,  # type: ignore[arg-type]
         )
+        usage_acc.add_sdk_usage(getattr(result, "usage", None))
+
+    try:
+        print(usage_acc.log_line())
+    except Exception:
+        pass
 
     return _extract_text(result.content)
 

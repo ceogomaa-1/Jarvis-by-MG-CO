@@ -85,3 +85,19 @@ def select_model(message: str) -> str:
             return HAIKU
 
     return SONNET
+
+
+def select_personal_model(message: str) -> str:
+    """Model routing for Personal Jarvis (the companion).
+
+    Deliberately conservative: only obvious greetings/acks drop to Haiku; real
+    conversation stays on Sonnet (no CRM/bulk downgrade, no Opus upgrade) so the
+    companion's warmth and depth are never traded away for a few cents.
+    """
+    if not message or not message.strip() or not _TIERING_ON:
+        return SONNET
+    text = message.strip()
+    for pat in _HAIKU_PATTERNS:
+        if re.search(pat, text, re.IGNORECASE):
+            return HAIKU
+    return SONNET
