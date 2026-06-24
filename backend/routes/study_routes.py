@@ -10,6 +10,7 @@ backend/agent.py notes helpers).
 """
 
 import json
+import os
 import re
 from datetime import datetime, timezone
 
@@ -20,6 +21,65 @@ from pydantic import BaseModel
 from backend.agent import _SUPABASE_URL, _SUPABASE_KEY
 
 router = APIRouter()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Diagnostics — one hit answers "why didn't Study Mode use Grok?"
+# GET /api/study/diag
+#   • If this 404s, the new provider code is NOT deployed (stale Render build).
+#   • Reports the live env flag, whether the Grok key is present, what the resolver
+#     decides, and a REAL 1-token live call to xAI so an invalid key is obvious.
+# ═══════════════════════════════════════════════════════════════════════════════
+@router.get("/study/diag")
+async def study_diagnostics():
+    out: dict = {"provider_code_deployed": True}  # reaching here proves the import chain loaded
+
+    try:
+        from backend.lib.providers.study_provider import grok_configured, resolve_study_provider
+        from backend.lib.providers.grok import GROK_BASE_URL, GROK_MODEL
+    except Exception as e:
+        return {"provider_code_deployed": False, "import_error": str(e)}
+
+    # Prove the cost-optimization build is present too (caching/tiering live in these).
+    try:
+        from backend.lib.business.cost import UsageAccumulator  # noqa: F401
+        from backend.lib.business.model_router import select_personal_model  # noqa: F401
+        out["cost_optimization_code_deployed"] = True
+    except Exception as e:
+        out["cost_optimization_code_deployed"] = False
+        out["cost_import_error"] = str(e)
+
+    env_val = os.getenv("STUDY_MODE_PROVIDER", "(unset)")
+    out["env_STUDY_MODE_PROVIDER"] = env_val
+    out["grok_key_present"] = grok_configured()
+    out["grok_model"] = GROK_MODEL
+    out["grok_base_url"] = GROK_BASE_URL
+    # What a normal Study Mode request (no per-request override) resolves to right now.
+    resolved, notice = resolve_study_provider()
+    out["resolves_to"] = resolved
+    out["resolve_notice"] = notice
+
+    # ── Live key check: a real, cheap call to xAI grok-4.3 ──
+    if grok_configured():
+        key = (os.getenv("GROK_API_KEY") or "").strip()
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                r = await client.post(
+                    f"{GROK_BASE_URL}/chat/completions",
+                    headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+                    json={"model": GROK_MODEL, "max_tokens": 1, "messages": [{"role": "user", "content": "ping"}]},
+                )
+            out["grok_live_check"] = {
+                "ok": r.status_code == 200,
+                "status": r.status_code,
+                "body": r.text[:400],
+            }
+        except Exception as e:
+            out["grok_live_check"] = {"ok": False, "error": str(e)}
+    else:
+        out["grok_live_check"] = {"ok": False, "error": "GROK_API_KEY not set on this service"}
+
+    return out
 
 _NOTES_TABLE = "study_notes"
 _CHATS_TABLE = "study_chats"

@@ -135,6 +135,9 @@ export default function StudyView({ name, onToggle, userId, backend }) {
   const [flash, setFlash] = useState(null) // { subject, title, pages }
   const [trayOpen, setTrayOpen] = useState(false)
   const [capturePages, setCapturePages] = useState([]) // {id, dataUrl, type}
+  // Live brain indicator (Study Mode A/B): which model answered + any fallback reason.
+  const [brain, setBrain] = useState(null)        // 'grok' | 'claude' | null
+  const [brainNote, setBrainNote] = useState(null) // fallback reason string, if any
   const camInputRef = useRef(null)
   const libInputRef = useRef(null)
 
@@ -204,6 +207,7 @@ export default function StudyView({ name, onToggle, userId, backend }) {
     setAttachments([])
     if (textareaRef.current) { textareaRef.current.style.height = 'auto' }
     setLoading(true)
+    setBrainNote(null)  // clear any prior fallback note; provider event sets the live brain
 
     const historyForApi = snapshot
       .filter(m => typeof m.content === 'string' && m.content.trim().length > 0)
@@ -271,8 +275,8 @@ export default function StudyView({ name, onToggle, userId, backend }) {
               if (chunk.__vs) { if (opts.voice && chunk.__vs.trim()) { voiceRef.current?.speak(chunk.__vs); voiceFired = true } continue }
               // Control events (usage, Study Mode provider A/B) — never render as text.
               if (Array.isArray(chunk.__sources) || typeof chunk.type === 'string') {
-                if (chunk.type === 'provider') console.log('[StudyMode] brain:', chunk.value)
-                if (chunk.type === 'provider_notice') console.log('[StudyMode]', chunk.value)
+                if (chunk.type === 'provider') { setBrain(chunk.value); console.log('[StudyMode] brain:', chunk.value) }
+                if (chunk.type === 'provider_notice') { setBrainNote(chunk.value); console.log('[StudyMode]', chunk.value) }
                 continue
               }
             }
@@ -468,6 +472,21 @@ export default function StudyView({ name, onToggle, userId, backend }) {
           <span style={{ display: 'block', width: 22, height: 2, background: CREAM, borderRadius: 1 }} />
           <span style={{ display: 'block', width: 22, height: 2, background: CREAM, borderRadius: 1 }} />
         </button>
+        {/* Live brain chip — instantly shows a Grok→Claude misroute */}
+        {brain && (
+          <div
+            title={brainNote || (brain === 'grok' ? 'Grok 4.3 is answering' : 'Claude is answering')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '5px 11px', borderRadius: 999,
+              maxWidth: 280, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              fontFamily: 'var(--sans)', fontSize: 12, fontWeight: 600, color: CREAM,
+              background: brainNote ? 'rgba(90,0,0,0.25)' : (brain === 'grok' ? 'rgba(120,90,255,0.16)' : 'rgba(255,144,114,0.12)'),
+              border: `1px solid ${brainNote ? 'rgba(239,68,68,0.45)' : (brain === 'grok' ? 'rgba(150,120,255,0.45)' : 'rgba(255,144,114,0.35)')}`,
+            }}
+          >
+            {brainNote ? `⚠ ${brainNote}` : (brain === 'grok' ? '🧠 Grok 4.3' : '🧠 Claude')}
+          </div>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {hasConversation && (
             <button

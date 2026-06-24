@@ -522,8 +522,19 @@ async def chat_stream(request: ChatRequest):
     _study_provider = "claude"
     _provider_notice = None
     if request.study_mode and not system_override:
-        from backend.lib.providers.study_provider import resolve_study_provider
+        from backend.lib.providers.study_provider import resolve_study_provider, grok_configured
         _study_provider, _provider_notice = resolve_study_provider(request.study_provider)
+        # Loud, explicit route trace in the SERVER logs (Render) — so a misroute is
+        # never silent. Shows exactly why we picked the brain we picked.
+        print(
+            f"STUDY_ROUTE: provider={_study_provider} "
+            f"study_mode={request.study_mode} onboarding_override={bool(system_override)} "
+            f"env_STUDY_MODE_PROVIDER={os.getenv('STUDY_MODE_PROVIDER', '(unset)')!r} "
+            f"grok_key={'present' if grok_configured() else 'ABSENT'} "
+            f"request_override={request.study_provider!r} notice={_provider_notice!r}"
+        )
+    elif request.study_mode and system_override:
+        print("STUDY_ROUTE: provider=claude reason=onboarding_active (study brain suppressed during onboarding)")
 
     tone = detect_emotional_tone(request.message)
     tone_context = TONE_INSTRUCTIONS.get(tone, "")
@@ -646,8 +657,9 @@ async def chat_stream(request: ChatRequest):
                     )
                 except Exception as _grok_err:
                     # Invalid key / network / API error → fall back to Claude, no crash.
-                    print(f"STUDY_GROK_FALLBACK: {_grok_err}")
-                    yield f'data: {json.dumps({"type": "provider_notice", "value": "Grok hit an error — switched to the default brain."})}\n\n'
+                    _reason = str(_grok_err)[:200]
+                    print(f"STUDY_GROK_FALLBACK: routed to Claude because Grok failed → {_reason}")
+                    yield f'data: {json.dumps({"type": "provider_notice", "value": f"Fell back to Claude: {_reason}"})}\n\n'
                     yield f'data: {json.dumps({"type": "provider", "value": "claude"})}\n\n'
                     response_text = await _claude_answer()
             else:
