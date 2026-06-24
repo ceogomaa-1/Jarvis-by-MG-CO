@@ -964,6 +964,24 @@ TWENTY_TOOLS: dict[str, dict] = {
             "required": ["query"],
         },
     },
+    "twenty__read_fields": {
+        "description": (
+            "[Owned CRM] Read field VALUES back for one record (verify a write, or inspect "
+            "custom fields). object_type = company|person|opportunity; identify by `query` or "
+            "{type}_id. `fields` lists which fields (names/labels) to read; default = all custom "
+            "fields. Select values come back as labels; link fields as the URL."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "object_type": {"type": "string"},
+                "query": {"type": "string"},
+                "company_id": {"type": "string"}, "person_id": {"type": "string"}, "opportunity_id": {"type": "string"},
+                "fields": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": [],
+        },
+    },
 }
 
 # WRITE tools (Phase 3) — full CRUD over the owned CRM. Same gating as reads (only
@@ -973,21 +991,34 @@ TWENTY_TOOLS: dict[str, dict] = {
 _P = {"person_id": {"type": "string"}, "company_id": {"type": "string"}, "opportunity_id": {"type": "string"},
       "person_query": {"type": "string"}, "company_query": {"type": "string"}, "opportunity_query": {"type": "string"}}
 
+# Generic custom-field setter, accepted by every create/update/bulk tool. Resolves field
+# names/labels + types from the LIVE schema, so any field the user adds is instantly writable.
+_FIELDS_PARAM = {
+    "type": "object",
+    "description": (
+        "Set ANY field(s) by field name OR label → value — including custom fields (text, "
+        "number, date, link, select, multi-select). For select/multi-select pass the human "
+        "option LABEL (e.g. 'To Be Called') and it's mapped to the stored option key "
+        "automatically. For a link field pass the URL string. Pass null to clear a field. "
+        "Example: {\"Status\": \"To Be Called\", \"Google Maps Link\": \"https://maps.app.goo.gl/x\"}."
+    ),
+}
+
 TWENTY_WRITE_TOOLS: dict[str, dict] = {
     # ── People ──
     "twenty__create_person": {
-        "description": "[Owned CRM WRITE] Create a contact (Person). Idempotent on email. Optionally link to a company via company_query/company_id.",
+        "description": "[Owned CRM WRITE] Create a contact (Person). Idempotent on email. Optionally link to a company via company_query/company_id. Set custom fields via `fields`.",
         "input_schema": {"type": "object", "properties": {
             "first_name": {"type": "string"}, "last_name": {"type": "string"}, "email": {"type": "string"},
             "phone": {"type": "string"}, "city": {"type": "string"}, "job_title": {"type": "string"},
-            "company_query": {"type": "string"}, "company_id": {"type": "string"}}, "required": []},
+            "company_query": {"type": "string"}, "company_id": {"type": "string"}, "fields": _FIELDS_PARAM}, "required": []},
     },
     "twenty__update_person": {
-        "description": "[Owned CRM WRITE] Update a contact. Identify by person_id or `query` (name/email). Only passed fields change.",
+        "description": "[Owned CRM WRITE] Update a contact. Identify by person_id or `query` (name/email). Set built-in or custom fields (use `fields` for custom/select/link). Only passed fields change.",
         "input_schema": {"type": "object", "properties": {
             "person_id": {"type": "string"}, "query": {"type": "string"},
             "first_name": {"type": "string"}, "last_name": {"type": "string"}, "email": {"type": "string"},
-            "phone": {"type": "string"}, "city": {"type": "string"}, "job_title": {"type": "string"}}, "required": []},
+            "phone": {"type": "string"}, "city": {"type": "string"}, "job_title": {"type": "string"}, "fields": _FIELDS_PARAM}, "required": []},
     },
     "twenty__delete_person": {
         "description": "[Owned CRM WRITE — DESTRUCTIVE] Delete a contact. Identify by person_id or `query`. Requires hold-to-confirm.",
@@ -995,14 +1026,14 @@ TWENTY_WRITE_TOOLS: dict[str, dict] = {
     },
     # ── Companies ──
     "twenty__create_company": {
-        "description": "[Owned CRM WRITE] Create a Company. Idempotent on name. Optional domain, city.",
+        "description": "[Owned CRM WRITE] Create a Company. Idempotent on name. Optional domain, city. Set custom fields via `fields`.",
         "input_schema": {"type": "object", "properties": {
-            "name": {"type": "string"}, "domain": {"type": "string"}, "city": {"type": "string"}}, "required": ["name"]},
+            "name": {"type": "string"}, "domain": {"type": "string"}, "city": {"type": "string"}, "fields": _FIELDS_PARAM}, "required": ["name"]},
     },
     "twenty__update_company": {
-        "description": "[Owned CRM WRITE] Update a Company's name or domain. Identify by company_id or `query`.",
+        "description": "[Owned CRM WRITE] Update a Company. Identify by company_id or `query`. Set name/domain or ANY custom field via `fields` (e.g. {\"Status\":\"To Be Called\",\"Google Maps Link\":\"https://…\"}). Select options are given by label.",
         "input_schema": {"type": "object", "properties": {
-            "company_id": {"type": "string"}, "query": {"type": "string"}, "name": {"type": "string"}, "domain": {"type": "string"}}, "required": []},
+            "company_id": {"type": "string"}, "query": {"type": "string"}, "name": {"type": "string"}, "domain": {"type": "string"}, "fields": _FIELDS_PARAM}, "required": []},
     },
     "twenty__delete_company": {
         "description": "[Owned CRM WRITE — DESTRUCTIVE] Delete a Company. Identify by company_id or `query`. Requires hold-to-confirm.",
@@ -1010,17 +1041,17 @@ TWENTY_WRITE_TOOLS: dict[str, dict] = {
     },
     # ── Opportunities ──
     "twenty__create_opportunity": {
-        "description": "[Owned CRM WRITE] Create an Opportunity. Optional stage (GHL or native name), amount, and links via person_query/company_query.",
+        "description": "[Owned CRM WRITE] Create an Opportunity. Optional stage (GHL or native name), amount, links via person_query/company_query, and custom fields via `fields`.",
         "input_schema": {"type": "object", "properties": {
             "name": {"type": "string"}, "amount": {"type": "number"}, "currency": {"type": "string"}, "stage": {"type": "string"},
             "person_query": {"type": "string"}, "person_id": {"type": "string"},
-            "company_query": {"type": "string"}, "company_id": {"type": "string"}}, "required": ["name"]},
+            "company_query": {"type": "string"}, "company_id": {"type": "string"}, "fields": _FIELDS_PARAM}, "required": ["name"]},
     },
     "twenty__update_opportunity": {
-        "description": "[Owned CRM WRITE] Update an Opportunity's name or amount. Identify by opportunity_id or `query`.",
+        "description": "[Owned CRM WRITE] Update an Opportunity. Identify by opportunity_id or `query`. Set name/amount or ANY custom field via `fields`.",
         "input_schema": {"type": "object", "properties": {
             "opportunity_id": {"type": "string"}, "query": {"type": "string"}, "name": {"type": "string"},
-            "amount": {"type": "number"}, "currency": {"type": "string"}}, "required": []},
+            "amount": {"type": "number"}, "currency": {"type": "string"}, "fields": _FIELDS_PARAM}, "required": []},
     },
     "twenty__move_opportunity_stage": {
         "description": "[Owned CRM WRITE] Move an Opportunity to a different pipeline stage (by name). Identify by opportunity_id or `query`.",
@@ -1087,6 +1118,34 @@ TWENTY_WRITE_TOOLS: dict[str, dict] = {
             "from_query": {"type": "string"}, "to_query": {"type": "string"},
             "from_id": {"type": "string"}, "to_id": {"type": "string"}}, "required": ["from_type", "to_type"]},
     },
+    # ── Bulk + generic-field writes (confirm-gated) ──
+    "twenty__bulk_update": {
+        "description": (
+            "[Owned CRM WRITE — BULK] Set the SAME field(s) across MANY records in one shot "
+            "(reliable bulk path — use this instead of many single updates). object_type = "
+            "company|person|opportunity. Select with names[] (matched against records), ids[], "
+            "and/or all=true. `fields` sets any built-in or custom field (select by label). "
+            "Requires hold-to-confirm. Example: object_type=company, names=[...19 names...], "
+            "fields={\"Status\":\"To Be Called\"}."
+        ),
+        "input_schema": {"type": "object", "properties": {
+            "object_type": {"type": "string"}, "names": {"type": "array", "items": {"type": "string"}},
+            "ids": {"type": "array", "items": {"type": "string"}}, "all": {"type": "boolean"},
+            "fields": _FIELDS_PARAM}, "required": ["fields"]},
+    },
+    "twenty__rehome_field": {
+        "description": (
+            "[Owned CRM WRITE — BULK] Move a field's values into another field across records "
+            "(one-shot data fix). e.g. move Google Maps URLs wrongly stored in `domainName` into "
+            "the 'Google Maps Link' field: object_type=company, from_field='domainName', "
+            "to_field='Google Maps Link', contains='maps' (optional URL filter). Clears the "
+            "source unless clear_source=false. Optional names[] to limit scope. Hold-to-confirm."
+        ),
+        "input_schema": {"type": "object", "properties": {
+            "object_type": {"type": "string"}, "from_field": {"type": "string"}, "to_field": {"type": "string"},
+            "contains": {"type": "string"}, "clear_source": {"type": "boolean"},
+            "names": {"type": "array", "items": {"type": "string"}}}, "required": ["to_field"]},
+    },
     # ── Advanced escape hatch (confirm-gated) ──
     "twenty__run_graphql_mutation": {
         "description": "[Owned CRM WRITE — ADVANCED] Run a raw Twenty GraphQL mutation for rare ops the structured tools don't cover. Prefer the structured tools. Requires hold-to-confirm.",
@@ -1101,6 +1160,10 @@ TWENTY_DESTRUCTIVE_TOOLS = frozenset({
     "twenty__delete_person", "twenty__delete_company", "twenty__delete_opportunity",
     "twenty__delete_task", "twenty__delete_note", "twenty__run_graphql_mutation",
 })
+
+# Bulk writes (touch many records at once) — not destructive, but require hold-to-confirm
+# so a mistaken mass-edit can't land silently. Added to chat.py WRITE_ACTIONS.
+TWENTY_BULK_TOOLS = frozenset({"twenty__bulk_update", "twenty__rehome_field"})
 
 # METADATA tools (structure-level) — let Jarvis reshape the CRM: custom fields,
 # custom objects ("types"), and views/lists. Gated like other CRM tools; resolved

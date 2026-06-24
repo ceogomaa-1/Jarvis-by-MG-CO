@@ -15,7 +15,7 @@ from backend.lib.business.model_router import select_model, OPUS
 from backend.lib.business.memory import extract_and_store_memories
 from backend.lib.business.mind.graph import record_activity
 from backend.lib.business.tool_builder import (
-    build_tools_for_user, TWENTY_WRITE_TOOLS, TWENTY_DESTRUCTIVE_TOOLS,
+    build_tools_for_user, TWENTY_WRITE_TOOLS, TWENTY_DESTRUCTIVE_TOOLS, TWENTY_BULK_TOOLS,
     TWENTY_METADATA_TOOLS, TWENTY_METADATA_WRITE, TWENTY_METADATA_DESTRUCTIVE,
 )
 from backend.lib.business.tool_executor import execute_tool
@@ -61,6 +61,8 @@ WRITE_ACTIONS = frozenset({
     # hatch + structural deletes (field/object/view). Derived from the tool registry.
     *TWENTY_DESTRUCTIVE_TOOLS,
     *TWENTY_METADATA_DESTRUCTIVE,
+    # Bulk record edits (set a field across many records) — confirm before they land.
+    *TWENTY_BULK_TOOLS,
 })
 
 # Every Jarvis CRM write — record-level AND structural — refreshes the embedded CRM
@@ -137,6 +139,15 @@ def _describe_action(tool_name: str, tool_input: dict) -> str:
         return f"Delete CRM type '{tool_input.get('name', '?')}' (and all its records)"
     if tool_name == "twenty__delete_view":
         return f"Delete CRM list '{tool_input.get('name') or tool_input.get('view_id', '?')}'"
+    if tool_name == "twenty__bulk_update":
+        obj = tool_input.get("object_type", "record")
+        n = len(tool_input.get("names") or []) or len(tool_input.get("ids") or [])
+        scope = "all" if tool_input.get("all") and not n else f"{n}"
+        fields = ", ".join(f"{k}={v}" for k, v in (tool_input.get("fields") or {}).items())
+        return f"Bulk-set on {scope} {obj}(s): {fields or '?'}"
+    if tool_name == "twenty__rehome_field":
+        return (f"Move CRM field '{tool_input.get('from_field', '?')}' → "
+                f"'{tool_input.get('to_field', '?')}' on {tool_input.get('object_type', 'company')}(s)")
     if tool_name == "twenty__run_graphql_mutation":
         m = (tool_input.get("mutation") or "").strip().replace("\n", " ")
         return f"Run a custom Jarvis CRM mutation: {m[:90]}"
