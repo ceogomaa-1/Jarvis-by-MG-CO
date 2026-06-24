@@ -150,6 +150,7 @@ function LeadsMap({ leads, focusedId, onMarkerClick }) {
   const mapRef = useRef(null)
   const markersRef = useRef(new Map())   // lead.id -> google.maps.Marker
   const [status, setStatus] = useState('loading') // loading | ready | error | nokey
+  const [errMsg, setErrMsg] = useState('')
 
   const pinned = useMemo(
     () => leads.filter(l => l.lat != null && l.lng != null),
@@ -160,6 +161,12 @@ function LeadsMap({ leads, focusedId, onMarkerClick }) {
   useEffect(() => {
     if (!mapsBrowserKey()) { setStatus('nokey'); return }
     let cancelled = false
+    // Surface Google's own auth errors (RefererNotAllowedMapError, etc.) into the overlay.
+    if (typeof window !== 'undefined') {
+      window.gm_authFailure = () => {
+        if (!cancelled) { setErrMsg('Google rejected the key (gm_authFailure) — check API key referrer / API restrictions'); setStatus('error') }
+      }
+    }
     loadGoogleMaps()
       .then((maps) => {
         if (cancelled || !containerRef.current) return
@@ -173,7 +180,7 @@ function LeadsMap({ leads, focusedId, onMarkerClick }) {
         }
         setStatus('ready')
       })
-      .catch(() => { if (!cancelled) setStatus('error') })
+      .catch((e) => { if (!cancelled) { setErrMsg(e?.message || String(e)); setStatus('error') } })
     return () => { cancelled = true }
   }, [])
 
@@ -247,6 +254,11 @@ function LeadsMap({ leads, focusedId, onMarkerClick }) {
               <div className="os1-serif-micro" style={{ fontSize: 10.5, lineHeight: 1.5, maxWidth: 280 }}>
                 Set NEXT_PUBLIC_MAPS_BROWSER_KEY (Maps JavaScript API, restricted to the
                 jarvismgco.com referrer). The list still works without it.
+              </div>
+            )}
+            {status === 'error' && errMsg && (
+              <div className="os1-serif-micro" style={{ fontSize: 10, lineHeight: 1.5, maxWidth: 320, color: 'var(--os1-text-faint, #6E6E6C)', marginTop: 6 }}>
+                {errMsg}
               </div>
             )}
           </div>

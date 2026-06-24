@@ -3,7 +3,11 @@
 // Uses a PUBLIC, referrer-restricted browser key (NEXT_PUBLIC_MAPS_BROWSER_KEY) — separate
 // from the server-side Places key (LEADS_MAPS_API_KEY) so the two can be locked down
 // independently (this one is restricted to the Maps JavaScript API + the jarvismgco.com
-// HTTP referrer). Loads the script exactly once and resolves when window.google.maps exists.
+// HTTP referrer). Loads the script exactly once and resolves when window.google.maps is ready.
+//
+// We load with an explicit ?callback= (NOT loading=async + new Map()). The callback only
+// fires once google.maps is fully initialized, so google.maps.Map / Marker are guaranteed
+// available — this avoids the "Map is not a constructor" race that loading=async introduces.
 
 let loaderPromise = null
 
@@ -13,41 +17,37 @@ export function mapsBrowserKey() {
 
 export function loadGoogleMaps() {
   if (typeof window === 'undefined') return Promise.reject(new Error('no window'))
-  if (window.google && window.google.maps) return Promise.resolve(window.google.maps)
+  if (window.google && window.google.maps && window.google.maps.Map) {
+    return Promise.resolve(window.google.maps)
+  }
   if (loaderPromise) return loaderPromise
 
   const key = mapsBrowserKey()
   if (!key) return Promise.reject(new Error('NEXT_PUBLIC_MAPS_BROWSER_KEY is not set'))
 
   loaderPromise = new Promise((resolve, reject) => {
-    // With loading=async the Map/Marker classes are NOT ready on script onload — you must
-    // await google.maps.importLibrary(). Resolving on raw onload (and calling new Map())
-    // throws "Map is not a constructor". So we resolve only after the library is imported.
-    const ready = () => {
-      const g = window.google
-      if (g?.maps?.importLibrary) {
-        g.maps.importLibrary('maps')
-          .then(() => resolve(g.maps))
-          .catch(reject)
-      } else if (g?.maps?.Map) {
-        resolve(g.maps)            // legacy (non-async) path
-      } else {
-        reject(new Error('Google Maps loaded but Map class unavailable'))
-      }
-    }
-    const existing = document.getElementById('gmaps-js')
-    if (existing) {
-      existing.addEventListener('load', ready)
-      existing.addEventListener('error', reject)
+    // A script may already be in flight (e.g. StrictMode double-mount) — poll for readiness.
+    if (document.getElementById('gmaps-js')) {
+      const started = Date.now()
+      const poll = setInterval(() => {
+        if (window.google?.maps?.Map) { clearInterval(poll); resolve(window.google.maps) }
+        else if (Date.now() - started > 12000) { clearInterval(poll); reject(new Error('Google Maps load timeout')) }
+      }, 50)
       return
     }
+
+    const cb = '__gmapsReady_cb'
+    window[cb] = () => {
+      if (window.google?.maps?.Map) resolve(window.google.maps)
+      else reject(new Error('Google Maps callback fired but Map unavailable'))
+      try { delete window[cb] } catch { window[cb] = undefined }
+    }
+
     const s = document.createElement('script')
     s.id = 'gmaps-js'
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&v=weekly&loading=async`
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&v=weekly&callback=${cb}`
     s.async = true
-    s.defer = true
-    s.onload = ready
-    s.onerror = () => { loaderPromise = null; reject(new Error('Failed to load Google Maps')) }
+    s.onerror = () => { loaderPromise = null; reject(new Error('Failed to load Google Maps script')) }
     document.head.appendChild(s)
   })
   return loaderPromise
