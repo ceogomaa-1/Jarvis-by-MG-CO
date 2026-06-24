@@ -12,6 +12,7 @@ from supabase import create_client
 from backend.lib.business.system_prompt_builder import build_system_prompt
 from backend.lib.business.farida_loader import FARIDA_USER_ID, load_greeting as _load_farida_greeting
 from backend.lib.business.model_router import select_model, OPUS
+from backend.lib.business.cost import UsageAccumulator
 from backend.lib.business.memory import extract_and_store_memories
 from backend.lib.business.mind.graph import record_activity
 from backend.lib.business.tool_builder import (
@@ -395,6 +396,23 @@ async def business_chat_stream(request: BusinessChatRequest):
     tools = await build_tools_for_user(request.user_id)
     is_re_user = bool(request.user_id) and await is_real_estate_user(request.user_id)
 
+    # ── Prompt caching ────────────────────────────────────────────────────────
+    # The system prompt and tool definitions are IDENTICAL across every tool-use
+    # round of this turn (and usually across turns for the same user). Marking
+    # them with cache_control means round 1 writes the cache and rounds 2-N read
+    # it at ~0.1x — which is the bulk of the savings on multi-round bulk ops.
+    # Render order is tools → system → messages, so a breakpoint on the last tool
+    # caches the whole tool list, and one on the system block caches tools+system.
+    system_blocks = [{
+        "type": "text",
+        "text": system_prompt,
+        "cache_control": {"type": "ephemeral"},
+    }]
+    if tools:
+        # Don't mutate the cached tool dicts in the registry — copy the last one.
+        tools = list(tools)
+        tools[-1] = {**tools[-1], "cache_control": {"type": "ephemeral"}}
+
     safe_history = [
         {"role": m.get("role", "user"), "content": str(m.get("content", ""))}
         for m in (request.conversation_history or [])
@@ -511,13 +529,25 @@ async def business_chat_stream(request: BusinessChatRequest):
         final_text = ""
         got_final_response = False
 
+        # Per-turn cost accounting — sums token usage across every tool round so
+        # we can log the real cost of this action and show the cache savings.
+        usage_acc = UsageAccumulator(model)
+
+        def _cost_event() -> str:
+            """Log the turn cost and return an SSE 'cost' event (call once, at the end)."""
+            try:
+                print(usage_acc.log_line())
+            except Exception:
+                pass
+            return f'data: {json.dumps({"type": "cost", "data": usage_acc.cost()})}\n\n'
+
         try:
             async with httpx.AsyncClient() as client:
                 for _round in range(MAX_TOOL_ROUNDS):
                     request_body: dict = {
                         "model": model,
                         "max_tokens": max_tokens,
-                        "system": system_prompt,
+                        "system": system_blocks,
                         "messages": current_messages,
                         "stream": True,
                     }
@@ -532,6 +562,7 @@ async def business_chat_stream(request: BusinessChatRequest):
                     stop_reason = "end_turn"
                     per_round_text = ""
                     stream_api_error: str | None = None
+                    round_output_tokens = 0  # latest cumulative output for THIS round
 
                     async with client.stream(
                         "POST",
@@ -562,7 +593,13 @@ async def business_chat_stream(request: BusinessChatRequest):
 
                             ev_type = ev.get("type", "")
 
-                            if ev_type == "content_block_start":
+                            if ev_type == "message_start":
+                                # Input/cache token buckets for this round.
+                                usage_acc.add_message_start(
+                                    ev.get("message", {}).get("usage", {})
+                                )
+
+                            elif ev_type == "content_block_start":
                                 idx = ev["index"]
                                 blk = ev["content_block"]
                                 btype = blk["type"]
@@ -611,11 +648,17 @@ async def business_chat_stream(request: BusinessChatRequest):
                                 stop_reason = (
                                     ev.get("delta", {}).get("stop_reason") or stop_reason
                                 )
+                                _u = ev.get("usage") or {}
+                                if _u.get("output_tokens") is not None:
+                                    round_output_tokens = _u["output_tokens"]
 
                             elif ev_type == "error":
                                 stream_api_error = ev.get("error", {}).get("message", "API error")
                                 print(f"Anthropic stream error event: {stream_api_error}")
                                 break
+
+                    # Finalize this round's output-token contribution.
+                    usage_acc.add_round_output(round_output_tokens)
 
                     # ── Post-stream: handle API-level error ───────────────────
                     if stream_api_error:
@@ -645,6 +688,7 @@ async def business_chat_stream(request: BusinessChatRequest):
                                 f"or reduce the amount of data you are working with at once."
                             )
                             yield f"data: {json.dumps(err_msg)}\n\n"
+                            yield _cost_event()
                             yield "data: [DONE]\n\n"
                             got_final_response = True
                             break
@@ -655,6 +699,7 @@ async def business_chat_stream(request: BusinessChatRequest):
                                 increment_usage, request.user_id, sb
                             )
                             yield f'data: {json.dumps({"type": "usage", "data": updated_usage})}\n\n'
+                        yield _cost_event()
                         yield "data: [DONE]\n\n"
                         got_final_response = True
                         break
@@ -667,6 +712,7 @@ async def business_chat_stream(request: BusinessChatRequest):
                                 increment_usage, request.user_id, sb
                             )
                             yield f'data: {json.dumps({"type": "usage", "data": updated_usage})}\n\n'
+                        yield _cost_event()
                         yield "data: [DONE]\n\n"
                         got_final_response = True
                         break
@@ -689,6 +735,7 @@ async def business_chat_stream(request: BusinessChatRequest):
                             },
                         }
                         yield f'data: {json.dumps(pending_event)}\n\n'
+                        yield _cost_event()
                         yield "data: [DONE]\n\n"
                         got_final_response = True
                         break
@@ -745,6 +792,7 @@ async def business_chat_stream(request: BusinessChatRequest):
 
             if not got_final_response:
                 yield f'data: {json.dumps("I hit a processing limit on that request. Please try a simpler query.")}\n\n'
+                yield _cost_event()
                 yield "data: [DONE]\n\n"
 
         except Exception as e:

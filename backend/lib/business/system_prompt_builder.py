@@ -1,5 +1,6 @@
 import asyncio
 import os
+import re
 from supabase import create_client
 
 # ── Private per-user configuration (pure functions live in farida_loader) ────
@@ -392,9 +393,58 @@ def _user_id_to_uuid(user_id: str) -> str:
     return user_id
 
 
-def _fetch_user_memories(user_id: str) -> tuple[str, list[str]]:
+# How many memories to inject per turn. Previously ALL recent memories (up to 30)
+# were stuffed into every system prompt, growing input tokens (and cost) without
+# bound. We now retrieve a recency window and keep only the top-K most relevant to
+# THIS message — cheap keyword overlap, no embedding call. Configurable via env.
+_MEMORY_TOPK = int(os.getenv("JARVIS_MEMORY_TOPK", "12"))
+_MEMORY_WINDOW = int(os.getenv("JARVIS_MEMORY_WINDOW", "40"))
+
+# Words too common to signal relevance — ignored when scoring memory overlap.
+_STOPWORDS = frozenset({
+    "the", "a", "an", "and", "or", "but", "to", "of", "in", "on", "for", "with",
+    "is", "are", "was", "were", "be", "been", "it", "this", "that", "my", "me",
+    "i", "you", "your", "we", "our", "they", "them", "do", "does", "did", "can",
+    "could", "would", "should", "will", "what", "how", "who", "when", "where",
+    "why", "please", "thanks", "thank", "want", "need", "get", "got", "have",
+    "has", "had", "at", "by", "from", "as", "so", "if", "all", "any", "some",
+})
+
+
+def _relevant_memories(rows: list[dict], message: str, k: int) -> list[dict]:
+    """Keep the K memories most relevant to `message`, by keyword overlap.
+
+    Falls back to the most recent K (rows are already created_at DESC) when the
+    message has no usable keywords or nothing overlaps — so we never inject an
+    empty/irrelevant block when a simple recency cut would do better.
+    """
+    if len(rows) <= k:
+        return rows
+    tokens = {
+        w for w in re.findall(r"[a-z0-9]{3,}", (message or "").lower())
+        if w not in _STOPWORDS
+    }
+    if not tokens:
+        return rows[:k]
+    scored = []
+    for idx, m in enumerate(rows):
+        mem_words = set(re.findall(r"[a-z0-9]{3,}", (m.get("memory") or "").lower()))
+        overlap = len(tokens & mem_words)
+        # recency tiebreak: earlier index (more recent) wins on equal overlap
+        scored.append((overlap, -idx, m))
+    scored.sort(key=lambda t: (t[0], t[1]), reverse=True)
+    top = [m for ov, _, m in scored if ov > 0][:k]
+    if not top:
+        return rows[:k]
+    # Preserve original recency order among the chosen ones for a natural read.
+    chosen_ids = {id(m) for m in top}
+    return [m for m in rows if id(m) in chosen_ids]
+
+
+def _fetch_user_memories(user_id: str, message: str = "") -> tuple[str, list[str]]:
     """Fetch user memories and format as a block for system prompt injection.
 
+    Only the top-K most relevant to `message` are injected (see _relevant_memories).
     Returns (block, memory_ids) — memory_ids feeds the 'memory_used' thought-trace event.
     """
     try:
@@ -407,7 +457,7 @@ def _fetch_user_memories(user_id: str) -> tuple[str, list[str]]:
             .select("id, memory")
             .eq("user_id", user_uuid)
             .order("created_at", desc=True)
-            .limit(30)
+            .limit(_MEMORY_WINDOW)
             .execute()
         )
         if not res.data:
@@ -415,6 +465,7 @@ def _fetch_user_memories(user_id: str) -> tuple[str, list[str]]:
         rows = [m for m in res.data if m.get("memory")]
         if not rows:
             return "", []
+        rows = _relevant_memories(rows, message, _MEMORY_TOPK)
         memory_ids = [m["id"] for m in rows if m.get("id")]
         lines = "\n".join(f"- {m['memory']}" for m in rows)
         block = (
@@ -558,7 +609,7 @@ async def build_system_prompt(user_id: str, user_message: str) -> tuple[str, lis
 
     # Inject user memories (after North Star, before base template)
     memory_block, used_memory_ids = (
-        await asyncio.to_thread(_fetch_user_memories, user_id) if user_id else ("", [])
+        await asyncio.to_thread(_fetch_user_memories, user_id, user_message) if user_id else ("", [])
     )
 
     # Inject today's Morning Queue digest, if any

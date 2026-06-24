@@ -1,8 +1,15 @@
+import os
 import re
 
-HAIKU = "claude-haiku-4-5-20251001"
-SONNET = "claude-sonnet-4-6"
-OPUS = "claude-opus-4-8"
+# Model tiers are env-configurable so Mohamed can dial the cost/quality mix
+# without a redeploy. Defaults match the prior hard-coded ids.
+HAIKU = os.getenv("JARVIS_MODEL_CHEAP", "claude-haiku-4-5-20251001")
+SONNET = os.getenv("JARVIS_MODEL_STANDARD", "claude-sonnet-4-6")
+OPUS = os.getenv("JARVIS_MODEL_SMART", "claude-opus-4-8")
+
+# Master switch: set JARVIS_MODEL_TIERING=0 to force every turn onto SONNET
+# (the old default behaviour) if tiering ever misroutes.
+_TIERING_ON = os.getenv("JARVIS_MODEL_TIERING", "1") != "0"
 
 # Short greetings and simple acks → Haiku (fast, cheap)
 _HAIKU_PATTERNS = [
@@ -12,6 +19,27 @@ _HAIKU_PATTERNS = [
     r"^\s*(bye|goodbye|cya|see\s+you|later)\s*[!?.]*\s*$",
     r"^\s*what('?s| is)\s+(your\s+name|jarvis|this\s+app|this\s+tool)\s*[?.]?\s*$",
     r"^\s*who\s+are\s+you\s*[?.]?\s*$",
+]
+
+# Mechanical / high-volume work that does NOT need Opus-grade reasoning →
+# Haiku. This is the cost lever for the expensive case in the brief: a bulk CRM
+# edit ("set Status on 38 companies") is tool-routing + formatting, not strategy,
+# yet it was billing at Sonnet/Opus rates across many round-trips. Routing it to
+# Haiku (with prompt caching on top) is the bulk of the savings.
+_CHEAP_PATTERNS = [
+    # CRM CRUD / bulk record edits
+    r"\b(set|update|change|mark|flag|assign|fill\s+in|fill\s+out)\b.*\b(status|stage|field|tag|owner|value|column|all|every|each|these|those)\b",
+    r"\bbulk\b",
+    r"\b(add|push|import|sync)\b.*\b(to\s+(my\s+)?crm|to\s+(my\s+)?pipeline|companies|contacts|leads)\b",
+    r"\b(re-?home|move)\b.*\bfield\b",
+    r"\bset\s+status\b",
+    r"\bmark\s+(all|them|these|those|as)\b",
+    # Lead prospecting / scoring (deterministic tool work)
+    r"\b(find|get|pull|prospect|score)\b.*\bleads?\b",
+    r"\bfind\s+(me\s+)?(businesses|companies|salons|restaurants|clinics|realtors|agents)\b",
+    # List / lookup / formatting requests
+    r"^\s*(list|show|count|how\s+many|which|what)\b.*\b(crm|contacts|companies|opportunities|deals|leads|pipeline|stage)\b",
+    r"\b(format|reformat|tidy\s+up|clean\s+up|tabulate|summari[sz]e\s+(this|the)\s+(list|table|data))\b",
 ]
 
 # Strategic / heavy analytical requests → Opus (best quality)
@@ -30,7 +58,11 @@ _OPUS_PATTERNS = [
 def select_model(message: str) -> str:
     """
     Route to the cheapest model that can handle the required quality.
-    Haiku for greetings, Opus for strategic work, Sonnet for everything else.
+
+    Order matters: greetings → Haiku, then explicit strategic work → Opus, then
+    mechanical CRUD/bulk/lookup/formatting → Haiku, else Sonnet. Opus is checked
+    before the cheap patterns so a genuinely strategic request that happens to
+    mention "companies" still gets the strong model.
     """
     if not message or not message.strip():
         return SONNET
@@ -41,8 +73,15 @@ def select_model(message: str) -> str:
         if re.search(pat, text, re.IGNORECASE):
             return HAIKU
 
+    if not _TIERING_ON:
+        return SONNET
+
     for pat in _OPUS_PATTERNS:
         if re.search(pat, text, re.IGNORECASE):
             return OPUS
+
+    for pat in _CHEAP_PATTERNS:
+        if re.search(pat, text, re.IGNORECASE):
+            return HAIKU
 
     return SONNET
