@@ -516,6 +516,15 @@ async def chat_stream(request: ChatRequest):
     if not onboarding_done:
         system_override = await get_onboarding_prompt(request.user_id)
 
+    # ── Study Mode brain selection (additive, isolated, reversible) ────────────
+    # Only Study Mode can ever be non-Claude. Every other path here is unchanged.
+    # Resolver fails safe to Claude when Grok isn't enabled+configured.
+    _study_provider = "claude"
+    _provider_notice = None
+    if request.study_mode and not system_override:
+        from backend.lib.providers.study_provider import resolve_study_provider
+        _study_provider, _provider_notice = resolve_study_provider(request.study_provider)
+
     tone = detect_emotional_tone(request.message)
     tone_context = TONE_INSTRUCTIONS.get(tone, "")
 
@@ -596,19 +605,53 @@ async def chat_stream(request: ChatRequest):
         debug_str = None
         _study_injection = STUDY_MODE_INSTRUCTION if (request.study_mode and not system_override) else ""
         _combined_tone = "\n\n".join(b for b in (_study_injection, tone_context, _relationship_injection, _fb_injection) if b)
+
+        # Study Mode A/B visibility: tell the UI which brain answered (ignored elsewhere).
+        if request.study_mode and not system_override:
+            yield f'data: {json.dumps({"type": "provider", "value": _study_provider})}\n\n'
+            if _provider_notice:
+                yield f'data: {json.dumps({"type": "provider_notice", "value": _provider_notice})}\n\n'
+
         try:
-            response_text = await jarvis_think(
-                user_message=user_content,
-                conversation_history=safe_history,
-                memory_context=memory_context,
-                user_model_context=user_model_context,
-                system_override=system_override,
-                available_tools=tools,
-                tone_context=_combined_tone,
-                user_id=request.user_id,
-                live_context=live_context,
-                voice_mode=request.voice_mode,
-            )
+            # Claude path — byte-identical to today's call, just wrapped so the Grok
+            # branch can reuse it as a fallback without altering it.
+            async def _claude_answer():
+                return await jarvis_think(
+                    user_message=user_content,
+                    conversation_history=safe_history,
+                    memory_context=memory_context,
+                    user_model_context=user_model_context,
+                    system_override=system_override,
+                    available_tools=tools,
+                    tone_context=_combined_tone,
+                    user_id=request.user_id,
+                    live_context=live_context,
+                    voice_mode=request.voice_mode,
+                )
+
+            if _study_provider == "grok":
+                from backend.lib.providers.grok import grok_think
+                try:
+                    response_text = await grok_think(
+                        user_message=user_content,
+                        conversation_history=safe_history,
+                        memory_context=memory_context,
+                        user_model_context=user_model_context,
+                        system_override=system_override,
+                        available_tools=tools,
+                        tone_context=_combined_tone,
+                        user_id=request.user_id,
+                        live_context=live_context,
+                        voice_mode=request.voice_mode,
+                    )
+                except Exception as _grok_err:
+                    # Invalid key / network / API error → fall back to Claude, no crash.
+                    print(f"STUDY_GROK_FALLBACK: {_grok_err}")
+                    yield f'data: {json.dumps({"type": "provider_notice", "value": "Grok hit an error — switched to the default brain."})}\n\n'
+                    yield f'data: {json.dumps({"type": "provider", "value": "claude"})}\n\n'
+                    response_text = await _claude_answer()
+            else:
+                response_text = await _claude_answer()
             llm_ms = int((time.time() - voice_t0) * 1000)
             print(f"CHAT_LLM_DONE: {llm_ms}ms chars={len(response_text)}")
             # Handle empty / soft-refusal responses

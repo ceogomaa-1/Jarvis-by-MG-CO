@@ -215,6 +215,13 @@ export default function StudyView({ name, onToggle, userId, backend }) {
       conversation_history: historyForApi,
       study_mode: true,
     }
+    // Study Mode brain override (A/B): optional, defaults to the server's env value.
+    // Set localStorage 'jarvis_study_provider' to 'grok' or 'claude' to flip per-session.
+    // Anything unset → backend uses STUDY_MODE_PROVIDER (default Claude). Study Mode only.
+    try {
+      const sp = typeof window !== 'undefined' && localStorage.getItem('jarvis_study_provider')
+      if (sp === 'grok' || sp === 'claude') body.study_provider = sp
+    } catch (_) {}
     if (opts.voice) body.voice_mode = true
     if (atts.length > 0) {
       body.attachments = atts.map(a => ({
@@ -262,7 +269,12 @@ export default function StudyView({ name, onToggle, userId, backend }) {
             const chunk = JSON.parse(raw)
             if (chunk && typeof chunk === 'object') {
               if (chunk.__vs) { if (opts.voice && chunk.__vs.trim()) { voiceRef.current?.speak(chunk.__vs); voiceFired = true } continue }
-              if (Array.isArray(chunk.__sources) || chunk.type === 'usage') continue
+              // Control events (usage, Study Mode provider A/B) — never render as text.
+              if (Array.isArray(chunk.__sources) || typeof chunk.type === 'string') {
+                if (chunk.type === 'provider') console.log('[StudyMode] brain:', chunk.value)
+                if (chunk.type === 'provider_notice') console.log('[StudyMode]', chunk.value)
+                continue
+              }
             }
             accumulated += chunk
             setMessages(prev => prev.map(m => m.id === streamId ? { ...m, content: accumulated } : m))

@@ -29,6 +29,7 @@ class ChatRequest(BaseModel):
     attachments: list[dict] = []  # [{url, file_type, file_id}] — future URL-based attachment flow
     voice_mode: bool = False  # True → inject voice system prompt, TTS response on frontend
     study_mode: bool = False  # True → inject Study Mode tutor brain (Personal)
+    study_provider: str | None = None  # Study Mode only: "claude"|"grok" override (else env STUDY_MODE_PROVIDER)
 
 
 class ChatResponse(BaseModel):
