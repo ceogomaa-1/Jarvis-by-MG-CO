@@ -211,6 +211,7 @@ export default function ChatCanvas({
   onMemoryCountUpdate,
   injectPrompt,
   onCrmChanged,   // Phase 3: fired after a successful Jarvis CRM write so the cockpit can refresh
+  onLeadsChanged, // mgcoleads: fired after a find/push so the Leads cockpit panel can refresh
   compact = false, // Phase 3: docked in the narrow CRM cockpit panel — tighter padding, no side dock
 }) {
   // Horizontal padding shrinks when docked so text/controls aren't clipped in the panel.
@@ -566,6 +567,8 @@ export default function ChatCanvas({
       const toolResult = result.tool_result || {}
       // Confirmed Jarvis CRM write (e.g. delete) — refresh the embedded CRM.
       if (result.crm_changed) onCrmChanged?.()
+      // Confirmed leads action — refresh the Leads cockpit panel.
+      if (result.leads_changed) onLeadsChanged?.()
       msgIdRef.current += 1
       setMessages(prev => [...prev, {
         id: msgIdRef.current,
@@ -982,6 +985,9 @@ export default function ChatCanvas({
               } else if (chunk.type === 'crm_changed') {
                 // A Jarvis CRM write landed — tell the cockpit to refresh the embed.
                 onCrmChanged?.()
+              } else if (chunk.type === 'leads_changed') {
+                // A find/push landed — tell the Leads cockpit to refresh its panel.
+                onLeadsChanged?.()
               } else if (chunk.type === 'pending_action') {
                 if (!gotChunk) {
                   gotChunk = true

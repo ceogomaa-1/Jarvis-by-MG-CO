@@ -68,6 +68,11 @@ WRITE_ACTIONS = frozenset({
 # leads__push_to_crm creates Companies in the CRM, so it triggers a refresh too.
 CRM_WRITE_ACTIONS = frozenset(TWENTY_WRITE_TOOLS.keys()) | TWENTY_METADATA_WRITE | {"leads__push_to_crm"}
 
+# mgcoleads cockpit: a lead search or a push changes the leads pipeline, so the Leads
+# cockpit panel refreshes ("feels live") — independent of the CRM embed refresh above.
+# (push_to_crm fires both: it adds a CRM Company AND flips the lead's pushed flag.)
+LEADS_CHANGED_ACTIONS = frozenset({"leads__find_leads", "leads__push_to_crm"})
+
 
 def _describe_action(tool_name: str, tool_input: dict) -> str:
     """Human-readable label for a pending write action."""
@@ -715,6 +720,10 @@ async def business_chat_stream(request: BusinessChatRequest):
                         if tool_name in CRM_WRITE_ACTIONS and '"error"' not in (result_str or ""):
                             yield f'data: {json.dumps({"type": "crm_changed"})}\n\n'
 
+                        # Same idea for the Leads cockpit panel after a find/push.
+                        if tool_name in LEADS_CHANGED_ACTIONS and '"error"' not in (result_str or ""):
+                            yield f'data: {json.dumps({"type": "leads_changed"})}\n\n'
+
                         tool_results.append({
                             "type": "tool_result",
                             "tool_use_id": tool_id,
@@ -835,6 +844,8 @@ async def confirm_action(request: ConfirmActionRequest):
         "tool_result": result_data,
         # Tell the cockpit to refresh the embedded CRM after a confirmed write (e.g. delete).
         "crm_changed": request.tool_name in CRM_WRITE_ACTIONS and "error" not in result_data,
+        # Tell the Leads cockpit to refresh its panel after a confirmed leads action.
+        "leads_changed": request.tool_name in LEADS_CHANGED_ACTIONS and "error" not in result_data,
     }
 
 

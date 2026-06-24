@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Inbox, BookOpen, Wrench, Star, User, Database } from 'lucide-react'
+import { Inbox, BookOpen, Wrench, Star, User, Database, Target } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { setJarvisMode } from '../../lib/userPreferences'
 
@@ -13,6 +13,7 @@ import KnowledgeBaseModal from './KnowledgeBaseModal'
 import ProfileModal from './ProfileModal'
 import FontToggle from './FontToggle'
 import CrmCockpit from './CrmCockpit'
+import LeadsCockpit from './LeadsCockpit'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
@@ -105,6 +106,8 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
   const [unreadCount, setUnreadCount] = useState(0)
   const [crmWorkspace, setCrmWorkspace] = useState(null)   // null until checked; {provisioned,...}
   const [crmOpen, setCrmOpen] = useState(false)
+  const [leadsEnabled, setLeadsEnabled] = useState(false)  // mgcoleads feature flag (env-gated)
+  const [leadsOpen, setLeadsOpen] = useState(false)
 
   useEffect(() => {
     if (!supabase) return
@@ -120,6 +123,15 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
       .then(r => r.json())
       .then(d => setCrmWorkspace(d))
       .catch(() => setCrmWorkspace({ provisioned: false }))
+  }, [userId])
+
+  // Gate the Leads nav item: only show it when the lead engine is configured (env-gated).
+  useEffect(() => {
+    if (!userId) return
+    fetch(`${BACKEND}/api/business/leads/status?user_id=${encodeURIComponent(userId)}`)
+      .then(r => r.json())
+      .then(d => setLeadsEnabled(!!d?.enabled))
+      .catch(() => setLeadsEnabled(false))
   }, [userId])
 
   useEffect(() => {
@@ -160,6 +172,12 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
       label: 'CRM', icon: <Database size={17} />,
       hint: 'your Jarvis CRM — view it and let me edit it live',
       onClick: () => { onClose?.(); setCrmOpen(true) },
+    }] : []),
+    // Leads cockpit — only when the mgcoleads engine is enabled (LEADS_MAPS_API_KEY / flag).
+    ...(leadsEnabled ? [{
+      label: 'Leads', icon: <Target size={17} />,
+      hint: 'scored B2B leads — find, filter, and push them to your CRM',
+      onClick: () => { onClose?.(); setLeadsOpen(true) },
     }] : []),
     { label: 'Knowledge Base',        icon: <BookOpen size={17} />, hint: "stuff you're ready to paste and want me to know right away", onClick: () => openM('knowledge') },
     { label: 'Connections',           icon: <Wrench size={17} />,   onClick: () => openM('connections') },
@@ -276,6 +294,9 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
 
       {/* Phase 3 — embedded Jarvis CRM cockpit with docked chat */}
       <CrmCockpit open={crmOpen} onClose={() => setCrmOpen(false)} userId={userId} workspace={crmWorkspace} />
+
+      {/* mgcoleads — Leads cockpit (scored pipeline) with the same docked chat */}
+      <LeadsCockpit open={leadsOpen} onClose={() => setLeadsOpen(false)} userId={userId} />
     </>
   )
 }
