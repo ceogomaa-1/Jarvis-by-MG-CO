@@ -392,22 +392,24 @@ async def classify_intent_route(request: IntentClassifyRequest):
 
 @router.post("/business/chat/stream")
 async def business_chat_stream(request: BusinessChatRequest):
-    system_prompt, used_memory_ids = await build_system_prompt(request.user_id, request.message)
+    static_prompt, dynamic_prompt, used_memory_ids = await build_system_prompt(request.user_id, request.message)
     tools = await build_tools_for_user(request.user_id)
     is_re_user = bool(request.user_id) and await is_real_estate_user(request.user_id)
 
     # ── Prompt caching ────────────────────────────────────────────────────────
-    # The system prompt and tool definitions are IDENTICAL across every tool-use
-    # round of this turn (and usually across turns for the same user). Marking
-    # them with cache_control means round 1 writes the cache and rounds 2-N read
-    # it at ~0.1x — which is the bulk of the savings on multi-round bulk ops.
-    # Render order is tools → system → messages, so a breakpoint on the last tool
-    # caches the whole tool list, and one on the system block caches tools+system.
+    # Two system blocks: a STATIC block (persona, contracts, capabilities, connector rules)
+    # carrying the cache_control breakpoint — byte-identical across turns for this user, so it
+    # is WRITTEN once and READ (~0.1x) on every subsequent turn and every tool round — then a
+    # DYNAMIC block (memories, queue, skills, per-message bible) placed AFTER the breakpoint so
+    # it never disturbs the cached prefix. Tool defs are cached too (breakpoint on the last
+    # tool). Render order is tools → system → messages.
     system_blocks = [{
         "type": "text",
-        "text": system_prompt,
+        "text": static_prompt,
         "cache_control": {"type": "ephemeral"},
     }]
+    if dynamic_prompt:
+        system_blocks.append({"type": "text", "text": dynamic_prompt})
     if tools:
         # Don't mutate the cached tool dicts in the registry — copy the last one.
         tools = list(tools)

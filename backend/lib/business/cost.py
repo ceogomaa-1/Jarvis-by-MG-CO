@@ -43,8 +43,9 @@ def _rates(model: str) -> tuple[float, float]:
 class UsageAccumulator:
     """Sums Anthropic usage buckets across the tool-use rounds of one chat turn."""
 
-    def __init__(self, model: str):
+    def __init__(self, model: str, provider: str = "claude"):
         self.model = model
+        self.provider = provider
         self.input_tokens = 0
         self.cache_creation_input_tokens = 0
         self.cache_read_input_tokens = 0
@@ -103,6 +104,7 @@ class UsageAccumulator:
         saved = max(uncached_total - total, 0.0)
 
         return {
+            "provider": self.provider,
             "model": self.model,
             "rounds": self.rounds,
             "input_tokens": self.input_tokens,
@@ -117,7 +119,7 @@ class UsageAccumulator:
     def log_line(self) -> str:
         c = self.cost()
         return (
-            f"[COST] {c['model']} rounds={c['rounds']} "
+            f"[COST] provider={c['provider']} model={c['model']} rounds={c['rounds']} "
             f"in={c['input_tokens']} cache_w={c['cache_creation_input_tokens']} "
             f"cache_r={c['cache_read_input_tokens']} out={c['output_tokens']} "
             f"=> ${c['total_usd']:.4f} (uncached ${c['uncached_usd']:.4f}, "

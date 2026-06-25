@@ -560,13 +560,15 @@ async def build_capability_manifest_block(user_id: str) -> str:
     return render_capability_manifest(can_do, connected, cannot_do)
 
 
-async def build_system_prompt(user_id: str, user_message: str) -> tuple[str, list[str]]:
+async def build_system_prompt(user_id: str, user_message: str) -> tuple[str, str, list[str]]:
     """
-    Build the full system prompt for a business chat message.
-    Falls back to generic system prompt if no industry profile exists.
-    Prepends the $1M North Star block to prime every response.
+    Build the business chat system prompt, SPLIT for prompt caching.
 
-    Returns (prompt_text, used_memory_ids).
+    Returns (static_prompt, dynamic_prompt, used_memory_ids):
+      static_prompt  — byte-identical across turns for this user → carries the cache breakpoint.
+      dynamic_prompt — per-turn content (memories, queue, skills, classified bible) → goes AFTER
+                       the breakpoint so it never invalidates the cached prefix.
+    Falls back to a generic persona if no industry profile exists. Prepends the $1M North Star.
     """
     profile = await asyncio.to_thread(_fetch_user_profile, user_id) if user_id else {}
 
@@ -574,6 +576,11 @@ async def build_system_prompt(user_id: str, user_message: str) -> tuple[str, lis
     company_name = profile.get("company_name", "your business")
     role = profile.get("role", "owner")
     custom_industry = profile.get("custom_industry", "")
+
+    # Per-message bible sections are DYNAMIC (classified per message) — they must NOT live in
+    # the cached static block. We render the base template without them and carry them in the
+    # dynamic tail (below the cache breakpoint).
+    bible_block_dynamic = ""
 
     # No industry → use the generic fallback
     if not industry:
@@ -596,12 +603,16 @@ async def build_system_prompt(user_id: str, user_message: str) -> tuple[str, lis
         section_keys = await asyncio.to_thread(classify_intent, user_message)
         section_parts = [bible[k] for k in section_keys if bible.get(k)]
         bible_sections = "\n\n---\n\n".join(section_parts) if section_parts else ""
+        # Static base template: point to the playbook instead of inlining the per-message
+        # sections (which would change the cached prefix every turn).
         base_prompt = _BASE_TEMPLATE.format(
             company_name=company_name,
             industry=industry,
             role=role,
-            bible_sections=bible_sections,
+            bible_sections="(Your loaded industry playbook for this request is provided in the context block below.)",
         )
+        if bible_sections:
+            bible_block_dynamic = f"## Loaded Industry Playbook (for this request)\n\n{bible_sections}"
 
     # Inject the $1M North Star at the top of every system prompt
     from backend.lib.business.north_star import north_star_context_for_user
@@ -634,48 +645,62 @@ async def build_system_prompt(user_id: str, user_message: str) -> tuple[str, lis
     if user_id and _user_id_to_uuid(user_id) == FARIDA_USER_ID:
         farida_block = _load_farida_persona_block()
 
-    parts = [north_star_block]
+    # ── STATIC block (carries the prompt-cache breakpoint) ────────────────────────────────
+    # Everything here must be byte-identical across turns for this user: persona, contracts,
+    # capability manifest, connector rules, and standing capability sections. The North Star
+    # and Farida persona are per-user but stable across turns, so they belong here too.
+    static_parts = [north_star_block]
     if farida_block:
-        parts.append(farida_block)
-    if memory_block:
-        parts.append(memory_block)
-    if queue_block:
-        parts.append(queue_block)
-    if skills_block:
-        parts.append(skills_block)
-    parts.append(base_prompt)
-    parts.append(GROUNDING_CONTRACT)
-    parts.append(CAPABILITY_CONTRACT)
-    parts.append(JARVIS_CORE_CONTRACT)
-    # Live capability manifest — what Jarvis can actually do this turn (real tools +
-    # connections), so it stays grounded about its own abilities. Best-effort.
+        static_parts.append(farida_block)
+    static_parts.append(base_prompt)
+    static_parts.append(GROUNDING_CONTRACT)
+    static_parts.append(CAPABILITY_CONTRACT)
+    static_parts.append(JARVIS_CORE_CONTRACT)
+    # Live capability manifest — what Jarvis can actually do (real tools + connections). Stable
+    # across turns (only changes when the user connects/disconnects a tool). Best-effort.
     try:
-        parts.append(await build_capability_manifest_block(user_id))
+        static_parts.append(await build_capability_manifest_block(user_id))
     except Exception as _manifest_err:
         print(f"CAPABILITY_MANIFEST: skipped ({_manifest_err})")
-    parts.append(_WEBDEV_BUILDER)
-    parts.append(_WEB_RESEARCH_CAPABILITIES)
+    static_parts.append(_WEBDEV_BUILDER)
+    static_parts.append(_WEB_RESEARCH_CAPABILITIES)
     if has_connectors:
-        parts.append(connector_block)
-        parts.append(_TOOL_SAFETY_RULES)
+        static_parts.append(connector_block)
+        static_parts.append(_TOOL_SAFETY_RULES)
         if "Buffer" in connector_block:
-            parts.append(_BUFFER_AGENCY)
+            static_parts.append(_BUFFER_AGENCY)
         if "ElevenLabs" in connector_block:
-            parts.append(_VOICE_AGENT_STYLE_GUIDE)
+            static_parts.append(_VOICE_AGENT_STYLE_GUIDE)
     if industry and get_industry_filename(industry) == "real_estate.md":
-        parts.append(_REAL_ESTATE_CAPABILITIES)
+        static_parts.append(_REAL_ESTATE_CAPABILITIES)
     # mgcoleads — advertise the B2B lead engine when it's enabled (env-gated).
     from backend.lib.business.leads.config import leads_enabled
     if leads_enabled():
-        parts.append(_LEADS_CAPABILITIES)
+        static_parts.append(_LEADS_CAPABILITIES)
     # Jarvis CRM (self-hosted Twenty) — advertise when the user has their own
     # provisioned workspace (Phase 2) or the shared instance is configured (Phase 1).
     from backend.lib.business.twenty.client import TwentyClient
     if await TwentyClient.configured_for_user(user_id):
-        parts.append(_OWNED_CRM_CAPABILITIES)
+        static_parts.append(_OWNED_CRM_CAPABILITIES)
     if autonomous_enabled:
-        parts.append(_AUTONOMOUS_MODE_NOTE)
-    return "\n\n".join(parts), used_memory_ids
+        static_parts.append(_AUTONOMOUS_MODE_NOTE)
+
+    # ── DYNAMIC tail (placed AFTER the cache breakpoint) ──────────────────────────────────
+    # Per-turn content: message-relevant memories, today's queue digest, message-relevant
+    # skill chunks, and the per-message bible sections. None of this may precede the breakpoint.
+    dynamic_parts = []
+    if memory_block:
+        dynamic_parts.append(memory_block)
+    if queue_block:
+        dynamic_parts.append(queue_block)
+    if skills_block:
+        dynamic_parts.append(skills_block)
+    if bible_block_dynamic:
+        dynamic_parts.append(bible_block_dynamic)
+
+    static_prompt = "\n\n".join(static_parts)
+    dynamic_prompt = "\n\n".join(dynamic_parts)
+    return static_prompt, dynamic_prompt, used_memory_ids
 
 
 def get_industry_context_note(user_id: str) -> str:

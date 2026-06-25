@@ -332,7 +332,16 @@ def _build_system_prompt(
     moment_block: str = "",
     voice_mode: bool = False,
     user_id: str = "",
-) -> str:
+) -> tuple[str, str]:
+    """Returns (static_prompt, dynamic_prompt).
+
+    PROMPT CACHING CONTRACT: the static_prompt is byte-identical across turns for the same
+    user/mode, so it can carry the cache_control breakpoint. EVERYTHING that varies per turn —
+    the timestamp/moment, memories, user-model profile, per-turn tone, and live context — goes
+    into dynamic_prompt, which is placed AFTER the breakpoint. Putting any of that variable
+    content before the breakpoint is exactly what breaks caching (the cached prefix changes
+    every turn → written, never read → 0% hit rate). Keep this split intact.
+    """
     _absolute_rules = _BASE_SYSTEM_PROMPT.split("---\n\n")[0]
 
     if system_override:
@@ -344,15 +353,7 @@ def _build_system_prompt(
     if soul:
         system_prompt = soul + "\n\n---\n\n" + system_prompt
 
-    if memory_context:
-        system_prompt += f"\n\nWhat I already know about you: {memory_context}"
-    if user_model_context:
-        system_prompt += f"\n\nYour current profile: {user_model_context}"
-    if tone_context:
-        system_prompt += f"\n\n{tone_context}"
-    if live_context:
-        system_prompt += f"\n\n--- LIVE CONTEXT ---\n{live_context}\n--- END CONTEXT ---"
-
+    # Voice-mode blocks are static text (stable per session type) → cacheable.
     if voice_mode:
         system_prompt += f"\n\n{_VOICE_MODE_BLOCK}"
         system_prompt += f"\n\n{_VOICE_MODE_SELF_AWARENESS}"
@@ -364,23 +365,32 @@ def _build_system_prompt(
     system_prompt += _TESTING_PHASE_AWARENESS
     system_prompt += _INTERNAL_DISCRETION
 
-    # Build prefix: moment block first, then Farida persona block (only for her).
-    prefix_parts = []
-    if moment_block:
-        prefix_parts.append(moment_block)
+    # Farida persona is stable per user → stays in the STATIC (cached) block.
     if user_id:
         try:
             from backend.farida_personal_loader import _is_farida, load_persona_block as _farida_pb
             if _is_farida(user_id):
                 fb = _farida_pb()
                 if fb:
-                    prefix_parts.append(fb)
+                    system_prompt = fb + "\n\n---\n\n" + system_prompt
         except Exception:
             pass
-    if prefix_parts:
-        system_prompt = "\n\n---\n\n".join(prefix_parts) + "\n\n---\n\n" + system_prompt
 
-    return system_prompt
+    # DYNAMIC tail — everything that changes turn to turn. Placed AFTER the cache breakpoint.
+    dyn_parts: list[str] = []
+    if moment_block:
+        dyn_parts.append(moment_block)
+    if memory_context:
+        dyn_parts.append(f"What I already know about you: {memory_context}")
+    if user_model_context:
+        dyn_parts.append(f"Your current profile: {user_model_context}")
+    if tone_context:
+        dyn_parts.append(tone_context)
+    if live_context:
+        dyn_parts.append(f"--- LIVE CONTEXT ---\n{live_context}\n--- END CONTEXT ---")
+    dynamic_prompt = "\n\n".join(dyn_parts)
+
+    return system_prompt, dynamic_prompt
 
 
 def _extract_text(content) -> str:
@@ -416,11 +426,12 @@ async def jarvis_think(
     print(f"LLM_ONBOARDING_GATE: system_override={'SET' if system_override else 'NONE'}, tools={'suppressed' if system_override else 'active'}")
 
     moment_block = await get_current_moment_block(user_id)
-    system_prompt = _build_system_prompt(memory_context, user_model_context, system_override, tone_context, live_context, moment_block=moment_block, voice_mode=voice_mode, user_id=user_id)
+    static_prompt, dynamic_prompt = _build_system_prompt(memory_context, user_model_context, system_override, tone_context, live_context, moment_block=moment_block, voice_mode=voice_mode, user_id=user_id)
     if not system_override:
-        system_prompt = "YOU ARE NOT IN ONBOARDING MODE. ALL TOOLS ARE ACTIVE. CALL THEM WITHOUT HESITATION.\n\n" + system_prompt
+        static_prompt = "YOU ARE NOT IN ONBOARDING MODE. ALL TOOLS ARE ACTIVE. CALL THEM WITHOUT HESITATION.\n\n" + static_prompt
         # Live capability manifest from the REAL tool list, so Personal Jarvis knows
         # itself and admits limits instead of inventing. Only when tools are active.
+        # The tool list is stable across turns → this stays in the STATIC (cached) block.
         if available_tools:
             try:
                 _tool_names = sorted({t["name"] for t in all_tools})
@@ -431,7 +442,7 @@ async def jarvis_think(
                 _cannot_do = [
                     "Act on Business services like Stripe, a CRM, social publishing, or website deploys — that's Jarvis OS1 (Business mode), not Personal.",
                 ]
-                system_prompt += "\n\n" + render_capability_manifest(_can_do, [], _cannot_do)
+                static_prompt += "\n\n" + render_capability_manifest(_can_do, [], _cannot_do)
             except Exception as _manifest_err:
                 print(f"PERSONAL_MANIFEST: skipped ({_manifest_err})")
 
@@ -447,12 +458,14 @@ async def jarvis_think(
         model = select_personal_model(user_message)
 
     # ── Prompt caching ────────────────────────────────────────────────────────
-    # The system prompt and tools are identical across this turn's tool rounds, and
-    # the tools are identical across turns — so cache them. Render order is
-    # tools → system → messages: the tools breakpoint caches the tool list even
-    # across plain-chat turns (tools are sent every turn), and the system
-    # breakpoint caches the whole prompt within a multi-round tool turn.
-    system_blocks = [{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}]
+    # Two system blocks: a STATIC block carrying the cache_control breakpoint (byte-identical
+    # across turns → cache_read on every turn after the first), then a DYNAMIC block (moment,
+    # memories, profile, tone, live context) placed AFTER the breakpoint so it never disturbs
+    # the cached prefix. Tools are cached too (breakpoint on the last tool). Render order is
+    # tools → system → messages, so the cached prefix = tools + static system block.
+    system_blocks = [{"type": "text", "text": static_prompt, "cache_control": {"type": "ephemeral"}}]
+    if dynamic_prompt:
+        system_blocks.append({"type": "text", "text": dynamic_prompt})
     if available_tools and all_tools:
         all_tools = list(all_tools)
         all_tools[-1] = {**all_tools[-1], "cache_control": {"type": "ephemeral"}}

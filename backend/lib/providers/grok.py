@@ -125,10 +125,13 @@ def _build_personal_prompt_and_tools(
     from backend.llm import _build_system_prompt
     from backend.lib.grounding import render_capability_manifest
 
-    system_prompt = _build_system_prompt(
+    # _build_system_prompt now returns (static, dynamic) for Claude's prompt caching. Grok
+    # (xAI) has no Anthropic cache, so we just concatenate them back into one system string.
+    static_prompt, dynamic_prompt = _build_system_prompt(
         memory_context, user_model_context, system_override, tone_context,
         live_context, moment_block=moment_block, voice_mode=voice_mode, user_id=user_id,
     )
+    system_prompt = static_prompt
     if not system_override:
         system_prompt = "YOU ARE NOT IN ONBOARDING MODE. ALL TOOLS ARE ACTIVE. CALL THEM WITHOUT HESITATION.\n\n" + system_prompt
         if available_tools:
@@ -144,6 +147,8 @@ def _build_personal_prompt_and_tools(
                 system_prompt += "\n\n" + render_capability_manifest(_can_do, [], _cannot_do)
             except Exception as _manifest_err:
                 print(f"GROK_MANIFEST: skipped ({_manifest_err})")
+    if dynamic_prompt:
+        system_prompt += "\n\n" + dynamic_prompt
     return system_prompt
 
 
@@ -233,9 +238,11 @@ async def grok_think(
     # ── Cost/feel visibility (log-only) ──
     in_rate, out_rate = _rates(GROK_MODEL)
     cost = in_tokens / 1_000_000 * in_rate + out_tokens / 1_000_000 * out_rate
+    # Uniform per-turn cost line (provider/model/tokens/cache_read/cost). Grok has no
+    # Anthropic prompt cache, so cache_r is always 0 here.
     print(
-        f"[STUDY_COST] provider=grok model={GROK_MODEL} "
-        f"in={in_tokens} out={out_tokens} => ${cost:.4f}"
+        f"[COST] provider=grok model={GROK_MODEL} rounds={_round + 1} "
+        f"in={in_tokens} cache_w=0 cache_r=0 out={out_tokens} => ${cost:.4f}"
     )
 
     return final_text

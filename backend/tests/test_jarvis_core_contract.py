@@ -12,18 +12,18 @@ from backend.lib.jarvis_core import JARVIS_CORE_CONTRACT
 def test_personal_system_prompt_includes_jarvis_core_contract():
     from backend.llm import _build_system_prompt
 
-    prompt = _build_system_prompt(
+    static_prompt, _dynamic = _build_system_prompt(
         memory_context="",
         user_model_context="",
         system_override=None,
         tone_context="",
     )
-    assert JARVIS_CORE_CONTRACT in prompt
+    assert JARVIS_CORE_CONTRACT in static_prompt
 
 
 @pytest.mark.asyncio
 async def test_business_system_prompt_includes_jarvis_core_contract():
     from backend.lib.business.system_prompt_builder import build_system_prompt
 
-    prompt, _used_memory_ids = await build_system_prompt("test-phase4-unit", "hello")
-    assert JARVIS_CORE_CONTRACT in prompt
+    static_prompt, _dynamic, _used_memory_ids = await build_system_prompt("test-phase4-unit", "hello")
+    assert JARVIS_CORE_CONTRACT in static_prompt

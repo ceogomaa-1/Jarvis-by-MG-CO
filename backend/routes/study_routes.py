@@ -81,6 +81,51 @@ async def study_diagnostics():
 
     return out
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# Prompt-cache self-test — LIVE proof that caching works (not a unit test).
+# GET /api/study/cache-selftest
+#   Makes TWO identical Anthropic calls with a cache_control breakpoint on a large
+#   STATIC system block (the real personal base prompt). The 1st call WRITES the
+#   cache (cache_creation_input_tokens > 0); the 2nd READS it
+#   (cache_read_input_tokens > 0). If second_call.cache_read_input_tokens > 0,
+#   prompt caching is functioning on this deployment. Reports both raw usage blocks.
+# ═══════════════════════════════════════════════════════════════════════════════
+@router.get("/study/cache-selftest")
+async def cache_selftest():
+    from backend.llm import _client, _BASE_SYSTEM_PROMPT
+    from backend.lib.business.model_router import SONNET
+
+    system_blocks = [{
+        "type": "text",
+        "text": _BASE_SYSTEM_PROMPT,  # large, static → exceeds the 1024-token cache minimum
+        "cache_control": {"type": "ephemeral"},
+    }]
+
+    def _usage(u) -> dict:
+        return {
+            "input_tokens": getattr(u, "input_tokens", 0),
+            "cache_creation_input_tokens": getattr(u, "cache_creation_input_tokens", 0),
+            "cache_read_input_tokens": getattr(u, "cache_read_input_tokens", 0),
+            "output_tokens": getattr(u, "output_tokens", 0),
+        }
+
+    out: dict = {"model": SONNET}
+    try:
+        for label in ("first_call", "second_call"):
+            r = await _client.messages.create(
+                model=SONNET,
+                max_tokens=8,
+                system=system_blocks,
+                messages=[{"role": "user", "content": "Reply with the single word: ok"}],
+            )
+            out[label] = _usage(getattr(r, "usage", None))
+    except Exception as e:
+        return {"error": str(e), **out}
+
+    out["cache_working"] = out.get("second_call", {}).get("cache_read_input_tokens", 0) > 0
+    return out
+
+
 _NOTES_TABLE = "study_notes"
 _CHATS_TABLE = "study_chats"
 _CAPTURE_MODEL = "claude-sonnet-4-6"
