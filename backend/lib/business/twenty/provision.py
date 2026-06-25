@@ -400,7 +400,8 @@ async def create_provisioner_account() -> ConnectorResult:
     })
 
 
-async def auto_provision_workspace(user_id: str, display_name: str = "Jarvis CRM") -> ConnectorResult:
+async def auto_provision_workspace(user_id: str, display_name: str = "Jarvis CRM",
+                                   client_email: str | None = None) -> ConnectorResult:
     """Idempotently create a brand-new user's isolated workspace (Option A) and store it.
 
     - Idempotent: returns immediately if the user already has a workspace.
@@ -408,6 +409,11 @@ async def auto_provision_workspace(user_id: str, display_name: str = "Jarvis CRM
     - On transient failure, bumps the attempt count and leaves status 'pending' (a retry
       will pick it up); after _MAX_PROVISION_ATTEMPTS, marks 'failed' (admin flag). The
       caller (onboarding) runs this best-effort so the user never sees an error.
+
+    CLIENT MEMBERSHIP IS REQUIRED: after the workspace exists we wipe the demo seed, add
+    `client_email` as a member, and VERIFY they're present. The job is marked `done` ONLY
+    when that verification passes — a workspace the client can't log into is never reported
+    as complete (it stays 'pending' with a clear last_error so a retry/repair fixes it).
     """
     if not user_id:
         return ConnectorResult(ok=False, error="user_id is required.")
@@ -445,8 +451,37 @@ async def auto_provision_workspace(user_id: str, display_name: str = "Jarvis CRM
         await workspaces.upsert_job(user_id, status="pending", last_error="workspace created but DB store failed")
         return ConnectorResult(ok=False, error="Workspace created but could not be saved (check Supabase env).")
 
+    # ── REQUIRED: clean seed + add the client as a member, verify, THEN mark done ──────────
+    # The workspace exists and is stored; below failures keep the job 'pending' (not 'failed')
+    # so a retry/repair completes membership without recreating the workspace.
+    from backend.lib.business.twenty import membership
+    client = TwentyClient(d["base_url"], d["api_key"])
+
+    # Brand-new workspace → safe to wipe ALL demo/seed records before the client ever sees it.
+    try:
+        wipe = await membership.wipe_seed_data(client, wipe_all=True)
+        print(f"PROVISION SEED-WIPE: user={user_id} {wipe.get('deleted')}")
+    except Exception as e:
+        print(f"PROVISION SEED-WIPE: skipped ({e})")
+
+    if not client_email:
+        await workspaces.upsert_job(user_id, status="pending",
+                                    last_error="workspace created but no client_email provided → client not added as a member (cannot verify login)")
+        print(f"PROVISION MEMBER-GATE: user {user_id} has NO client_email — not marking done.")
+        return ConnectorResult(ok=False, error="Workspace created but client_email is required to add the client as a member.")
+
+    invite = await membership.ensure_client_membership(client, client_email)
+    verified, status = await membership.verify_client_member(client, client_email)
+    if not verified:
+        await workspaces.upsert_job(user_id, status="pending",
+                                    last_error=f"client membership not confirmed for {client_email} (invite={invite.get('status')}, verify={status})")
+        print(f"PROVISION MEMBER-GATE: user {user_id} client {client_email} NOT a member (invite={invite.get('status')}, verify={status}) — staying pending.")
+        return ConnectorResult(ok=False, error=f"Workspace created but client {client_email} could not be confirmed as a member ({status}).")
+
     await workspaces.upsert_job(user_id, status="done")
-    return ConnectorResult(ok=True, data={"base_url": d["base_url"], "subdomain": d.get("subdomain"), "workspace_id": d.get("workspace_id")})
+    print(f"PROVISION DONE: user {user_id} client {client_email} membership={status}")
+    return ConnectorResult(ok=True, data={"base_url": d["base_url"], "subdomain": d.get("subdomain"),
+                                          "workspace_id": d.get("workspace_id"), "client_member": status})
 
 
 # ── Repair / deprovision ─────────────────────────────────────────────────────────

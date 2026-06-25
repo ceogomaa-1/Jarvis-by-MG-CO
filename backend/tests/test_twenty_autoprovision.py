@@ -5,7 +5,31 @@ state machine, retry, and the signUp flow's call sequence. Network + store are m
 import pytest
 
 from backend.lib.business.connectors.base import ConnectorResult
-from backend.lib.business.twenty import provision, workspaces
+from backend.lib.business.twenty import provision, workspaces, membership
+
+
+@pytest.fixture
+def stub_membership(monkeypatch):
+    """Stub the post-create membership/seed steps so orchestration tests stay offline.
+
+    Returns a dict whose `verified` flag the test can flip to simulate the client being
+    (un)addable. Defaults to a clean, verified member.
+    """
+    cfg = {"verified": True, "status": "member"}
+
+    async def _wipe(client, **kw):
+        return {"ok": True, "deleted": {"companies": 599}}
+
+    async def _ensure(client, email):
+        return {"ok": True, "status": "invited"}
+
+    async def _verify(client, email):
+        return (cfg["verified"], cfg["status"] if cfg["verified"] else "absent")
+
+    monkeypatch.setattr(membership, "wipe_seed_data", _wipe)
+    monkeypatch.setattr(membership, "ensure_client_membership", _ensure)
+    monkeypatch.setattr(membership, "verify_client_member", _verify)
+    return cfg
 
 
 @pytest.fixture
@@ -61,7 +85,7 @@ async def test_idempotent_when_already_provisioned(store, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_success_stores_workspace_and_marks_done(store, monkeypatch):
+async def test_success_stores_workspace_and_marks_done(store, stub_membership, monkeypatch):
     async def _flow(uid, dn):
         return ConnectorResult(ok=True, data={
             "base_url": "https://acme.crm.jarvismgco.com", "api_key": "wk-key",
@@ -69,12 +93,47 @@ async def test_success_stores_workspace_and_marks_done(store, monkeypatch):
             "service_email": "crm+x@jarvismgco.com", "service_secret": "pw"})
     monkeypatch.setattr(provision, "_run_signup_flow", _flow)
 
-    res = await provision.auto_provision_workspace("user_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "Acme")
+    # client_email is REQUIRED now — and the client is added + verified before 'done'.
+    res = await provision.auto_provision_workspace(
+        "user_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "Acme", client_email="jon@acme.com")
     assert res.ok
     ws = store["workspace"]["user_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]
     assert ws["base_url"] == "https://acme.crm.jarvismgco.com" and ws["api_key"] == "wk-key"
     assert ws["service_secret"] == "pw"                  # creds persisted for future iframe SSO
     assert store["job"]["user_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]["status"] == "done"
+
+
+@pytest.mark.asyncio
+async def test_no_client_email_does_not_mark_done(store, stub_membership, monkeypatch):
+    """A workspace with no client member must NOT be reported complete."""
+    async def _flow(uid, dn):
+        return ConnectorResult(ok=True, data={
+            "base_url": "https://acme.crm.jarvismgco.com", "api_key": "wk-key",
+            "workspace_id": "ws1", "subdomain": "acme"})
+    monkeypatch.setattr(provision, "_run_signup_flow", _flow)
+
+    res = await provision.auto_provision_workspace("user_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "Acme")  # no client_email
+    assert not res.ok
+    # Workspace row was still stored (it exists), but the job stays pending with a reason.
+    assert store["workspace"]["user_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]["base_url"]
+    job = store["job"]["user_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]
+    assert job["status"] == "pending" and "client_email" in (job.get("last_error") or "")
+
+
+@pytest.mark.asyncio
+async def test_unverified_member_stays_pending(store, stub_membership, monkeypatch):
+    """If the client can't be confirmed as a member, the job stays pending (never 'done')."""
+    stub_membership["verified"] = False
+    async def _flow(uid, dn):
+        return ConnectorResult(ok=True, data={
+            "base_url": "https://acme.crm.jarvismgco.com", "api_key": "wk-key",
+            "workspace_id": "ws1", "subdomain": "acme"})
+    monkeypatch.setattr(provision, "_run_signup_flow", _flow)
+
+    res = await provision.auto_provision_workspace(
+        "user_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "Acme", client_email="jon@acme.com")
+    assert not res.ok
+    assert store["job"]["user_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]["status"] == "pending"
 
 
 @pytest.mark.asyncio
