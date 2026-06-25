@@ -44,7 +44,7 @@ export default function OS1CTASection() {
 
         <div className="os1-fade-up os1-fade-up-delay-2 flex flex-col sm:flex-row items-center justify-center gap-4">
           <a
-            href="#waitlist"
+            href="#pricing"
             className="font-arcade inline-flex items-center gap-2 px-8 py-4 rounded-xl"
             style={{
               fontSize: "10px",
@@ -54,7 +54,7 @@ export default function OS1CTASection() {
               transition: "opacity 0.2s",
             }}
           >
-            JOIN THE WAITLIST →
+            SEE PLANS →
           </a>
         </div>
 

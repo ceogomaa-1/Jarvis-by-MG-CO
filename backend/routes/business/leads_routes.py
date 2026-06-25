@@ -8,14 +8,22 @@ always agree. Additive — does not touch the CRM cockpit endpoints.
 from fastapi import APIRouter
 
 from backend.lib.business.leads import config, engine, store
+from backend.lib.billing import entitlements, store as billing_store
 
 router = APIRouter()
 
 
 @router.get("/business/leads/status")
 async def leads_status(user_id: str = ""):
-    """Gate the Leads nav item: enabled iff the lead engine is configured (LEADS_MAPS_API_KEY)."""
-    return {"enabled": config.leads_enabled()}
+    """Gate the Leads nav item: enabled iff the lead engine is configured (LEADS_MAPS_API_KEY)
+    AND the user's tier includes Leads (Emperor; grandfathered users map to Emperor)."""
+    if not config.leads_enabled():
+        return {"enabled": False}
+    tier_ok = True
+    if user_id:
+        caps = entitlements.for_user(user_id)
+        tier_ok = bool(caps.get("leads"))
+    return {"enabled": tier_ok, "tier_gated": (user_id and not tier_ok) or False}
 
 
 @router.get("/business/leads/list")
@@ -51,12 +59,23 @@ async def leads_discover(payload: dict):
     user_id = payload.get("user_id") or ""
     if not config.leads_enabled():
         return {"ok": False, "error": "Lead engine is off (LEADS_MAPS_API_KEY not set).", "data": None}
+    # Tier gate: Jarvis Leads is Emperor-only (real Google Places cash cost). Grandfathered
+    # users map to Emperor, so existing users are unaffected.
+    if user_id:
+        allowed, reason = entitlements.leads_allowed(user_id)
+        if not allowed:
+            return {"ok": False, "error": reason, "data": None, "upgrade": "emperor"}
     query = (payload.get("query") or "").strip()
     if not query:
         niche = (payload.get("niche") or "").strip()
         city = (payload.get("city") or "").strip()
         query = f"{niche} in {city}".strip() if city else niche
     res = await engine.run_search(user_id, query, payload.get("max_results"))
+    # Meter billable lookups for Emperor overage (only count a successful run that returned leads).
+    if res.ok and user_id:
+        count = len((res.data or {}).get("leads", [])) if isinstance(res.data, dict) else 0
+        if count:
+            billing_store.add_leads_usage(user_id, count)
     return {"ok": res.ok, "error": res.error, "data": res.data}
 
 

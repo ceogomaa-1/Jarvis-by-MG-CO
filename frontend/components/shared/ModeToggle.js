@@ -6,10 +6,19 @@ import { setJarvisMode } from '../../lib/userPreferences'
 export default function ModeToggle({ userId, currentMode }) {
   const router = useRouter()
 
+  // OS1 (Business) site URL — overridable via env for previews/staging.
+  const OS1_URL = process.env.NEXT_PUBLIC_OS1_URL || 'https://www.jarvismgco.com/os1'
+
   const handleSwitch = async () => {
-    const next = currentMode === 'personal' ? 'business' : 'personal'
-    if (userId) await setJarvisMode(userId, next)
-    router.push(next === 'business' ? '/business/chat' : '/')
+    // Personal → Business now routes through the OS1 paywall gate. The gate (on /os1) decides
+    // access: existing/grandfathered/active users pass straight into OS1, new users see pricing.
+    if (currentMode === 'personal') {
+      window.location.href = OS1_URL
+      return
+    }
+    // Business → Personal keeps its original behavior.
+    if (userId) await setJarvisMode(userId, 'personal')
+    router.push('/')
   }
 
   const label = currentMode === 'personal' ? 'Jarvis for Business →' : 'Personal Jarvis'
