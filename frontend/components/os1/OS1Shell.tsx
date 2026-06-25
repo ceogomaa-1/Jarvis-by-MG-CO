@@ -1,10 +1,11 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import OS1Pricing from "@/components/os1/OS1Pricing"
 import { supabase } from "@/lib/supabase"
 import { jarvisUserId, getOS1Status } from "@/lib/os1"
 import { setJarvisMode } from "@/lib/userPreferences"
+
+const ENTER_OS1 = "/business/chat"
 
 async function enterOS1(userId: string) {
   // Keep jarvis_mode consistent so /business/chat loads (user may be coming from Personal).
@@ -14,12 +15,12 @@ async function enterOS1(userId: string) {
   window.location.href = ENTER_OS1
 }
 
-type View = "loading" | "redirecting" | "activating" | "pricing" | "marketing"
-
-const ENTER_OS1 = "/business/chat"
-
+// The full /os1 landing ALWAYS renders (children) — for logged-out visitors, logged-in users
+// without a subscription, everyone. Gating happens only when ENTERING the OS1 app: a logged-in
+// user with access is forwarded into /business/chat. We never hide the page and never bounce to
+// login, so there is no redirect loop under any path.
 export default function OS1Shell({ children }: { children: React.ReactNode }) {
-  const [view, setView] = useState<View>("loading")
+  const [entering, setEntering] = useState(false)   // brief overlay while forwarding into OS1
   const [email, setEmail] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
@@ -37,35 +38,37 @@ export default function OS1Shell({ children }: { children: React.ReactNode }) {
     window.location.href = "/os1"
   }
 
-  // Resolve auth + subscription state → decide what to render.
   useEffect(() => {
-    if (!supabase) {
-      setView("marketing")
-      return
-    }
+    if (!supabase) return
     let cancelled = false
 
     const params = new URLSearchParams(window.location.search)
     const checkout = params.get("checkout")
     if (checkout === "cancel") {
-      setNotice("Checkout canceled — you can pick a plan whenever you're ready.")
+      setNotice("Checkout canceled — pick a plan whenever you're ready.")
       window.history.replaceState({}, "", "/os1")
     }
 
     async function resolve() {
-      const { data: { session } } = await supabase.auth.getSession()
+      let session = null
+      try {
+        const r = await supabase.auth.getSession()
+        session = r.data.session
+      } catch {
+        // Auth lookup failed — just show the full site. Never block the page on this.
+        return
+      }
       if (cancelled) return
       if (!session?.user) {
         setEmail(null)
-        setView("marketing")
-        return
+        return // logged out → full site stays visible
       }
       setEmail(session.user.email || null)
       const userId = jarvisUserId(session.user.id)
 
-      // Just came back from a successful checkout → wait for the webhook to flip access.
+      // Returned from a successful checkout → wait for the webhook to flip access, then enter.
       if (checkout === "success") {
-        setView("activating")
+        setEntering(true)
         window.history.replaceState({}, "", "/os1")
         for (let i = 0; i < 8; i++) {
           const s = await getOS1Status(userId, session.user.email)
@@ -76,22 +79,20 @@ export default function OS1Shell({ children }: { children: React.ReactNode }) {
           }
           await new Promise((r) => setTimeout(r, 1500))
         }
-        // Fell through — show pricing with a gentle note (webhook may still be processing).
+        // Still processing — drop the overlay and let them see the site/pricing.
+        setEntering(false)
         setNotice("Your subscription is processing. If OS1 doesn't open shortly, refresh this page.")
-        setView("pricing")
         return
       }
 
+      // Logged in: only entitled users (active OR grandfathered) are forwarded into OS1.
+      // Everyone else simply stays on the full landing (pricing is in the page).
       const status = await getOS1Status(userId, session.user.email)
       if (cancelled) return
-      // Existing / grandfathered / active → straight into OS1, pricing never shown.
       if (status?.has_access) {
-        setView("redirecting")
+        setEntering(true)
         await enterOS1(userId)
-        return
       }
-      // Authenticated but no active subscription → pricing screen.
-      setView("pricing")
     }
 
     resolve()
@@ -106,12 +107,9 @@ export default function OS1Shell({ children }: { children: React.ReactNode }) {
     <>
       <AuthBar email={email} onLogin={login} onLogout={logout} />
       {notice && <Notice text={notice} onClose={() => setNotice(null)} />}
-
-      {view === "loading" && <Splash text="" />}
-      {view === "redirecting" && <Splash text="Entering Jarvis OS1…" />}
-      {view === "activating" && <Splash text="Activating your subscription…" />}
-      {view === "pricing" && <OS1Pricing />}
-      {view === "marketing" && children}
+      {entering && <Splash text="Entering Jarvis OS1…" />}
+      {/* Full OS1 landing — always rendered. */}
+      <div style={entering ? { display: "none" } : undefined}>{children}</div>
     </>
   )
 }
@@ -172,7 +170,9 @@ function Splash({ text }: { text: string }) {
   return (
     <div
       style={{
-        minHeight: "100vh",
+        position: "fixed",
+        inset: 0,
+        zIndex: 50,
         background: "#0a0a0a",
         display: "flex",
         flexDirection: "column",

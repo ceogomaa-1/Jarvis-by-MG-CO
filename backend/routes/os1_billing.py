@@ -189,9 +189,13 @@ async def os1_webhook(request: Request):
     sig = request.headers.get("stripe-signature", "")
     secret = config.stripe_webhook_secret()
 
-    # If a webhook secret is configured, enforce it. (In dev without one, accept + parse.)
-    if secret and not stripe_api.verify_webhook(payload, sig, secret):
-        return {"ok": False, "error": "bad signature"}
+    # If a webhook secret is configured, enforce it. STRIPE_WEBHOOK_SECRET may hold several
+    # comma-separated secrets (e.g. a snapshot + a thin endpoint pointing at the same URL) —
+    # the event is valid if it verifies against ANY of them. (In dev with none, accept + parse.)
+    if secret:
+        secrets = [s.strip() for s in secret.split(",") if s.strip()]
+        if not any(stripe_api.verify_webhook(payload, sig, s) for s in secrets):
+            return {"ok": False, "error": "bad signature"}
 
     try:
         event = json.loads(payload)

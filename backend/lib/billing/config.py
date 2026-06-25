@@ -46,9 +46,14 @@ def plan_for_price(pid: str) -> tuple:
     return None, None
 
 
-# Where Stripe Checkout / Portal send the user back. Defaults to prod OS1 site.
+# Origin Stripe Checkout / Portal send the user back to. We append paths like '/os1?...', so
+# this must be the bare origin. OS1_SITE_URL is sometimes set to '.../os1' — tolerate that by
+# stripping a trailing '/os1' so success/cancel URLs don't double up ('/os1/os1?...').
 def site_url() -> str:
-    return os.getenv("OS1_SITE_URL", "https://www.jarvismgco.com").rstrip("/")
+    base = os.getenv("OS1_SITE_URL", "https://www.jarvismgco.com").rstrip("/")
+    if base.endswith("/os1"):
+        base = base[: -len("/os1")]
+    return base or "https://www.jarvismgco.com"
 
 
 # Jarvis Leads metered allowance (Emperor only). Lookups past this in a billing month are
