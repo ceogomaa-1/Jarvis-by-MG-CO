@@ -122,6 +122,90 @@ const COMPARE = {
   },
 }
 
+// "what only jarvis os1 does" — tabbed visual showcase, ported verbatim from
+// os1_body_mockup_v7_visual.html (baked map/lead/board/scheduler data). Rendered as raw
+// HTML so the markup + entities stay faithful; the .ftab tab logic + one-shot .run
+// animations are wired in the effect below (CSS-only animations, no rAF). The lead-list
+// A/B/C badge class `tier` is renamed to `ltier` so it can't collide with the pricing
+// `.tier` cards in this same scope.
+const FORKS_HTML = `<div class="wrap"><div class="kick">what only jarvis os1 does</div>
+<p class="leadsans">Three weapons most AI can&rsquo;t touch &mdash; bolted into one operator. <span class="ac">See them actually run.</span></p>
+<p class="subp">Tap a fork to watch it work &darr;</p>
+<div class="forks">
+<div class="ftabs">
+<button class="ftab on" data-k="leads">Jarvis Leads<small>finds &amp; scores clients</small></button>
+<button class="ftab" data-k="crm">Jarvis CRM<small>your white-label pipeline</small></button>
+<button class="ftab" data-k="social">Social Autopilot<small>runs your feed</small></button>
+</div>
+
+<div class="fpanel on" data-k="leads">
+<div class="fbar"><span class="dotlive"></span>JARVIS LEADS<i>//</i> scanning Toronto &middot; <b>212</b> businesses found &middot; <b class="hot">14 A-tier ready to call</b></div>
+<div class="leadwrap">
+<div class="map">
+<span class="road h" style="top:24%"></span><span class="road h" style="top:58%"></span><span class="road h" style="top:84%"></span>
+<span class="road v" style="left:30%"></span><span class="road v" style="left:62%"></span><span class="road v" style="left:84%"></span>
+<span class="pin a" style="top:26%;left:24%"><em><b>92</b></em><i>King Ritson Dental</i></span>
+<span class="pin a" style="top:54%;left:17%"><em><b>88</b></em><i>Bloor Auto Repair</i></span>
+<span class="pin a" style="top:40%;left:47%"><em><b>84</b></em><i>Lakeview Dental</i></span>
+<span class="pin a" style="top:50%;left:73%"><em><b>81</b></em><i>Summit Roofing</i></span>
+<span class="pin b" style="top:70%;left:55%"><em><b>71</b></em><i>Glow Med Spa</i></span>
+<span class="pin c" style="top:20%;left:78%"><em><b>49</b></em><i>Pine Law Group</i></span>
+<span class="scan"></span>
+</div>
+<div class="leadlist">
+<div class="lrow"><div class="lname">King Ritson Dental<span>Dental clinic &middot; &#9742; (905) 555-0142</span></div><div class="lscore"><span class="bar"><b style="--w:92%"></b></span><span class="ltier a">A &middot; 92</span></div></div>
+<div class="lrow"><div class="lname">Bloor Auto Repair<span>Auto shop &middot; &#9742; (416) 555-0198</span></div><div class="lscore"><span class="bar"><b style="--w:88%"></b></span><span class="ltier a">A &middot; 88</span></div></div>
+<div class="lrow"><div class="lname">Lakeview Dental<span>Dental clinic &middot; &#9742; (647) 555-0173</span></div><div class="lscore"><span class="bar"><b style="--w:84%"></b></span><span class="ltier a">A &middot; 84</span></div></div>
+<div class="lrow"><div class="lname">Summit Roofing<span>Roofing &middot; &#9742; (905) 555-0120</span></div><div class="lscore"><span class="bar"><b style="--w:81%"></b></span><span class="ltier a">A &middot; 81</span></div></div>
+<div class="lrow"><div class="lname">Glow Med Spa<span>Med spa &middot; &#9742; (416) 555-0155</span></div><div class="lscore"><span class="bar"><b style="--w:71%"></b></span><span class="ltier b">B &middot; 71</span></div></div>
+</div>
+</div>
+</div>
+
+<div class="fpanel" data-k="crm">
+<div class="fbar"><span class="dotlive"></span>JARVIS CRM<i>//</i> <span class="wlchip">&#9698; YOURBRAND CRM</span> <b>100% white-label</b> &middot; pipeline live</div>
+<div class="board">
+<div class="col"><div class="ch">New Lead<span>3</span></div>
+<div class="card"><h5>Pine Law Group</h5><div class="svc">Legal intake</div><div class="val">$4,200</div></div>
+<div class="card"><h5>Corner Barber Co</h5><div class="svc">Website + booking</div><div class="val">$2,600</div></div>
+<div class="card"><h5>Glow Med Spa</h5><div class="svc">Waitlist auto-fill</div><div class="val">$3,400</div></div>
+</div>
+<div class="col"><div class="ch">Quoted<span>2</span></div>
+<div class="card"><h5>King Ritson Dental</h5><div class="svc">No-show prevention</div><div class="val">$5,400</div><span class="pdfchip">&#9678; proposal.pdf sent</span></div>
+<div class="card"><h5>Bloor Auto Repair</h5><div class="svc">AI voice agent</div><div class="val">$3,200</div></div>
+</div>
+<div class="col"><div class="ch">In Progress<span>1</span></div>
+<div class="card"><h5>Lakeview Dental</h5><div class="svc">Smart booking</div><div class="val">$4,800</div></div>
+</div>
+<div class="col"><div class="ch">Won<span>1</span></div>
+<div class="card win"><h5>Summit Roofing</h5><div class="svc">Site + auto-portfolio</div><div class="val">$6,100</div></div>
+</div>
+</div>
+<div class="crmtoast">Branded proposal generated &amp; emailed to King Ritson Dental &mdash; your logo, your colors, zero spreadsheets touched.</div>
+</div>
+
+<div class="fpanel" data-k="social">
+<div class="fbar"><span class="dotlive"></span>SOCIAL AUTOPILOT<i>//</i> this week &middot; <b>5 posts</b> queued &middot; written in your voice</div>
+<div class="socwrap">
+<div class="week">
+<div class="day"><div class="dh">Mon</div><div class="post"><div class="pf">IG<u>9:00a</u></div><div class="cap">&ldquo;5 signs your dentist is ghosting your calls&hellip;&rdquo;</div><div class="st"><b>&#9679;</b> Scheduled</div></div></div>
+<div class="day"><div class="dh">Tue</div></div>
+<div class="day"><div class="dh">Wed</div><div class="post"><div class="pf">FB<u>12:30p</u></div><div class="cap">Behind the scenes: how we book 24/7</div><div class="st"><b>&#9679;</b> Scheduled</div></div><div class="post"><div class="pf">IN<u>5:00p</u></div><div class="cap">How we cut no-shows by 38%</div><div class="st"><b>&#9679;</b> Scheduled</div></div></div>
+<div class="day"><div class="dh">Thu</div></div>
+<div class="day"><div class="dh">Fri</div><div class="post"><div class="pf">IG<u>6:00p</u></div><div class="cap">Friday tip: never miss a lead again</div><div class="st"><b>&#9679;</b> Scheduled</div></div></div>
+<div class="day"><div class="dh">Sat</div></div>
+<div class="day"><div class="dh">Sun</div><div class="post"><div class="pf">IN<u>11:00a</u></div><div class="cap">The 1 system every clinic needs</div><div class="st"><b>&#9679;</b> Scheduled</div></div></div>
+</div>
+<div class="compose"><div class="ct">&#9679;_ draft &mdash; in your voice</div>
+<div class="pvtags"><span class="pvtag">Instagram</span><span class="pvtag">Facebook</span><span class="pvtag">LinkedIn</span></div>
+<div class="pvcap">&ldquo;Most dental offices lose <b>6 calls a day</b>. Here&rsquo;s the fix that pays for itself in week one&hellip;&rdquo;</div>
+<div class="acts"><span class="abtn">Edit</span><span class="abtn pri">Approve &amp; publish</span></div>
+</div>
+</div>
+</div>
+
+</div></div>`
+
 const CSS = `
 .os1h-root{
   --bg:#0a0a0a;--line:rgba(243,234,217,0.12);--cream:#f3ead9;--muted:rgba(243,234,217,0.55);
@@ -178,6 +262,56 @@ const CSS = `
 .os1h-root .wc{border:1px solid var(--line);padding:26px 22px;background:var(--surface);transition:.3s}.os1h-root .wc:hover{border-color:rgba(200,75,49,.4);background:#131110}
 .os1h-root .wc .n{font-family:var(--mono);font-size:11px;color:var(--accent);letter-spacing:.2em}.os1h-root .wc h4{font-family:var(--brand);font-weight:700;font-size:18px;margin:12px 0 8px}
 .os1h-root .wc p{font-size:13px;color:var(--muted);line-height:1.6}.os1h-root .wc .vs{font-family:var(--mono);font-size:11px;color:var(--faint);margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+/* what only jarvis os1 does — forks showcase */
+.os1h-root .forks{margin-top:30px;border:1px solid var(--line);background:#0c0c0c}
+.os1h-root .forks .ftabs{display:flex;border-bottom:1px solid var(--line)}
+.os1h-root .forks .ftab{flex:1;padding:15px 10px;font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;text-align:center;cursor:pointer;color:var(--faint);background:transparent;border:none;transition:.25s}
+.os1h-root .forks .ftab:hover{color:var(--muted)}.os1h-root .forks .ftab.on{color:var(--cream);background:#141110;box-shadow:inset 0 -2px 0 var(--accent)}
+.os1h-root .forks .ftab small{display:block;font-size:9px;letter-spacing:.04em;color:var(--faint);margin-top:4px;text-transform:none}
+.os1h-root .fpanel{display:none;padding:20px}.os1h-root .fpanel.on{display:block}
+.os1h-root .fbar{font-family:var(--mono);font-size:11.5px;letter-spacing:.05em;color:var(--muted);display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px}.os1h-root .fbar i{color:var(--faint);font-style:normal}.os1h-root .fbar b{color:var(--cream);font-weight:500}.os1h-root .fbar b.hot{color:var(--accent)}
+.os1h-root .dotlive{width:8px;height:8px;border-radius:50%;background:var(--accent);animation:os1hpulse 1.6s infinite}@keyframes os1hpulse{0%{box-shadow:0 0 0 0 rgba(200,75,49,.5)}70%{box-shadow:0 0 0 7px rgba(200,75,49,0)}100%{box-shadow:0 0 0 0 rgba(200,75,49,0)}}
+.os1h-root .wlchip{font-family:var(--mono);font-size:10px;color:var(--accent);border:1px solid rgba(200,75,49,.45);padding:2px 7px;letter-spacing:.08em}
+.os1h-root .leadwrap{display:grid;grid-template-columns:1.15fr 1fr;gap:16px}
+.os1h-root .map{position:relative;height:344px;border:1px solid var(--line);background:#070707;overflow:hidden}
+.os1h-root .map::before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent 0 33px,rgba(243,234,217,.035) 33px 34px),repeating-linear-gradient(90deg,transparent 0 33px,rgba(243,234,217,.035) 33px 34px)}
+.os1h-root .map .road{position:absolute;background:rgba(243,234,217,.10);z-index:1}.os1h-root .map .road.h{left:0;right:0;height:3px}.os1h-root .map .road.v{top:0;bottom:0;width:3px}
+.os1h-root .pin{position:absolute;transform:translate(-50%,-50%) scale(.2);opacity:0;transition:.55s cubic-bezier(.2,1.3,.3,1);text-align:center;z-index:3}
+.os1h-root .run .pin{transform:translate(-50%,-50%) scale(1);opacity:1}
+.os1h-root .pin em{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);font-family:var(--mono);font-size:11px;font-style:normal;font-weight:600;color:#0a0a0a;margin:0 auto}
+.os1h-root .pin em b{transform:rotate(45deg)}
+.os1h-root .pin i{display:block;font-style:normal;font-family:var(--mono);font-size:9px;color:var(--cream);margin-top:5px;white-space:nowrap;background:rgba(8,8,8,.78);padding:1px 5px;border:1px solid var(--line)}
+.os1h-root .pin.a em{background:var(--accent);box-shadow:0 0 16px rgba(200,75,49,.75)}.os1h-root .pin.b em{background:#d8a657}.os1h-root .pin.c em{background:rgba(243,234,217,.55)}
+.os1h-root .scan{position:absolute;left:0;right:0;height:64px;top:-64px;background:linear-gradient(180deg,transparent,rgba(200,75,49,.20),transparent);z-index:2;pointer-events:none}.os1h-root .run .scan{animation:os1hsweep 2s ease-in-out 1}@keyframes os1hsweep{0%{top:-64px}100%{top:344px}}
+.os1h-root .leadlist{display:flex;flex-direction:column;gap:8px}
+.os1h-root .lrow{border:1px solid var(--line);background:var(--surface);padding:11px 13px;display:flex;justify-content:space-between;align-items:center;gap:12px;opacity:0;transform:translateY(8px);transition:.45s}.os1h-root .run .lrow{opacity:1;transform:none}
+.os1h-root .lname{font-size:13.5px;color:var(--cream);font-weight:500}.os1h-root .lname span{display:block;font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:3px;font-weight:400;letter-spacing:.02em}
+.os1h-root .lscore{text-align:right;min-width:104px}.os1h-root .bar{display:block;height:5px;background:rgba(243,234,217,.1);position:relative;margin-bottom:7px}.os1h-root .bar b{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--accent);transition:width 1.1s cubic-bezier(.3,1,.4,1) .25s}.os1h-root .run .bar b{width:var(--w)}
+.os1h-root .ltier{font-family:var(--mono);font-size:10px;letter-spacing:.08em;padding:2px 6px;border:1px solid var(--line)}.os1h-root .ltier.a{color:var(--accent);border-color:rgba(200,75,49,.5)}.os1h-root .ltier.b{color:#d8a657;border-color:rgba(216,166,87,.4)}.os1h-root .ltier.c{color:var(--faint)}
+.os1h-root .board{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.os1h-root .col{border:1px solid var(--line);background:#080808;padding:10px;min-height:210px}
+.os1h-root .ch{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);display:flex;justify-content:space-between;margin-bottom:10px;border-bottom:1px solid var(--line);padding-bottom:8px}.os1h-root .ch span{color:var(--accent)}
+.os1h-root .card{border:1px solid var(--line);background:var(--surface);padding:11px;margin-bottom:8px;opacity:0;transform:translateY(8px);transition:.45s}.os1h-root .run .card{opacity:1;transform:none}.os1h-root .card.win{border-color:rgba(200,75,49,.45)}
+.os1h-root .card h5{font-family:var(--brand);font-size:13px;font-weight:600;color:var(--cream);margin-bottom:6px}
+.os1h-root .card .svc{font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.os1h-root .card .val{font-family:var(--word);font-weight:700;font-size:15px;color:var(--cream);margin-top:8px}
+.os1h-root .pdfchip{margin-top:9px;font-family:var(--mono);font-size:9.5px;color:var(--accent);border:1px solid rgba(200,75,49,.4);padding:3px 7px;display:inline-block}
+.os1h-root .crmtoast{margin-top:14px;font-family:var(--mono);font-size:11.5px;color:var(--cream);border:1px solid rgba(200,75,49,.4);background:rgba(200,75,49,.08);padding:11px 13px;opacity:0;transition:.5s .6s}.os1h-root .run .crmtoast{opacity:1}.os1h-root .crmtoast::before{content:"\\2713 ";color:var(--accent)}
+.os1h-root .socwrap{display:grid;grid-template-columns:1.5fr 1fr;gap:16px}
+.os1h-root .week{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.os1h-root .day{border:1px solid var(--line);background:#080808;min-height:158px;padding:6px}
+.os1h-root .day .dh{font-family:var(--mono);font-size:9px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;margin-bottom:7px;text-align:center;border-bottom:1px solid var(--line);padding-bottom:5px}
+.os1h-root .post{border:1px solid var(--line);background:var(--surface);padding:6px 7px;margin-bottom:6px;opacity:0;transform:translateY(6px);transition:.4s}.os1h-root .run .post{opacity:1;transform:none}
+.os1h-root .post .pf{font-family:var(--mono);font-size:8.5px;letter-spacing:.04em;color:var(--accent);display:flex;justify-content:space-between;align-items:center}
+.os1h-root .post .pf u{color:var(--faint);text-decoration:none}
+.os1h-root .post .cap{font-size:9.5px;color:var(--muted);margin-top:4px;line-height:1.35}
+.os1h-root .post .st{font-family:var(--mono);font-size:8px;color:var(--faint);margin-top:5px;text-transform:uppercase;letter-spacing:.06em}.os1h-root .post .st b{color:var(--accent);font-weight:400}
+.os1h-root .compose{border:1px solid var(--line);background:#080808;padding:15px}
+.os1h-root .compose .ct{font-family:var(--mono);font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.1em;margin-bottom:11px}
+.os1h-root .pvtags{display:flex;gap:6px;margin-bottom:11px}.os1h-root .pvtag{font-family:var(--mono);font-size:9px;color:var(--muted);border:1px solid var(--line);padding:3px 7px}
+.os1h-root .pvcap{font-size:13px;color:var(--cream);line-height:1.5}.os1h-root .pvcap b{color:var(--accent)}
+.os1h-root .acts{display:flex;gap:8px;margin-top:15px}
+.os1h-root .abtn{flex:1;text-align:center;font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;padding:10px;border:1px solid var(--line);color:var(--cream);cursor:pointer}.os1h-root .abtn.pri{background:var(--accent);border-color:var(--accent);color:#0a0a0a}
 .os1h-root .billtoggle{display:flex;align-items:center;gap:12px;margin:4px 0 26px;font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
 .os1h-root .billtoggle button{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;padding:7px 14px;border:1px solid var(--line);background:transparent;color:var(--faint);cursor:pointer;transition:.25s}
 .os1h-root .billtoggle button.on{color:#0a0a0a;background:var(--cream);border-color:var(--cream)}
@@ -217,9 +351,15 @@ const CSS = `
 .os1h-root .signoff .tech{font-family:var(--word);font-weight:400;letter-spacing:.3em;font-size:clamp(11px,1.5vw,15px);color:var(--faint);text-transform:uppercase;margin-top:26px;padding-left:.3em}
 .os1h-root .signoff .foot{font-family:var(--mono);font-size:12px;letter-spacing:.06em;color:rgba(243,234,217,.25);margin-top:36px}.os1h-root .signoff .foot span{margin:0 10px;color:rgba(243,234,217,.12)}
 @media(prefers-reduced-motion:reduce){
-  .os1h-root .logobox .glow,.os1h-root .marquee div,.os1h-root .blink{animation:none}
+  .os1h-root .logobox .glow,.os1h-root .marquee div,.os1h-root .blink,.os1h-root .dotlive{animation:none}
+  .os1h-root .pin,.os1h-root .lrow,.os1h-root .card,.os1h-root .post,.os1h-root .bar b,.os1h-root .crmtoast{transition:none}
+  .os1h-root .run .scan{animation:none}.os1h-root .scan{display:none}
 }
-@media(max-width:880px){.os1h-root .grid,.os1h-root .why{grid-template-columns:1fr}.os1h-root .intro{flex-direction:column;text-align:center}}
+@media(max-width:880px){
+  .os1h-root .grid,.os1h-root .why{grid-template-columns:1fr}.os1h-root .intro{flex-direction:column;text-align:center}
+  .os1h-root .leadwrap,.os1h-root .socwrap{grid-template-columns:1fr}.os1h-root .board{grid-template-columns:repeat(2,1fr)}.os1h-root .week{grid-template-columns:repeat(4,1fr)}
+  .os1h-root .forks .ftabs{flex-direction:column}.os1h-root .forks .ftab{border-bottom:1px solid var(--line)}.os1h-root .map{height:280px}
+}
 `
 
 export default function OS1HermesBody() {
@@ -445,6 +585,38 @@ export default function OS1HermesBody() {
       })
     }
 
+    // "what only jarvis os1 does" — fork tabs + one-shot .run animations (CSS-only, no rAF).
+    const frk = root.querySelector<HTMLElement>(".forks")
+    if (frk) {
+      const frun = (p: HTMLElement | null) => {
+        if (!p) return
+        if (reduce) { p.classList.add("run"); return } // static final state
+        p.classList.remove("run"); void p.offsetWidth; p.classList.add("run")
+      }
+      const ftabs = frk.querySelectorAll<HTMLElement>(".ftab")
+      const fhandlers: { el: HTMLElement; fn: () => void }[] = []
+      ftabs.forEach((b) => {
+        const fn = () => {
+          ftabs.forEach((z) => z.classList.remove("on"))
+          b.classList.add("on")
+          frk.querySelectorAll<HTMLElement>(".fpanel").forEach((z) => z.classList.remove("on"))
+          const pan = frk.querySelector<HTMLElement>('.fpanel[data-k="' + b.dataset.k + '"]')
+          if (pan) { pan.classList.add("on"); frun(pan) }
+        }
+        b.addEventListener("click", fn)
+        fhandlers.push({ el: b, fn })
+      })
+      let fseen = false
+      const fio = new IntersectionObserver((es) => {
+        es.forEach((e) => { if (e.isIntersecting && !fseen) { fseen = true; frun(frk.querySelector<HTMLElement>(".fpanel.on")) } })
+      }, { threshold: 0.3 })
+      fio.observe(frk)
+      cleanups.push(() => {
+        fio.disconnect()
+        fhandlers.forEach((h) => h.el.removeEventListener("click", h.fn))
+      })
+    }
+
     return () => cleanups.forEach((fn) => { try { fn() } catch {} })
   }, [])
 
@@ -506,6 +678,9 @@ export default function OS1HermesBody() {
             </div>
           </div>
         </section>
+
+        {/* what only jarvis os1 does — tabbed visual showcase (additive insertion) */}
+        <section dangerouslySetInnerHTML={{ __html: FORKS_HTML }} />
 
         {/* pick your altitude — REAL pricing engine */}
         <section id="pricing" style={{ borderBottom: "none" }}>
