@@ -1,14 +1,9 @@
 'use client'
 import { useRouter } from 'next/navigation'
 import { Hero } from './Hero'
-import { Section2Difference } from './Section2Difference'
-import { SectionWontWait } from './SectionWontWait'
-import { Section3Voice } from './Section3Voice'
-import { Section4Connected } from './Section4Connected'
-import { Section5Memory } from './Section5Memory'
-import { Section6CTA } from './Section6CTA'
-import { Footer } from './Footer'
+import { WelcomeBody } from './WelcomeBody'
 
+// /welcome — painterly hero (unchanged) on top, redesigned Jarvis Personal body below.
 export function LandingPage() {
   const router = useRouter()
 
@@ -17,15 +12,9 @@ export function LandingPage() {
   }
 
   return (
-    <main style={{ background: '#0a0a0a', minHeight: '100vh' }}>
+    <main style={{ background: '#F1EEE6', minHeight: '100vh' }}>
       <Hero onBegin={handleBegin} />
-      <Section2Difference />
-      <SectionWontWait />
-      <Section3Voice />
-      <Section4Connected />
-      <Section5Memory />
-      <Section6CTA />
-      <Footer />
+      <WelcomeBody onBegin={handleBegin} />
     </main>
   )
 }
