@@ -4,9 +4,7 @@ import OS1OperatorNightSection from "@/components/os1/OS1OperatorNightSection"
 import OS1MemorySection from "@/components/os1/OS1MemorySection"
 import OS1ConnectorsSection from "@/components/os1/OS1ConnectorsSection"
 import OS1SafetySection from "@/components/os1/OS1SafetySection"
-import OS1Pricing from "@/components/os1/OS1Pricing"
-import OS1CTASection from "@/components/os1/OS1CTASection"
-import OS1Footer from "@/components/os1/OS1Footer"
+import OS1HermesBody from "@/components/os1/OS1HermesBody"
 import OS1Shell from "@/components/os1/OS1Shell"
 
 export const metadata = {
@@ -27,9 +25,8 @@ export default function OS1Page() {
         <OS1MemorySection />
         <OS1ConnectorsSection />
         <OS1SafetySection />
-        <OS1Pricing />
-        <OS1CTASection />
-        <OS1Footer />
+        {/* New Hermes / ASCII body — intro, what-is + compare, why, REAL pricing engine, marquee, MG&CO signoff */}
+        <OS1HermesBody />
       </OS1Shell>
     </main>
   )
