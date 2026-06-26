@@ -6,8 +6,11 @@ import { setJarvisMode } from '../../lib/userPreferences'
 export default function ModeToggle({ userId, currentMode }) {
   const router = useRouter()
 
-  // OS1 (Business) site URL — overridable via env for previews/staging.
-  const OS1_URL = process.env.NEXT_PUBLIC_OS1_URL || 'https://www.jarvismgco.com/os1'
+  // Canonical site origin (www is the canonical host — apex 308-redirects to it). Overridable
+  // via env for previews/staging. With the auth cookie scoped to .jarvismgco.com, the session
+  // is shared across apex↔www, so this hop no longer drops the login.
+  const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.jarvismgco.com'
+  const OS1_URL = process.env.NEXT_PUBLIC_OS1_URL || `${SITE_URL}/os1`
 
   const handleSwitch = async () => {
     // Personal → Business now routes through the OS1 paywall gate. The gate (on /os1) decides

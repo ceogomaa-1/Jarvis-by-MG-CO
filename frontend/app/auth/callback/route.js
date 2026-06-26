@@ -3,11 +3,15 @@ import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
 export async function GET(request) {
-  const { searchParams, origin } = new URL(request.url)
+  const { searchParams, origin, hostname } = new URL(request.url)
   const code = searchParams.get('code')
   const rawNext = searchParams.get('next') ?? '/'
   // Guard against open redirect — next must be a relative path
   const next = rawNext.startsWith('/') ? rawNext : '/'
+
+  // Match the browser client: write the auth cookie domain-wide in production so the session
+  // exchanged here is valid across apex + www. Localhost / preview deploys stay host-only.
+  const cookieDomain = hostname.endsWith('jarvismgco.com') ? '.jarvismgco.com' : undefined
 
   if (code) {
     const cookieStore = cookies()
@@ -22,7 +26,7 @@ export async function GET(request) {
           setAll(cookiesToSet) {
             try {
               cookiesToSet.forEach(({ name, value, options }) =>
-                cookieStore.set(name, value, options)
+                cookieStore.set(name, value, cookieDomain ? { ...options, domain: cookieDomain } : options)
               )
             } catch {}
           },
