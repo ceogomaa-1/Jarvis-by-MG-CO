@@ -388,31 +388,31 @@ async def _run_signup_flow(user_id: str, display_name: str) -> ConnectorResult:
 #     key and the workspace-AGNOSTIC token are both rejected.
 async def _member_workspace_token(http: httpx.AsyncClient, email: str, password: str,
                                   base_url: str) -> tuple[str | None, str | None]:
-    """Sign in as an existing member of the workspace at `base_url` and return a
-    workspace-scoped access token. Credentials → workspace login token (workspace resolved
-    from the Origin header) → getAuthTokensFromLoginToken (the provisioner's token flow)."""
-    login_token = None
-    last = None
-    for mut, key in (
-        ("mutation L($email:String!,$password:String!){ getLoginTokenFromCredentials(email:$email,password:$password){ loginToken { token } } }",
-         "getLoginTokenFromCredentials"),
-        ("mutation L($email:String!,$password:String!){ challenge(email:$email,password:$password){ loginToken { token } } }",
-         "challenge"),
-    ):
-        d, e = await _auth_call(http, mut, {"email": email, "password": password}, origin=base_url)
-        if not e:
-            login_token = (((d or {}).get(key) or {}).get("loginToken") or {}).get("token")
-            if login_token:
-                break
-        last = e
-    if not login_token:
-        return None, f"could not obtain a workspace login token ({last})"
+    """Sign in as an existing member and return a WORKSPACE-SCOPED user access token.
+
+    Twenty v0.42 auth.resolver.ts has NO `signIn` and NO `challenge`. The only path is:
+      getLoginTokenFromCredentials(email,password){ loginToken { token } }
+      getAuthTokensFromLoginToken(loginToken){ tokens { accessToken { token } } }
+    BOTH require the Origin header = the workspace's own subdomain base_url (Twenty resolves
+    the workspace from Origin, not an argument). The resulting accessToken is workspace-scoped
+    (AuthWorkspace + AuthUser), which is what sendInvitations requires.
+    """
     d, e = await _auth_call(http,
-        "mutation T($t:String!,$o:String!){ getAuthTokensFromLoginToken(loginToken:$t, origin:$o){ tokens { accessOrWorkspaceAgnosticToken { token } } } }",
-        {"t": login_token, "o": base_url}, origin=base_url)
+        "mutation L($email:String!,$password:String!){ getLoginTokenFromCredentials(email:$email, password:$password){ loginToken { token } } }",
+        {"email": email, "password": password}, origin=base_url)
+    if e:
+        return None, f"getLoginTokenFromCredentials: {e}"
+    login_token = (((d or {}).get("getLoginTokenFromCredentials") or {}).get("loginToken") or {}).get("token")
+    if not login_token:
+        return None, "getLoginTokenFromCredentials returned no loginToken"
+
+    d, e = await _auth_call(http,
+        "mutation T($lt:String!){ getAuthTokensFromLoginToken(loginToken:$lt){ tokens { accessToken { token } } } }",
+        {"lt": login_token}, origin=base_url)
     if e:
         return None, f"getAuthTokensFromLoginToken: {e}"
-    access = (((d or {}).get("getAuthTokensFromLoginToken") or {}).get("tokens") or {}).get("accessOrWorkspaceAgnosticToken", {}).get("token")
+    tokens = ((d or {}).get("getAuthTokensFromLoginToken") or {}).get("tokens") or {}
+    access = (tokens.get("accessToken") or {}).get("token") or (tokens.get("accessOrWorkspaceAgnosticToken") or {}).get("token")
     return (access, None) if access else (None, "token exchange returned no access token")
 
 
