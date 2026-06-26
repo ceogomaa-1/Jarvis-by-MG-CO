@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Search, ChevronDown, ChevronUp, Loader2, Unplug } from 'lucide-react'
+import ChannelsPanel from './ChannelsPanel'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
@@ -878,6 +879,8 @@ export default function ConnectionsModal({ open, onClose, userId }) {
 
         {/* Card grid */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 22px 20px' }}>
+          {/* Messaging channels — chat the OS1 brain from Telegram (subscribers only) */}
+          <ChannelsPanel userId={userId} />
           {loading ? (
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
