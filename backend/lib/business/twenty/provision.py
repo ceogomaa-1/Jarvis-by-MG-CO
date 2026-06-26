@@ -390,30 +390,36 @@ async def _member_workspace_token(http: httpx.AsyncClient, email: str, password:
                                   base_url: str) -> tuple[str | None, str | None]:
     """Sign in as an existing member and return a WORKSPACE-SCOPED user access token.
 
-    Twenty v0.42 auth.resolver.ts has NO `signIn` and NO `challenge`. The only path is:
-      getLoginTokenFromCredentials(email,password){ loginToken { token } }
-      getAuthTokensFromLoginToken(loginToken){ tokens { accessToken { token } } }
-    BOTH require the Origin header = the workspace's own subdomain base_url (Twenty resolves
-    the workspace from Origin, not an argument). The resulting accessToken is workspace-scoped
-    (AuthWorkspace + AuthUser), which is what sendInvitations requires.
+    Twenty v0.42 auth.resolver.ts has NO `signIn` and NO `challenge`. The path is:
+      getLoginTokenFromCredentials(email,password,origin){ loginToken { token } }
+      getAuthTokensFromLoginToken(loginToken,origin){ tokens { accessToken { token } } }
+    This build requires `origin` as an explicit ARGUMENT (String!) AND the Origin header =
+    the workspace subdomain base_url (Twenty resolves the workspace from it). The resulting
+    accessToken is workspace-scoped (AuthWorkspace + AuthUser) — what sendInvitations needs.
     """
     d, e = await _auth_call(http,
-        "mutation L($email:String!,$password:String!){ getLoginTokenFromCredentials(email:$email, password:$password){ loginToken { token } } }",
-        {"email": email, "password": password}, origin=base_url)
+        "mutation L($email:String!,$password:String!,$origin:String!){ getLoginTokenFromCredentials(email:$email, password:$password, origin:$origin){ loginToken { token } } }",
+        {"email": email, "password": password, "origin": base_url}, origin=base_url)
     if e:
         return None, f"getLoginTokenFromCredentials: {e}"
     login_token = (((d or {}).get("getLoginTokenFromCredentials") or {}).get("loginToken") or {}).get("token")
     if not login_token:
         return None, "getLoginTokenFromCredentials returned no loginToken"
 
-    d, e = await _auth_call(http,
-        "mutation T($lt:String!){ getAuthTokensFromLoginToken(loginToken:$lt){ tokens { accessToken { token } } } }",
-        {"lt": login_token}, origin=base_url)
-    if e:
-        return None, f"getAuthTokensFromLoginToken: {e}"
-    tokens = ((d or {}).get("getAuthTokensFromLoginToken") or {}).get("tokens") or {}
-    access = (tokens.get("accessToken") or {}).get("token") or (tokens.get("accessOrWorkspaceAgnosticToken") or {}).get("token")
-    return (access, None) if access else (None, "token exchange returned no access token")
+    # Try the v0.42 token field (accessToken) first, fall back to other builds' field name.
+    last = "no access token in response"
+    for sel in ("accessToken", "accessOrWorkspaceAgnosticToken"):
+        d, e = await _auth_call(http,
+            f"mutation T($lt:String!,$origin:String!){{ getAuthTokensFromLoginToken(loginToken:$lt, origin:$origin){{ tokens {{ {sel} {{ token }} }} }} }}",
+            {"lt": login_token, "origin": base_url}, origin=base_url)
+        if e:
+            last = e
+            continue
+        tokens = ((d or {}).get("getAuthTokensFromLoginToken") or {}).get("tokens") or {}
+        access = (tokens.get(sel) or {}).get("token")
+        if access:
+            return access, None
+    return None, f"getAuthTokensFromLoginToken: {last}"
 
 
 async def _workspace_invite_hash(http: httpx.AsyncClient, token: str, base_url: str) -> str | None:
