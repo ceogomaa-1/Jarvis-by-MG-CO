@@ -54,30 +54,12 @@ async def workspace_member_emails(client: TwentyClient) -> tuple[set[str], str |
     return emails, None
 
 
-async def pending_invite_emails(client: TwentyClient) -> set[str]:
-    """Best-effort set of emails with a pending (un-accepted) invitation. Empty on any error
-    or if the query isn't supported on this Twenty version."""
-    for query in (
-        "query Inv { findWorkspaceInvitations { id email } }",
-        "query Inv { workspaceInvitations { edges { node { id email } } } }",
-    ):
-        res = await client.query_data(query, action="List pending invitations")
-        if not res.ok:
-            continue
-        data = res.data or {}
-        if isinstance(data.get("findWorkspaceInvitations"), list):
-            return {i.get("email", "").strip().lower() for i in data["findWorkspaceInvitations"] if i.get("email")}
-        edges = ((data.get("workspaceInvitations") or {}).get("edges")) or []
-        if edges:
-            return {(e.get("node") or {}).get("email", "").strip().lower() for e in edges if (e.get("node") or {}).get("email")}
-    return set()
+async def is_member(client: TwentyClient, client_email: str) -> tuple[bool, str]:
+    """True iff the client email is already a real workspace member (has accepted/joined).
 
-
-async def verify_client_member(client: TwentyClient, client_email: str) -> tuple[bool, str]:
-    """True iff the client email is a workspace member OR has a pending invitation.
-
-    Returns (ok, status) where status ∈ {"member", "invited", "absent", "<error>"}.
-    This is the gate the provisioner trusts before marking a job done.
+    Read via the per-workspace data API with the workspace API key (works fine for reads).
+    Returns (ok, status) where status ∈ {"member", "absent", "<error>"}. Adding a member and
+    capturing the accept link is the auth-endpoint job — see provision.add_client_member.
     """
     email = (client_email or "").strip().lower()
     if not email:
@@ -85,44 +67,11 @@ async def verify_client_member(client: TwentyClient, client_email: str) -> tuple
     members, err = await workspace_member_emails(client)
     if err:
         return False, f"member lookup failed: {err}"
-    if email in members:
-        return True, "member"
-    if email in await pending_invite_emails(client):
-        return True, "invited"
-    return False, "absent"
+    return (True, "member") if email in members else (False, "absent")
 
 
-# ── adding the client as a member ──────────────────────────────────────────────────
-async def ensure_client_membership(client: TwentyClient, client_email: str) -> dict:
-    """Invite the client email into the workspace (idempotent). Returns a status dict.
-
-    Sends a workspace invitation so the client receives a password-setup link and lands
-    in their own workspace as a member. Tries the current Twenty mutation name with a
-    fallback. If the client is already present, returns ok without re-inviting.
-    """
-    email = (client_email or "").strip()
-    if not email:
-        return {"ok": False, "status": "no client_email", "error": "client_email is required"}
-
-    ok, status = await verify_client_member(client, email)
-    if ok:
-        return {"ok": True, "status": status, "already": True}
-
-    last_err = None
-    for query, variables, extract in (
-        # current shape
-        ("mutation Inv($emails:[String!]!){ createWorkspaceInvitations(emails:$emails){ id email } }",
-         {"emails": [email]}, "createWorkspaceInvitations"),
-        # older shape
-        ("mutation Inv($emails:[String!]!){ sendInvitations(emails:$emails){ success result { id email } errors } }",
-         {"emails": [email]}, "sendInvitations"),
-    ):
-        res = await client.query_data(query, variables, action="Invite client to workspace")
-        if res.ok:
-            return {"ok": True, "status": "invited", "mutation": extract}
-        last_err = res.error
-
-    return {"ok": False, "status": "invite_failed", "error": last_err}
+# Back-compat alias used by callers/tests that expect verify_client_member(client, email).
+verify_client_member = is_member
 
 
 # ── seed/demo data wipe ─────────────────────────────────────────────────────────────

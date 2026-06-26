@@ -378,6 +378,115 @@ async def _run_signup_flow(user_id: str, display_name: str) -> ConnectorResult:
     })
 
 
+# ── Client membership (sendInvitations) ──────────────────────────────────────────
+# sendInvitations is a CORE auth resolver guarded by @UseGuards(WorkspaceAuthGuard,
+# UserAuthGuard) (Twenty v0.42 workspace-invitation.resolver.ts). It therefore needs:
+#   • the auth/core endpoint (the same one _auth_call hits — NOT the per-workspace data
+#     /graphql records API that TwentyClient uses; that's why "Cannot query field
+#     sendInvitations" happened), and
+#   • a WORKSPACE-SCOPED USER access token (AuthWorkspace + AuthUser) — the workspace API
+#     key and the workspace-AGNOSTIC token are both rejected.
+async def _member_workspace_token(http: httpx.AsyncClient, email: str, password: str,
+                                  base_url: str) -> tuple[str | None, str | None]:
+    """Sign in as an existing member of the workspace at `base_url` and return a
+    workspace-scoped access token. Credentials → workspace login token (workspace resolved
+    from the Origin header) → getAuthTokensFromLoginToken (the provisioner's token flow)."""
+    login_token = None
+    last = None
+    for mut, key in (
+        ("mutation L($email:String!,$password:String!){ getLoginTokenFromCredentials(email:$email,password:$password){ loginToken { token } } }",
+         "getLoginTokenFromCredentials"),
+        ("mutation L($email:String!,$password:String!){ challenge(email:$email,password:$password){ loginToken { token } } }",
+         "challenge"),
+    ):
+        d, e = await _auth_call(http, mut, {"email": email, "password": password}, origin=base_url)
+        if not e:
+            login_token = (((d or {}).get(key) or {}).get("loginToken") or {}).get("token")
+            if login_token:
+                break
+        last = e
+    if not login_token:
+        return None, f"could not obtain a workspace login token ({last})"
+    d, e = await _auth_call(http,
+        "mutation T($t:String!,$o:String!){ getAuthTokensFromLoginToken(loginToken:$t, origin:$o){ tokens { accessOrWorkspaceAgnosticToken { token } } } }",
+        {"t": login_token, "o": base_url}, origin=base_url)
+    if e:
+        return None, f"getAuthTokensFromLoginToken: {e}"
+    access = (((d or {}).get("getAuthTokensFromLoginToken") or {}).get("tokens") or {}).get("accessOrWorkspaceAgnosticToken", {}).get("token")
+    return (access, None) if access else (None, "token exchange returned no access token")
+
+
+async def _workspace_invite_hash(http: httpx.AsyncClient, token: str, base_url: str) -> str | None:
+    """The workspace's public invite hash (for building the accept URL). Best-effort."""
+    d, e = await _auth_call(http, "query { currentWorkspace { id inviteHash } }",
+                            {}, token=token, origin=base_url)
+    if e:
+        return None
+    return ((d or {}).get("currentWorkspace") or {}).get("inviteHash")
+
+
+async def _personal_invite_token(http: httpx.AsyncClient, token: str, base_url: str, email: str) -> str | None:
+    """The per-email invitation token (so the accept URL pre-authorizes this exact email).
+    Best-effort across field shapes; returns None if not exposed on this build."""
+    email = (email or "").lower()
+    for q in (
+        "query { findWorkspaceInvitations { id email value } }",
+        "query { findWorkspaceInvitations { id email appToken { value } } }",
+    ):
+        d, e = await _auth_call(http, q, {}, token=token, origin=base_url)
+        if e:
+            continue
+        for inv in (d or {}).get("findWorkspaceInvitations") or []:
+            if (inv.get("email") or "").lower() == email:
+                return inv.get("value") or ((inv.get("appToken") or {}).get("value"))
+    return None
+
+
+async def add_client_member(*, base_url: str, service_email: str, service_password: str,
+                            client_email: str) -> ConnectorResult:
+    """Invite `client_email` into the workspace at `base_url`, authenticated as an existing
+    member (`service_email`). Returns the accept URL so the client can be let in even if
+    Twenty SMTP isn't configured. SMTP-independent by design.
+    """
+    if not PROVISION_BASE_URL:
+        return ConnectorResult(ok=False, error="TWENTY_PROVISION_BASE_URL is not set.")
+    if not (base_url and service_email and service_password and client_email):
+        return ConnectorResult(ok=False, error="base_url, service_email, service_password, client_email are all required.")
+
+    async with httpx.AsyncClient() as http:
+        token, e = await _member_workspace_token(http, service_email, service_password, base_url)
+        if e:
+            return ConnectorResult(ok=False, error=f"member sign-in ({service_email}): {e}")
+
+        # sendInvitations on the AUTH/CORE endpoint (default /metadata; /graphql fallback),
+        # with the workspace-scoped user token.
+        invite_mut = "mutation Inv($emails:[String!]!){ sendInvitations(emails:$emails){ success result { id email } } }"
+        d, e = await _auth_call(http, invite_mut, {"emails": [client_email]}, token=token, origin=base_url)
+        if e:
+            d, e = await _auth_call(http, invite_mut, {"emails": [client_email]}, token=token, origin=base_url, path="/graphql")
+        if e:
+            return ConnectorResult(ok=False, error=f"sendInvitations: {e}")
+        send = (d or {}).get("sendInvitations") or {}
+
+        invite_hash = await _workspace_invite_hash(http, token, base_url)
+        personal_token = await _personal_invite_token(http, token, base_url, client_email)
+
+    base = base_url.rstrip("/")
+    if invite_hash and personal_token:
+        accept_url = f"{base}/invite/{invite_hash}?inviteToken={personal_token}"
+    elif invite_hash:
+        accept_url = f"{base}/invite/{invite_hash}"   # workspace invite link (Jon signs up with his email)
+    else:
+        accept_url = None
+    return ConnectorResult(ok=True, data={
+        "invited": [client_email],
+        "send_success": send.get("success"),
+        "accept_url": accept_url,
+        "invite_hash": invite_hash,
+        "has_personal_token": bool(personal_token),
+    })
+
+
 async def create_provisioner_account() -> ConnectorResult:
     """One-time: create the shared provisioner account so it can be promoted to server admin.
 
@@ -470,18 +579,29 @@ async def auto_provision_workspace(user_id: str, display_name: str = "Jarvis CRM
         print(f"PROVISION MEMBER-GATE: user {user_id} has NO client_email — not marking done.")
         return ConnectorResult(ok=False, error="Workspace created but client_email is required to add the client as a member.")
 
-    invite = await membership.ensure_client_membership(client, client_email)
-    verified, status = await membership.verify_client_member(client, client_email)
+    # Add the client via the auth endpoint (sendInvitations) authenticated as the service
+    # account that owns the brand-new workspace.
+    hex_id = (user_id or "").removeprefix("user_").replace("-", "")
+    svc_email = d.get("service_email") or f"crm+{hex_id}@{SERVICE_EMAIL_DOMAIN}"
+    svc_pw = d.get("service_secret") or (_provisioner_password() if svc_email == PROVISIONER_EMAIL else _service_password(user_id))
+    invite = await add_client_member(base_url=d["base_url"], service_email=svc_email,
+                                     service_password=svc_pw, client_email=client_email)
+
+    member_ok, _ = await membership.is_member(client, client_email)
+    verified = member_ok or invite.ok
+    status = "member" if member_ok else ("invited" if invite.ok else "absent")
     if not verified:
         await workspaces.upsert_job(user_id, status="pending",
-                                    last_error=f"client membership not confirmed for {client_email} (invite={invite.get('status')}, verify={status})")
-        print(f"PROVISION MEMBER-GATE: user {user_id} client {client_email} NOT a member (invite={invite.get('status')}, verify={status}) — staying pending.")
-        return ConnectorResult(ok=False, error=f"Workspace created but client {client_email} could not be confirmed as a member ({status}).")
+                                    last_error=f"client membership not confirmed for {client_email}: {invite.error}")
+        print(f"PROVISION MEMBER-GATE: user {user_id} client {client_email} NOT confirmed ({invite.error}) — staying pending.")
+        return ConnectorResult(ok=False, error=f"Workspace created but client {client_email} could not be added ({invite.error}).")
 
     await workspaces.upsert_job(user_id, status="done")
-    print(f"PROVISION DONE: user {user_id} client {client_email} membership={status}")
+    accept_url = (invite.data or {}).get("accept_url")
+    print(f"PROVISION DONE: user {user_id} client {client_email} membership={status} accept_url={accept_url}")
     return ConnectorResult(ok=True, data={"base_url": d["base_url"], "subdomain": d.get("subdomain"),
-                                          "workspace_id": d.get("workspace_id"), "client_member": status})
+                                          "workspace_id": d.get("workspace_id"), "client_member": status,
+                                          "accept_url": accept_url})
 
 
 # ── Repair / deprovision ─────────────────────────────────────────────────────────

@@ -97,6 +97,28 @@ async def has_workspace(user_id: str) -> bool:
     return await get_workspace(user_id) is not None
 
 
+async def get_service_creds(user_id: str) -> dict:
+    """Service-role only: the workspace's service-account email + secret (for signing in as
+    the workspace owner to invite the client). Returns {} if unavailable. Never expose."""
+    if not _enabled():
+        return {}
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{SUPABASE_URL}/rest/v1/crm_client_workspaces",
+                headers=_headers(),
+                params={"select": "service_email,service_secret,base_url,subdomain,workspace_id",
+                        "user_id": f"eq.{_user_id_to_uuid(user_id)}", "limit": "1"},
+                timeout=10.0,
+            )
+        if resp.status_code == 200:
+            rows = resp.json()
+            return rows[0] if rows else {}
+    except Exception as e:
+        print(f"TWENTY.workspaces: get_service_creds failed: {e}")
+    return {}
+
+
 async def domain_is_provisioned(host: str) -> bool:
     """True iff `host` (e.g. acme.crm.jarvismgco.com) belongs to a provisioned workspace.
 

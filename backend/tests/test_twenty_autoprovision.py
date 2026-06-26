@@ -15,20 +15,23 @@ def stub_membership(monkeypatch):
     Returns a dict whose `verified` flag the test can flip to simulate the client being
     (un)addable. Defaults to a clean, verified member.
     """
-    cfg = {"verified": True, "status": "member"}
+    cfg = {"verified": True}
 
     async def _wipe(client, **kw):
         return {"ok": True, "deleted": {"companies": 599}}
 
-    async def _ensure(client, email):
-        return {"ok": True, "status": "invited"}
+    async def _add_member(*, base_url, service_email, service_password, client_email):
+        if cfg["verified"]:
+            return ConnectorResult(ok=True, data={"invited": [client_email],
+                                                  "accept_url": f"{base_url}/invite/HASH?inviteToken=TOK"})
+        return ConnectorResult(ok=False, error="sendInvitations: simulated failure")
 
-    async def _verify(client, email):
-        return (cfg["verified"], cfg["status"] if cfg["verified"] else "absent")
+    async def _is_member(client, email):
+        return (False, "absent")  # freshly invited → not yet a joined member
 
     monkeypatch.setattr(membership, "wipe_seed_data", _wipe)
-    monkeypatch.setattr(membership, "ensure_client_membership", _ensure)
-    monkeypatch.setattr(membership, "verify_client_member", _verify)
+    monkeypatch.setattr(membership, "is_member", _is_member)
+    monkeypatch.setattr(provision, "add_client_member", _add_member)
     return cfg
 
 

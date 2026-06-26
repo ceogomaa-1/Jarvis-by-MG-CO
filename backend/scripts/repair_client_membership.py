@@ -27,14 +27,13 @@ import json
 
 import backend.utils.env  # noqa: F401 — load .env first
 
-from backend.lib.business.twenty import membership, workspaces
+from backend.lib.business.twenty import membership, provision, workspaces
 from backend.lib.business.twenty.client import TwentyClient
 
 
 async def _run(args: argparse.Namespace) -> int:
     if args.base_url and args.api_key:
         base_url, api_key = args.base_url, args.api_key
-        row = {"base_url": base_url, "api_key": api_key}
     else:
         row = await workspaces.get_workspace(args.user_id)
         if not row:
@@ -51,44 +50,60 @@ async def _run(args: argparse.Namespace) -> int:
         print(f"ERROR: workspace unreachable with stored key: {ping.error}")
         return 1
 
-    # 1. members before
+    # 1. members before (data API read with the workspace key)
     before, err = await membership.workspace_member_emails(client)
     report["members_before"] = sorted(before)
     if err:
         report["members_before_error"] = err
 
     # 2. wipe seed
-    wipe = await membership.wipe_seed_data(client, wipe_all=args.wipe_all)
-    report["seed_wipe"] = wipe
+    report["seed_wipe"] = await membership.wipe_seed_data(client, wipe_all=args.wipe_all)
 
-    # 3. add the client as a member
-    report["invite"] = await membership.ensure_client_membership(client, args.client_email)
+    # 3. resolve the service-account creds that OWN this workspace (the only member), so we
+    #    can sign in as a member and call sendInvitations on the auth endpoint.
+    creds = await workspaces.get_service_creds(args.user_id)
+    hex_id = (args.user_id or "").removeprefix("user_").replace("-", "")
+    svc_email = args.service_email or creds.get("service_email") or f"crm+{hex_id}@{provision.SERVICE_EMAIL_DOMAIN}"
+    svc_pw = args.service_password or creds.get("service_secret") or provision._service_password(args.user_id)
+    report["service_account"] = svc_email
 
-    # 4. verify
-    verified, status = await membership.verify_client_member(client, args.client_email)
+    # 4. invite the client via the auth/core endpoint with a workspace-scoped user token
+    invite = await provision.add_client_member(
+        base_url=base_url, service_email=svc_email, service_password=svc_pw,
+        client_email=args.client_email,
+    )
+    report["invite"] = {"ok": invite.ok, "error": invite.error, **(invite.data or {})}
+
+    # 5. verify + reconcile the job to the TRUTH
+    member_ok, _ = await membership.is_member(client, args.client_email)
+    verified = member_ok or invite.ok
+    status = "member" if member_ok else ("invited" if invite.ok else "absent")
     report["verified"] = verified
     report["member_status"] = status
     after, _ = await membership.workspace_member_emails(client)
     report["members_after"] = sorted(after)
 
-    # 5. reconcile the provisioning job to the TRUTH
     if args.user_id:
         if verified:
             await workspaces.upsert_job(args.user_id, status="done", last_error="")
         else:
-            await workspaces.upsert_job(
-                args.user_id, status="pending",
-                last_error=f"client {args.client_email} not confirmed as member (invite={report['invite'].get('status')}, verify={status})",
-            )
+            await workspaces.upsert_job(args.user_id, status="pending",
+                                        last_error=f"client {args.client_email} not added: {invite.error}")
 
     print(json.dumps(report, indent=2, default=str))
+    accept_url = (invite.data or {}).get("accept_url")
     if not verified:
-        print("\nNOT VERIFIED. If invite=invite_failed, the invitation mutation name differs on "
-              "this Twenty version — share the error above and we'll pin the exact mutation. "
-              "If invite=invited, the client must accept the emailed invite (check SMTP).")
+        print(f"\nNOT VERIFIED — invite failed: {invite.error}")
+        print("If sign-in failed, the service-account password differs from _service_password "
+              "and no service_secret is stored — pass --service-password. If the mutation name "
+              "differs, share the error and we'll pin it.")
         return 2
-    print(f"\nOK: {args.client_email} is now '{status}' in the workspace. "
-          f"They can log in at {base_url}.")
+    print(f"\nOK: {args.client_email} is '{status}'. They can log in at {base_url}.")
+    if accept_url:
+        print(f"ACCEPT LINK (SMTP-independent — send this to the client):\n  {accept_url}")
+    else:
+        print("Invitation sent, but no accept link could be built (inviteHash/token not exposed). "
+              "If SMTP is configured the client got an email; otherwise re-run after enabling it.")
     return 0
 
 
@@ -98,6 +113,8 @@ def main() -> int:
     p.add_argument("--client-email", required=True, help="The client's login email to add as a member.")
     p.add_argument("--base-url", default=None, help="Override workspace base URL (else resolved from registry).")
     p.add_argument("--api-key", default=None, help="Override workspace API key (else resolved from registry).")
+    p.add_argument("--service-email", default=None, help="Workspace member to sign in as for the invite (else service_email / crm+<hex>@domain).")
+    p.add_argument("--service-password", default=None, help="Password for --service-email (else stored service_secret / deterministic).")
     p.add_argument("--wipe-all", action="store_true",
                    help="Delete ALL records (safe only for a never-used workspace). Default wipes the demo company set only.")
     return asyncio.run(_run(p.parse_args()))
