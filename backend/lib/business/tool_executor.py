@@ -6,6 +6,7 @@ Uses get_connector_for_user() from the registry — it fetches credentials from
 business_connections and returns an authenticated connector instance. Returns
 a JSON string for Claude to interpret.
 """
+import asyncio
 import json
 
 from backend.lib.business.connectors.base import ConnectorResult
@@ -100,6 +101,51 @@ async def execute_tool(tool_name: str, tool_input: dict, user_id: str, progress_
     if result.ok:
         return json.dumps(result.data or {}, default=str)
     return json.dumps({"error": result.error or "Action failed with no error message"})
+
+
+async def _enforce_buffer_platform_cap(connector, user_id: str, channel_ids, organization_id=None):
+    """Block a Buffer post that would exceed the user's platform cap (Pro = 2, Emperor = ∞).
+
+    Resolves the target channels to their Buffer *services* (the platform), then asks the
+    entitlements layer whether this user may post to that platform set. On allow, records the
+    platforms used so the cap is first-come-first-served. Returns a ConnectorResult(error) to
+    block, or None to allow.
+
+    Fails OPEN: if we can't resolve services (no org id, list_channels error, no user_id) we
+    don't block a legitimate post — the cap is a monetization gate, not a security boundary."""
+    from backend.lib.billing import entitlements as _ent, store as _bstore
+
+    if not user_id or not channel_ids:
+        return None
+
+    # Map channel_id -> service via the org's channel list.
+    try:
+        channels_res = await connector.list_channels(organization_id=organization_id)
+    except Exception:
+        return None
+    if not channels_res.ok:
+        return None
+    by_id = {c.get("id"): (c.get("service") or "").lower()
+             for c in ((channels_res.data or {}).get("channels") or [])}
+    target_services = {by_id.get(cid) for cid in channel_ids if by_id.get(cid)}
+    if not target_services:
+        return None
+
+    try:
+        allowed, reason, to_record = await asyncio.to_thread(
+            _ent.buffer_platform_check, user_id, target_services
+        )
+    except Exception:
+        return None  # fail open on entitlements lookup failure
+
+    if not allowed:
+        return ConnectorResult(ok=False, error=reason, data={"upgrade": "emperor"})
+    if to_record:
+        try:
+            await asyncio.to_thread(_bstore.add_buffer_platforms, user_id, to_record)
+        except Exception:
+            pass
+    return None
 
 
 async def _dispatch(connector, connector_type: str, action_name: str, inp: dict, user_id: str = "") -> ConnectorResult:
@@ -353,6 +399,15 @@ async def _dispatch(connector, connector_type: str, action_name: str, inp: dict,
 
     # ── Buffer ───────────────────────────────────────────────────────────────
     if connector_type == "buffer":
+        # Pro tier is capped at 2 distinct social platforms (Emperor = unlimited). Enforce on
+        # the WRITE actions only — reads are free. Posting to a platform that would push the
+        # user past their cap is blocked with an upgrade prompt.
+        if action_name in ("create_post", "schedule_post", "add_to_queue"):
+            gate = await _enforce_buffer_platform_cap(
+                connector, user_id, inp.get("channel_ids", []), inp.get("organization_id")
+            )
+            if gate is not None:
+                return gate
         if action_name == "list_organizations":
             return await connector.list_organizations()
         if action_name == "list_channels":

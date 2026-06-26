@@ -65,6 +65,21 @@ LEADS_TOOLS: dict[str, dict] = {
 
 
 async def execute_leads_tool(action_name: str, inp: dict, user_id: str) -> ConnectorResult:
+    # Defense-in-depth: Jarvis Leads is Emperor-only. tool_builder already withholds these
+    # tools from non-Emperor users, but gate the cash-cost actions here too in case a tool
+    # call slips through (stale toolset, replay, etc.). Fail open on a billing lookup error.
+    if action_name in ("find_leads", "push_to_crm") and user_id:
+        try:
+            from backend.lib.billing import entitlements
+            allowed, _reason = entitlements.leads_allowed(user_id)
+            if not allowed:
+                return ConnectorResult(
+                    ok=False,
+                    error="Jarvis Leads is an Emperor-tier feature. Upgrade to Emperor to use it.",
+                )
+        except Exception:
+            pass
+
     if action_name == "find_leads":
         return await engine.run_search(user_id, inp.get("query", ""), inp.get("max_results"))
     if action_name == "list_leads":

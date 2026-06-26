@@ -11,7 +11,7 @@ from supabase import create_client
 
 from backend.lib.business.system_prompt_builder import build_system_prompt
 from backend.lib.business.farida_loader import FARIDA_USER_ID, load_greeting as _load_farida_greeting
-from backend.lib.business.model_router import select_model, OPUS
+from backend.lib.business.model_router import select_model, OPUS, HAIKU
 from backend.lib.business.cost import UsageAccumulator
 from backend.lib.business.memory import extract_and_store_memories
 from backend.lib.business.mind.graph import record_activity
@@ -23,7 +23,8 @@ from backend.lib.business.tool_executor import execute_tool
 from backend.lib.business.document_store import save_document
 from backend.lib.business.real_estate.profile import is_real_estate_user
 from backend.lib.business.intent_router import classify_message_intent
-from backend.usage_limits import check_limit, increment_usage, get_usage
+from backend.usage_limits import check_limit, increment_usage, get_usage, DAILY_MESSAGE_LIMIT
+from backend.lib.billing import entitlements, config as billing_config, store as billing_store
 from backend.tools.citation_context import init_collector
 
 router = APIRouter()
@@ -358,15 +359,31 @@ def _build_user_content(
     return blocks
 
 
+def _trim_for_trial(message: str, history: list, char_cap: int) -> tuple[str, list]:
+    """Bound a trial turn's input so one huge paste can't spike the cost.
+
+    Caps the current message to `char_cap`, keeps only the last few turns, and truncates each
+    of those. Attachments are dropped separately by the caller (images/PDFs are the other big
+    input-cost lever on a trial)."""
+    msg = (message or "")[:char_cap]
+    per_turn = max(1000, char_cap // 6)
+    trimmed = [
+        {"role": m["role"], "content": str(m.get("content", ""))[:per_turn]}
+        for m in (history or [])[-6:]
+    ]
+    return msg, trimmed
+
+
 @router.get("/business/usage")
 async def get_user_usage(user_id: str = ""):
-    """Return today's usage info for the given user."""
+    """Return today's usage info for the given user (tier-aware: Emperor gets the 5x window)."""
     if not user_id:
         return {"error": "user_id required"}
     sb = _get_supabase()
     if not sb:
         return {"used": 0, "limit": 32, "remaining": 32, "is_admin": False, "resets_in": "", "window_minutes": 90}
-    usage = await asyncio.to_thread(get_usage, user_id, sb)
+    limit = await asyncio.to_thread(entitlements.effective_message_limit, user_id, DAILY_MESSAGE_LIMIT)
+    usage = await asyncio.to_thread(get_usage, user_id, sb, limit)
     return usage
 
 
@@ -396,6 +413,32 @@ async def business_chat_stream(request: BusinessChatRequest):
     tools = await build_tools_for_user(request.user_id)
     is_re_user = bool(request.user_id) and await is_real_estate_user(request.user_id)
 
+    # ── OS1 tier enforcement ──────────────────────────────────────────────────
+    # Resolve this user's plan once. Drives THREE caps on the OS1 Business path:
+    #   • usage window multiplier (Emperor = 5x base, Pro/trial = base)
+    #   • trial COST ceiling (a hard $ cap that replaces the old message-count taste)
+    #   • trial cost-control: cheapest model + capped output + truncated input
+    # Grandfathered / no-row users map to a 1x multiplier and are never trials, so existing
+    # users are unaffected.
+    is_trial = False
+    usage_multiplier = 1
+    trial_cost_blocked = False
+    trial_cost_info: dict = {}
+    if request.user_id:
+        try:
+            caps = await asyncio.to_thread(entitlements.for_user, request.user_id)
+            is_trial = caps.get("plan") == "trial"
+            usage_multiplier = caps.get("usage_multiplier") or 1
+            if usage_multiplier < 1:
+                usage_multiplier = 1
+            if is_trial:
+                trial_cost_info = await asyncio.to_thread(
+                    entitlements.trial_cost_status, request.user_id
+                )
+                trial_cost_blocked = bool(trial_cost_info.get("exceeded"))
+        except Exception as e:
+            print(f"[OS1 ENTITLEMENTS] resolve error: {e}")
+
     # ── Prompt caching ────────────────────────────────────────────────────────
     # Two system blocks: a STATIC block (persona, contracts, capabilities, connector rules)
     # carrying the cache_control breakpoint — byte-identical across turns for this user, so it
@@ -421,8 +464,19 @@ async def business_chat_stream(request: BusinessChatRequest):
         if isinstance(m.get("content"), str) and m["content"].strip()
         and m.get("role") in ("user", "assistant")
     ]
+
+    # Trials: bound the INPUT so a huge paste can't spike one turn, and drop attachments
+    # (images/PDFs are the other big input-cost lever). The taste stays text-only and cheap.
+    trial_message = request.message
+    trial_attachments = request.attachments
+    if is_trial:
+        trial_message, safe_history = _trim_for_trial(
+            request.message, safe_history, billing_config.TRIAL_CONTEXT_CHAR_CAP
+        )
+        trial_attachments = []
+
     user_content = _build_user_content(
-        request.message, request.attachments, stash_pdfs=is_re_user, node_context=request.node_context
+        trial_message, trial_attachments, stash_pdfs=is_re_user, node_context=request.node_context
     )
     messages = safe_history + [{"role": "user", "content": user_content}]
 
@@ -430,16 +484,25 @@ async def business_chat_stream(request: BusinessChatRequest):
     # 8192 for both Sonnet and Opus: enough headroom for tool call JSON without truncation.
     # 2048 was too small for Sonnet — a mid-tool-call max_tokens hit caused silent tool drops.
     max_tokens = 8192
+    # Trials run on the cheapest tier with a capped output budget so the same cost ceiling
+    # buys many more turns AND no single response can blow it.
+    if is_trial:
+        model = HAIKU
+        max_tokens = billing_config.TRIAL_MAX_TOKENS
 
     sb = _get_supabase() if request.user_id else None
     conv_id = request.conversation_id
     is_new_conv = False
 
-    # Check usage limit before creating conversation or calling Anthropic
+    # Check usage limit before creating conversation or calling Anthropic. The ceiling is
+    # tier-scaled: Emperor gets 5x the base window, Pro/trial get the base.
+    effective_limit = DAILY_MESSAGE_LIMIT * usage_multiplier
     limit_exceeded = False
     limit_usage_info: dict = {}
     if sb and request.user_id:
-        allowed, limit_usage_info = await asyncio.to_thread(check_limit, request.user_id, sb)
+        allowed, limit_usage_info = await asyncio.to_thread(
+            check_limit, request.user_id, sb, effective_limit
+        )
         if not allowed:
             limit_exceeded = True
 
@@ -460,7 +523,7 @@ async def business_chat_stream(request: BusinessChatRequest):
             except Exception:
                 pass
 
-    if not limit_exceeded and sb and request.user_id:
+    if not limit_exceeded and not trial_cost_blocked and sb and request.user_id:
         try:
             attachments_meta = [
                 {
@@ -496,6 +559,18 @@ async def business_chat_stream(request: BusinessChatRequest):
             )
             yield f"data: {json.dumps(msg)}\n\n"
             yield f'data: {json.dumps({"type": "usage", "data": limit_usage_info})}\n\n'
+            yield "data: [DONE]\n\n"
+            return
+
+        # Trial COST ceiling — the hard $ cap that replaces the old message-count taste.
+        if trial_cost_blocked:
+            msg = (
+                "Your free trial limit is reached — pick a plan to keep going. "
+                "You've explored what Jarvis can do; upgrade to Pro or Emperor to unlock "
+                "the full experience with no cap."
+            )
+            yield f"data: {json.dumps(msg)}\n\n"
+            yield f'data: {json.dumps({"type": "trial_limit", "data": trial_cost_info})}\n\n'
             yield "data: [DONE]\n\n"
             return
 
@@ -536,11 +611,20 @@ async def business_chat_stream(request: BusinessChatRequest):
         usage_acc = UsageAccumulator(model)
 
         def _cost_event() -> str:
-            """Log the turn cost and return an SSE 'cost' event (call once, at the end)."""
+            """Log the turn cost and return an SSE 'cost' event (call once, at the end).
+
+            For trial users this is also where we bill the turn against the hard cost ceiling:
+            the accumulated, cache-net cost of every round in this turn is added to the trial
+            ledger (fire-and-forget — best effort, like the memory extraction below)."""
             try:
                 print(usage_acc.log_line())
             except Exception:
                 pass
+            if is_trial and request.user_id:
+                turn_cost = usage_acc.cost().get("total_usd", 0.0)
+                asyncio.create_task(
+                    asyncio.to_thread(billing_store.add_trial_cost, request.user_id, turn_cost)
+                )
             return f'data: {json.dumps({"type": "cost", "data": usage_acc.cost()})}\n\n'
 
         try:
@@ -698,7 +782,7 @@ async def business_chat_stream(request: BusinessChatRequest):
                         final_text = per_round_text
                         if request.user_id and sb:
                             updated_usage = await asyncio.to_thread(
-                                increment_usage, request.user_id, sb
+                                increment_usage, request.user_id, sb, effective_limit
                             )
                             yield f'data: {json.dumps({"type": "usage", "data": updated_usage})}\n\n'
                         yield _cost_event()
@@ -711,7 +795,7 @@ async def business_chat_stream(request: BusinessChatRequest):
                         final_text = per_round_text
                         if request.user_id and sb:
                             updated_usage = await asyncio.to_thread(
-                                increment_usage, request.user_id, sb
+                                increment_usage, request.user_id, sb, effective_limit
                             )
                             yield f'data: {json.dumps({"type": "usage", "data": updated_usage})}\n\n'
                         yield _cost_event()

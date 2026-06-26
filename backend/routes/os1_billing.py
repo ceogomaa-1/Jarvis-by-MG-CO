@@ -33,6 +33,7 @@ async def os1_status(user_id: str, email: str = ""):
     """
     sub = store.ensure_subscription(user_id, email or None)
     caps = entitlements.capabilities(sub)
+    cost = entitlements.trial_cost_status(user_id, sub)
     return {
         "has_access": caps["has_access"],
         "grandfathered": caps["grandfathered"],
@@ -42,6 +43,10 @@ async def os1_status(user_id: str, email: str = ""):
         "trial_ends_at": sub.get("trial_ends_at"),
         "current_period_end": sub.get("current_period_end"),
         "billing_enabled": config.billing_enabled(),
+        # Trial budget (hard API-cost ceiling). For non-trial plans cap is null.
+        "trial_cost_cap": cost["cap"],
+        "trial_cost_used": cost["used"],
+        "trial_cost_remaining": cost["remaining"],
     }
 
 

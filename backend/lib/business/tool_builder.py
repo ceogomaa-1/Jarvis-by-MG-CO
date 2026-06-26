@@ -1278,11 +1278,22 @@ async def build_tools_for_user(user_id: str) -> list[dict]:
             for name, defn in {**TWENTY_TOOLS, **TWENTY_WRITE_TOOLS, **TWENTY_METADATA_TOOLS}.items()
         ]
 
-    # mgcoleads — MG&CO's B2B lead engine. Additive + env-gated (LEADS_MAPS_API_KEY).
+    # mgcoleads — MG&CO's B2B lead engine. Additive + env-gated (LEADS_MAPS_API_KEY) AND
+    # tier-gated: Jarvis Leads is Emperor-only (real Google Places cash cost). Grandfathered
+    # users map to Emperor, so existing users are unaffected. Non-Emperor users never even see
+    # the tools, so the model can't call them.
     if leads_enabled():
-        tools += [
-            {"name": name, "description": defn["description"], "input_schema": defn["input_schema"]}
-            for name, defn in LEADS_TOOLS.items()
-        ]
+        leads_ok = True
+        if user_id:
+            try:
+                from backend.lib.billing import entitlements as _ent
+                leads_ok = bool(_ent.for_user(user_id).get("leads"))
+            except Exception:
+                leads_ok = True  # fail open: don't strip tools on a transient billing error
+        if leads_ok:
+            tools += [
+                {"name": name, "description": defn["description"], "input_schema": defn["input_schema"]}
+                for name, defn in LEADS_TOOLS.items()
+            ]
 
     return tools

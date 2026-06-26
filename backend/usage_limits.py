@@ -131,11 +131,16 @@ def _get_reset_in_display(oldest_ts: datetime) -> str:
         return f"{seconds}s"
 
 
-def get_usage(user_id: str, supabase) -> dict:
+def get_usage(user_id: str, supabase, limit: int | None = None) -> dict:
     """
     Get current rolling window usage.
     Returns: { used, limit, remaining, is_admin, resets_in, window_minutes }
+
+    `limit` overrides the base DAILY_MESSAGE_LIMIT — used by the OS1 Business path to apply
+    the per-tier usage multiplier (Emperor = 5x). Defaults to the base limit (Personal path,
+    unchanged).
     """
+    effective_limit = DAILY_MESSAGE_LIMIT if limit is None else limit
     if is_admin(user_id):
         return {
             "used": 0,
@@ -149,17 +154,17 @@ def get_usage(user_id: str, supabase) -> dict:
 
     active_timestamps = _get_window_timestamps(user_id, supabase)
     used = len(active_timestamps)
-    remaining = max(0, DAILY_MESSAGE_LIMIT - used)
+    remaining = max(0, effective_limit - used)
 
     resets_in = ""
-    if used >= DAILY_MESSAGE_LIMIT and active_timestamps:
+    if used >= effective_limit and active_timestamps:
         # Anchor = first message of the window; the allowance resets WINDOW_MINUTES later.
         anchor = min(active_timestamps)
         resets_in = _get_reset_in_display(anchor)
 
     return {
         "used": used,
-        "limit": DAILY_MESSAGE_LIMIT,
+        "limit": effective_limit,
         "remaining": remaining,
         "is_admin": False,
         "resets_in": resets_in,
@@ -168,23 +173,23 @@ def get_usage(user_id: str, supabase) -> dict:
     }
 
 
-def check_limit(user_id: str, supabase) -> tuple:
+def check_limit(user_id: str, supabase, limit: int | None = None) -> tuple:
     """
     Check if user can send a message.
     Returns: (allowed: bool, usage_info: dict)
     """
-    usage = get_usage(user_id, supabase)
+    usage = get_usage(user_id, supabase, limit=limit)
     if usage["is_admin"]:
         return True, usage
     return usage["remaining"] > 0, usage
 
 
-def increment_usage(user_id: str, supabase) -> dict:
+def increment_usage(user_id: str, supabase, limit: int | None = None) -> dict:
     """
     Record a new message timestamp. Prunes expired timestamps to keep the array lean.
     """
     if is_admin(user_id):
-        return get_usage(user_id, supabase)
+        return get_usage(user_id, supabase, limit=limit)
 
     now = _now_utc()
 
@@ -227,4 +232,4 @@ def increment_usage(user_id: str, supabase) -> dict:
     except Exception as e:
         print(f"[USAGE] Error incrementing usage for {user_id}: {e}")
 
-    return get_usage(user_id, supabase)
+    return get_usage(user_id, supabase, limit=limit)

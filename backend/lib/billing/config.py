@@ -60,5 +60,20 @@ def site_url() -> str:
 # billed as overage. Trial users get ZERO leads regardless.
 EMPEROR_LEADS_ALLOWANCE = int(os.getenv("OS1_EMPEROR_LEADS_ALLOWANCE", "500"))
 
-# Tiny taste during trial — a very low message allowance so serial free accounts can't farm.
+# Legacy: a message-count "taste" during trial. Superseded by the hard COST ceiling below
+# (a single large message could blow far past the intended spend), but kept for back-compat
+# reads. Gating is now by TRIAL_COST_CAP_USD, not this count.
 TRIAL_MESSAGE_ALLOWANCE = int(os.getenv("OS1_TRIAL_MESSAGE_ALLOWANCE", "25"))
+
+# ── Trial cost ceiling (the real gate) ───────────────────────────────────────────────────
+# A trial user's cumulative estimated API cost (cache-net) is tracked in os1_subscriptions.
+# Once it reaches this cap the trial is blocked until they pick a plan. Defaults are tuned so
+# the taste feels generous yet the worst-case spend is bounded:
+#   - TRIAL_COST_CAP_USD     hard cumulative ceiling per trial identity
+#   - TRIAL_MAX_TOKENS       per-response output cap so no single turn can blow the ceiling
+#   - TRIAL_CONTEXT_CHAR_CAP per-turn input cap (a huge paste can't spike one turn)
+# Trials are additionally pinned to the cheapest model tier (see model_router HAIKU) so the
+# same budget buys many more turns.
+TRIAL_COST_CAP_USD = float(os.getenv("OS1_TRIAL_COST_CAP_USD", "2.50"))
+TRIAL_MAX_TOKENS = int(os.getenv("OS1_TRIAL_MAX_TOKENS", "1024"))
+TRIAL_CONTEXT_CHAR_CAP = int(os.getenv("OS1_TRIAL_CONTEXT_CHAR_CAP", "12000"))

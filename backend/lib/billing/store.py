@@ -104,6 +104,53 @@ def record_trial_fingerprint(user_id: str, email_normalized: str = None,
     }).execute()
 
 
+# ── trial cost ledger (hard API-cost ceiling) ───────────────────────────────────────────
+def get_trial_cost(user_id: str) -> float:
+    """Cumulative estimated API cost (USD) billed to this trial identity so far."""
+    sub = get_subscription(user_id)
+    try:
+        return float((sub or {}).get("trial_cost_used") or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def add_trial_cost(user_id: str, usd: float) -> float:
+    """Add a turn's estimated cost to the trial ledger; returns the new cumulative total.
+
+    Read-modify-write (no row contention worth a stored-proc here — one trial user, serial
+    turns). Negative/zero costs are ignored so a free turn never moves the needle.
+    """
+    if not usd or usd <= 0:
+        return get_trial_cost(user_id)
+    current = get_trial_cost(user_id)
+    new_total = round(current + float(usd), 6)
+    upsert_subscription(user_id, {"trial_cost_used": new_total})
+    return new_total
+
+
+# ── Buffer platform usage (Pro 2-platform cap) ──────────────────────────────────────────
+def get_buffer_platforms(user_id: str) -> set:
+    """Distinct Buffer platforms (services) this user has already posted to through Jarvis."""
+    user_id = canonical_user_id(user_id)
+    sb = _client()
+    res = sb.table("os1_buffer_platforms").select("service").eq("user_id", user_id).execute()
+    return {r["service"] for r in (res.data or []) if r.get("service")}
+
+
+def add_buffer_platforms(user_id: str, services) -> set:
+    """Record one or more platforms as used by this user (idempotent on (user, service))."""
+    user_id = canonical_user_id(user_id)
+    services = {s for s in (services or []) if s}
+    if not services:
+        return get_buffer_platforms(user_id)
+    sb = _client()
+    sb.table("os1_buffer_platforms").upsert(
+        [{"user_id": user_id, "service": s} for s in services],
+        on_conflict="user_id,service",
+    ).execute()
+    return get_buffer_platforms(user_id)
+
+
 # ── leads metered usage ─────────────────────────────────────────────────────────────────
 def _period() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m")
