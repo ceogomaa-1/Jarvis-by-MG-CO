@@ -92,19 +92,26 @@ export default function OS1Pricing() {
     setBusyId(plan.id)
     const userId = jarvisUserId(session.user.id)
     const email = session.user.email || ""
-    // Already-entitled users shouldn't be charged — bounce them straight into OS1.
-    const status = await getOS1Status(userId, email)
-    if (status?.has_access) {
-      try { await setJarvisMode(userId, "business") } catch {}
-      window.location.href = "/business/chat"
-      return
-    }
-    const res = await startCheckout({ userId, email, plan: plan.id, interval, trial: true })
-    if (res?.ok && res.url) {
-      window.location.href = res.url
-    } else {
-      setBusyId(null)
+    try {
+      // Already-entitled users shouldn't be charged — bounce them straight into OS1.
+      const status = await getOS1Status(userId, email)
+      if (status?.has_access) {
+        try { await setJarvisMode(userId, "business") } catch {}
+        window.location.href = "/business/chat"
+        return
+      }
+      const res = await startCheckout({ userId, email, plan: plan.id, interval, trial: true })
+      if (res?.ok && res.url) {
+        window.location.href = res.url
+        return
+      }
+      // Any non-redirect outcome surfaces a clear message instead of an endless spinner.
       setError(res?.error || "Could not start checkout. Please try again.")
+    } catch (e) {
+      setError("Something went wrong starting checkout. Please try again.")
+    } finally {
+      // Always clear the spinner — even if startCheckout threw or we redirected away.
+      setBusyId(null)
     }
   }
 

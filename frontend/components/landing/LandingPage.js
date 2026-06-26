@@ -13,7 +13,7 @@ export function LandingPage() {
   const router = useRouter()
 
   const handleBegin = () => {
-    router.push('/welcome')
+    router.push('/welcome/start')
   }
 
   return (

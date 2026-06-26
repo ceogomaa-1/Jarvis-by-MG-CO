@@ -160,7 +160,7 @@ const Pricing2 = ({
       />
 
       {/* Content */}
-      <div className="relative container">
+      <div className="relative mx-auto w-full max-w-7xl px-6">
         <div className="mx-auto flex max-w-6xl flex-col items-center gap-6 text-center">
           <h2 className="text-pretty text-4xl font-bold lg:text-6xl">{heading}</h2>
           <p className="text-zinc-400 lg:text-xl">{description}</p>
@@ -174,11 +174,11 @@ const Pricing2 = ({
             </span>
           </div>
 
-          <div className="mt-2 flex flex-col items-stretch gap-6 md:flex-row">
+          <div className="mx-auto mt-2 grid w-full max-w-6xl grid-cols-1 gap-6 md:grid-cols-3 justify-items-center">
             {plans.map((plan, i) => (
               <Card
                 key={plan.id}
-                className={`card-animate flex w-80 flex-col justify-between text-left border-zinc-800 bg-zinc-900/70 backdrop-blur supports-[backdrop-filter]:bg-zinc-900/60 ${
+                className={`card-animate flex w-full max-w-sm flex-col justify-between text-left border-zinc-800 bg-zinc-900/70 backdrop-blur supports-[backdrop-filter]:bg-zinc-900/60 ${
                   plan.highlighted ? "md:-translate-y-2 border-zinc-600 ring-1 ring-zinc-600/40" : ""
                 }`}
                 style={{ animationDelay: `${0.25 + i * 0.08}s` }}

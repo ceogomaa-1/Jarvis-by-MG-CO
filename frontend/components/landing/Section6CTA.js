@@ -54,7 +54,7 @@ export function Section6CTA() {
         transition={{ duration: 1, delay: 0.7 }}
         whileHover={{ scale: 1.03 }}
         whileTap={{ scale: 0.97 }}
-        onClick={() => router.push('/welcome')}
+        onClick={() => router.push('/welcome/start')}
         style={{
           fontFamily: 'system-ui, -apple-system, sans-serif',
           fontSize: 15,
