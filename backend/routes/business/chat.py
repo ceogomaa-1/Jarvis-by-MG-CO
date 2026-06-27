@@ -23,6 +23,7 @@ from backend.lib.business.tool_executor import execute_tool
 from backend.lib.business.document_store import save_document
 from backend.lib.business.real_estate.profile import is_real_estate_user
 from backend.lib.business.intent_router import classify_message_intent
+from backend.lib.business import crm_enrich
 from backend.usage_limits import check_limit, increment_usage, get_usage, DAILY_MESSAGE_LIMIT
 from backend.lib.billing import entitlements, config as billing_config, store as billing_store
 from backend.tools.citation_context import init_collector
@@ -33,7 +34,13 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 SUPABASE_URL = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 
-MAX_TOOL_ROUNDS = 5  # Safety limit on tool-use iterations per request
+# Tool-round budget for the web Business brain. Raised from 5 → 15 so multi-step asks
+# (chained CRM reads/writes, multi-source research) actually complete instead of dying with
+# "I hit a processing limit". Genuinely huge per-record bulk ops (enrich phone/email/address
+# for "all"/N>8 companies) are routed OUT of the chat turn entirely — see crm_enrich. The
+# channels/WhatsApp brain (lib/channels/agent.py) keeps its own lower cap. The per-turn cost
+# is still bounded by the daily message window + (for trials) the hard cost ceiling.
+MAX_TOOL_ROUNDS = 15
 
 # Write actions that require user confirmation before execution.
 # When Claude generates tool_use for any of these, the backend intercepts it,
@@ -178,6 +185,60 @@ def _user_id_to_uuid(user_id: str) -> str:
     if len(hex_id) == 32 and all(c in "0123456789abcdef" for c in hex_id.lower()):
         return f"{hex_id[:8]}-{hex_id[8:12]}-{hex_id[12:16]}-{hex_id[16:20]}-{hex_id[20:]}"
     return user_id
+
+
+_PARTIAL_FALLBACK = (
+    "I made progress but ran out of room to finish this in one go. Want me to keep going? "
+    "Say \"keep going\" and I'll pick up where I left off."
+)
+
+
+async def _summarize_partial_progress(model, system_blocks, current_messages, usage_acc) -> str:
+    """One final no-tools completion that summarizes the partial work and offers to continue.
+
+    Called only when the tool-round budget is exhausted (after the streaming client has closed,
+    so it opens its own). Removing tools forces the model to answer in text (it can't burn
+    another round) and bounds the extra cost (small max_tokens)."""
+    try:
+        nudge = {
+            "role": "user",
+            "content": (
+                "You've hit the step budget for this turn before fully finishing. Do NOT call any "
+                "tools. In 2-4 sentences, tell me concretely what you completed so far (with counts "
+                "if you have them) and exactly what's left, then ask if I want you to keep going."
+            ),
+        }
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": ANTHROPIC_API_KEY,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                },
+                json={
+                    "model": model,
+                    "max_tokens": 400,
+                    "system": system_blocks,
+                    "messages": current_messages + [nudge],
+                },
+                timeout=60.0,
+            )
+        if resp.status_code == 200:
+            body = resp.json()
+            try:
+                usage_acc.add_message_start(body.get("usage", {}))
+                usage_acc.add_round_output((body.get("usage", {}) or {}).get("output_tokens", 0))
+            except Exception:
+                pass
+            text = "".join(
+                b.get("text", "") for b in body.get("content", []) if b.get("type") == "text"
+            ).strip()
+            if text:
+                return text
+    except Exception as e:
+        print(f"BUSINESS CHAT: partial-progress summary failed: {e}")
+    return _PARTIAL_FALLBACK
 
 
 def _setup_conversation(sb, user_id: str, conv_id: str | None, message: str, attachments: list[dict] | None = None) -> tuple[str | None, bool]:
@@ -627,6 +688,46 @@ async def business_chat_stream(request: BusinessChatRequest):
                 )
             return f'data: {json.dumps({"type": "cost", "data": usage_acc.cost()})}\n\n'
 
+        # ── Bulk CRM enrichment → detached background job ─────────────────────
+        # "Get phone numbers for all 42 companies" is a per-record bulk op that blows past
+        # the tool-round budget AND the 120s request window. Detect it up front, answer
+        # immediately, and hand the work to a task that writes results into the CRM as it
+        # finds them and reports back here when done — outside this HTTP request, so it can't
+        # time out mid-run. Trials are excluded (bulk Maps lookups are a cost lever the taste
+        # shouldn't spend); anything not enrichable here falls through to the normal model.
+        bulk = crm_enrich.detect_bulk_enrichment(request.message) if (request.user_id and not is_trial) else None
+        if bulk:
+            try:
+                prepared = await crm_enrich.prepare(request.user_id, bulk["fields"], bulk.get("limit"))
+            except Exception as e:
+                print(f"BUSINESS CHAT: bulk-enrich prepare failed: {e}")
+                prepared = {"status": "skip"}
+
+            if prepared["status"] in ("ok", "nothing"):
+                reply = prepared["ack"] if prepared["status"] == "ok" else prepared["message"]
+                yield f"data: {json.dumps(reply)}\n\n"
+                if prepared["status"] == "ok":
+                    task = asyncio.create_task(
+                        crm_enrich.run_enrichment(request.user_id, conv_id, prepared)
+                    )
+                    crm_enrich.track_task(task)
+                if request.user_id and sb:
+                    updated_usage = await asyncio.to_thread(
+                        increment_usage, request.user_id, sb, effective_limit
+                    )
+                    yield f'data: {json.dumps({"type": "usage", "data": updated_usage})}\n\n'
+                yield _cost_event()
+                yield "data: [DONE]\n\n"
+                if sb and conv_id:
+                    try:
+                        await asyncio.to_thread(_save_assistant_message, sb, conv_id, reply)
+                        if is_new_conv:
+                            asyncio.create_task(_auto_title(sb, conv_id, request.message))
+                    except Exception as e:
+                        print(f"BUSINESS CHAT: bulk-enrich ack persist error: {e}")
+                return
+            # status == "skip" → fall through to the normal model flow.
+
         try:
             async with httpx.AsyncClient() as client:
                 for _round in range(MAX_TOOL_ROUNDS):
@@ -877,7 +978,20 @@ async def business_chat_stream(request: BusinessChatRequest):
                     current_messages.append({"role": "user", "content": tool_results})
 
             if not got_final_response:
-                yield f'data: {json.dumps("I hit a processing limit on that request. Please try a simpler query.")}\n\n'
+                # Cap reached mid-task. Don't dead-end — make ONE final no-tools call so the
+                # model narrates what it actually got done and offers to keep going, then hand
+                # the partial work back. (No tools = it must produce text, and can't spend more
+                # rounds.) Falls back to a static message if even that call fails.
+                graceful = await _summarize_partial_progress(
+                    model, system_blocks, current_messages, usage_acc
+                )
+                yield f"data: {json.dumps(graceful)}\n\n"
+                final_text = graceful
+                if request.user_id and sb:
+                    updated_usage = await asyncio.to_thread(
+                        increment_usage, request.user_id, sb, effective_limit
+                    )
+                    yield f'data: {json.dumps({"type": "usage", "data": updated_usage})}\n\n'
                 yield _cost_event()
                 yield "data: [DONE]\n\n"
 
