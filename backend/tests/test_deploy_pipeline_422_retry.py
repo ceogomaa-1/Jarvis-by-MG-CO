@@ -15,6 +15,9 @@ from backend.lib.business.creation import deploy_pipeline
 
 
 class FakeVercel:
+    async def preflight(self):
+        return ConnectorResult(ok=True, data={"username": "mgco"})
+
     async def create_project(self, **kwargs):
         return ConnectorResult(ok=True, data={"name": kwargs["name"]})
 
@@ -41,6 +44,9 @@ def _site():
 @pytest.mark.asyncio
 async def test_422_collision_retries_with_suffix_and_continues(monkeypatch):
     class FakeGitHub:
+        async def preflight(self):
+            return ConnectorResult(ok=True, data={"username": "mgco"})
+
         def __init__(self):
             self.create_repo_calls = []
             self.push_files_calls = []
@@ -100,6 +106,9 @@ async def test_422_collision_retries_with_suffix_and_continues(monkeypatch):
 @pytest.mark.asyncio
 async def test_non_422_error_fails_fast_without_retry(monkeypatch):
     class FakeGitHub:
+        async def preflight(self):
+            return ConnectorResult(ok=True, data={"username": "mgco"})
+
         def __init__(self):
             self.create_repo_calls = []
 

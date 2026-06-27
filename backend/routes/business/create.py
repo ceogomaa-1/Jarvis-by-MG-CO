@@ -14,13 +14,21 @@ from backend.lib.business.connectors.registry import get_connector_for_user
 from backend.lib.business.creation.deploy_pipeline import run_deploy_pipeline
 from backend.lib.business.creation.orchestrator import orchestrate_creation
 from backend.lib.business.creation.persistence import (
+    attach_vercel_url,
     complete_creation_row,
     create_creation_row,
     fail_creation_row,
+    get_creation_row,
+    get_latest_deployable,
+    list_creations,
     mark_deployment_pending,
+    save_site_files,
+    save_standalone_creation,
     update_deployment_by_id,
 )
-from backend.lib.business.creation.site_generator import generate_site
+from backend.lib.business.creation.site_generator import generate_site, _sanitize_name
+from backend.lib.business.creation.standalone_generator import generate_standalone_page
+from backend.lib.business.intent_router import is_website_build_request
 from backend.lib.business.system_prompt_builder import _fetch_user_profile
 
 router = APIRouter()
@@ -52,6 +60,27 @@ _DEPLOY_OFFER_RE = re.compile(
     r"push all files|spawn a sub-agent.*deploy|deployment)",
     re.IGNORECASE | re.DOTALL,
 )
+# Explicit "take it live" request — deploys the LAST creation (standalone → Vercel, or
+# multi-file → GitHub+Vercel). Distinct from a bare "yes" confirmation.
+_DEPLOY_REQUEST_RE = re.compile(
+    r"\b(deploy|publish|push|go\s*live|make\s+(it|this)\s+live|take\s+(it|this)\s+live|"
+    r"ship\s+(it|this)|launch\s+(it|this)|put\s+(it|this)\s+(live|online))\b",
+    re.IGNORECASE,
+)
+# When the user explicitly wants the multi-file GitHub route (not a static single-file deploy).
+_WANTS_GITHUB_RE = re.compile(
+    r"\b(github|repo|repository|next\.?js|multi[-\s]?file|full\s+(site|project|app)|"
+    r"to\s+github)\b",
+    re.IGNORECASE,
+)
+
+
+def _is_deploy_request(message: str) -> bool:
+    return bool(_DEPLOY_REQUEST_RE.search(message or ""))
+
+
+def _wants_github_deploy(message: str) -> bool:
+    return bool(_WANTS_GITHUB_RE.search(message or ""))
 
 # Appended to a website/landing-page artifact so the user can choose to deploy.
 # Mentions "GitHub + Vercel" so the explicit "deploy it" path (_DEPLOY_OFFER_RE)
@@ -178,6 +207,208 @@ async def _await_with_status(coro, status_message: str, interval: float = 8.0):
     yield await task
 
 
+# ════════════════════════════════════════════════════════════════════
+# MODE HANDLERS (each yields raw SSE event dicts; the route serializes them)
+# ════════════════════════════════════════════════════════════════════
+
+async def _run_standalone_build(request, context, conv_id):
+    """MODE 1 — produce ONE stunning self-contained HTML page, persisted immediately.
+
+    Yields ("event", dict) tuples and one ("creation_id", id) / ("conv_id", id) signal so the
+    caller can manage chat persistence. Persists the moment the HTML exists, so a dropped SSE
+    never loses the work — the page is rehydratable from the DB by creation_id.
+    """
+    title_guess = context.get("company_name") or "Landing Page"
+    yield ("event", {
+        "type": "plan",
+        "title": title_guess,
+        "intro": "Designing a polished, animated landing page you can preview, download, or take live.",
+        "agents": [{"id": "a1", "role": "designer", "task": "Design a high-craft standalone landing page."}],
+        "mode": "standalone",
+    })
+    yield ("event", {"type": "agent_status", "id": "a1", "status": "started"})
+    yield ("event", {"type": "creation_stage", "stage": "designing", "message": "Designing the page…"})
+
+    page = None
+    async for result in _await_with_status(
+        generate_standalone_page(request.message, context),
+        "Still designing your page…",
+    ):
+        if isinstance(result, dict) and "html" in result:
+            page = result
+        else:
+            yield ("event", result)
+
+    if not page:
+        yield ("event", {"type": "error", "value": "Page generation returned nothing. Please try again."})
+        return
+
+    yield ("event", {"type": "creation_stage", "stage": "assembling", "message": "Assembling and saving…"})
+    creation_id = await save_standalone_creation(
+        user_id=request.user_id,
+        title=page["title"],
+        user_message=request.message,
+        html=page["html"],
+        summary=page.get("summary", ""),
+        project_name=page.get("project_name", ""),
+        industry=context.get("industry", ""),
+        company_name=context.get("company_name", ""),
+    )
+    if creation_id:
+        yield ("creation_id", creation_id)
+        yield ("event", {"type": "creation_id", "id": creation_id})
+
+    yield ("event", {"type": "agent_status", "id": "a1", "status": "complete"})
+    yield ("event", {
+        "type": "html_artifact",
+        "creation_id": creation_id,
+        "title": page["title"],
+        "summary": page.get("summary", ""),
+        "project_name": page.get("project_name", ""),
+        "html": page["html"],
+        "is_fallback": page.get("is_fallback", False),
+    })
+    if page.get("is_fallback"):
+        yield ("event", {"type": "creation_stage", "stage": "fallback",
+                         "message": "The custom design step hit a snag, so this is a clean premium starter — say \"rebuild it\" to retry."})
+    yield ("event", {"type": "complete"})
+
+    note = (
+        f"✅ Built **{page['title']}** — a polished, animated landing page. It's in the preview on the right; "
+        f"you can **download the HTML** or say **\"deploy it\"** and I'll publish it to a live URL."
+    )
+    # Hidden marker so a page refresh can rehydrate this creation's preview from the DB.
+    if creation_id:
+        note = f"{note}\n\n⟦jarvis-creation:{creation_id}⟧"
+    yield ("chat_message", note)
+
+
+async def _run_deploy_last(request, context, has_deploy_connectors):
+    """MODE 2/3 — take the user's last creation live.
+
+    Standalone creation + no GitHub ask → static single-file deploy to Vercel (MODE 2).
+    Otherwise → multi-file Next.js → GitHub + Vercel (MODE 3), reusing saved files when present
+    (resumable) or generating a project from the saved brief.
+    Yields ("event", dict) and ("deployment_pending", dict) signals.
+    """
+    user_id = request.user_id
+    wants_github = _wants_github_deploy(request.message)
+    target = await get_latest_deployable(user_id) if user_id else None
+
+    # Nothing built yet → don't fabricate a site from a bare "deploy it". Guide the user.
+    if not target:
+        yield ("event", {
+            "type": "deployment_error",
+            "value": "I don't have a saved page or project to deploy yet — build one first (e.g. \"make me a landing page for …\"), then say \"deploy it\".",
+            "stage": "preflight",
+        })
+        return
+
+    # ── MODE 2: standalone HTML → Vercel static deploy ────────────────────────
+    if target and target.get("kind") == "standalone" and not wants_github:
+        html = target.get("preview_html") or ((target.get("files") or [{}])[0].get("content", ""))
+        if not html:
+            yield ("event", {"type": "deployment_error", "value": "I couldn't find the saved page to deploy — rebuild it and try again.", "stage": "preflight"})
+            return
+        vc = await get_connector_for_user(user_id, "vercel")
+        if not vc:
+            yield ("event", {"type": "deployment_error", "value": "Vercel isn't connected — add it in Settings → Connections, then say 'deploy it' again. (A static page only needs Vercel, not GitHub.)", "stage": "preflight"})
+            return
+        yield ("event", {"type": "creation_id", "id": target["id"]})
+        yield ("event", {"type": "plan", "title": f"Publishing {target.get('title', 'your page')}",
+                         "intro": "Taking your landing page live on Vercel.",
+                         "agents": [{"id": "a1", "role": "reporter", "task": "Deploy the page to Vercel."}], "mode": "deploy_static"})
+        yield ("event", {"type": "agent_status", "id": "a1", "status": "started"})
+        yield ("event", {"type": "deployment_started"})
+        pre = await vc.preflight()
+        if not pre.ok:
+            yield ("event", {"type": "deployment_error", "value": pre.error, "stage": "preflight"})
+            yield ("event", {"type": "agent_status", "id": "a1", "status": "failed"})
+            return
+        project = _sanitize_name(target.get("company_name") or target.get("title") or "landing-page")
+        yield ("event", {"type": "deployment_status", "message": "Uploading your page to Vercel…"})
+        res = None
+        async for ev in _await_with_status(vc.deploy_static(project, html), "Still uploading to Vercel…"):
+            if isinstance(ev, dict):
+                yield ("event", ev)
+            else:
+                res = ev  # ConnectorResult
+        if not res or not res.ok:
+            yield ("event", {"type": "deployment_error", "value": f"Vercel deploy failed: {res.error if res else 'unknown error'}. Say 'deploy it' to retry.", "stage": "vercel_deploy"})
+            yield ("event", {"type": "agent_status", "id": "a1", "status": "failed"})
+            return
+        dep_id = res.data.get("deployment_id", "")
+        url = res.data.get("url", "")
+        expected = url if url else f"https://{project}.vercel.app"
+        await attach_vercel_url(target["id"], expected, dep_id, "BUILDING")
+        yield ("event", {"type": "agent_status", "id": "a1", "status": "complete"})
+        yield ("deployment_pending", {
+            "type": "deployment_pending",
+            "deployment_id": dep_id,
+            "creation_id": target["id"],
+            "expected_url": expected,
+            "repo_url": "",
+            "db_url": None,
+            "message": "Publishing on Vercel — I'll update this card the moment it's live.",
+        })
+        return
+
+    # ── MODE 3: multi-file Next.js → GitHub + Vercel ──────────────────────────
+    if not has_deploy_connectors:
+        yield ("event", {"type": "deployment_error", "value": "A full GitHub + Vercel deploy needs both connected — add them in Settings → Connections, then say 'deploy the last project'.", "stage": "preflight"})
+        return
+
+    site = None
+    creation_id = target["id"] if target else None
+    if target and target.get("kind") == "site" and target.get("files"):
+        # Resumable: redeploy the exact saved file set — no regeneration.
+        site = {
+            "project_name": _sanitize_name(target.get("company_name") or target.get("title") or "jarvis-site"),
+            "framework": "nextjs",
+            "needs_database": False,
+            "db_plan": None,
+            "files": target["files"],
+            "summary": target.get("intro", ""),
+            "is_fallback": False,
+        }
+        yield ("event", {"type": "deployment_status", "message": f"Re-deploying the saved project ({len(site['files'])} files)…"})
+    else:
+        # Generate a Next.js project from the saved brief (or the request) then deploy.
+        brief = ""
+        if target:
+            brief = target.get("preview_html") or target.get("artifact_markdown") or ""
+        yield ("event", {"type": "agent_status", "id": "a1", "status": "started"})
+        yield ("event", {"type": "deployment_status", "message": "Generating the Next.js codebase…"})
+        site_prompt = f"Build and deploy this as a production Next.js site.\n\nRequest: {request.message}"
+        async for result in _await_with_status(
+            generate_site(site_prompt, {**context, "artifact": brief}),
+            "Still generating the Next.js codebase…",
+        ):
+            if isinstance(result, dict) and "files" in result:
+                site = result
+            else:
+                yield ("event", result)
+        if not site:
+            yield ("event", {"type": "deployment_error", "value": "Site generation failed before deploy. Try again.", "stage": "site_gen"})
+            return
+        if not creation_id:
+            creation_id = await create_creation_row(
+                user_id=user_id, title=site.get("project_name", "Website"),
+                intro="Deploying a generated Next.js site.", user_message=request.message,
+                plan=[{"id": "a1", "role": "designer", "task": "Generate the site"}],
+                industry=context.get("industry", ""), company_name=context.get("company_name", ""),
+            )
+        await save_site_files(creation_id, site["files"], site.get("project_name", ""))
+
+    if creation_id:
+        yield ("event", {"type": "creation_id", "id": creation_id})
+    async for dev in run_deploy_pipeline(user_id, site, request.message, creation_id):
+        if dev.get("type") == "deployment_pending":
+            yield ("deployment_pending", dev)
+        else:
+            yield ("event", dev)
+
+
 class CreateRequest(BaseModel):
     message: str
     user_id: str = ""
@@ -221,6 +452,28 @@ async def business_deploy_status(user_id: str = "", deployment_id: str = ""):
     return {"state": state, "url": url if state == "READY" else None, "error": error, "logs": logs}
 
 
+@router.get("/business/creations")
+async def business_list_creations(user_id: str = "", limit: int = 25):
+    """User-visible list of past creations (newest first) for the Creation history panel."""
+    if not user_id:
+        return {"creations": []}
+    rows = await list_creations(user_id, limit=min(max(limit, 1), 100))
+    return {"creations": rows}
+
+
+@router.get("/business/creations/{creation_id}")
+async def business_get_creation(creation_id: str, user_id: str = ""):
+    """Rehydrate one creation — returns the full row incl. preview_html / files / vercel_url so the
+    Creation canvas can restore the live preview after a refresh (refresh never loses work)."""
+    row = await get_creation_row(creation_id)
+    if not row:
+        return {"error": "not found"}
+    # Defense-in-depth: only return a row the requester owns.
+    if user_id and row.get("user_id") and _user_id_to_uuid(user_id) != row.get("user_id"):
+        return {"error": "not found"}
+    return {"creation": row}
+
+
 @router.post("/business/create")
 async def business_create(request: CreateRequest):
     """Stream a Creation 1.0 sub-agent orchestration with persistence."""
@@ -255,6 +508,60 @@ async def business_create(request: CreateRequest):
         try:
             # Immediate signal so UI shows activity during the 2-4s planning gap
             yield f'data: {json.dumps({"type": "status", "value": "spinning up"})}\n\n'
+
+            # ── MODE 2/3: explicit "deploy / publish / go live" → take the LAST creation live ──
+            if _is_deploy_request(request.message):
+                sb = _get_supabase()
+                if sb:
+                    try:
+                        conv_id, is_new = await asyncio.to_thread(
+                            _ensure_conversation, sb, request.user_id, conv_id, request.message
+                        )
+                        if conv_id and is_new:
+                            yield f'data: {json.dumps({"type": "conv_id", "value": conv_id})}\n\n'
+                    except Exception as e:
+                        print(f"[CREATE] deploy conv setup failed: {e}")
+                deploy_creation_id = None
+                async for kind, payload in _run_deploy_last(request, context, has_deploy_connectors):
+                    if kind == "event":
+                        yield f"data: {json.dumps(payload)}\n\n"
+                    elif kind == "deployment_pending":
+                        deploy_creation_id = payload.get("creation_id") or deploy_creation_id
+                        yield f"data: {json.dumps(payload)}\n\n"
+                        await mark_deployment_pending(
+                            payload.get("creation_id"),
+                            payload.get("deployment_id", ""),
+                            repo_url=payload.get("repo_url", ""),
+                            expected_url=payload.get("expected_url", ""),
+                        )
+                yield "data: [DONE]\n\n"
+                return
+
+            # ── MODE 1: website / landing-page build → ONE stunning standalone HTML page ──
+            if is_website_build_request(request.message):
+                sb = _get_supabase()
+                if sb:
+                    try:
+                        conv_id, is_new = await asyncio.to_thread(
+                            _ensure_conversation, sb, request.user_id, conv_id, request.message
+                        )
+                        if conv_id and is_new:
+                            yield f'data: {json.dumps({"type": "conv_id", "value": conv_id})}\n\n'
+                    except Exception as e:
+                        print(f"[CREATE] standalone conv setup failed: {e}")
+                async for kind, payload in _run_standalone_build(request, context, conv_id):
+                    if kind == "event":
+                        yield f"data: {json.dumps(payload)}\n\n"
+                    elif kind == "creation_id":
+                        creation_id = payload
+                    elif kind == "chat_message":
+                        if sb and conv_id:
+                            try:
+                                await asyncio.to_thread(_save_message, sb, conv_id, payload)
+                            except Exception as e:
+                                print(f"[CREATE] standalone chat save failed: {e}")
+                yield "data: [DONE]\n\n"
+                return
 
             if _is_deploy_confirmation(request.message) and has_deploy_connectors:
                 try:

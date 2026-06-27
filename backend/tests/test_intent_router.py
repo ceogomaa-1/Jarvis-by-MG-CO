@@ -35,8 +35,18 @@ async def test_empty_message_is_chat():
 @pytest.mark.asyncio
 async def test_no_api_key_falls_back_to_chat(monkeypatch):
     monkeypatch.setattr(intent_router, "ANTHROPIC_API_KEY", "")
-    result = await classify_message_intent("build me a website")
+    result = await classify_message_intent("help me think through my pricing strategy")
     assert result == {"intent": "chat", "reason": "no-api-key"}
+
+
+@pytest.mark.asyncio
+async def test_website_build_short_circuits_to_create():
+    # Explicit website/landing-page builds are deterministically routed to the creation
+    # pipeline BEFORE any model call (the fix for site asks misrouting to chat).
+    for msg in ("build me a website", "make me a landing page for a dental clinic",
+                "now deploy it to github and vercel", "publish it live"):
+        result = await classify_message_intent(msg)
+        assert result == {"intent": "create", "reason": "website-build-shortcircuit"}, msg
 
 
 # ─── Response parsing / fallback robustness (mocked Anthropic call) ───────
@@ -104,7 +114,7 @@ async def test_non_200_falls_back_to_chat(monkeypatch):
     monkeypatch.setattr(intent_router, "ANTHROPIC_API_KEY", "test-key")
     fake = _FakeAsyncClient(_FakeResponse(500, text="server error"))
     monkeypatch.setattr(httpx, "AsyncClient", lambda: fake)
-    result = await classify_message_intent("build me a website")
+    result = await classify_message_intent("help me think through my pricing strategy")
     assert result == {"intent": "chat", "reason": "fallback-default"}
 
 
@@ -113,7 +123,7 @@ async def test_request_exception_falls_back_to_chat(monkeypatch):
     monkeypatch.setattr(intent_router, "ANTHROPIC_API_KEY", "test-key")
     fake = _FakeAsyncClient(exc=httpx.ConnectError("boom"))
     monkeypatch.setattr(httpx, "AsyncClient", lambda: fake)
-    result = await classify_message_intent("build me a website")
+    result = await classify_message_intent("help me think through my pricing strategy")
     assert result == {"intent": "chat", "reason": "fallback-default"}
 
 
@@ -122,5 +132,5 @@ async def test_malformed_json_falls_back_to_chat(monkeypatch):
     monkeypatch.setattr(intent_router, "ANTHROPIC_API_KEY", "test-key")
     fake = _FakeAsyncClient(_anthropic_response("not json at all"))
     monkeypatch.setattr(httpx, "AsyncClient", lambda: fake)
-    result = await classify_message_intent("build me a website")
+    result = await classify_message_intent("help me think through my pricing strategy")
     assert result == {"intent": "chat", "reason": "fallback-default"}

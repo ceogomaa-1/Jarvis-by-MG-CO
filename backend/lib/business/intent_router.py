@@ -15,12 +15,43 @@ Returns one of three flows for the frontend to dispatch on:
 """
 import json
 import os
+import re
 
 import httpx
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
 VALID_INTENTS = {"chat", "show_me_how", "create"}
+
+# Deterministic "this is a website/page build" detector. Explicit site/landing-page asks must
+# reliably route to the creation pipeline — they were falling through to "chat" (which dumped raw
+# code as text). This short-circuits BEFORE the model call so the routing is never flaky.
+_BUILD_VERB = r"(build|make|create|design|generate|spin\s*up|put\s*together|whip\s*up|give\s*me|need|want|code|develop|launch)"
+_SITE_NOUN = r"(website|web\s*site|web\s*page|webpage|landing\s*page|landing|home\s*page|html\s*page|one[-\s]?pager|micro\s*site|site)"
+_WEBSITE_BUILD_RE = re.compile(
+    rf"\b{_BUILD_VERB}\b[^.\n]{{0,40}}\b{_SITE_NOUN}\b"
+    rf"|\b{_SITE_NOUN}\b[^.\n]{{0,40}}\bfor\b"          # "a landing page for my clinic"
+    rf"|\b(deploy|publish|push)\b[^.\n]{{0,30}}\b(github|vercel|live)\b",
+    re.IGNORECASE,
+)
+# Sharing reference material — never a build.
+_INGEST_RE = re.compile(
+    r"\b(remember|memorize|save\s+(this|it)|keep\s+(this|it)|store\s+(this|it)|take\s+note)\b"
+    r"|\bfor\s+(your\s+)?(memory|reference|records|knowledge)\b"
+    r"|\bhere'?s\s+(the|our|my)\s+(bible|info|knowledge|details|company|background|context)\b",
+    re.IGNORECASE,
+)
+
+
+def is_website_build_request(message: str) -> bool:
+    """True for explicit website/landing-page/site BUILD or deploy asks (deterministic)."""
+    text = (message or "").strip()
+    if not text or _INGEST_RE.search(text):
+        return False
+    # Long pastes: only count the trigger if it's on the first line (likely a real ask, not a doc).
+    if len(text) > 600 or text.count("\n") > 6:
+        text = text.split("\n", 1)[0][:160]
+    return bool(_WEBSITE_BUILD_RE.search(text))
 
 _CLASSIFY_PROMPT = """You are a routing classifier for a business assistant chat app. Decide which flow this message belongs to: "chat", "show_me_how", or "create".
 
@@ -65,6 +96,11 @@ async def classify_message_intent(
     text = (message or "").strip()
     if has_attachments or not text:
         return {"intent": "chat", "reason": "attachments-or-empty"}
+
+    # Deterministic website/landing-page builds bypass the model — they must ALWAYS reach the
+    # creation pipeline (this is the fix for site asks misrouting to chat and dumping raw code).
+    if is_website_build_request(text):
+        return {"intent": "create", "reason": "website-build-shortcircuit"}
 
     context_lines = []
     if active_agent_id:

@@ -6,6 +6,9 @@ from backend.lib.business.creation import deploy_pipeline
 
 
 class FakeGitHub:
+    async def preflight(self):
+        return ConnectorResult(ok=True, data={"username": "mgco"})
+
     async def create_repo(self, **kwargs):
         return ConnectorResult(ok=True, data={
             "full_name": "mgco/test-site",
@@ -19,6 +22,9 @@ class FakeGitHub:
 class FakeVercel:
     def __init__(self):
         self.deployment_checks = 0
+
+    async def preflight(self):
+        return ConnectorResult(ok=True, data={"username": "mgco"})
 
     async def create_project(self, **kwargs):
         return ConnectorResult(ok=True, data={"name": "test-site"})

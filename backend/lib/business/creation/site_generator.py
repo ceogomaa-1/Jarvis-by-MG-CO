@@ -52,6 +52,7 @@ def _package_json(name: str, has_db: bool) -> str:
         "react": "18.3.1",
         "react-dom": "18.3.1",
         "framer-motion": "11.3.28",
+        "gsap": "3.12.5",
         "clsx": "2.1.1",
         "tailwind-merge": "2.5.2",
         "class-variance-authority": "0.7.0",
@@ -236,17 +237,17 @@ _SITE_TOOL: dict = {
             "page_tsx": {
                 "type": "string",
                 "description": (
-                    "Complete content of app/page.tsx. Rules:\n"
+                    "Complete content of app/page.tsx — an award-calibre marketing page. Rules:\n"
                     "- First line MUST be: 'use client'\n"
-                    "- Imports: react, framer-motion (motion, useInView, AnimatePresence), lucide-react icons\n"
+                    "- Imports: react (useEffect/useRef/useState), framer-motion (motion, useInView, AnimatePresence, useScroll, useTransform), lucide-react icons. May import gsap + 'gsap/ScrollTrigger' for complex scroll sequences (register inside useEffect).\n"
                     "- If needs_database: also import ContactForm from '@/components/contact-form'\n"
-                    "- DO NOT import from any other local file\n"
+                    "- DO NOT import from any other local file. Recreate shadcn/Aceternity/Magic-UI patterns inline (spotlight, tilt/3D card, shimmer button, bento, marquee, animated gradient, FAQ accordion).\n"
                     "- Self-contained: define all sections inline (no separate component files)\n"
-                    "- Must include: sticky nav, hero with gradient/aurora, at least 3 content sections, footer\n"
-                    "- Animations: use framer-motion useInView for scroll-reveal on sections\n"
-                    "- Styling: use Tailwind + CSS variables (var(--accent), var(--bg), etc.)\n"
-                    "- Mobile-responsive: use Tailwind responsive prefixes (sm:, md:, lg:)\n"
-                    "- Premium dark-mode-first aesthetic: dark backgrounds, warm text, accent highlights"
+                    "- Sections (adapt names): sticky glass nav w/ CTA, cinematic hero w/ spectacle (gradient/aurora/spotlight + oversized clamp() headline + primary & ghost CTA + trust strip), logos/stats bar, bento or 3-up features w/ hover lift, how-it-works/showcase, testimonials, pricing (if relevant), FAQ accordion, big closing CTA, footer\n"
+                    "- Animations: framer-motion useInView scroll-reveal + stagger on EVERY section; hover/tap micro-interactions; gate non-essential motion behind a prefers-reduced-motion check\n"
+                    "- Styling: Tailwind + CSS variables (var(--accent), var(--bg), etc.); fluid type via clamp(); generous spacing (py-24+); layered shadows + hairline borders + glass\n"
+                    "- Mobile-first responsive (sm:/md:/lg:); tap targets >=44px; real specific copy, never lorem ipsum\n"
+                    "- Premium dark-luxury aesthetic by default, adapted to the client's brand when implied"
                 ),
             },
             "contact_form_tsx": {
@@ -276,32 +277,37 @@ _SITE_TOOL: dict = {
 }
 
 _SYSTEM_PROMPT = """\
-You are a senior full-stack engineer and UI designer building production-quality Next.js websites.
+You are a world-class product designer + senior front-end engineer. You build marketing sites that win awards — the calibre of Linear, Vercel, Stripe, 21st.dev, Aceternity. The bar is "astonishing and modern", not "valid HTML". Every page you ship should make someone go "how did an AI build that?".
 
-Your design aesthetic: dark luxury, premium, modern — like 21st.dev / Linear / Vercel's own marketing site.
-Default brand tokens (use via CSS variables in globals.css):
-  --bg: #0a0a0a         (near-black background)
-  --surface: #141414    (card/panel background)
-  --accent: #c84b31     (warm red-orange CTA)
-  --text-primary: #f3ead9  (warm off-white)
-  --text-muted: rgba(243,234,217,0.55)
-  --border: rgba(243,234,217,0.08)
+DESIGN LANGUAGE (hard-baked — apply all):
+- Default tokens (MG&CO dark luxury; ADAPT the palette to the client's brand/industry when the brief implies one):
+    --bg: #0a0a0a   --surface: #141414   --surface-2:#1c1c1c
+    --accent: #c84b31   --accent-2:#e88a5a   --accent-glow: rgba(200,75,49,0.18)
+    --text-primary: #f3ead9   --text-muted: rgba(243,234,217,0.55)   --border: rgba(243,234,217,0.10)
+- Fluid modular type scale via clamp(); hero headline 56-96px, tight tracking; body 16-18px, line-height ~1.7. Use a real display font (load via next/font or a <link> in layout) — never system-ui for headlines.
+- Generous whitespace (sections py-24/py-32). One clear focal point per section. ONE accent + its tints (gradients accent→accent-2), never rainbow.
+- Depth: layered soft shadows, 1px hairline borders, soft glows, tasteful glassmorphism on floating elements.
+- Motion on EVERYTHING: framer-motion entrance + scroll-reveal (useInView) on every section, staggered children, hover/tap micro-interactions, a subtle parallax or count-up. Use GSAP + ScrollTrigger for any complex scroll-driven / pinned / scrubbed sequence. ALWAYS gate non-essential motion behind prefers-reduced-motion.
+- Hero spectacle (pick 2-3, don't overload): animated gradient mesh / aurora, cursor spotlight, subtle grid/dot bg, floating blurred orbs, shimmer CTA, 3D/tilt card, logo marquee.
+
+REQUIRED SECTIONS (adapt names): sticky glass nav w/ CTA → cinematic hero → trust/logos or stats bar → bento or 3-up features w/ hover lift → how-it-works/showcase → testimonials → pricing (if relevant) → FAQ accordion → big closing CTA → footer. Real, specific copy — never lorem ipsum.
 
 Tech stack (exact versions, already in package.json — do NOT add others):
   - Next.js 14.2.5, React 18.3.1, TypeScript 5.5.3
   - Tailwind CSS 3.4.6
   - framer-motion 11.3.28
+  - gsap 3.12.5 (+ ScrollTrigger, registered client-side) for complex scroll sequences
   - lucide-react 0.417.0 (for icons)
   - @supabase/supabase-js 2.45.4 (only if needs_database)
   - clsx 2.1.1 + tailwind-merge 2.5.2 (via @/lib/utils cn())
 
-CRITICAL BUILD RULES:
-1. page.tsx MUST start with "use client" (framer-motion requires it).
-2. ONLY import from: react, framer-motion, lucide-react, @/lib/utils,
+CRITICAL BUILD RULES (these keep the deploy green — never violate):
+1. page.tsx MUST start with "use client" (framer-motion/gsap require it).
+2. ONLY import from: react, framer-motion, gsap, gsap/ScrollTrigger, lucide-react, @/lib/utils,
    and (if needs_database) @/components/contact-form and @/lib/supabase.
-   DO NOT import from any other local path.
-3. All TypeScript must be valid. No implicit any. No missing props.
-4. globals.css MUST have @tailwind base, @tailwind components, @tailwind utilities.
+   DO NOT import from any other local path. DO NOT import shadcn/ui or aceternity packages — recreate those patterns inline with Tailwind + framer-motion.
+3. All TypeScript must be valid. No implicit any. No missing props. Guard GSAP/DOM access with useEffect + refs (never at module top-level).
+4. globals.css MUST have @tailwind base, @tailwind components, @tailwind utilities, then your token :root vars and any keyframes.
 5. layout.tsx uses `export const metadata` (server component, NO "use client").
 6. Every string in JSX with quotes uses &quot; or template literals — no raw " in attributes.
 7. Return COMPLETE file content. No "// ... rest of component". No truncation.

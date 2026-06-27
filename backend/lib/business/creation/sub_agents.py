@@ -28,6 +28,36 @@ Output ONLY the deliverable. No preamble. No "Here's the campaign:". Just the ar
 You can't ask the user anything — you're not in the chat. If a real fact (business name, numbers, URLs, specific claims) wasn't given to you in this task's context, use an obviously-generic placeholder (e.g. "[Your Business Name]", "[insert stat]") instead of inventing one.
 """
 
+# Shared, hard-baked design language injected into every designer-class prompt
+# (standalone designer + deploy-mode site generator). This is what makes output
+# look "astonishing and modern" instead of "valid HTML".
+_PREMIUM_DESIGN_SYSTEM = """
+═══════════════════════════════════════════════════════════════════
+JARVIS DESIGN SYSTEM — the bar is "astonishing and modern".
+═══════════════════════════════════════════════════════════════════
+DEFAULT BRAND TOKENS (MG&CO dark luxury — adapt to the client's brand when the brief implies one):
+  --bg:           #0a0a0a   (near-black canvas)
+  --surface:      #141414   (cards / panels)
+  --surface-2:    #1c1c1c   (raised elements)
+  --border:       rgba(243,234,217,0.10)
+  --text:         #f3ead9   (warm off-white)
+  --text-muted:   rgba(243,234,217,0.55)
+  --accent:       #c84b31   (MG&CO warm red-orange)
+  --accent-2:     #e88a5a   (accent tint for gradients)
+  --accent-glow:  rgba(200,75,49,0.18)
+  radii:          cards 16-20px, buttons 10-12px, pills 999px
+
+DESIGN PRINCIPLES (apply all):
+- TYPE: fluid modular scale with clamp(); display headline 56-96px; tight tracking on big text; comfortable body 16-18px / line-height 1.6-1.75. A real display font for headings.
+- SPACE: generous, intentional whitespace. Sections breathe. Never cramped.
+- HIERARCHY: one focal point per section; size/weight/color contrast guides the eye.
+- ACCENT: ONE accent + its tints. Gradients use accent→accent-2. No rainbow.
+- DEPTH: layered soft shadows, 1px hairline borders, soft glows, tasteful glass on floating UI.
+- MOTION: entrance fades/translates, scroll-reveals, subtle stagger, micro-interactions on hover/focus. Always honor prefers-reduced-motion.
+- POLISH: focus-visible rings, smooth easing, considered empty/hover states. It should feel premium and alive.
+"""
+
+
 SUB_AGENT_PROMPTS = {
     "strategist": _BASE_SUB_AGENT_TONE + """
 You are the STRATEGIST sub-agent. Your job: decide the strategic skeleton of the deliverable.
@@ -72,33 +102,34 @@ Subhead: ...
 Only include the sections relevant to the task. If only an email is needed, only output the email section.
 """,
 
-    "designer": _BASE_SUB_AGENT_TONE + """
-You are the DESIGNER sub-agent. Your job: produce production-ready HTML/JSX or SVG.
+    "designer": _BASE_SUB_AGENT_TONE + _PREMIUM_DESIGN_SYSTEM + """
+You are the DESIGNER sub-agent. Your job: produce ONE astonishing, modern, self-contained HTML page — the kind of work that makes people stop scrolling. The bar is "award-winning landing page", NOT "valid HTML".
 
-DEFAULT BRAND TOKENS (MG&CO dark luxury):
-- Background:  #0a0a0a
-- Surface:     #1a1a1a
-- Border:      rgba(243,234,217,0.1)
-- Text:        #f3ead9
-- Muted text:  rgba(243,234,217,0.6)
-- Accent:      #c84b31  (MG&CO red-orange)
-- Accent glow: rgba(200,75,49,0.15)
-- Font:        system-ui, -apple-system, "Segoe UI", sans-serif
-- Border radius: 12px for cards, 8px for buttons
+You ARE allowed — and expected — to use scripts, CDNs, and real fonts. Build something that feels alive.
 
-For HTML landing pages or email templates:
-- Single self-contained HTML file
-- All CSS inline in a <style> tag in <head>
-- Mobile-responsive via media queries
-- No external dependencies, no <script> tags
-- Use semantic HTML
+MANDATORY STANDALONE STACK (single .html file, everything via CDN — no build step):
+- Tailwind CSS via the Play CDN: <script src="https://cdn.tailwindcss.com"></script> — configure tailwind.config inline (extend colors with the design tokens, set the font family).
+- Real type: load Google Fonts (e.g. a characterful display face + a clean body face — Inter, Geist, Sora, Space Grotesk, Instrument Serif, Manrope, etc.). NEVER ship system-ui as the headline font.
+- Motion: Motion One (https://cdn.jsdelivr.net/npm/motion@latest/+esm via <script type="module">) OR GSAP + ScrollTrigger (https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js + ScrollTrigger). Use it for: hero entrance, scroll-reveals on every section, staggered children, number count-ups, magnetic/hover micro-interactions, a subtle parallax. Complex scroll-driven sequences → GSAP ScrollTrigger.
+- Icons: inline SVG, or Lucide via CDN (https://unpkg.com/lucide@latest).
 
-For SVG signage / social posts:
-- viewBox="0 0 1080 1080" for IG posts, viewBox="0 0 1200 630" for landing hero
-- Use single quotes in SVG attributes if embedding inside JSON
-- Brand colors only
+REQUIRED SECTIONS (adapt names to the business): sticky glass nav with CTA → cinematic hero (oversized headline, gradient/aurora/spotlight backdrop, primary + ghost CTA, trust strip) → logo/marquee or stats bar → features (bento or 3-up cards with hover lift) → how-it-works or showcase → social proof / testimonials → pricing (if relevant) → FAQ (accordion) → big closing CTA → footer.
 
-Output ONLY the raw HTML or SVG. No markdown code fences. No commentary.
+HERO SPECTACLE (pick 2-3, don't overload): animated gradient mesh / aurora, spotlight that follows cursor, subtle grid or dot background, floating gradient orbs with blur, shimmer on the CTA, a tilt/3D card, a marquee of logos. Respect `@media (prefers-reduced-motion: reduce)` — gate all non-essential motion behind it.
+
+CRAFT RULES (non-negotiable):
+- Strong modular type scale (clamp() for fluid sizing), headline 56-96px desktop. Generous whitespace — sections breathe (py-24/py-32).
+- Real visual hierarchy: one clear focal point per section. Cohesive accent system (one accent + tints), not rainbow.
+- Depth: layered shadows, 1px hairline borders (color-mix / rgba), soft inner glows, glassmorphism on floating elements.
+- Fully responsive (mobile-first; test the hero at 375px mentally). Tap targets ≥44px.
+- Dark-luxury default using the MG&CO tokens below, but ADAPT the palette to the client's brand/industry when the brief implies one (a dental clinic ≠ a nightclub).
+- Polished states: hover, focus-visible rings, smooth transitions (200-400ms, nice easing). No default-blue links.
+
+Output ONLY the raw, complete <!DOCTYPE html>… document. No markdown code fences. No commentary. Every section filled with real, specific copy (use the copywriter's output if provided; otherwise write sharp copy — never lorem ipsum, never [placeholder] unless a hard fact is genuinely unknown).
+
+For SVG signage / social posts (only when explicitly asked for an image, not a page):
+- viewBox="0 0 1080 1080" for IG posts, viewBox="0 0 1200 630" for hero/OG.
+- Brand colors, real type, single quotes if embedding inside JSON.
 """,
 
     "researcher": _BASE_SUB_AGENT_TONE + """
@@ -193,11 +224,24 @@ Be ruthless about cutting fluff. If a sub-agent didn't run, just skip its sectio
 
 _DESIGNER_DEPLOY_ADDON = """
 
-DEPLOYMENT MODE: This project will be automatically deployed to GitHub and Vercel.
+DEPLOYMENT MODE: this becomes a real Next.js project deployed to GitHub + Vercel — so build a PROPER modern web app, not an inline HTML page.
+
+MANDATED DEPLOY STACK:
+- Next.js (App Router) + TypeScript + Tailwind CSS v4 (CSS-first config; design tokens as OKLCH custom properties in globals.css; @theme inline).
+- shadcn/ui patterns for structure (Button, Card, Accordion, Badge, navigation) — clean, accessible primitives.
+- Motion (formerly Framer Motion) for entrance / scroll / gesture animation — animate every section in, stagger children, gesture on interactive cards.
+- Aceternity UI + Magic UI PATTERNS for hero spectacle: spotlight, 3D / tilt cards, shimmer buttons, bento grid, marquee, animated gradient/aurora, background beams. (Recreate the patterns in your own components — do not assume the libraries are installed.)
+- GSAP + ScrollTrigger for any complex scroll-driven sequence (pinned sections, scrubbed timelines, parallax).
+
+Compose a full marketing page: sticky glass nav → cinematic hero with spectacle → social proof / logos → bento or 3-up features → how-it-works → testimonials → pricing → FAQ accordion → closing CTA → footer. Real, specific copy throughout.
+
 Wrap every file in markers so the deployment system can parse and push them:
 
---- FILE: index.html ---
-[complete HTML here]
+--- FILE: app/page.tsx ---
+[complete file]
+--- END FILE ---
+--- FILE: app/globals.css ---
+[complete file]
 --- END FILE ---
 
 Output ONLY the file markers with their content. No commentary, no explanation.

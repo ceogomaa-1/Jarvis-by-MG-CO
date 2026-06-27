@@ -48,6 +48,41 @@ class GitHubConnector(BaseConnector):
         except Exception as e:
             return ConnectorResult(ok=False, error=f"GitHub connection failed: {e}")
 
+    async def preflight(self) -> ConnectorResult:
+        """Verify the GitHub token is present, valid, AND has repo-creation scope.
+
+        Classic tokens expose granted scopes in the X-OAuth-Scopes response header — we require
+        `repo` (or `public_repo`). Fine-grained tokens don't return that header; if it's absent we
+        let it pass (we can't read scopes) and rely on the real create_repo call to surface a 403.
+        Returns a precise, actionable error when the token can't create repos.
+        """
+        if not self.credentials.get("api_key"):
+            return ConnectorResult(ok=False, error="GitHub token is missing — add it in Settings → Connections.")
+        try:
+            async with httpx.AsyncClient() as client:
+                res = await client.get(f"{GITHUB_API}/user", headers=self._headers(), timeout=12.0)
+            if res.status_code == 401:
+                return ConnectorResult(
+                    ok=False,
+                    error="GitHub token is invalid or expired — create a new one at github.com/settings/tokens with the `repo` scope and reconnect.",
+                )
+            if res.status_code != 200:
+                return ConnectorResult(ok=False, error=f"GitHub preflight failed: HTTP {res.status_code} — {res.text[:160]}")
+            scope_header = res.headers.get("X-OAuth-Scopes")
+            if scope_header is not None:
+                scopes = {s.strip() for s in scope_header.split(",") if s.strip()}
+                if "repo" not in scopes and "public_repo" not in scopes:
+                    return ConnectorResult(
+                        ok=False,
+                        error=(
+                            "GitHub token is under-scoped — it can't create repositories. Regenerate it at "
+                            "github.com/settings/tokens WITH the `repo` scope checked, then reconnect."
+                        ),
+                    )
+            return ConnectorResult(ok=True, data={"username": res.json().get("login")})
+        except Exception as e:
+            return ConnectorResult(ok=False, error=f"GitHub preflight failed: {e}")
+
     async def list_repos(self, limit: int = 10) -> ConnectorResult:
         try:
             async with httpx.AsyncClient() as client:

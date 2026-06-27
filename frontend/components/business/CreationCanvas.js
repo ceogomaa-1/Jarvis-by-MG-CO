@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import RefineModal from './RefineModal'
@@ -67,18 +67,50 @@ function StatusPill({ agent, status }) {
   )
 }
 
-export default function CreationCanvas({ msg, onArtifactUpdate }) {
+export default function CreationCanvas({ msg, onArtifactUpdate, onDeploy, userId }) {
   const {
     title, intro, agents = [], statuses = {}, artifact: streamedArtifact,
-    error, complete, creationId,
+    error, complete, creationId, kind, projectName, summary, note,
+    rehydrate, stageMessage,
     deploying, deploymentStages = [], deploymentStatus, liveUrl, repoUrl, dbUrl,
     deploymentMessage, deploymentError, deploymentId, expectedUrl,
   } = msg
   const [localArtifact, setLocalArtifact] = useState(null)
   const [showRefine, setShowRefine] = useState(false)
   const [downloading, setDownloading] = useState(false)
+  // Standalone HTML preview — from the live stream (msg.previewHtml) or rehydrated from the DB.
+  const [hydrated, setHydrated] = useState(null)
+  const previewHtml = msg.previewHtml ?? hydrated?.preview_html ?? null
+  const hydratedTitle = title || hydrated?.title
+  const hydratedLiveUrl = liveUrl || hydrated?.vercel_url || hydrated?.live_url || null
+
+  // Rehydrate a saved creation after a refresh (CreationCanvas self-fetches its preview).
+  useEffect(() => {
+    if (!rehydrate || !creationId || hydrated) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch(`${BACKEND}/api/business/creations/${creationId}?user_id=${encodeURIComponent(userId || '')}`)
+        if (!res.ok) return
+        const data = await res.json()
+        if (!cancelled && data.creation) setHydrated(data.creation)
+      } catch (e) { /* best-effort */ }
+    })()
+    return () => { cancelled = true }
+  }, [rehydrate, creationId, userId, hydrated])
 
   const displayArtifact = localArtifact ?? streamedArtifact ?? ''
+
+  function handleDownloadHTML() {
+    if (!previewHtml) return
+    const blob = new Blob([previewHtml], { type: 'text/html' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${(projectName || hydrated?.title || hydratedTitle || 'landing-page').toString().replace(/[^a-z0-9-]/gi, '-').toLowerCase().slice(0, 40) || 'landing-page'}.html`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   async function handleDownloadPDF() {
     if (!creationId || downloading) return
@@ -149,6 +181,82 @@ export default function CreationCanvas({ msg, onArtifactUpdate }) {
           {agents.map(a => (
             <StatusPill key={a.id} agent={a} status={statuses[a.id] || 'pending'} />
           ))}
+        </div>
+      )}
+
+      {/* Standalone HTML — live preview + download + deploy */}
+      {previewHtml && (
+        <div style={{
+          background: 'rgba(232,232,232,0.03)',
+          border: '1px solid rgba(232,232,232,0.1)',
+          borderRadius: 14, padding: 16, marginTop: 12,
+        }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            marginBottom: 12, flexWrap: 'wrap', gap: 8,
+          }}>
+            <div style={{
+              fontSize: 10, fontWeight: 600, letterSpacing: '0.12em',
+              color: '#22c55e', textTransform: 'uppercase',
+            }}>
+              {hydratedLiveUrl ? 'LIVE' : 'LIVE PREVIEW'}
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                onClick={handleDownloadHTML}
+                style={{
+                  background: 'rgba(232,232,232,0.06)', border: '1px solid rgba(232,232,232,0.15)',
+                  borderRadius: 6, padding: '5px 12px', color: 'rgba(232,232,232,0.85)',
+                  fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'system-ui, sans-serif',
+                }}
+              >
+                ⬇ Download HTML
+              </button>
+              {hydratedLiveUrl ? (
+                <a
+                  href={hydratedLiveUrl} target="_blank" rel="noopener noreferrer"
+                  style={{
+                    background: '#22c55e', color: '#0a0a0a', borderRadius: 6,
+                    padding: '5px 14px', fontSize: 12, fontWeight: 600,
+                    textDecoration: 'none', fontFamily: 'system-ui, sans-serif',
+                  }}
+                >
+                  🚀 Open live site
+                </a>
+              ) : (
+                <button
+                  onClick={() => onDeploy && onDeploy()}
+                  disabled={deploying}
+                  style={{
+                    background: deploying ? 'rgba(45,127,249,0.15)' : 'rgba(45,127,249,0.9)',
+                    border: 'none', borderRadius: 6, padding: '5px 14px',
+                    color: deploying ? 'rgba(232,232,232,0.6)' : '#fff',
+                    fontSize: 12, fontWeight: 600, cursor: deploying ? 'default' : 'pointer',
+                    fontFamily: 'system-ui, sans-serif',
+                  }}
+                >
+                  {deploying ? 'Deploying…' : '🚀 Deploy to Vercel'}
+                </button>
+              )}
+            </div>
+          </div>
+          <iframe
+            title="Landing page preview"
+            srcDoc={previewHtml}
+            sandbox="allow-scripts allow-same-origin allow-popups"
+            style={{
+              width: '100%', height: 540, border: 0, borderRadius: 12,
+              background: '#0a0a0a', display: 'block',
+            }}
+          />
+          {(summary || note) && (
+            <div style={{
+              marginTop: 12, fontSize: 13, color: 'rgba(232,232,232,0.65)',
+              fontFamily: 'system-ui, sans-serif', lineHeight: 1.6,
+            }}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{note || summary}</ReactMarkdown>
+            </div>
+          )}
         </div>
       )}
 

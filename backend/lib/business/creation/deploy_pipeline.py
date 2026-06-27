@@ -34,6 +34,9 @@ async def run_deploy_pipeline(
     `site` is the dict returned by site_generator.generate_site().
     """
     # ── 0. Preflight ──────────────────────────────────────────────────────────
+    # A REAL preflight: not just "is a connector row present", but "can these tokens
+    # actually create a repo + deploy". Catches expired/under-scoped tokens up front with
+    # a precise, actionable message instead of failing three API calls deep.
     gh = await get_connector_for_user(user_id, "github")
     vc = await get_connector_for_user(user_id, "vercel")
 
@@ -50,6 +53,16 @@ async def run_deploy_pipeline(
             "value": "Vercel connector not connected. Add it in Settings → Connections, then say 'deploy the last project' to retry.",
             "stage": "preflight",
         }
+        return
+
+    yield {"type": "deployment_status", "message": "Verifying GitHub + Vercel access…"}
+    gh_check = await gh.preflight()
+    if not gh_check.ok:
+        yield {"type": "deployment_error", "value": gh_check.error, "stage": "preflight"}
+        return
+    vc_check = await vc.preflight()
+    if not vc_check.ok:
+        yield {"type": "deployment_error", "value": vc_check.error, "stage": "preflight"}
         return
 
     yield {"type": "deployment_started"}

@@ -225,6 +225,68 @@ class VercelConnector(BaseConnector):
         except Exception as e:
             return ConnectorResult(ok=False, error=f"Deploy files failed: {e}")
 
+    async def deploy_static(self, project_name: str, html: str) -> ConnectorResult:
+        """Deploy a SINGLE self-contained HTML file as a static site — no build, no GitHub.
+
+        Powers the standalone "deploy this page" path: upload index.html, framework=null so
+        Vercel serves it as-is. Returns the same shape as deploy_files.
+        """
+        try:
+            body: dict = {
+                "name": project_name,
+                "files": [{"file": "index.html", "data": html, "encoding": "utf-8"}],
+                # framework null + no build/install command → pure static hosting of the file.
+                "projectSettings": {
+                    "framework": None,
+                    "buildCommand": None,
+                    "installCommand": None,
+                    "outputDirectory": None,
+                },
+                "target": "production",
+            }
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                res = await client.post(
+                    f"{VERCEL_API}/v13/deployments",
+                    headers=self._headers(),
+                    json=body,
+                )
+            if res.status_code in (200, 201):
+                dep = res.json()
+                dep_url = dep.get("url", "")
+                if dep_url and not dep_url.startswith("http"):
+                    dep_url = f"https://{dep_url}"
+                return ConnectorResult(ok=True, data={
+                    "deployment_id": dep.get("id"),
+                    "url": dep_url,
+                    "readyState": dep.get("readyState", dep.get("status", "BUILDING")),
+                })
+            return ConnectorResult(ok=False, error=f"Static deploy failed: {res.status_code} — {res.text[:400]}")
+        except Exception as e:
+            return ConnectorResult(ok=False, error=f"Static deploy failed: {e}")
+
+    async def preflight(self) -> ConnectorResult:
+        """Verify the Vercel token is present, valid, and not scope-restricted.
+
+        Returns ok=True with {username} when a real deploy can proceed; ok=False with a
+        precise, actionable message when the token is missing / invalid / expired.
+        """
+        if not self.credentials.get("api_key"):
+            return ConnectorResult(ok=False, error="Vercel token is missing — add it in Settings → Connections.")
+        try:
+            async with httpx.AsyncClient() as client:
+                res = await client.get(f"{VERCEL_API}/v2/user", headers=self._headers(), timeout=12.0)
+            if res.status_code == 200:
+                user = res.json().get("user", {})
+                return ConnectorResult(ok=True, data={"username": user.get("username")})
+            if res.status_code in (401, 403):
+                return ConnectorResult(
+                    ok=False,
+                    error="Vercel token is invalid or expired — regenerate it at vercel.com/account/tokens (needs full account scope) and reconnect.",
+                )
+            return ConnectorResult(ok=False, error=f"Vercel preflight failed: HTTP {res.status_code} — {res.text[:160]}")
+        except Exception as e:
+            return ConnectorResult(ok=False, error=f"Vercel preflight failed: {e}")
+
     async def trigger_deploy(self, project_name: str, github_repo: str = "", branch: str = "main") -> ConnectorResult:
         """Trigger a deployment via git source (requires GitHub App integration)."""
         try:

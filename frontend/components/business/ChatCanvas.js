@@ -38,7 +38,13 @@ function nodeContextSummary(ctx) {
 }
 
 function isActiveCreationMessage(message) {
-  return message?.role === 'creation' && (
+  if (message?.role !== 'creation') return false
+  // A finished standalone page is rehydrated from the DB on reload (via its saved marker),
+  // so don't also preserve the in-memory copy — that would double-render it.
+  if (message.kind === 'standalone' && message.complete && !message.deploying && !message.deploymentId) {
+    return false
+  }
+  return (
     message.deploying ||
     message.deploymentStatus ||
     message.deploymentId ||
@@ -334,13 +340,27 @@ export default function ChatCanvas({
         .select('id, role, content, created_at, attachments')
         .eq('conversation_id', activeConversationId)
         .order('created_at', { ascending: true })
-      // Normalize DB messages to match in-memory format
-      const dbMessages = (msgs || []).map(m => ({
-        ...m,
-        attachments: m.attachments || [],
-        streaming: false,
-        chunks: [],
-      }))
+      // Normalize DB messages to match in-memory format. Assistant messages carrying a
+      // creation marker (⟦jarvis-creation:UUID⟧) are rehydrated into a Creation canvas that
+      // self-fetches its saved preview/live URL — so a refresh never loses the work.
+      const CREATION_MARKER = /⟦jarvis-creation:([0-9a-fA-F-]{36})⟧/
+      const dbMessages = (msgs || []).map(m => {
+        const base = { ...m, attachments: m.attachments || [], streaming: false, chunks: [] }
+        if (m.role === 'assistant' && typeof m.content === 'string') {
+          const hit = m.content.match(CREATION_MARKER)
+          if (hit) {
+            return {
+              ...base,
+              role: 'creation',
+              creationId: hit[1],
+              rehydrate: true,
+              complete: true,
+              note: m.content.replace(CREATION_MARKER, '').trim(),
+            }
+          }
+        }
+        return base
+      })
       setMessages(prev => {
         // Preserve in-flight creations AND any still-streaming assistant bubble —
         // neither is persisted to the DB until it completes.
@@ -833,6 +853,8 @@ export default function ChatCanvas({
                 }
                 if (ev.type === 'agent_status') return { ...m, statuses: { ...m.statuses, [ev.id]: ev.status } }
                 if (ev.type === 'creation_id') return { ...m, creationId: ev.id }
+                if (ev.type === 'creation_stage') return { ...m, stage: ev.stage, stageMessage: ev.message, deploymentStages: ev.stage === 'fallback' ? [...(m.deploymentStages || [])] : (m.deploymentStages || []) }
+                if (ev.type === 'html_artifact') return { ...m, kind: 'standalone', creationId: ev.creation_id || m.creationId, title: ev.title || m.title, previewHtml: ev.html, projectName: ev.project_name, summary: ev.summary, isFallback: ev.is_fallback }
                 if (ev.type === 'artifact') return { ...m, artifact: ev.content }
                 if (ev.type === 'complete') return { ...m, complete: true }
                 if (ev.type === 'error') return { ...m, error: ev.value, complete: true }
@@ -1123,6 +1145,8 @@ export default function ChatCanvas({
                     <CreationCanvas
                       key={m.id ?? i}
                       msg={m}
+                      userId={userId}
+                      onDeploy={() => sendMessage('deploy it')}
                       onArtifactUpdate={(artifact) => {
                         setMessages(prev => prev.map(x => x.id === m.id ? { ...x, artifact } : x))
                       }}
