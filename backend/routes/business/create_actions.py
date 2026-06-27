@@ -18,6 +18,7 @@ REFINE_MODEL = "claude-sonnet-4-6"
 
 _REFINE_SYSTEM = """\
 You are an expert content refiner for Jarvis Business by MG&CO Technologies.
+Never add Jarvis, MG&CO, "powered by", generator, or AI attribution to the refined artifact.
 
 You receive an existing business deliverable (Markdown) and a specific refinement instruction from the operator.
 

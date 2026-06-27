@@ -1,8 +1,8 @@
 """
 Site Generator for Jarvis OS1 — Batch 1.
 
-Produces a complete, build-clean Next.js 14 (App Router) project from a
-user prompt.  Claude Opus generates the creative page/component code;
+Produces a complete, build-clean Next.js 16 (App Router) project from a
+user prompt. Claude Opus generates the creative page/component code;
 all structural/config files are hardcoded to known-good versions so the
 build never fails on a bad tsconfig or package version.
 
@@ -15,8 +15,7 @@ Returns:
     "env_keys_needed": ["NEXT_PUBLIC_SUPABASE_URL", ...],
     "files": [{"path": str, "content": str}, ...],
     "summary": str,
-    "is_fallback": bool,  # True if the creative generator failed/timed out and
-                          # this is the generic emergency template instead
+    "is_fallback": False,  # retained for wire compatibility; fallbacks are forbidden
   }
 """
 import json
@@ -24,18 +23,31 @@ import os
 import re
 from typing import Any
 
-import httpx
+from anthropic import AsyncAnthropic
 
 from backend.lib.business.model_router import OPUS
+from backend.lib.business.creation.website_quality import (
+    extract_client_name,
+    should_use_owner_company,
+    validate_site_payload,
+)
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-_GENERATOR_TIMEOUT = 45.0
+_GENERATOR_TIMEOUT = 300.0
+_GENERATOR_MAX_TOKENS = 32_000
+_GENERATION_ATTEMPTS = 2
+
+
+class SiteGenerationError(RuntimeError):
+    """Raised when a generated project cannot pass the deploy quality gate."""
 
 # ── DB-needed detection ───────────────────────────────────────────────────────
 _DB_KEYWORDS = re.compile(
-    r"\b(contact\s+form|sign[- ]?up|sign\s+in|login|auth|register|submit|"
-    r"database|store\s+data|collect|leads?|crm|newsletter|booking|reservation|"
-    r"appointment|order|checkout|payment|waitlist|feedback\s+form)\b",
+    r"\b(contact\s+form|sign[- ]?up|sign\s+in|login|auth(?:entication)?|register|"
+    r"database|store\s+(?:form\s+)?data|collect\s+(?:emails?|leads?|submissions?)|"
+    r"newsletter\s+(?:form|signup)|booking\s+(?:form|system|flow)|"
+    r"reservation\s+(?:form|system|flow)|appointment\s+(?:form|system|flow)|"
+    r"checkout|payment\s+flow|waitlist\s+form|feedback\s+form)\b",
     re.IGNORECASE,
 )
 
@@ -48,29 +60,27 @@ def _needs_db(message: str) -> bool:
 
 def _package_json(name: str, has_db: bool) -> str:
     deps: dict = {
-        "next": "14.2.5",
-        "react": "18.3.1",
-        "react-dom": "18.3.1",
-        "framer-motion": "11.3.28",
-        "gsap": "3.12.5",
+        "next": "16.2.9",
+        "react": "19.2.4",
+        "react-dom": "19.2.4",
+        "motion": "12.42.0",
+        "gsap": "3.15.0",
         "clsx": "2.1.1",
-        "tailwind-merge": "2.5.2",
-        "class-variance-authority": "0.7.0",
-        "lucide-react": "0.417.0",
+        "tailwind-merge": "3.3.1",
+        "class-variance-authority": "0.7.1",
+        "lucide-react": "1.21.0",
     }
     if has_db:
-        deps["@supabase/supabase-js"] = "2.45.4"
+        deps["@supabase/supabase-js"] = "2.52.1"
 
     dev: dict = {
-        "@types/node": "20.14.10",
-        "@types/react": "18.3.3",
-        "@types/react-dom": "18.3.0",
-        "typescript": "5.5.3",
-        "tailwindcss": "3.4.6",
-        "postcss": "8.4.40",
-        "autoprefixer": "10.4.20",
-        "eslint": "8.57.0",
-        "eslint-config-next": "14.2.5",
+        "@types/node": "22.15.30",
+        "@types/react": "19.2.17",
+        "@types/react-dom": "19.2.3",
+        "typescript": "5.9.3",
+        "tailwindcss": "3.4.17",
+        "postcss": "8.5.6",
+        "autoprefixer": "10.4.21",
     }
 
     return json.dumps({
@@ -81,7 +91,6 @@ def _package_json(name: str, has_db: bool) -> str:
             "dev": "next dev",
             "build": "next build",
             "start": "next start",
-            "lint": "next lint",
         },
         "dependencies": deps,
         "devDependencies": dev,
@@ -181,10 +190,18 @@ next-env.d.ts
 _SUPABASE_CLIENT = '''\
 import { createClient } from "@supabase/supabase-js"
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+let client: ReturnType<typeof createClient> | null = null
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export function getSupabase() {
+  if (client) return client
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !anonKey) {
+    throw new Error("Supabase environment variables are not configured")
+  }
+  client = createClient(url, anonKey)
+  return client
+}
 '''
 
 _ENV_EXAMPLE = '''\
@@ -198,7 +215,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 _SITE_TOOL: dict = {
     "name": "create_site",
     "description": (
-        "Output the complete source files for a Next.js 14 landing page / website. "
+        "Output the complete creative source files for a Next.js 16 landing page / website. "
         "Every field must contain the FULL file content — no truncation, no TODOs, no placeholders."
     ),
     "input_schema": {
@@ -239,22 +256,22 @@ _SITE_TOOL: dict = {
                 "description": (
                     "Complete content of app/page.tsx — an award-calibre marketing page. Rules:\n"
                     "- First line MUST be: 'use client'\n"
-                    "- Imports: react (useEffect/useRef/useState), framer-motion (motion, useInView, AnimatePresence, useScroll, useTransform), lucide-react icons. May import gsap + 'gsap/ScrollTrigger' for complex scroll sequences (register inside useEffect).\n"
+                    "- Imports: react hooks, motion/react (motion, useInView, AnimatePresence, useScroll, useTransform), and lucide-react icons. May import gsap + 'gsap/ScrollTrigger' for complex scroll sequences (register inside useEffect).\n"
                     "- If needs_database: also import ContactForm from '@/components/contact-form'\n"
-                    "- DO NOT import from any other local file. Recreate shadcn/Aceternity/Magic-UI patterns inline (spotlight, tilt/3D card, shimmer button, bento, marquee, animated gradient, FAQ accordion).\n"
+                    "- DO NOT import from any other local file. Compose shadcn-style accessible primitives and recreate Aceternity/Magic-UI patterns inline (spotlight, tilt/3D card, shimmer button, bento, marquee, animated gradient, FAQ accordion).\n"
                     "- Self-contained: define all sections inline (no separate component files)\n"
-                    "- Sections (adapt names): sticky glass nav w/ CTA, cinematic hero w/ spectacle (gradient/aurora/spotlight + oversized clamp() headline + primary & ghost CTA + trust strip), logos/stats bar, bento or 3-up features w/ hover lift, how-it-works/showcase, testimonials, pricing (if relevant), FAQ accordion, big closing CTA, footer\n"
-                    "- Animations: framer-motion useInView scroll-reveal + stagger on EVERY section; hover/tap micro-interactions; gate non-essential motion behind a prefers-reduced-motion check\n"
-                    "- Styling: Tailwind + CSS variables (var(--accent), var(--bg), etc.); fluid type via clamp(); generous spacing (py-24+); layered shadows + hairline borders + glass\n"
+                    "- Content flow: clear nav/CTA, cinematic specific hero, proof/useful facts, real offerings/services, differentiated story/experience, conversion path, FAQ when useful, closing CTA, footer\n"
+                    "- Animations: motion/react scroll-reveal + stagger where useful; hover/tap micro-interactions; gate non-essential motion behind a prefers-reduced-motion check\n"
+                    "- Styling: Tailwind + CSS variables (var(--accent), var(--bg), etc.); fluid type via clamp(); generous intentional spacing; layered depth when conceptually appropriate\n"
                     "- Mobile-first responsive (sm:/md:/lg:); tap targets >=44px; real specific copy, never lorem ipsum\n"
-                    "- Premium dark-luxury aesthetic by default, adapted to the client's brand when implied"
+                    "- Art direction must be unique to the target business; never default every industry to dark SaaS"
                 ),
             },
             "contact_form_tsx": {
                 "type": "string",
                 "description": (
                     "Complete content of components/contact-form.tsx — only when needs_database is true. "
-                    "A React client component ('use client') that uses @supabase/supabase-js via @/lib/supabase. "
+                    "A React client component ('use client') that calls getSupabase() from @/lib/supabase lazily on submit. "
                     "Must handle submit, show loading state, and display success/error messages. "
                     "Style with Tailwind + CSS variables."
                 ),
@@ -277,40 +294,59 @@ _SITE_TOOL: dict = {
 }
 
 _SYSTEM_PROMPT = """\
-You are a world-class product designer + senior front-end engineer. You build marketing sites that win awards — the calibre of Linear, Vercel, Stripe, 21st.dev, Aceternity. The bar is "astonishing and modern", not "valid HTML". Every page you ship should make someone go "how did an AI build that?".
+You are a world-class product designer and senior front-end engineer. You build distinctive,
+conversion-aware marketing sites with the craft of a top digital studio. The bar is "astonishing
+and specific", not merely "valid React".
 
-DESIGN LANGUAGE (hard-baked — apply all):
-- Default tokens (MG&CO dark luxury; ADAPT the palette to the client's brand/industry when the brief implies one):
-    --bg: #0a0a0a   --surface: #141414   --surface-2:#1c1c1c
-    --accent: #c84b31   --accent-2:#e88a5a   --accent-glow: rgba(200,75,49,0.18)
-    --text-primary: #f3ead9   --text-muted: rgba(243,234,217,0.55)   --border: rgba(243,234,217,0.10)
-- Fluid modular type scale via clamp(); hero headline 56-96px, tight tracking; body 16-18px, line-height ~1.7. Use a real display font (load via next/font or a <link> in layout) — never system-ui for headlines.
-- Generous whitespace (sections py-24/py-32). One clear focal point per section. ONE accent + its tints (gradients accent→accent-2), never rainbow.
-- Depth: layered soft shadows, 1px hairline borders, soft glows, tasteful glassmorphism on floating elements.
-- Motion on EVERYTHING: framer-motion entrance + scroll-reveal (useInView) on every section, staggered children, hover/tap micro-interactions, a subtle parallax or count-up. Use GSAP + ScrollTrigger for any complex scroll-driven / pinned / scrubbed sequence. ALWAYS gate non-essential motion behind prefers-reduced-motion.
-- Hero spectacle (pick 2-3, don't overload): animated gradient mesh / aurora, cursor spotlight, subtle grid/dot bg, floating blurred orbs, shimmer CTA, 3D/tilt card, logo marquee.
+IDENTITY AND ARTIFACT BOUNDARY (NON-NEGOTIABLE):
+- Build for the target business in the PRIMARY BUILD BRIEF, never for the account owner, MG&CO,
+  Jarvis, or the chat application.
+- Never reproduce the instruction, conversation, chat bubbles, preview controls, or builder UI.
+- Never include Jarvis/MG&CO attribution in client-facing content.
+- Preserve facts from supplied current-site research, but do not invent awards, ratings, client
+  logos, metrics, testimonials, prices, addresses, hours, or claims.
 
-REQUIRED SECTIONS (adapt names): sticky glass nav w/ CTA → cinematic hero → trust/logos or stats bar → bento or 3-up features w/ hover lift → how-it-works/showcase → testimonials → pricing (if relevant) → FAQ accordion → big closing CTA → footer. Real, specific copy — never lorem ipsum.
+DESIGN SYSTEM:
+- Start with a one-sentence art direction derived from the actual business and express it in the
+  code. Hospitality should feel sensory and human; health/professional services calm and credible;
+  technology/creative sharper and more kinetic; local trades direct, grounded, and proof-led.
+- Define semantic tokens: --bg, --surface, --surface-2, --accent, --accent-2, --text-primary,
+  --text-muted, --border, --focus. Use one dominant accent plus tonal variants.
+- Use next/font/google in layout.tsx for a characterful display face and a legible body face.
+  Use a fluid modular scale via clamp(), coherent spacing, and a deliberate radius language.
+- Compose accessible patterns in the spirit of shadcn/ui. Recreate selective Aceternity/Magic UI
+  patterns inline only when they reinforce the concept. Avoid identical cards everywhere.
+- Motion for React handles entrances, gestures, layout, and scroll-linked details. GSAP
+  ScrollTrigger is reserved for complex timelines. Always honor prefers-reduced-motion.
+- No AI-template fingerprints: no generic "Built to..." hero, no Fast/Modern/Yours cards, no fake
+  logo strip, no neon-on-black for every industry, no rainbow gradients, no decorative dashboard
+  unrelated to the client, no lorem ipsum, placeholders, TODOs, or truncated sections.
+
+CONTENT FLOW:
+Clear nav and CTA → cinematic specific hero → verified proof/useful facts → real offerings/menu/
+services → differentiated story or experience → frictionless conversion path → FAQ when useful →
+strong closing CTA → complete footer. Use at least five substantive sections and sharp real copy.
 
 Tech stack (exact versions, already in package.json — do NOT add others):
-  - Next.js 14.2.5, React 18.3.1, TypeScript 5.5.3
-  - Tailwind CSS 3.4.6
-  - framer-motion 11.3.28
-  - gsap 3.12.5 (+ ScrollTrigger, registered client-side) for complex scroll sequences
-  - lucide-react 0.417.0 (for icons)
-  - @supabase/supabase-js 2.45.4 (only if needs_database)
-  - clsx 2.1.1 + tailwind-merge 2.5.2 (via @/lib/utils cn())
+  - Next.js 16.2.9, React 19.2.4, TypeScript 5.9.3
+  - Tailwind CSS 3.4.17
+  - Motion 12.42.0 via motion/react
+  - GSAP 3.15.0 (+ ScrollTrigger, registered client-side) for complex scroll sequences
+  - lucide-react 1.21.0
+  - @supabase/supabase-js 2.52.1 (only if needs_database)
+  - clsx 2.1.1 + tailwind-merge 3.3.1 (via @/lib/utils cn())
 
 CRITICAL BUILD RULES (these keep the deploy green — never violate):
-1. page.tsx MUST start with "use client" (framer-motion/gsap require it).
-2. ONLY import from: react, framer-motion, gsap, gsap/ScrollTrigger, lucide-react, @/lib/utils,
+1. page.tsx MUST start with "use client" (Motion/GSAP require it).
+2. ONLY import from: react, motion/react, gsap, gsap/ScrollTrigger, lucide-react, @/lib/utils,
    and (if needs_database) @/components/contact-form and @/lib/supabase.
-   DO NOT import from any other local path. DO NOT import shadcn/ui or aceternity packages — recreate those patterns inline with Tailwind + framer-motion.
+   DO NOT import shadcn/ui or Aceternity packages — recreate selected patterns inline.
 3. All TypeScript must be valid. No implicit any. No missing props. Guard GSAP/DOM access with useEffect + refs (never at module top-level).
 4. globals.css MUST have @tailwind base, @tailwind components, @tailwind utilities, then your token :root vars and any keyframes.
 5. layout.tsx uses `export const metadata` (server component, NO "use client").
 6. Every string in JSX with quotes uses &quot; or template literals — no raw " in attributes.
 7. Return COMPLETE file content. No "// ... rest of component". No truncation.
+8. If needs_database is true, contact-form.tsx must call getSupabase() lazily inside submit handling.
 """
 
 
@@ -318,70 +354,69 @@ CRITICAL BUILD RULES (these keep the deploy green — never violate):
 
 async def generate_site(user_message: str, context: dict) -> dict:
     """
-    Generate a complete Next.js site from a user prompt.
+    Generate and validate a complete Next.js site from a user prompt.
     Returns the site dict with files[], project_name, needs_database, etc.
     """
+    context = dict(context or {})
     has_db = _needs_db(user_message)
-    company = context.get("company_name", "")
-    industry = context.get("industry", "")
+    client_name = context.get("client_name") or extract_client_name(user_message)
+    if client_name:
+        context["client_name"] = client_name
+    user_prompt = _build_site_prompt(user_message, context, has_db)
 
-    user_prompt_parts = [f"Build request: {user_message}"]
-    if company:
-        user_prompt_parts.append(f"Company name: {company}")
-    if industry:
-        user_prompt_parts.append(f"Industry: {industry}")
-    user_prompt_parts.append(
-        f"needs_database: {has_db} "
-        f"({'There is a form/auth/data feature — generate contact_form_tsx and migration SQL' if has_db else 'No database needed'})"
-    )
+    if not ANTHROPIC_API_KEY:
+        raise SiteGenerationError(
+            "Site generation is unavailable because the Anthropic API key is not configured."
+        )
 
-    user_prompt = "\n".join(user_prompt_parts)
-
-    try:
-        async with httpx.AsyncClient(timeout=_GENERATOR_TIMEOUT) as client:
-            resp = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": ANTHROPIC_API_KEY,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": OPUS,
-                    "max_tokens": 8192,
-                    "system": _SYSTEM_PROMPT,
-                    "tools": [_SITE_TOOL],
-                    "tool_choice": {"type": "tool", "name": "create_site"},
-                    "messages": [{"role": "user", "content": user_prompt}],
-                },
-            )
-    except Exception as e:
-        print(f"site_generator: API call failed, using fallback site: {e}")
-        return _fallback_site(user_message, context, has_db)
-
-    if resp.status_code != 200:
-        print(f"site_generator: API {resp.status_code}, using fallback site: {resp.text[:400]}")
-        return _fallback_site(user_message, context, has_db)
-
-    content_blocks = resp.json().get("content", [])
     tool_result: dict[str, Any] = {}
-    for block in content_blocks:
-        if block.get("type") == "tool_use" and block.get("name") == "create_site":
-            tool_result = block.get("input", {})
-            break
+    repair_notes: list[str] = []
+    last_problem = "the model returned no usable project"
+    for attempt in range(_GENERATION_ATTEMPTS):
+        prompt = user_prompt
+        if repair_notes:
+            prompt += (
+                "\n\nQUALITY-GATE RETRY: The previous project was rejected for these reasons:\n- "
+                + "\n- ".join(repair_notes)
+                + "\nRegenerate every creative file from scratch and fix all issues."
+            )
+        try:
+            tool_result = await _call_site_model(prompt)
+        except Exception as exc:
+            last_problem = f"{type(exc).__name__}: {str(exc) or 'stream interrupted'}"
+            print(
+                f"site_generator: streamed model attempt {attempt + 1} failed: "
+                f"{last_problem}"
+            )
+            repair_notes = ["the model stream did not finish; return complete, concise files"]
+            continue
 
-    if not tool_result:
-        print("site_generator: model did not call create_site tool, using fallback site")
-        return _fallback_site(user_message, context, has_db)
+        # The DB decision is deterministic. Do not let a stray mention of "CRM"
+        # or an over-eager model silently add a database to a static marketing site.
+        tool_result["needs_database"] = has_db
+        repair_notes = validate_site_payload(tool_result, user_message, context)
+        if repair_notes:
+            last_problem = "; ".join(repair_notes[:6])
+            print(
+                f"site_generator: quality gate rejected attempt {attempt + 1}: "
+                f"{last_problem}"
+            )
+            continue
+        break
+    else:
+        raise SiteGenerationError(
+            "I could not produce a deploy-safe project that passed the quality checks. "
+            f"Nothing was pushed to GitHub or Vercel. Last issue: {last_problem}"
+        )
 
     project_name = _sanitize_name(tool_result.get("project_name", "jarvis-site"))
-    needs_database = bool(tool_result.get("needs_database", has_db))
+    needs_database = has_db
     summary = tool_result.get("summary", "")
     layout_tsx = tool_result.get("layout_tsx", "")
     globals_css = tool_result.get("globals_css", "")
     page_tsx = tool_result.get("page_tsx", "")
     contact_form_tsx = tool_result.get("contact_form_tsx", "")
-    readme_md = tool_result.get("readme_md", f"# {project_name}\n\nShipped by Jarvis OS1.\n")
+    readme_md = tool_result.get("readme_md", f"# {project_name}\n\nProduction website.\n")
     db_sql = tool_result.get("db_migration_sql", "")
 
     # Assemble files: hardcoded structural + Claude-generated creative
@@ -426,6 +461,80 @@ async def generate_site(user_message: str, context: dict) -> dict:
     }
 
 
+async def _call_site_model(user_prompt: str) -> dict[str, Any]:
+    """Stream a forced create_site tool call and return its accumulated input."""
+    client = AsyncAnthropic(
+        api_key=ANTHROPIC_API_KEY,
+        timeout=_GENERATOR_TIMEOUT,
+        max_retries=1,
+    )
+    async with client.messages.stream(
+        model=OPUS,
+        max_tokens=_GENERATOR_MAX_TOKENS,
+        system=_SYSTEM_PROMPT,
+        tools=[_SITE_TOOL],
+        tool_choice={"type": "tool", "name": "create_site"},
+        messages=[{"role": "user", "content": user_prompt}],
+    ) as stream:
+        message = await stream.get_final_message()
+
+    for block in message.content:
+        if block.type == "tool_use" and block.name == "create_site":
+            return dict(block.input or {})
+    raise SiteGenerationError("Opus completed without returning the required project artifact.")
+
+
+def _build_site_prompt(user_message: str, context: dict, has_db: bool) -> str:
+    client_name = context.get("client_name") or ""
+    owner_company = context.get("company_name") or ""
+    artifact = str(context.get("artifact") or "").strip()
+    parts = [
+        "PRIMARY BUILD BRIEF (instructions only — never render this text verbatim):",
+        user_message.strip(),
+    ]
+    if client_name:
+        parts.extend(["", f"TARGET BUSINESS (the website brand): {client_name}"])
+    elif owner_company and should_use_owner_company(user_message):
+        parts.extend(["", f"TARGET BUSINESS: {owner_company}"])
+    if context.get("industry"):
+        parts.append(f"Known industry context: {context['industry']}")
+    if context.get("website_url"):
+        parts.append(f"Current website URL: {context['website_url']}")
+    if context.get("crm_context"):
+        parts.extend(["", "VERIFIED CRM CONTEXT:", str(context["crm_context"])[:4_000]])
+    if context.get("website_research"):
+        parts.extend(
+            [
+                "",
+                "VERIFIED CURRENT-WEBSITE RESEARCH:",
+                str(context["website_research"])[:20_000],
+            ]
+        )
+    if artifact:
+        parts.extend(
+            [
+                "",
+                "APPROVED STANDALONE DESIGN TO PORT FAITHFULLY:",
+                artifact[:50_000],
+                "",
+                "Preserve this approved design's identity, copy, sections, and art direction while "
+                "porting it into the required Next.js project structure.",
+            ]
+        )
+    if owner_company and client_name and owner_company.lower() != client_name.lower():
+        parts.append(f"Account owner (context only, never the website brand): {owner_company}")
+    parts.append(
+        "needs_database: "
+        + str(has_db).lower()
+        + (
+            " — generate contact_form_tsx and migration SQL."
+            if has_db
+            else " — do not add Supabase, forms that pretend to submit, auth, or data storage."
+        )
+    )
+    return "\n".join(parts)
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _sanitize_name(name: str) -> str:
@@ -442,7 +551,7 @@ import "./globals.css"
 
 export const metadata: Metadata = {{
   title: "{title.replace("-", " ").title()}",
-  description: "Built with Jarvis OS1",
+  description: "Official website",
 }}
 
 export default function RootLayout({{
@@ -504,7 +613,13 @@ CREATE POLICY "allow_anon_insert" ON contacts
 
 
 def _fallback_site(user_message: str, context: dict, has_db: bool = False) -> dict:
-    """Build-clean emergency site used when the creative generator fails."""
+    """Compatibility tombstone: generic sites must never be shipped as successful work."""
+    raise SiteGenerationError(
+        "Generic fallback sites are disabled. The requested project was not generated."
+    )
+
+    # Kept temporarily below for old imports during the migration window. This
+    # branch is intentionally unreachable and can never enter preview/deploy.
     company = context.get("company_name") or "Your Brand"
     industry = context.get("industry") or "business"
     project_name = _sanitize_name(f"{company}-{industry}-site")
@@ -520,7 +635,7 @@ import {{ ArrowRight, CheckCircle2, Sparkles }} from "lucide-react"
 const bullets = [
   "Premium conversion-focused landing page",
   "Mobile responsive sections and strong CTA flow",
-  "Built cleanly by Jarvis OS1 with a deploy-ready Next.js stack",
+  "Built on a production-ready Next.js stack",
 ]
 
 export default function Home() {{
@@ -605,7 +720,7 @@ export default function Home() {{
         {"path": "app/layout.tsx", "content": _default_layout(project_name)},
         {"path": "app/globals.css", "content": _default_globals()},
         {"path": "app/page.tsx", "content": page_tsx},
-        {"path": "README.md", "content": f"# {project_name}\n\nFallback site generated by Jarvis OS1.\n"},
+        {"path": "README.md", "content": f"# {project_name}\n\nProduction website.\n"},
     ]
     return {
         "project_name": project_name,

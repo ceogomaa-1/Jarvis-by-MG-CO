@@ -8,7 +8,7 @@ from backend.lib.business.pdf_export import generate_branded_document_pdf
 from backend.lib.business.real_estate.llm import call_claude, parse_json_response
 from backend.lib.business.real_estate.profile import get_business_profile
 
-LIABILITY_NOTE = "Draft prepared by Jarvis OS1 — review with your brokerage/legal counsel before presenting."
+LIABILITY_NOTE = "Draft for review — confirm with your brokerage/legal counsel before presenting."
 
 DOC_TYPE_LABELS = {
     "offer": "Purchase Offer",

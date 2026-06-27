@@ -374,7 +374,7 @@ async def _dispatch(connector, connector_type: str, action_name: str, inp: dict,
             return await connector.push_files(
                 repo=inp["repo"],
                 files=inp["files"],
-                message=inp.get("message", "Jarvis OS1: automated commit"),
+                message=inp.get("message", "Update project files"),
                 branch=inp.get("branch", "main"),
             )
 

@@ -41,6 +41,30 @@ class FakeVercel:
         return ConnectorResult(ok=True, data={"readyState": "READY"})
 
 
+def _valid_files():
+    sections = "\n".join(
+        f"<section><h2>Test site {i}</h2><p>{'Complete client copy. ' * 70}</p></section>"
+        for i in range(6)
+    )
+    page = (
+        '"use client"\nimport { motion } from "motion/react"\n'
+        f"export default function Home() {{ return <main><nav>Test Site</nav>{sections}"
+        '<a href="#contact">Contact</a></main> }}'
+    )
+    return [
+        {"path": "package.json", "content": "{}"},
+        {
+            "path": "app/layout.tsx",
+            "content": 'import "./globals.css"\nexport default function Layout({ children }) { return <html><body>{children}</body></html> }',
+        },
+        {
+            "path": "app/globals.css",
+            "content": "@tailwind base;\n@tailwind components;\n@tailwind utilities;\n:root { --bg:#fff; --accent:#111; }",
+        },
+        {"path": "app/page.tsx", "content": page},
+    ]
+
+
 @pytest.mark.asyncio
 async def test_deploy_pipeline_returns_pending_without_polling(monkeypatch):
     github = FakeGitHub()
@@ -53,7 +77,7 @@ async def test_deploy_pipeline_returns_pending_without_polling(monkeypatch):
     monkeypatch.setattr(deploy_pipeline, "_EXTERNAL_STATUS_INTERVAL", 0.01)
     site = {
         "project_name": "test-site",
-        "files": [{"path": "package.json", "content": "{}"}],
+        "files": _valid_files(),
         "needs_database": False,
         "summary": "Smoke test",
     }
@@ -91,7 +115,7 @@ async def test_deploy_pipeline_heartbeats_during_slow_github_push(monkeypatch):
 
     site = {
         "project_name": "test-site",
-        "files": [{"path": "package.json", "content": "{}"}],
+        "files": _valid_files(),
         "needs_database": False,
         "summary": "Smoke test",
     }

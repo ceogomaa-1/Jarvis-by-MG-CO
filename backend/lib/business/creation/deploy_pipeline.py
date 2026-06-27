@@ -18,6 +18,7 @@ from typing import AsyncIterator
 
 from backend.lib.business.connectors.base import ConnectorResult
 from backend.lib.business.connectors.registry import get_connector_for_user
+from backend.lib.business.creation.website_quality import validate_deployable_site
 
 _EXTERNAL_STATUS_INTERVAL = 8.0
 _EXTERNAL_CALL_TIMEOUT = 90.0
@@ -33,6 +34,19 @@ async def run_deploy_pipeline(
     Async generator yielding SSE event dicts.
     `site` is the dict returned by site_generator.generate_site().
     """
+    validation_errors = validate_deployable_site(site, user_message)
+    if validation_errors:
+        yield {
+            "type": "deployment_error",
+            "value": (
+                "The generated project failed the deploy quality gate, so no repository or "
+                "Vercel project was created. "
+                + "; ".join(validation_errors[:5])
+            ),
+            "stage": "validation",
+        }
+        return
+
     # ── 0. Preflight ──────────────────────────────────────────────────────────
     # A REAL preflight: not just "is a connector row present", but "can these tokens
     # actually create a repo + deploy". Catches expired/under-scoped tokens up front with
@@ -84,7 +98,7 @@ async def run_deploy_pipeline(
         async for event in _await_connector_call(
             gh.create_repo(
                 name=_candidate,
-                description=f"Built with Jarvis OS1 — {site.get('summary', '')[:120]}",
+                description=site.get("summary", "")[:160] or "Production website",
                 private=False,
             ),
             f"Still creating the GitHub repository ({_candidate})…",
@@ -120,7 +134,7 @@ async def run_deploy_pipeline(
         gh.push_files(
             repo=full_name,
             files=files,
-            message="Initial commit — shipped by Jarvis OS1",
+            message="Initial website build",
             branch="main",
         ),
         "Still pushing files to GitHub…",

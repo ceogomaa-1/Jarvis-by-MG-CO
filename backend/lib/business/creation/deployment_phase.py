@@ -51,7 +51,7 @@ Steps (in order):
        • package.json  — {"name":"[project-name]","scripts":{"build":"echo done"},"dependencies":{}}
        • vercel.json  — {"buildCommand":"","outputDirectory":"."}
    - NEXT.JS / MULTI-FILE project: push ALL generated files (package.json, tsconfig.json, next.config.js, tailwind.config.ts, app/layout.tsx, app/page.tsx, app/globals.css, components/, etc.)
-3. Call github__push_files with ALL files in one atomic commit. Message: "Initial commit — shipped by Jarvis OS1".
+3. Call github__push_files with ALL files in one atomic commit. Message: "Initial website build".
 4. Call vercel__create_project — set framework to "nextjs" for Next.js projects, "other" for plain HTML. Link it to the GitHub repo you just created.
 
 After all tools complete, respond with exactly ONE sentence:

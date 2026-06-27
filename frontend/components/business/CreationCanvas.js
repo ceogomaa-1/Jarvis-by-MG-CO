@@ -112,6 +112,15 @@ export default function CreationCanvas({ msg, onArtifactUpdate, onDeploy, userId
     URL.revokeObjectURL(url)
   }
 
+  function handleOpenPreview() {
+    if (!previewHtml) return
+    const blob = new Blob([previewHtml], { type: 'text/html' })
+    const url = URL.createObjectURL(blob)
+    const opened = window.open(url, '_blank', 'noopener,noreferrer')
+    if (!opened) URL.revokeObjectURL(url)
+    else window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  }
+
   async function handleDownloadPDF() {
     if (!creationId || downloading) return
     setDownloading(true)
@@ -203,6 +212,16 @@ export default function CreationCanvas({ msg, onArtifactUpdate, onDeploy, userId
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button
+                onClick={handleOpenPreview}
+                style={{
+                  background: 'rgba(232,232,232,0.06)', border: '1px solid rgba(232,232,232,0.15)',
+                  borderRadius: 6, padding: '5px 12px', color: 'rgba(232,232,232,0.85)',
+                  fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'system-ui, sans-serif',
+                }}
+              >
+                ↗ Open preview
+              </button>
+              <button
                 onClick={handleDownloadHTML}
                 style={{
                   background: 'rgba(232,232,232,0.06)', border: '1px solid rgba(232,232,232,0.15)',
@@ -243,7 +262,9 @@ export default function CreationCanvas({ msg, onArtifactUpdate, onDeploy, userId
           <iframe
             title="Landing page preview"
             srcDoc={previewHtml}
-            sandbox="allow-scripts allow-same-origin allow-popups"
+            sandbox="allow-scripts allow-popups"
+            referrerPolicy="no-referrer"
+            loading="lazy"
             style={{
               width: '100%', height: 540, border: 0, borderRadius: 12,
               background: '#0a0a0a', display: 'block',

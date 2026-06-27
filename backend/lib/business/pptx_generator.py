@@ -1,6 +1,6 @@
-"""TOOL 6 — PowerPoint Generator. One reusable MG&CO branded template:
-dark `#131313` title slide with white/blue typography, clean white content
-slides with a blue `#2d7ff9` accent bar, and a 'Powered by Jarvis OS1' footer.
+"""TOOL 6 — PowerPoint Generator. Reusable client-branded template:
+dark `#131313` title slide with white/blue typography and clean white content
+slides. Client business naming is optional; Jarvis/MG&CO attribution is forbidden.
 """
 import io
 

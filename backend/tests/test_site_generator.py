@@ -1,102 +1,109 @@
+"""Regression tests for the validated Next.js site generator.
+
+Generation failures must stop before GitHub/Vercel instead of deploying a
+generic emergency template.
 """
-Regression tests for backend/lib/business/creation/site_generator.py — Phase 2
-(JARVIS-BRAIN-MAP.md section B8): generate_site() must mark its result with
-is_fallback so the chat route can tell the user when a generic emergency
-template was deployed instead of the requested custom build.
-"""
-import httpx
+
 import pytest
 
 from backend.lib.business.creation import site_generator
-from backend.lib.business.creation.site_generator import _fallback_site, generate_site
+from backend.lib.business.creation.site_generator import generate_site
 
 
-class _FakeResponse:
-    def __init__(self, status_code, json_data=None, text=""):
-        self.status_code = status_code
-        self._json_data = json_data
-        self.text = text
+def _valid_page(name="Acme"):
+    sections = "\n".join(
+        f"<section><h2>{name} section {i}</h2><p>{'Specific useful copy. ' * 70}</p></section>"
+        for i in range(6)
+    )
+    return f'''"use client"
 
-    def json(self):
-        return self._json_data
+import {{ motion }} from "motion/react"
 
-
-class _FakeAsyncClient:
-    def __init__(self, response=None, exc=None):
-        self._response = response
-        self._exc = exc
-
-    def __call__(self, *args, **kwargs):
-        return self
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, *args):
-        return False
-
-    async def post(self, *args, **kwargs):
-        if self._exc:
-            raise self._exc
-        return self._response
+export default function Home() {{
+  return <main><nav>{name}</nav>{sections}<a href="#contact">Contact</a></main>
+}}
+'''
 
 
-def _tool_use_response(**input_overrides):
+def _tool_result(**input_overrides):
     tool_input = {
         "project_name": "acme-site",
         "needs_database": False,
         "summary": "A clean landing page for Acme.",
-        "layout_tsx": "",
-        "globals_css": "",
-        "page_tsx": "export default function Home() { return <div>Acme</div> }",
+        "layout_tsx": (
+            'import "./globals.css"\n'
+            "export default function Layout({ children }: { children: React.ReactNode }) "
+            "{ return <html><body>{children}</body></html> }"
+        ),
+        "globals_css": (
+            "@tailwind base;\n@tailwind components;\n@tailwind utilities;\n"
+            ":root { --bg: #fff; --accent: #123; }"
+        ),
+        "page_tsx": _valid_page(),
         "readme_md": "# acme-site\n",
     }
     tool_input.update(input_overrides)
-    return _FakeResponse(200, {"content": [{"type": "tool_use", "name": "create_site", "input": tool_input}]})
+    return tool_input
 
 
-# ─── _fallback_site ──────────────────────────────────────────────────────────
+def test_legacy_fallback_is_disabled():
+    with pytest.raises(site_generator.SiteGenerationError, match="disabled"):
+        site_generator._fallback_site(
+            "build me a site for Acme",
+            {"company_name": "Acme", "industry": "retail"},
+        )
 
-def test_fallback_site_is_marked_is_fallback():
-    result = _fallback_site("build me a site for Acme", {"company_name": "Acme", "industry": "retail"})
-    assert result["is_fallback"] is True
-    assert "fallback" in result["summary"].lower()
-
-
-# ─── generate_site ───────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_generate_site_success_is_not_fallback(monkeypatch):
     monkeypatch.setattr(site_generator, "ANTHROPIC_API_KEY", "test-key")
-    fake = _FakeAsyncClient(_tool_use_response())
-    monkeypatch.setattr(httpx, "AsyncClient", fake)
-    result = await generate_site("build me a site for Acme", {"company_name": "Acme", "industry": "retail"})
+
+    async def fake_call(_prompt):
+        return _tool_result()
+
+    monkeypatch.setattr(site_generator, "_call_site_model", fake_call)
+    result = await generate_site(
+        "build me a site for Acme",
+        {"company_name": "MG&CO", "client_name": "Acme", "industry": "retail"},
+    )
     assert result["is_fallback"] is False
     assert result["summary"] == "A clean landing page for Acme."
 
 
 @pytest.mark.asyncio
-async def test_generate_site_api_exception_falls_back(monkeypatch):
+async def test_generate_site_api_exception_fails_closed(monkeypatch):
     monkeypatch.setattr(site_generator, "ANTHROPIC_API_KEY", "test-key")
-    fake = _FakeAsyncClient(exc=httpx.ConnectError("boom"))
-    monkeypatch.setattr(httpx, "AsyncClient", fake)
-    result = await generate_site("build me a site for Acme", {"company_name": "Acme", "industry": "retail"})
-    assert result["is_fallback"] is True
+
+    async def fake_call(_prompt):
+        raise TimeoutError("boom")
+
+    monkeypatch.setattr(site_generator, "_call_site_model", fake_call)
+    with pytest.raises(site_generator.SiteGenerationError, match="Nothing was pushed"):
+        await generate_site(
+            "build me a site for Acme",
+            {"company_name": "MG&CO", "client_name": "Acme", "industry": "retail"},
+        )
 
 
 @pytest.mark.asyncio
-async def test_generate_site_non_200_falls_back(monkeypatch):
+async def test_generate_site_rejects_account_owner_brand_leak(monkeypatch):
     monkeypatch.setattr(site_generator, "ANTHROPIC_API_KEY", "test-key")
-    fake = _FakeAsyncClient(_FakeResponse(500, text="server error"))
-    monkeypatch.setattr(httpx, "AsyncClient", fake)
-    result = await generate_site("build me a site for Acme", {"company_name": "Acme", "industry": "retail"})
-    assert result["is_fallback"] is True
+
+    async def fake_call(_prompt):
+        return _tool_result(page_tsx=_valid_page("MG&CO"))
+
+    monkeypatch.setattr(site_generator, "_call_site_model", fake_call)
+    with pytest.raises(site_generator.SiteGenerationError, match="account owner's company"):
+        await generate_site(
+            "build me a site for Acme",
+            {"company_name": "MG&CO", "client_name": "Acme", "industry": "retail"},
+        )
 
 
-@pytest.mark.asyncio
-async def test_generate_site_missing_tool_use_falls_back(monkeypatch):
-    monkeypatch.setattr(site_generator, "ANTHROPIC_API_KEY", "test-key")
-    fake = _FakeAsyncClient(_FakeResponse(200, {"content": [{"type": "text", "text": "I refuse"}]}))
-    monkeypatch.setattr(httpx, "AsyncClient", fake)
-    result = await generate_site("build me a site for Acme", {"company_name": "Acme", "industry": "retail"})
-    assert result["is_fallback"] is True
+def test_crm_mention_does_not_enable_database():
+    assert site_generator._needs_db(
+        "Build a website for this restaurant client from my CRM"
+    ) is False
+    assert site_generator._needs_db(
+        "Build a restaurant website with an online reservation form"
+    ) is True

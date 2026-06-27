@@ -33,9 +33,29 @@ class FakeVercel:
 
 
 def _site():
+    sections = "\n".join(
+        f"<section><h2>Test site {i}</h2><p>{'Complete client copy. ' * 70}</p></section>"
+        for i in range(6)
+    )
+    page = (
+        '"use client"\nimport { motion } from "motion/react"\n'
+        f"export default function Home() {{ return <main><nav>Test Site</nav>{sections}"
+        '<a href="#contact">Contact</a></main> }}'
+    )
     return {
         "project_name": "test-site",
-        "files": [{"path": "package.json", "content": "{}"}],
+        "files": [
+            {"path": "package.json", "content": "{}"},
+            {
+                "path": "app/layout.tsx",
+                "content": 'import "./globals.css"\nexport default function Layout({ children }) { return <html><body>{children}</body></html> }',
+            },
+            {
+                "path": "app/globals.css",
+                "content": "@tailwind base;\n@tailwind components;\n@tailwind utilities;\n:root { --bg:#fff; --accent:#111; }",
+            },
+            {"path": "app/page.tsx", "content": page},
+        ],
         "needs_database": False,
         "summary": "Smoke test",
     }

@@ -1,0 +1,74 @@
+"""Client-identity and artifact-boundary regressions for website creation."""
+
+from backend.lib.business.creation.website_quality import (
+    extract_client_name,
+    prompt_leaked,
+    validate_standalone_html,
+)
+
+
+def _complete_html(name: str, extra: str = "") -> str:
+    sections = "".join(
+        f"<section><h2>{name} story {i}</h2><p>{'Useful specific content. ' * 75}</p></section>"
+        for i in range(6)
+    )
+    return f"""<!DOCTYPE html>
+<html><head><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{name}</title><style>@media (prefers-reduced-motion: reduce) {{ * {{ animation: none }} }}</style>
+</head><body><nav>{name}</nav>{sections}<a href="#contact">Reserve a table</a>{extra}</body></html>"""
+
+
+def test_extracts_quoted_crm_client():
+    message = (
+        'For this "Bowmanville Family Restaurant" client from my CRM, '
+        "analyze their current website and rebuild it."
+    )
+    assert extract_client_name(message) == "Bowmanville Family Restaurant"
+
+
+def test_detects_verbatim_instruction_leak():
+    message = (
+        "For this Bowmanville restaurant client from my CRM I need you to analyze "
+        "their current website and rebuild a much better version for my pitch"
+    )
+    assert prompt_leaked(_complete_html("Bowmanville", extra=f"<p>{message}</p>"), message)
+
+
+def test_rejects_account_owner_as_client_brand():
+    message = (
+        'For this "Bowmanville Family Restaurant" client from my CRM, '
+        "analyze their current website and rebuild it."
+    )
+    document = _complete_html("MG&CO Technologies Inc.")
+    errors = validate_standalone_html(
+        document,
+        message,
+        {
+            "client_name": "Bowmanville Family Restaurant",
+            "company_name": "MG&CO Technologies Inc.",
+        },
+    )
+    assert any("target business" in error for error in errors)
+    assert any("account owner's company" in error for error in errors)
+
+
+def test_rejects_jarvis_chat_embed_markers():
+    document = _complete_html(
+        "Bowmanville Family Restaurant",
+        extra="<div>Jarvis Knows You</div><div>Ask Jarvis</div>",
+    )
+    errors = validate_standalone_html(
+        document,
+        "",
+        {"client_name": "Bowmanville Family Restaurant"},
+    )
+    assert any("Jarvis/chat UI" in error for error in errors)
+
+
+def test_accepts_complete_client_specific_page():
+    document = _complete_html("Bowmanville Family Restaurant")
+    assert validate_standalone_html(
+        document,
+        'Build a site for "Bowmanville Family Restaurant"',
+        {"client_name": "Bowmanville Family Restaurant"},
+    ) == []

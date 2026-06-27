@@ -720,7 +720,7 @@ _TOOLS: dict[str, dict] = {
                         "required": ["path", "content"],
                     },
                 },
-                "message": {"type": "string", "description": "Commit message", "default": "Jarvis OS1: project files"},
+                "message": {"type": "string", "description": "Commit message", "default": "Update project files"},
                 "branch": {"type": "string", "description": "Branch name", "default": "main"},
             },
             "required": ["repo", "files"],

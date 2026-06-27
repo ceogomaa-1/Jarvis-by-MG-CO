@@ -119,7 +119,7 @@ class GitHubConnector(BaseConnector):
                     headers=self._headers(),
                     json={
                         "name": name,
-                        "description": description or "Created by Jarvis OS1",
+                        "description": description or "Project repository",
                         "private": private,
                         "auto_init": True,
                     },
@@ -141,7 +141,7 @@ class GitHubConnector(BaseConnector):
         self,
         repo: str,
         files: list,
-        message: str = "Jarvis OS1: automated commit",
+        message: str = "Update project files",
         branch: str = "main",
     ) -> ConnectorResult:
         """

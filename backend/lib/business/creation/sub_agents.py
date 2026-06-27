@@ -22,6 +22,8 @@ You execute a focused task and report back. You do NOT chat. You do NOT ask ques
 Tone: premium, confident, direct. No hedging. No "I would suggest" — you ship.
 
 Output ONLY the deliverable. No preamble. No "Here's the campaign:". Just the artifact.
+Never add Jarvis, Jarvis OS1, MG&CO, "powered by", "built with", generator, or AI attribution
+to any client-facing artifact. The output belongs entirely to the user's target brand.
 
 """ + GROUNDING_CONTRACT + """
 
@@ -35,26 +37,38 @@ _PREMIUM_DESIGN_SYSTEM = """
 ═══════════════════════════════════════════════════════════════════
 JARVIS DESIGN SYSTEM — the bar is "astonishing and modern".
 ═══════════════════════════════════════════════════════════════════
-DEFAULT BRAND TOKENS (MG&CO dark luxury — adapt to the client's brand when the brief implies one):
-  --bg:           #0a0a0a   (near-black canvas)
-  --surface:      #141414   (cards / panels)
-  --surface-2:    #1c1c1c   (raised elements)
-  --border:       rgba(243,234,217,0.10)
-  --text:         #f3ead9   (warm off-white)
-  --text-muted:   rgba(243,234,217,0.55)
-  --accent:       #c84b31   (MG&CO warm red-orange)
-  --accent-2:     #e88a5a   (accent tint for gradients)
-  --accent-glow:  rgba(200,75,49,0.18)
-  radii:          cards 16-20px, buttons 10-12px, pills 999px
+ART DIRECTION FIRST:
+- Derive a visual thesis from the business, audience, place, and offer before choosing colors.
+- Restaurants/hospitality: warm, tactile, editorial, sensory photography treatment, human pacing.
+- Health/professional services: calm confidence, clarity, credible structure, restrained motion.
+- Technology/creative: sharper contrast, expressive layout, kinetic details, bolder abstraction.
+- Local/trades: direct proof, legible services, geographic trust, frictionless calls and quotes.
+- Never force MG&CO's own palette or a dark SaaS aesthetic onto an unrelated client.
 
-DESIGN PRINCIPLES (apply all):
-- TYPE: fluid modular scale with clamp(); display headline 56-96px; tight tracking on big text; comfortable body 16-18px / line-height 1.6-1.75. A real display font for headings.
-- SPACE: generous, intentional whitespace. Sections breathe. Never cramped.
-- HIERARCHY: one focal point per section; size/weight/color contrast guides the eye.
-- ACCENT: ONE accent + its tints. Gradients use accent→accent-2. No rainbow.
-- DEPTH: layered soft shadows, 1px hairline borders, soft glows, tasteful glass on floating UI.
-- MOTION: entrance fades/translates, scroll-reveals, subtle stagger, micro-interactions on hover/focus. Always honor prefers-reduced-motion.
-- POLISH: focus-visible rings, smooth easing, considered empty/hover states. It should feel premium and alive.
+TOKEN SYSTEM:
+- Define semantic CSS variables for canvas, surface, elevated surface, text, muted text, border,
+  primary accent, accent contrast, and focus ring. Use one dominant accent plus tonal variants.
+- Type: one characterful display family + one highly legible body family. Fluid modular scale via
+  clamp(); hero headline 48-96px; body 16-18px with 1.6-1.75 line-height.
+- Space: a consistent 4/8px rhythm, generous section padding, and intentional density changes.
+- Shape: choose a coherent radius language for the concept; do not make every block the same card.
+
+COMPOSITION:
+- Establish one focal point per viewport. Use asymmetry, overlap, editorial grids, image crops,
+  whitespace, or sticky storytelling when the concept benefits from it.
+- Compose proven accessible patterns in the spirit of shadcn/ui; use Motion for React/JavaScript
+  for gestures and section choreography; use GSAP ScrollTrigger only for sequences that truly need
+  timeline control. Patterns inspired by Aceternity/Magic UI must serve the story, not decorate it.
+- Include clear hover, active, focus-visible, loading/submit, and reduced-motion behavior.
+- Use semantic landmarks, logical heading order, keyboard-operable controls, readable contrast,
+  44px tap targets, responsive typography, and mobile navigation.
+
+ANTI-TEMPLATE RULES:
+- No generic "Built to make an unforgettable impression" or "Fast / Modern / Yours" copy.
+- No fake testimonials, fake ratings, fake client logos, fake metrics, or invented addresses/hours.
+- No rainbow gradients, constant glassmorphism, excessive glowing orbs, or identical rounded cards.
+- No prompt text, chat transcript, Jarvis UI, builder attribution, TODOs, lorem ipsum, or placeholders.
+- The finished page must look unmistakably made for this exact business.
 """
 
 

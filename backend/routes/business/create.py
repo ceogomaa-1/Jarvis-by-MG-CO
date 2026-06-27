@@ -26,8 +26,21 @@ from backend.lib.business.creation.persistence import (
     save_standalone_creation,
     update_deployment_by_id,
 )
-from backend.lib.business.creation.site_generator import generate_site, _sanitize_name
-from backend.lib.business.creation.standalone_generator import generate_standalone_page
+from backend.lib.business.creation.site_generator import (
+    SiteGenerationError,
+    generate_site,
+    _sanitize_name,
+)
+from backend.lib.business.creation.standalone_generator import (
+    WebsiteGenerationError,
+    generate_standalone_page,
+)
+from backend.lib.business.creation.website_context import enrich_website_context
+from backend.lib.business.creation.website_quality import (
+    extract_client_name,
+    should_use_owner_company,
+    validate_standalone_html,
+)
 from backend.lib.business.intent_router import is_website_build_request
 from backend.lib.business.system_prompt_builder import _fetch_user_profile
 
@@ -218,7 +231,16 @@ async def _run_standalone_build(request, context, conv_id):
     caller can manage chat persistence. Persists the moment the HTML exists, so a dropped SSE
     never loses the work — the page is rehydratable from the DB by creation_id.
     """
-    title_guess = context.get("company_name") or "Landing Page"
+    explicit_client = extract_client_name(request.message)
+    title_guess = (
+        explicit_client
+        or (
+            context.get("company_name")
+            if should_use_owner_company(request.message, explicit_client)
+            else ""
+        )
+        or "Client Website"
+    )
     yield ("event", {
         "type": "plan",
         "title": title_guess,
@@ -227,20 +249,57 @@ async def _run_standalone_build(request, context, conv_id):
         "mode": "standalone",
     })
     yield ("event", {"type": "agent_status", "id": "a1", "status": "started"})
-    yield ("event", {"type": "creation_stage", "stage": "designing", "message": "Designing the page…"})
+    yield ("event", {
+        "type": "creation_stage",
+        "stage": "researching",
+        "message": "Resolving the client and studying the current website…",
+    })
+
+    build_context = await enrich_website_context(
+        request.user_id,
+        request.message,
+        {**context, "client_name": explicit_client},
+    )
+    if build_context.get("website_research"):
+        yield ("event", {
+            "type": "creation_stage",
+            "stage": "grounded",
+            "message": "Current website and CRM context captured. Designing the replacement…",
+        })
+    elif build_context.get("client_name"):
+        yield ("event", {
+            "type": "creation_stage",
+            "stage": "grounded",
+            "message": f"Building for {build_context['client_name']}. Designing the page…",
+        })
+    else:
+        yield ("event", {
+            "type": "creation_stage",
+            "stage": "designing",
+            "message": "Designing the page from the supplied brief…",
+        })
 
     page = None
-    async for result in _await_with_status(
-        generate_standalone_page(request.message, context),
-        "Still designing your page…",
-    ):
-        if isinstance(result, dict) and "html" in result:
-            page = result
-        else:
-            yield ("event", result)
+    try:
+        async for result in _await_with_status(
+            generate_standalone_page(request.message, build_context),
+            "Opus is still crafting and quality-checking the page…",
+        ):
+            if isinstance(result, dict) and "html" in result:
+                page = result
+            else:
+                yield ("event", result)
+    except WebsiteGenerationError as exc:
+        yield ("event", {"type": "agent_status", "id": "a1", "status": "failed"})
+        yield ("event", {"type": "error", "value": str(exc)})
+        return
 
     if not page:
-        yield ("event", {"type": "error", "value": "Page generation returned nothing. Please try again."})
+        yield ("event", {"type": "agent_status", "id": "a1", "status": "failed"})
+        yield ("event", {
+            "type": "error",
+            "value": "Page generation returned no validated website. Nothing was saved or deployed.",
+        })
         return
 
     yield ("event", {"type": "creation_stage", "stage": "assembling", "message": "Assembling and saving…"})
@@ -251,8 +310,8 @@ async def _run_standalone_build(request, context, conv_id):
         html=page["html"],
         summary=page.get("summary", ""),
         project_name=page.get("project_name", ""),
-        industry=context.get("industry", ""),
-        company_name=context.get("company_name", ""),
+        industry=build_context.get("industry", ""),
+        company_name=build_context.get("client_name") or page.get("title", ""),
     )
     if creation_id:
         yield ("creation_id", creation_id)
@@ -266,11 +325,8 @@ async def _run_standalone_build(request, context, conv_id):
         "summary": page.get("summary", ""),
         "project_name": page.get("project_name", ""),
         "html": page["html"],
-        "is_fallback": page.get("is_fallback", False),
+        "is_fallback": False,
     })
-    if page.get("is_fallback"):
-        yield ("event", {"type": "creation_stage", "stage": "fallback",
-                         "message": "The custom design step hit a snag, so this is a clean premium starter — say \"rebuild it\" to retry."})
     yield ("event", {"type": "complete"})
 
     note = (
@@ -309,6 +365,22 @@ async def _run_deploy_last(request, context, has_deploy_connectors):
         html = target.get("preview_html") or ((target.get("files") or [{}])[0].get("content", ""))
         if not html:
             yield ("event", {"type": "deployment_error", "value": "I couldn't find the saved page to deploy — rebuild it and try again.", "stage": "preflight"})
+            return
+        quality_errors = validate_standalone_html(
+            html,
+            target.get("user_message") or "",
+            {"client_name": target.get("company_name") or target.get("title") or ""},
+        )
+        if quality_errors:
+            yield ("event", {
+                "type": "deployment_error",
+                "value": (
+                    "The saved page failed the client-safety quality gate, so I refused to "
+                    "publish it. Rebuild the page first. "
+                    + "; ".join(quality_errors[:4])
+                ),
+                "stage": "validation",
+            })
             return
         vc = await get_connector_for_user(user_id, "vercel")
         if not vc:
@@ -379,15 +451,32 @@ async def _run_deploy_last(request, context, has_deploy_connectors):
             brief = target.get("preview_html") or target.get("artifact_markdown") or ""
         yield ("event", {"type": "agent_status", "id": "a1", "status": "started"})
         yield ("event", {"type": "deployment_status", "message": "Generating the Next.js codebase…"})
-        site_prompt = f"Build and deploy this as a production Next.js site.\n\nRequest: {request.message}"
-        async for result in _await_with_status(
-            generate_site(site_prompt, {**context, "artifact": brief}),
-            "Still generating the Next.js codebase…",
-        ):
-            if isinstance(result, dict) and "files" in result:
-                site = result
-            else:
-                yield ("event", result)
+        original_request = (target or {}).get("user_message") or request.message
+        site_prompt = (
+            "Port the saved approved website into a production Next.js site and prepare it "
+            f"for deployment.\n\nOriginal build request: {original_request}"
+        )
+        site_context = {
+            **context,
+            "artifact": brief,
+            "client_name": (target or {}).get("company_name") or (target or {}).get("title") or "",
+        }
+        try:
+            async for result in _await_with_status(
+                generate_site(site_prompt, site_context),
+                "Opus is still generating and validating the Next.js codebase…",
+            ):
+                if isinstance(result, dict) and "files" in result:
+                    site = result
+                else:
+                    yield ("event", result)
+        except SiteGenerationError as exc:
+            yield ("event", {
+                "type": "deployment_error",
+                "value": str(exc),
+                "stage": "site_gen",
+            })
+            return
         if not site:
             yield ("event", {"type": "deployment_error", "value": "Site generation failed before deploy. Try again.", "stage": "site_gen"})
             return
@@ -603,14 +692,20 @@ async def business_create(request: CreateRequest):
 
                     site = None
                     site_prompt = f"Deploy this approved website brief as a production Next.js site.\n\nUser confirmation: {request.message}"
-                    async for result in _await_with_status(
-                        generate_site(site_prompt, {**context, "artifact": previous_artifact}),
-                        "Still generating the Next.js codebase…",
-                    ):
-                        if isinstance(result, dict) and "files" in result:
-                            site = result
-                        else:
-                            yield f"data: {json.dumps(result)}\n\n"
+                    try:
+                        async for result in _await_with_status(
+                            generate_site(site_prompt, {**context, "artifact": previous_artifact}),
+                            "Opus is still generating and validating the Next.js codebase…",
+                        ):
+                            if isinstance(result, dict) and "files" in result:
+                                site = result
+                            else:
+                                yield f"data: {json.dumps(result)}\n\n"
+                    except SiteGenerationError as exc:
+                        yield f'data: {json.dumps({"type": "agent_status", "id": "a1", "status": "failed"})}\n\n'
+                        yield f'data: {json.dumps({"type": "deployment_error", "value": str(exc), "stage": "site_gen"})}\n\n'
+                        yield "data: [DONE]\n\n"
+                        return
 
                     if not site:
                         raise RuntimeError("site generator returned no files")
@@ -620,13 +715,6 @@ async def business_create(request: CreateRequest):
                     yield f'data: {json.dumps({"type": "artifact", "format": "markdown", "content": previous_artifact})}\n\n'
                     yield f'data: {json.dumps({"type": "complete"})}\n\n'
                     yield f'data: {json.dumps({"type": "agent_status", "id": "a2", "status": "started"})}\n\n'
-                    if site.get("is_fallback"):
-                        fallback_notice = (
-                            "The custom build step hit an issue, so I deployed a clean generic "
-                            "starter instead, it will not match the design brief above. "
-                            "Say \"rebuild the site\" to retry the custom version."
-                        )
-                        yield f'data: {json.dumps({"type": "deployment_status", "message": fallback_notice})}\n\n'
                     yield f'data: {json.dumps({"type": "deployment_status", "message": f"Generated {len(site.get('files', []))} files — starting deploy pipeline…"})}\n\n'
 
                     async for dev in run_deploy_pipeline(request.user_id, site, request.message, creation_id):
