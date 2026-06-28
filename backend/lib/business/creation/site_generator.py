@@ -2,9 +2,9 @@
 Site Generator for Jarvis OS1 — Batch 1.
 
 Produces a complete, build-clean Next.js 16 (App Router) project from a
-user prompt. Claude Opus generates the creative page/component code;
-all structural/config files are hardcoded to known-good versions so the
-build never fails on a bad tsconfig or package version.
+user prompt or approved standalone design. Sonnet handles the mechanical
+Next.js packaging by default; all structural/config files are hardcoded to
+known-good versions so the build never fails on a bad tsconfig or package version.
 
 Returns:
   {
@@ -25,7 +25,8 @@ from typing import Any
 
 from anthropic import AsyncAnthropic
 
-from backend.lib.business.model_router import OPUS
+from backend.lib.business.model_router import SONNET
+from backend.lib.business.cost import UsageAccumulator
 from backend.lib.business.creation.website_quality import (
     extract_client_name,
     should_use_owner_company,
@@ -35,7 +36,13 @@ from backend.lib.business.creation.website_quality import (
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 _GENERATOR_TIMEOUT = 300.0
 _GENERATOR_MAX_TOKENS = 32_000
-_GENERATION_ATTEMPTS = 2
+_SITE_MODEL = os.getenv("JARVIS_SITE_PACKAGING_MODEL", SONNET)
+try:
+    _GENERATION_ATTEMPTS = max(
+        1, min(int(os.getenv("JARVIS_SITE_GENERATION_ATTEMPTS", "1")), 2)
+    )
+except ValueError:
+    _GENERATION_ATTEMPTS = 1
 
 
 class SiteGenerationError(RuntimeError):
@@ -469,19 +476,31 @@ async def _call_site_model(user_prompt: str) -> dict[str, Any]:
         max_retries=1,
     )
     async with client.messages.stream(
-        model=OPUS,
+        # The approved standalone design was already created by Opus. Porting it into a known
+        # Next.js skeleton is mechanical work, so Sonnet is the cost-efficient default.
+        model=_SITE_MODEL,
         max_tokens=_GENERATOR_MAX_TOKENS,
-        system=_SYSTEM_PROMPT,
-        tools=[_SITE_TOOL],
+        system=[{
+            "type": "text",
+            "text": _SYSTEM_PROMPT,
+            "cache_control": {"type": "ephemeral"},
+        }],
+        tools=[{**_SITE_TOOL, "cache_control": {"type": "ephemeral"}}],
         tool_choice={"type": "tool", "name": "create_site"},
         messages=[{"role": "user", "content": user_prompt}],
     ) as stream:
         message = await stream.get_final_message()
 
+    usage = UsageAccumulator(_SITE_MODEL)
+    usage.add_sdk_usage(getattr(message, "usage", None))
+    print(f"[SITE_PACKAGING] {usage.log_line()}")
+
     for block in message.content:
         if block.type == "tool_use" and block.name == "create_site":
             return dict(block.input or {})
-    raise SiteGenerationError("Opus completed without returning the required project artifact.")
+    raise SiteGenerationError(
+        "The site packaging model completed without returning the required project artifact."
+    )
 
 
 def _build_site_prompt(user_message: str, context: dict, has_db: bool) -> str:

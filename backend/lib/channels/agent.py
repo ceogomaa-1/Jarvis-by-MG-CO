@@ -21,6 +21,12 @@ from backend.lib.business.tool_builder import build_tools_for_user
 from backend.lib.business.tool_executor import execute_tool
 from backend.lib.business.model_router import select_model, HAIKU
 from backend.lib.business.cost import UsageAccumulator
+from backend.lib.business.prompt_budget import (
+    cap_dynamic_prompt,
+    cap_tool_result,
+    chat_output_token_budget,
+    trim_history,
+)
 from backend.lib.billing import entitlements, config as billing_config, store as billing_store
 from backend.usage_limits import check_limit, increment_usage, DAILY_MESSAGE_LIMIT
 # Single source of truth for which tools require hold-to-confirm in the web app.
@@ -130,6 +136,7 @@ async def run_channel_turn(user_id: str, text: str, attachments: list = None,
                    for m in history[-6:]]
 
     static_prompt, dynamic_prompt, _used = await build_system_prompt(user_id, turn_text)
+    dynamic_prompt = cap_dynamic_prompt(dynamic_prompt)
     tools = await build_tools_for_user(user_id)
 
     system_blocks = [{"type": "text", "text": static_prompt, "cache_control": {"type": "ephemeral"}}]
@@ -139,17 +146,14 @@ async def run_channel_turn(user_id: str, text: str, attachments: list = None,
         tools = list(tools)
         tools[-1] = {**tools[-1], "cache_control": {"type": "ephemeral"}}
 
-    safe_history = [
-        {"role": m.get("role", "user"), "content": str(m.get("content", ""))}
-        for m in history
-        if isinstance(m.get("content"), str) and m["content"].strip()
-        and m.get("role") in ("user", "assistant")
-    ]
+    safe_history = trim_history(history)
     user_content = _build_content(turn_text, attachments)
     messages = safe_history + [{"role": "user", "content": user_content}]
 
-    model = HAIKU if is_trial else select_model(turn_text)
-    max_tokens = billing_config.TRIAL_MAX_TOKENS if is_trial else 4096
+    model = HAIKU if is_trial else select_model(turn_text, has_attachments=bool(attachments))
+    max_tokens = (
+        billing_config.TRIAL_MAX_TOKENS if is_trial else chat_output_token_budget(model)
+    )
     usage_acc = UsageAccumulator(model)
 
     final_text = ""
@@ -162,6 +166,7 @@ async def run_channel_turn(user_id: str, text: str, attachments: list = None,
                     "max_tokens": max_tokens,
                     "system": system_blocks,
                     "messages": messages,
+                    "cache_control": {"type": "ephemeral"},
                 }
                 if tools:
                     body["tools"] = tools
@@ -205,12 +210,17 @@ async def run_channel_turn(user_id: str, text: str, attachments: list = None,
                     break
 
                 messages.append({"role": "assistant", "content": content_blocks})
-                tool_results = []
-                for tb in tool_uses:
+                async def _run_read_tool(tb: dict) -> dict:
                     result_str = await execute_tool(tb["name"], tb.get("input", {}), user_id)
-                    tool_results.append({
-                        "type": "tool_result", "tool_use_id": tb["id"], "content": result_str,
-                    })
+                    return {
+                        "type": "tool_result",
+                        "tool_use_id": tb["id"],
+                        "content": cap_tool_result(result_str),
+                    }
+
+                tool_results = list(await asyncio.gather(
+                    *(_run_read_tool(tb) for tb in tool_uses)
+                ))
                 messages.append({"role": "user", "content": tool_results})
             else:
                 # Exhausted tool rounds without a final text answer.

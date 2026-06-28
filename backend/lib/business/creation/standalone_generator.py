@@ -26,6 +26,7 @@ from typing import Any
 from anthropic import AsyncAnthropic
 
 from backend.lib.business.model_router import OPUS
+from backend.lib.business.cost import UsageAccumulator
 from backend.lib.business.creation.sub_agents import _PREMIUM_DESIGN_SYSTEM
 from backend.lib.business.creation.website_quality import (
     extract_client_name,
@@ -36,7 +37,14 @@ from backend.lib.business.creation.website_quality import (
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 _GENERATOR_TIMEOUT = 300.0
 _GENERATOR_MAX_TOKENS = 24_000
-_GENERATION_ATTEMPTS = 2
+try:
+    # A full second Opus draft can nearly double one website's cost. Keep retries opt-in; the
+    # Anthropic SDK still retries transient transport/rate-limit failures once.
+    _GENERATION_ATTEMPTS = max(
+        1, min(int(os.getenv("JARVIS_WEBSITE_GENERATION_ATTEMPTS", "1")), 2)
+    )
+except ValueError:
+    _GENERATION_ATTEMPTS = 1
 
 
 class WebsiteGenerationError(RuntimeError):
@@ -198,12 +206,20 @@ async def _call_page_model(user_prompt: str) -> dict[str, Any]:
     async with client.messages.stream(
         model=OPUS,
         max_tokens=_GENERATOR_MAX_TOKENS,
-        system=_SYSTEM_PROMPT,
-        tools=[_PAGE_TOOL],
+        system=[{
+            "type": "text",
+            "text": _SYSTEM_PROMPT,
+            "cache_control": {"type": "ephemeral"},
+        }],
+        tools=[{**_PAGE_TOOL, "cache_control": {"type": "ephemeral"}}],
         tool_choice={"type": "tool", "name": "create_page"},
         messages=[{"role": "user", "content": user_prompt}],
     ) as stream:
         message = await stream.get_final_message()
+
+    usage = UsageAccumulator(OPUS)
+    usage.add_sdk_usage(getattr(message, "usage", None))
+    print(f"[WEBSITE_GENERATION] {usage.log_line()}")
 
     for block in message.content:
         if block.type == "tool_use" and block.name == "create_page":

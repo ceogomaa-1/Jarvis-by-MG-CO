@@ -40,6 +40,9 @@ _CHEAP_PATTERNS = [
     # List / lookup / formatting requests
     r"^\s*(list|show|count|how\s+many|which|what)\b.*\b(crm|contacts|companies|opportunities|deals|leads|pipeline|stage)\b",
     r"\b(format|reformat|tidy\s+up|clean\s+up|tabulate|summari[sz]e\s+(this|the)\s+(list|table|data))\b",
+    # Routine live lookups and short administrative asks
+    r"^\s*(what|when|where|who|check|show|tell\s+me)\b.*\b(time|date|day|weather|forecast|calendar|schedule|inbox|email|status)\b",
+    r"^\s*(save|add|create|delete|remove|edit|update|mark|snooze)\b.*\b(note|reminder|task|calendar|event)\b",
 ]
 
 # Strategic / heavy analytical requests → Opus (best quality)
@@ -54,8 +57,27 @@ _OPUS_PATTERNS = [
     r"\b(investor\s+deck|pitch\s+deck|board\s+deck|vc\s+presentation|investor\s+presentation)\b",
 ]
 
+_COMPLEX_HINTS = re.compile(
+    r"\b(analy[sz]e|strategy|strategic|deep|comprehensive|audit|research|compare|"
+    r"recommend|advise|architecture|debug|diagnose|legal|contract|financial|forecast|"
+    r"campaign|proposal|presentation|deck|website|landing\s+page|code|implement|"
+    r"multi[- ]step|all\s+of|every\s+one)\b",
+    re.IGNORECASE,
+)
 
-def select_model(message: str) -> str:
+
+def _is_short_simple_request(text: str) -> bool:
+    """Cheap default for genuinely small asks, without downgrading substantive work."""
+    words = re.findall(r"\b[\w'-]+\b", text)
+    return (
+        len(text) <= 160
+        and len(words) <= 18
+        and not _COMPLEX_HINTS.search(text)
+        and text.count("\n") <= 1
+    )
+
+
+def select_model(message: str, *, has_attachments: bool = False) -> str:
     """
     Route to the cheapest model that can handle the required quality.
 
@@ -68,6 +90,10 @@ def select_model(message: str) -> str:
         return SONNET
 
     text = message.strip()
+
+    # Images/documents deserve the standard vision/reasoning tier even when the caption is tiny.
+    if has_attachments:
+        return SONNET
 
     for pat in _HAIKU_PATTERNS:
         if re.search(pat, text, re.IGNORECASE):
@@ -83,6 +109,9 @@ def select_model(message: str) -> str:
     for pat in _CHEAP_PATTERNS:
         if re.search(pat, text, re.IGNORECASE):
             return HAIKU
+
+    if _is_short_simple_request(text):
+        return HAIKU
 
     return SONNET
 
@@ -100,4 +129,13 @@ def select_personal_model(message: str) -> str:
     for pat in _HAIKU_PATTERNS:
         if re.search(pat, text, re.IGNORECASE):
             return HAIKU
+    for pat in _CHEAP_PATTERNS[-2:]:
+        if re.search(pat, text, re.IGNORECASE):
+            return HAIKU
+    if _is_short_simple_request(text) and re.match(
+        r"^\s*(what|when|where|who|save|add|delete|remove|mark|check|show)\b",
+        text,
+        re.IGNORECASE,
+    ):
+        return HAIKU
     return SONNET

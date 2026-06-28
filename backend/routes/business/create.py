@@ -464,7 +464,7 @@ async def _run_deploy_last(request, context, has_deploy_connectors):
         try:
             async for result in _await_with_status(
                 generate_site(site_prompt, site_context),
-                "Opus is still generating and validating the Next.js codebase…",
+                "The site builder is still generating and validating the Next.js codebase…",
             ):
                 if isinstance(result, dict) and "files" in result:
                     site = result
@@ -695,7 +695,7 @@ async def business_create(request: CreateRequest):
                     try:
                         async for result in _await_with_status(
                             generate_site(site_prompt, {**context, "artifact": previous_artifact}),
-                            "Opus is still generating and validating the Next.js codebase…",
+                            "The site builder is still generating and validating the Next.js codebase…",
                         ):
                             if isinstance(result, dict) and "files" in result:
                                 site = result

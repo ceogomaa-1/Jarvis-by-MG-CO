@@ -13,6 +13,7 @@ from backend.lib.grounding import GROUNDING_CONTRACT, CAPABILITY_CONTRACT, rende
 from backend.lib.jarvis_core import JARVIS_CORE_CONTRACT
 from backend.lib.business.model_router import select_personal_model, SONNET
 from backend.lib.business.cost import UsageAccumulator
+from backend.lib.business.prompt_budget import cap_dynamic_prompt, cap_tool_result, trim_history
 
 logger = logging.getLogger(__name__)
 
@@ -427,6 +428,7 @@ async def jarvis_think(
 
     moment_block = await get_current_moment_block(user_id)
     static_prompt, dynamic_prompt = _build_system_prompt(memory_context, user_model_context, system_override, tone_context, live_context, moment_block=moment_block, voice_mode=voice_mode, user_id=user_id)
+    dynamic_prompt = cap_dynamic_prompt(dynamic_prompt)
     if not system_override:
         static_prompt = "YOU ARE NOT IN ONBOARDING MODE. ALL TOOLS ARE ACTIVE. CALL THEM WITHOUT HESITATION.\n\n" + static_prompt
         # Live capability manifest from the REAL tool list, so Personal Jarvis knows
@@ -446,7 +448,15 @@ async def jarvis_think(
             except Exception as _manifest_err:
                 print(f"PERSONAL_MANIFEST: skipped ({_manifest_err})")
 
-    messages = [{"role": m["role"], "content": m["content"]} for m in conversation_history]
+    if all(isinstance(m.get("content"), str) for m in conversation_history):
+        messages = trim_history(conversation_history)
+    else:
+        # Keep recent multimodal turns intact; images/documents cannot be safely string-trimmed.
+        messages = [
+            {"role": m["role"], "content": m["content"]}
+            for m in conversation_history[-12:]
+            if m.get("role") in ("user", "assistant")
+        ]
     messages.append({"role": "user", "content": user_message})
 
     # ── Model tiering ─────────────────────────────────────────────────────────
@@ -478,6 +488,7 @@ async def jarvis_think(
         "max_tokens": 1024,
         "system": system_blocks,
         "messages": messages,  # type: ignore[arg-type]
+        "cache_control": {"type": "ephemeral"},
     }
     if available_tools:
         kwargs["tools"] = all_tools
@@ -533,7 +544,7 @@ async def jarvis_think(
                 tool_results.append({
                     "type": "tool_result",
                     "tool_use_id": block.id,
-                    "content": tool_result,
+                    "content": cap_tool_result(tool_result),
                 })
 
         messages.append({"role": "assistant", "content": assistant_content})
@@ -545,6 +556,7 @@ async def jarvis_think(
             system=system_blocks,
             messages=messages,  # type: ignore[arg-type]
             tools=all_tools,  # type: ignore[arg-type]
+            cache_control={"type": "ephemeral"},
         )
         usage_acc.add_sdk_usage(getattr(result, "usage", None))
 

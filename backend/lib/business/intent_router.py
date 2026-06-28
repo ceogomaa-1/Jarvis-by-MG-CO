@@ -41,6 +41,37 @@ _INGEST_RE = re.compile(
     r"|\bhere'?s\s+(the|our|my)\s+(bible|info|knowledge|details|company|background|context)\b",
     re.IGNORECASE,
 )
+_SHOW_ME_HOW_RE = re.compile(
+    r"^\s*(?:show|teach|walk|guide)\s+me\b.*\b(?:how|through)\b"
+    r"|^\s*how\s+(?:do|can|should|would)\s+i\b"
+    r"|\b(?:step[- ]by[- ]step|tutorial|instructions\s+for\s+me\s+to)\b",
+    re.IGNORECASE,
+)
+_DELIVERABLE_NOUN = (
+    r"(?:marketing\s+campaign|campaign|slide\s+deck|pitch\s+deck|deck|presentation|"
+    r"multi[- ]section\s+(?:report|document)|business\s+proposal)"
+)
+_CLEAR_DELIVERABLE_RE = re.compile(
+    rf"\b{_BUILD_VERB}\b[^.\n]{{0,55}}\b{_DELIVERABLE_NOUN}\b"
+    rf"|\b{_DELIVERABLE_NOUN}\b[^.\n]{{0,45}}\b(?:for|about|on)\b",
+    re.IGNORECASE,
+)
+_SHORT_CONFIRM_RE = re.compile(
+    r"^\s*(?:yes|yep|yeah|sure|ok(?:ay)?|go\s+ahead|do\s+it|build\s+it|"
+    r"create\s+it|deploy\s+it|publish\s+it|make\s+it)\s*[!?.]*\s*$",
+    re.IGNORECASE,
+)
+_BUILD_OFFER_RE = re.compile(
+    rf"\b(?:build|create|design|generate|deploy|publish|make)\b[^.\n]{{0,90}}"
+    rf"\b(?:{_SITE_NOUN}|{_DELIVERABLE_NOUN})\b",
+    re.IGNORECASE,
+)
+_ROUTE_SENSITIVE_RE = re.compile(
+    r"\b(?:build|create|design|generate|deploy|publish|make|prepare|"
+    r"show|teach|walk|guide|tutorial|step[- ]by[- ]step)\b"
+    r"|^\s*how\s+(?:do|can|should|would)\s+i\b",
+    re.IGNORECASE,
+)
 
 
 def is_website_build_request(message: str) -> bool:
@@ -101,6 +132,23 @@ async def classify_message_intent(
     # creation pipeline (this is the fix for site asks misrouting to chat and dumping raw code).
     if is_website_build_request(text):
         return {"intent": "create", "reason": "website-build-shortcircuit"}
+
+    if _SHOW_ME_HOW_RE.search(text):
+        return {"intent": "show_me_how", "reason": "tutorial-shortcircuit"}
+
+    if _CLEAR_DELIVERABLE_RE.search(text) and not _INGEST_RE.search(text):
+        return {"intent": "create", "reason": "deliverable-shortcircuit"}
+
+    if _SHORT_CONFIRM_RE.match(text):
+        last = (recent_assistant_texts or [""])[-1][:1_200]
+        if last and _BUILD_OFFER_RE.search(last):
+            return {"intent": "create", "reason": "build-confirmation-shortcircuit"}
+        return {"intent": "chat", "reason": "ordinary-confirmation-shortcircuit"}
+
+    # Normal questions/conversation/tool requests do not need a paid classifier. Keep the model
+    # only for wording that genuinely straddles chat vs. artifact/tutorial routing.
+    if not _ROUTE_SENSITIVE_RE.search(text):
+        return {"intent": "chat", "reason": "deterministic-chat"}
 
     context_lines = []
     if active_agent_id:

@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import re
 from datetime import datetime, timezone
 
 import httpx
@@ -13,8 +14,14 @@ from backend.lib.business.system_prompt_builder import build_system_prompt
 from backend.lib.business.farida_loader import FARIDA_USER_ID, load_greeting as _load_farida_greeting
 from backend.lib.business.model_router import select_model, OPUS, HAIKU
 from backend.lib.business.cost import UsageAccumulator
-from backend.lib.business.memory import extract_and_store_memories
+from backend.lib.business.memory import extract_and_store_memories, should_extract_memories
 from backend.lib.business.mind.graph import record_activity
+from backend.lib.business.prompt_budget import (
+    cap_dynamic_prompt,
+    cap_tool_result,
+    chat_output_token_budget,
+    trim_history,
+)
 from backend.lib.business.tool_builder import (
     build_tools_for_user, TWENTY_WRITE_TOOLS, TWENTY_DESTRUCTIVE_TOOLS, TWENTY_BULK_TOOLS,
     TWENTY_METADATA_TOOLS, TWENTY_METADATA_WRITE, TWENTY_METADATA_DESTRUCTIVE,
@@ -34,13 +41,13 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 SUPABASE_URL = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 
-# Tool-round budget for the web Business brain. Raised from 5 → 15 so multi-step asks
-# (chained CRM reads/writes, multi-source research) actually complete instead of dying with
-# "I hit a processing limit". Genuinely huge per-record bulk ops (enrich phone/email/address
-# for "all"/N>8 companies) are routed OUT of the chat turn entirely — see crm_enrich. The
-# channels/WhatsApp brain (lib/channels/agent.py) keeps its own lower cap. The per-turn cost
-# is still bounded by the daily message window + (for trials) the hard cost ceiling.
-MAX_TOOL_ROUNDS = 15
+# Tool-round spend guard for the web Business brain. Eight rounds still supports meaningful
+# chained work; the environment can raise it to 15 for a deliberate workflow. Genuinely huge
+# per-record bulk ops are routed out of the chat turn entirely — see crm_enrich.
+try:
+    MAX_TOOL_ROUNDS = max(3, min(int(os.getenv("JARVIS_MAX_TOOL_ROUNDS", "8")), 15))
+except ValueError:
+    MAX_TOOL_ROUNDS = 8
 
 # Write actions that require user confirmation before execution.
 # When Claude generates tool_use for any of these, the backend intercepts it,
@@ -221,6 +228,7 @@ async def _summarize_partial_progress(model, system_blocks, current_messages, us
                     "max_tokens": 400,
                     "system": system_blocks,
                     "messages": current_messages + [nudge],
+                    "cache_control": {"type": "ephemeral"},
                 },
                 timeout=60.0,
             )
@@ -288,32 +296,16 @@ def _update_title(sb, conv_id: str, title: str) -> None:
 
 
 async def _auto_title(sb, conv_id: str, first_user_message: str) -> None:
+    """Create a useful conversation title without spending a second model call."""
     try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": ANTHROPIC_API_KEY,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": "claude-haiku-4-5-20251001",
-                    "max_tokens": 20,
-                    "messages": [
-                        {"role": "user", "content": (
-                            f"Generate a short 3-6 word title for a conversation that starts with: "
-                            f"'{first_user_message[:200]}'. "
-                            "Return ONLY the title, no quotes, no explanation."
-                        )}
-                    ],
-                },
-                timeout=30.0,
-            )
-        if resp.status_code == 200:
-            title = resp.json().get("content", [{}])[0].get("text", "").strip()
-            if title:
-                await asyncio.to_thread(_update_title, sb, conv_id, title)
+        clean = re.sub(r"https?://\S+", "", first_user_message or "")
+        clean = re.sub(r"[^\w&'+-]+", " ", clean).strip()
+        words = clean.split()
+        title = " ".join(words[:6]).strip()
+        if len(words) > 6:
+            title += "…"
+        if title:
+            await asyncio.to_thread(_update_title, sb, conv_id, title[:80])
     except Exception as e:
         print(f"Auto-title error: {e}")
 
@@ -471,6 +463,7 @@ async def classify_intent_route(request: IntentClassifyRequest):
 @router.post("/business/chat/stream")
 async def business_chat_stream(request: BusinessChatRequest):
     static_prompt, dynamic_prompt, used_memory_ids = await build_system_prompt(request.user_id, request.message)
+    dynamic_prompt = cap_dynamic_prompt(dynamic_prompt)
     tools = await build_tools_for_user(request.user_id)
     is_re_user = bool(request.user_id) and await is_real_estate_user(request.user_id)
 
@@ -519,12 +512,7 @@ async def business_chat_stream(request: BusinessChatRequest):
         tools = list(tools)
         tools[-1] = {**tools[-1], "cache_control": {"type": "ephemeral"}}
 
-    safe_history = [
-        {"role": m.get("role", "user"), "content": str(m.get("content", ""))}
-        for m in (request.conversation_history or [])
-        if isinstance(m.get("content"), str) and m["content"].strip()
-        and m.get("role") in ("user", "assistant")
-    ]
+    safe_history = trim_history(request.conversation_history)
 
     # Trials: bound the INPUT so a huge paste can't spike one turn, and drop attachments
     # (images/PDFs are the other big input-cost lever). The taste stays text-only and cheap.
@@ -541,10 +529,9 @@ async def business_chat_stream(request: BusinessChatRequest):
     )
     messages = safe_history + [{"role": "user", "content": user_content}]
 
-    model = select_model(request.message)
-    # 8192 for both Sonnet and Opus: enough headroom for tool call JSON without truncation.
-    # 2048 was too small for Sonnet — a mid-tool-call max_tokens hit caused silent tool drops.
-    max_tokens = 8192
+    model = select_model(request.message, has_attachments=bool(trial_attachments))
+    # Model-specific ceilings prevent runaway prose while retaining tool-call headroom.
+    max_tokens = chat_output_token_budget(model)
     # Trials run on the cheapest tier with a capped output budget so the same cost ceiling
     # buys many more turns AND no single response can blow it.
     if is_trial:
@@ -737,6 +724,10 @@ async def business_chat_stream(request: BusinessChatRequest):
                         "system": system_blocks,
                         "messages": current_messages,
                         "stream": True,
+                        # Automatic caching advances the breakpoint through the growing message
+                        # history on every tool/chat round. Explicit breakpoints above still keep
+                        # tools and the stable system block independently reusable.
+                        "cache_control": {"type": "ephemeral"},
                     }
                     if tools:
                         request_body["tools"] = tools
@@ -927,37 +918,42 @@ async def business_chat_stream(request: BusinessChatRequest):
                         got_final_response = True
                         break
 
-                    # No write actions — execute all tools and continue the loop
+                    # No write actions — independent read tools from the same model round can run
+                    # concurrently. This shortens the turn without adding another model round.
                     current_messages.append({"role": "assistant", "content": content_blocks})
 
-                    tool_results = []
+                    running_tools: list[tuple[dict, asyncio.Task, asyncio.Queue]] = []
                     for block in tool_use_blocks:
                         tool_name = block["name"]
-                        tool_id = block["id"]
                         tool_inp = block.get("input", {})
 
                         yield f'data: {json.dumps({"type": "tool_call", "name": tool_name, "status": "executing"})}\n\n'
 
-                        # Run the tool as a task while draining a progress queue, so
-                        # long steps (web research) stream human-readable status
-                        # ("Checking 6 sources…", "2 unreachable, read 3…") instead of
-                        # sitting silent. Keeps the SSE connection alive throughout.
                         progress_q: asyncio.Queue = asyncio.Queue()
 
-                        async def _progress_cb(msg: str):
-                            await progress_q.put(msg)
+                        async def _progress_cb(msg: str, queue: asyncio.Queue = progress_q):
+                            await queue.put(msg)
 
                         tool_task = asyncio.create_task(
                             execute_tool(tool_name, tool_inp, request.user_id, progress_cb=_progress_cb)
                         )
-                        while not tool_task.done() or not progress_q.empty():
-                            try:
-                                msg = await asyncio.wait_for(progress_q.get(), timeout=0.4)
-                            except asyncio.TimeoutError:
-                                continue
-                            yield f'data: {json.dumps({"type": "tool_progress", "name": tool_name, "value": msg})}\n\n'
-                        result_str = await tool_task
+                        running_tools.append((block, tool_task, progress_q))
 
+                    # Drain progress from every running tool so long research steps stay visible.
+                    while any(not task.done() or not queue.empty() for _, task, queue in running_tools):
+                        emitted_progress = False
+                        for block, _, progress_q in running_tools:
+                            while not progress_q.empty():
+                                msg = progress_q.get_nowait()
+                                emitted_progress = True
+                                yield f'data: {json.dumps({"type": "tool_progress", "name": block["name"], "value": msg})}\n\n'
+                        if not emitted_progress:
+                            await asyncio.sleep(0.1)
+
+                    tool_results = []
+                    for block, tool_task, _ in running_tools:
+                        tool_name = block["name"]
+                        result_str = await tool_task
                         yield f'data: {json.dumps({"type": "tool_call", "name": tool_name, "status": "complete"})}\n\n'
 
                         # "Feels live": signal the embedded CRM view to refresh after a
@@ -971,8 +967,8 @@ async def business_chat_stream(request: BusinessChatRequest):
 
                         tool_results.append({
                             "type": "tool_result",
-                            "tool_use_id": tool_id,
-                            "content": result_str,
+                            "tool_use_id": block["id"],
+                            "content": cap_tool_result(result_str),
                         })
 
                     current_messages.append({"role": "user", "content": tool_results})
@@ -1019,11 +1015,12 @@ async def business_chat_stream(request: BusinessChatRequest):
                 # can send their next message right away. The message itself is already
                 # persisted above; only the best-effort memory_born thought-trace is
                 # skipped on this connection as a result.
-                asyncio.create_task(
-                    extract_and_store_memories(
-                        request.user_id, conv_id, request.message, final_text, sb
+                if should_extract_memories(request.message, final_text):
+                    asyncio.create_task(
+                        extract_and_store_memories(
+                            request.user_id, conv_id, request.message, final_text, sb
+                        )
                     )
-                )
             except Exception as e:
                 print(f"Post-stream persistence error: {e}")
 
@@ -1051,43 +1048,9 @@ async def confirm_action(request: ConfirmActionRequest):
     except Exception:
         result_data = {}
 
-    # Generate a natural language confirmation via a fast model
+    # Confirmation is deterministic: the tool already returned the source of truth, and a
+    # cosmetic rewrite is not worth a separate paid model request.
     confirmation_text = _make_fallback_confirmation(request.tool_name, result_data)
-    try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": ANTHROPIC_API_KEY,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": "claude-haiku-4-5-20251001",
-                    "max_tokens": 150,
-                    "messages": [{
-                        "role": "user",
-                        "content": (
-                            f"The action '{request.tool_name}' was just executed.\n"
-                            f"Inputs sent: {json.dumps(request.tool_input)[:600]}\n"
-                            f"Result: {json.dumps(result_data)[:400]}\n\n"
-                            "Write a brief 1-2 sentence natural confirmation of what was done. "
-                            "If the result contains an 'error' key, the action FAILED — say so "
-                            "plainly and do not claim success. Otherwise, confirm using the REAL "
-                            "result (e.g. include the agent_id if present). If the inputs include "
-                            "a new first_message, quote it — that's the new greeting. "
-                            "Be specific and direct. No pleasantries."
-                        ),
-                    }],
-                },
-                timeout=30.0,
-            )
-        if resp.status_code == 200:
-            text = resp.json().get("content", [{}])[0].get("text", "").strip()
-            if text:
-                confirmation_text = text
-    except Exception as e:
-        print(f"confirm-action: LLM fallback error: {e}")
 
     # Persist the confirmation message to conversation history
     if request.conversation_id and request.user_id:

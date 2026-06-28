@@ -8,6 +8,7 @@ These are injected into every future system prompt.
 import asyncio
 import json
 import os
+import re
 
 import httpx
 
@@ -33,6 +34,34 @@ Examples of good memories:
 - "User's biggest pain point is no-show appointments"
 
 Return ONLY a valid JSON array, nothing else."""
+
+_DURABLE_MEMORY_RE = re.compile(
+    r"\b("
+    r"remember|my\s+(?:name|business|company|brand|website|email|phone|address|goal|"
+    r"target|budget|team|industry|client|preference)|"
+    r"our\s+(?:business|company|brand|website|goal|target|budget|team|clients?)|"
+    r"i\s+(?:am|own|run|work|live|prefer|like|love|hate|use|have)|"
+    r"we\s+(?:are|own|run|prefer|use|have|sell|offer)|"
+    r"(?:revenue|pricing|deadline|timezone|location)\s+(?:is|are)"
+    r")\b",
+    re.IGNORECASE,
+)
+_EPHEMERAL_ONLY_RE = re.compile(
+    r"^\s*(hi|hello|hey|yo|thanks?|thank\s+you|ok(?:ay)?|cool|nice|perfect|great|"
+    r"yes|no|yep|nope|sure|go\s+ahead|do\s+it|continue|keep\s+going|bye)[!?.\s]*$",
+    re.IGNORECASE,
+)
+
+
+def should_extract_memories(user_message: str, assistant_response: str = "") -> bool:
+    """Avoid a second model call when the exchange contains no durable user fact."""
+    text = (user_message or "").strip()
+    if not text or len(text) < 12 or _EPHEMERAL_ONLY_RE.match(text):
+        return False
+    if _DURABLE_MEMORY_RE.search(text):
+        return True
+    # Longer first-person disclosures can contain useful context even without a stock phrase.
+    return len(text) >= 220 and bool(re.search(r"\b(i|we|my|our)\b", text, re.IGNORECASE))
 
 
 def _user_id_to_uuid(user_id: str) -> str:
@@ -87,6 +116,9 @@ async def extract_and_store_memories(
     if not ANTHROPIC_API_KEY or not sb or not user_id:
         print(f"MEMORY_EXTRACT: aborting — missing api_key={bool(ANTHROPIC_API_KEY)} sb={bool(sb)} user_id={bool(user_id)}")
         return []
+    if not should_extract_memories(user_message, assistant_response):
+        print("MEMORY_EXTRACT: skipped — no durable user fact detected")
+        return []
 
     user_uuid = _user_id_to_uuid(user_id)
     prompt = _EXTRACTION_PROMPT.format(
@@ -105,7 +137,7 @@ async def extract_and_store_memories(
                 },
                 json={
                     "model": "claude-haiku-4-5-20251001",
-                    "max_tokens": 500,
+                    "max_tokens": 220,
                     "messages": [{"role": "user", "content": prompt}],
                 },
                 timeout=30.0,

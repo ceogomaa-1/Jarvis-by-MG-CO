@@ -35,7 +35,7 @@ async def test_empty_message_is_chat():
 @pytest.mark.asyncio
 async def test_no_api_key_falls_back_to_chat(monkeypatch):
     monkeypatch.setattr(intent_router, "ANTHROPIC_API_KEY", "")
-    result = await classify_message_intent("help me think through my pricing strategy")
+    result = await classify_message_intent("build me a voice agent")
     assert result == {"intent": "chat", "reason": "no-api-key"}
 
 
@@ -96,7 +96,7 @@ async def test_markdown_fenced_json_is_parsed(monkeypatch):
     monkeypatch.setattr(intent_router, "ANTHROPIC_API_KEY", "test-key")
     fake = _FakeAsyncClient(_anthropic_response('```json\n{"intent": "show_me_how", "reason": "tutorial"}\n```'))
     monkeypatch.setattr(httpx, "AsyncClient", lambda: fake)
-    result = await classify_message_intent("how do I connect Stripe")
+    result = await classify_message_intent("build me a voice agent")
     assert result == {"intent": "show_me_how", "reason": "tutorial"}
 
 
@@ -105,7 +105,7 @@ async def test_invalid_intent_value_falls_back_to_chat(monkeypatch):
     monkeypatch.setattr(intent_router, "ANTHROPIC_API_KEY", "test-key")
     fake = _FakeAsyncClient(_anthropic_response('{"intent": "delete_everything", "reason": "??"}'))
     monkeypatch.setattr(httpx, "AsyncClient", lambda: fake)
-    result = await classify_message_intent("do something")
+    result = await classify_message_intent("build me a voice agent")
     assert result == {"intent": "chat", "reason": "fallback-default"}
 
 
@@ -114,7 +114,7 @@ async def test_non_200_falls_back_to_chat(monkeypatch):
     monkeypatch.setattr(intent_router, "ANTHROPIC_API_KEY", "test-key")
     fake = _FakeAsyncClient(_FakeResponse(500, text="server error"))
     monkeypatch.setattr(httpx, "AsyncClient", lambda: fake)
-    result = await classify_message_intent("help me think through my pricing strategy")
+    result = await classify_message_intent("build me a voice agent")
     assert result == {"intent": "chat", "reason": "fallback-default"}
 
 
@@ -123,7 +123,7 @@ async def test_request_exception_falls_back_to_chat(monkeypatch):
     monkeypatch.setattr(intent_router, "ANTHROPIC_API_KEY", "test-key")
     fake = _FakeAsyncClient(exc=httpx.ConnectError("boom"))
     monkeypatch.setattr(httpx, "AsyncClient", lambda: fake)
-    result = await classify_message_intent("help me think through my pricing strategy")
+    result = await classify_message_intent("build me a voice agent")
     assert result == {"intent": "chat", "reason": "fallback-default"}
 
 
@@ -132,5 +132,25 @@ async def test_malformed_json_falls_back_to_chat(monkeypatch):
     monkeypatch.setattr(intent_router, "ANTHROPIC_API_KEY", "test-key")
     fake = _FakeAsyncClient(_anthropic_response("not json at all"))
     monkeypatch.setattr(httpx, "AsyncClient", lambda: fake)
-    result = await classify_message_intent("help me think through my pricing strategy")
+    result = await classify_message_intent("build me a voice agent")
     assert result == {"intent": "chat", "reason": "fallback-default"}
+
+
+@pytest.mark.asyncio
+async def test_routine_chat_skips_paid_classifier(monkeypatch):
+    monkeypatch.setattr(intent_router, "ANTHROPIC_API_KEY", "test-key")
+
+    def should_not_construct_client():
+        raise AssertionError("routine chat must not call the classifier model")
+
+    monkeypatch.setattr(httpx, "AsyncClient", should_not_construct_client)
+    result = await classify_message_intent("What time is my meeting tomorrow?")
+    assert result == {"intent": "chat", "reason": "deterministic-chat"}
+
+
+@pytest.mark.asyncio
+async def test_clear_tutorial_and_deliverable_are_deterministic():
+    tutorial = await classify_message_intent("How do I connect Stripe?")
+    deliverable = await classify_message_intent("Create a pitch deck for Acme")
+    assert tutorial["intent"] == "show_me_how"
+    assert deliverable["intent"] == "create"
