@@ -17,6 +17,8 @@ from backend.lib.business.cost import UsageAccumulator
 from backend.lib.business.memory import extract_and_store_memories, should_extract_memories
 from backend.lib.business.mind.graph import record_activity
 from backend.lib.business.prompt_budget import (
+    CHAT_HISTORY_CHAR_CAP,
+    TOOL_RESULT_CHAR_CAP,
     cap_dynamic_prompt,
     cap_tool_result,
     chat_output_token_budget,
@@ -438,6 +440,22 @@ async def get_user_usage(user_id: str = ""):
     limit = await asyncio.to_thread(entitlements.effective_message_limit, user_id, DAILY_MESSAGE_LIMIT)
     usage = await asyncio.to_thread(get_usage, user_id, sb, limit)
     return usage
+
+
+@router.get("/business/cost-controls")
+async def get_cost_controls():
+    """Non-AI deployment probe for the active spend-control revision."""
+    return {
+        "revision": "prompt-cache-v2",
+        "automatic_conversation_caching": True,
+        "static_system_caching": True,
+        "tool_definition_caching": True,
+        "history_char_cap": CHAT_HISTORY_CHAR_CAP,
+        "tool_result_char_cap": TOOL_RESULT_CHAR_CAP,
+        "max_tool_rounds": MAX_TOOL_ROUNDS,
+        "routine_intent_calls": False,
+        "routine_memory_calls": False,
+    }
 
 
 class IntentClassifyRequest(BaseModel):

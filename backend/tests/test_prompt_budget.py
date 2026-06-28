@@ -1,3 +1,5 @@
+import pytest
+
 from backend.lib.business.memory import should_extract_memories
 from backend.lib.business.model_router import HAIKU, OPUS, SONNET, select_model
 from backend.lib.business.prompt_budget import cap_tool_result, clip_text, trim_history
@@ -33,3 +35,13 @@ def test_memory_extraction_only_runs_for_durable_user_context():
     assert should_extract_memories("Thanks!") is False
     assert should_extract_memories("Can you check tomorrow's weather?") is False
     assert should_extract_memories("My business is a dental clinic in Oshawa") is True
+
+
+@pytest.mark.asyncio
+async def test_cost_control_probe_reports_active_revision():
+    from backend.routes.business.chat import get_cost_controls
+
+    result = await get_cost_controls()
+    assert result["revision"] == "prompt-cache-v2"
+    assert result["automatic_conversation_caching"] is True
+    assert result["history_char_cap"] > 0
