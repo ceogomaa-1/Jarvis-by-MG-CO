@@ -416,7 +416,7 @@ async def generate_site(user_message: str, context: dict) -> dict:
             f"Nothing was pushed to GitHub or Vercel. Last issue: {last_problem}"
         )
 
-    project_name = _sanitize_name(tool_result.get("project_name", "jarvis-site"))
+    project_name = _sanitize_name(tool_result.get("project_name", "business-website"))
     needs_database = has_db
     summary = tool_result.get("summary", "")
     layout_tsx = tool_result.get("layout_tsx", "")
@@ -560,10 +560,10 @@ def _sanitize_name(name: str) -> str:
     """Ensure project name is kebab-case, lowercase, max 40 chars."""
     name = re.sub(r"[^a-z0-9-]", "-", name.lower())
     name = re.sub(r"-{2,}", "-", name).strip("-")
-    return name[:40] or "jarvis-site"
+    return name[:40] or "business-website"
 
 
-def _default_layout(title: str = "Jarvis Site") -> str:
+def _default_layout(title: str = "Business Website") -> str:
     return f'''\
 import type {{ Metadata }} from "next"
 import "./globals.css"
@@ -720,7 +720,7 @@ export default function Home() {{
       <section id="contact" className="mx-auto max-w-4xl px-6 py-20 text-center">
         <h2 className="text-4xl font-semibold">Ready to turn attention into action?</h2>
         <p className="mx-auto mt-4 max-w-2xl text-[var(--text-muted)]">
-          This version is the reliable deploy fallback. Jarvis can refine copy, sections, and visuals from here.
+          This version is ready for focused refinements to its copy, sections, and visuals.
         </p>
       </section>
     </main>

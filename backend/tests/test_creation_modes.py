@@ -124,3 +124,61 @@ def test_standalone_build_event_sequence(monkeypatch):
     assert html_seen
     assert seq.index("plan") < seq.index("html_artifact") < seq.index("complete")
     assert "[chat_message]" in seq
+
+
+def test_standalone_edit_updates_same_saved_creation(monkeypatch):
+    original = _valid_html("Brightsmile Dental")
+    edited_html = original.replace("Brightsmile Dental", "Brightsmile Family Dental", 1)
+    saved = {}
+
+    async def fake_latest(_user_id):
+        return {
+            "id": "11111111-1111-1111-1111-111111111111",
+            "kind": "standalone",
+            "title": "Brightsmile Dental",
+            "company_name": "Brightsmile Dental",
+            "preview_html": original,
+            "files": [{"path": "index.html", "content": original}],
+            "user_message": "Build a website for Brightsmile Dental",
+            "live_url": "https://brightsmile.vercel.app",
+        }
+
+    async def fake_edit(html, instruction, context):
+        assert html == original
+        assert "headline" in instruction
+        assert context["original_request"].startswith("Build a website")
+        return {"html": edited_html, "summary": "Updated only the hero headline."}
+
+    async def fake_update(creation_id, html, summary, *, has_live_deployment):
+        saved.update({
+            "creation_id": creation_id,
+            "html": html,
+            "summary": summary,
+            "dirty": has_live_deployment,
+        })
+
+    monkeypatch.setattr(c, "get_latest_deployable", fake_latest)
+    monkeypatch.setattr(c, "edit_standalone_page", fake_edit)
+    monkeypatch.setattr(c, "update_standalone_html", fake_update)
+    req = SimpleNamespace(
+        message="change the hero headline",
+        user_id="user-test",
+        conversation_id=None,
+    )
+
+    async def run():
+        events = []
+        async for kind, payload in c._run_standalone_edit(req, {}):
+            events.append((kind, payload))
+        return events
+
+    events = asyncio.run(run())
+    html_event = next(
+        payload for kind, payload in events
+        if kind == "event" and payload.get("type") == "html_artifact"
+    )
+    assert html_event["creation_id"] == "11111111-1111-1111-1111-111111111111"
+    assert html_event["deployment_status"] == "DIRTY"
+    assert html_event["live_url"] == "https://brightsmile.vercel.app"
+    assert saved["html"] == edited_html
+    assert saved["dirty"] is True

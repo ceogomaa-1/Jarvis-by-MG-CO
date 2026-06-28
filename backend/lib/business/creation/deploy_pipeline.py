@@ -321,8 +321,10 @@ async def _await_connector_call(
             elapsed += min(interval, remaining)
             if not task.done():
                 yield {
-                    "type": "deployment_status",
-                    "message": f"{waiting_message} ({int(elapsed)}s elapsed)",
+                    # Keep-alive progress replaces the current UI state; it is not a new
+                    # deployment milestone and must never create an elapsed-time row.
+                    "type": "deployment_progress",
+                    "message": waiting_message,
                 }
 
         yield {"type": "_connector_result", "result": await task}

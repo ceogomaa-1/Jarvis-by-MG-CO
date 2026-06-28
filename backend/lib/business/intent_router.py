@@ -41,6 +41,28 @@ _INGEST_RE = re.compile(
     r"|\bhere'?s\s+(the|our|my)\s+(bible|info|knowledge|details|company|background|context)\b",
     re.IGNORECASE,
 )
+_DIRECT_DEPLOY_RE = re.compile(
+    r"^\s*(?:deploy|publish|ship|launch|push)\s+(?:it|this|the\s+(?:site|website|page))"
+    r"(?:\s+to\s+(?:vercel|github))?\s*[!?.]*\s*$"
+    r"|^\s*(?:deploy|publish|push)\s+(?:(?:my|the)\s+)?(?:site|website|page)"
+    r"(?:\s+to\s+(?:vercel|github))?\s*[!?.]*\s*$"
+    r"|^\s*deploy\s+to\s+(?:vercel|github)\s*[!?.]*\s*$"
+    r"|^\s*(?:make|take|put)\s+(?:it|this|the\s+(?:site|website|page))\s+"
+    r"(?:live|online)\s*[!?.]*\s*$"
+    r"|^\s*(?:go\s+live|redeploy(?:\s+it)?|deploy)\s*[!?.]*\s*$",
+    re.IGNORECASE,
+)
+_EDIT_VERB = r"(?:edit|change|replace|update|fix|tweak|adjust|remove|delete|add|swap|rewrite|resize|move|restyle|recolor|make)"
+_WEB_EDIT_NOUN = (
+    r"(?:website|web\s*site|web\s*page|page|site|hero|headline|heading|subheadline|"
+    r"cta|button|navigation|navbar|menu|footer|section|color|font|typography|image|"
+    r"photo|copy|text|layout|spacing|animation|logo|form|testimonial|faq)"
+)
+_WEBSITE_EDIT_RE = re.compile(
+    rf"\b{_EDIT_VERB}\b[^.\n]{{0,80}}\b{_WEB_EDIT_NOUN}\b"
+    rf"|\b{_WEB_EDIT_NOUN}\b[^.\n]{{0,55}}\b{_EDIT_VERB}\b",
+    re.IGNORECASE,
+)
 _SHOW_ME_HOW_RE = re.compile(
     r"^\s*(?:show|teach|walk|guide)\s+me\b.*\b(?:how|through)\b"
     r"|^\s*how\s+(?:do|can|should|would)\s+i\b"
@@ -83,6 +105,16 @@ def is_website_build_request(message: str) -> bool:
     if len(text) > 600 or text.count("\n") > 6:
         text = text.split("\n", 1)[0][:160]
     return bool(_WEBSITE_BUILD_RE.search(text))
+
+
+def is_website_edit_request(message: str) -> bool:
+    """True for a surgical change to an already-created website artifact."""
+    text = (message or "").strip()
+    if not text or _INGEST_RE.search(text):
+        return False
+    if len(text) > 800 or text.count("\n") > 8:
+        text = text.split("\n", 1)[0][:220]
+    return bool(_WEBSITE_EDIT_RE.search(text))
 
 _CLASSIFY_PROMPT = """You are a routing classifier for a business assistant chat app. Decide which flow this message belongs to: "chat", "show_me_how", or "create".
 
@@ -128,10 +160,18 @@ async def classify_message_intent(
     if has_attachments or not text:
         return {"intent": "chat", "reason": "attachments-or-empty"}
 
+    # An explicit deploy command is itself authorization. Route it directly to the creation
+    # endpoint, which safely checks for a saved artifact and connected publisher.
+    if _DIRECT_DEPLOY_RE.search(text):
+        return {"intent": "create", "reason": "deploy-command-shortcircuit"}
+
     # Deterministic website/landing-page builds bypass the model — they must ALWAYS reach the
     # creation pipeline (this is the fix for site asks misrouting to chat and dumping raw code).
     if is_website_build_request(text):
         return {"intent": "create", "reason": "website-build-shortcircuit"}
+
+    if is_website_edit_request(text):
+        return {"intent": "create", "reason": "website-edit-shortcircuit"}
 
     if _SHOW_ME_HOW_RE.search(text):
         return {"intent": "show_me_how", "reason": "tutorial-shortcircuit"}

@@ -49,6 +49,31 @@ async def test_website_build_short_circuits_to_create():
         assert result == {"intent": "create", "reason": "website-build-shortcircuit"}, msg
 
 
+@pytest.mark.asyncio
+async def test_explicit_deploy_commands_never_fall_into_chat():
+    for msg in (
+        "deploy it",
+        "redeploy it",
+        "publish my website",
+        "deploy to Vercel",
+        "make the site live",
+    ):
+        result = await classify_message_intent(msg)
+        assert result == {"intent": "create", "reason": "deploy-command-shortcircuit"}, msg
+
+
+@pytest.mark.asyncio
+async def test_surgical_website_edits_route_to_creation_pipeline():
+    for msg in (
+        "change the hero headline to Fresh food, made together",
+        "replace the image in the website hero",
+        "make the CTA button blue",
+        "remove the testimonial section",
+    ):
+        result = await classify_message_intent(msg)
+        assert result == {"intent": "create", "reason": "website-edit-shortcircuit"}, msg
+
+
 # ─── Response parsing / fallback robustness (mocked Anthropic call) ───────
 
 class _FakeResponse:

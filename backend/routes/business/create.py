@@ -24,6 +24,7 @@ from backend.lib.business.creation.persistence import (
     mark_deployment_pending,
     save_site_files,
     save_standalone_creation,
+    update_standalone_html,
     update_deployment_by_id,
 )
 from backend.lib.business.creation.site_generator import (
@@ -35,13 +36,20 @@ from backend.lib.business.creation.standalone_generator import (
     WebsiteGenerationError,
     generate_standalone_page,
 )
+from backend.lib.business.creation.standalone_editor import (
+    WebsiteEditError,
+    edit_standalone_page,
+)
 from backend.lib.business.creation.website_context import enrich_website_context
 from backend.lib.business.creation.website_quality import (
     extract_client_name,
     should_use_owner_company,
     validate_standalone_html,
 )
-from backend.lib.business.intent_router import is_website_build_request
+from backend.lib.business.intent_router import (
+    is_website_build_request,
+    is_website_edit_request,
+)
 from backend.lib.business.system_prompt_builder import _fetch_user_profile
 
 router = APIRouter()
@@ -205,17 +213,20 @@ def _load_deploy_confirmation_artifact(sb, user_id: str, conv_id: str | None) ->
     return ""
 
 
-async def _await_with_status(coro, status_message: str, interval: float = 8.0):
-    """Run a slow coroutine while keeping the SSE stream alive with status events."""
+async def _await_with_status(
+    coro,
+    status_message: str,
+    interval: float = 8.0,
+    event_type: str = "creation_progress",
+):
+    """Run a slow coroutine while keeping SSE alive with one replaceable progress state."""
     task = asyncio.create_task(coro)
-    elapsed = 0
     while not task.done():
         await asyncio.sleep(interval)
-        elapsed += int(interval)
         if not task.done():
             yield {
-                "type": "deployment_status",
-                "message": f"{status_message} ({elapsed}s elapsed)",
+                "type": event_type,
+                "message": status_message,
             }
     yield await task
 
@@ -339,6 +350,111 @@ async def _run_standalone_build(request, context, conv_id):
     yield ("chat_message", note)
 
 
+async def _run_standalone_edit(request, context):
+    """Surgically edit the latest saved standalone page and preserve deploy continuity."""
+    target = await get_latest_deployable(request.user_id)
+    if not target or target.get("kind") != "standalone":
+        yield ("event", {
+            "type": "error",
+            "value": (
+                "I could not find a saved standalone website to edit. Open or build the page "
+                "first, then describe the exact change."
+            ),
+        })
+        return
+
+    html = target.get("preview_html") or next(
+        (
+            file.get("content", "")
+            for file in (target.get("files") or [])
+            if file.get("path") == "index.html"
+        ),
+        "",
+    )
+    if not html:
+        yield ("event", {"type": "error", "value": "The saved website has no editable HTML."})
+        return
+
+    title = target.get("title") or target.get("company_name") or "Website"
+    yield ("event", {
+        "type": "plan",
+        "title": title,
+        "intro": "Applying only the requested change while preserving the approved design.",
+        "agents": [{
+            "id": "a1",
+            "role": "designer",
+            "task": "Patch, validate, and save the existing website without unrelated changes.",
+        }],
+        "mode": "standalone_edit",
+    })
+    yield ("event", {"type": "agent_status", "id": "a1", "status": "started"})
+    yield ("event", {
+        "type": "creation_stage",
+        "stage": "editing",
+        "message": "Mapping the requested edit onto the current website…",
+    })
+
+    try:
+        edited = None
+        async for result in _await_with_status(
+            edit_standalone_page(
+                html,
+                request.message,
+                {
+                    **context,
+                    "client_name": target.get("company_name") or title,
+                    "original_request": target.get("user_message") or "",
+                },
+            ),
+            "Applying the smallest safe code changes and rechecking the page…",
+        ):
+            if isinstance(result, dict) and "html" in result:
+                edited = result
+            else:
+                yield ("event", result)
+    except WebsiteEditError as exc:
+        yield ("event", {"type": "agent_status", "id": "a1", "status": "failed"})
+        yield ("event", {"type": "error", "value": str(exc)})
+        return
+
+    if not edited:
+        yield ("event", {"type": "agent_status", "id": "a1", "status": "failed"})
+        yield ("event", {
+            "type": "error",
+            "value": "The website edit returned no validated change. The saved page was untouched.",
+        })
+        return
+
+    has_live = bool(target.get("vercel_url") or target.get("live_url"))
+    await update_standalone_html(
+        target["id"],
+        edited["html"],
+        edited["summary"],
+        has_live_deployment=has_live,
+    )
+    yield ("creation_id", target["id"])
+    yield ("event", {"type": "creation_id", "id": target["id"]})
+    yield ("event", {"type": "agent_status", "id": "a1", "status": "complete"})
+    yield ("event", {
+        "type": "html_artifact",
+        "creation_id": target["id"],
+        "title": title,
+        "summary": edited["summary"],
+        "project_name": _sanitize_name(target.get("company_name") or title),
+        "html": edited["html"],
+        "is_fallback": False,
+        "deployment_status": "DIRTY" if has_live else None,
+        "live_url": target.get("live_url") or target.get("vercel_url"),
+    })
+    yield ("event", {"type": "complete"})
+
+    note = (
+        f"Updated **{title}** exactly as requested. The revised page is saved in the preview."
+        + (" Say **\"redeploy it\"** to publish these changes." if has_live else "")
+    )
+    yield ("chat_message", note)
+
+
 async def _run_deploy_last(request, context, has_deploy_connectors):
     """MODE 2/3 — take the user's last creation live.
 
@@ -400,7 +516,11 @@ async def _run_deploy_last(request, context, has_deploy_connectors):
         project = _sanitize_name(target.get("company_name") or target.get("title") or "landing-page")
         yield ("event", {"type": "deployment_status", "message": "Uploading your page to Vercel…"})
         res = None
-        async for ev in _await_with_status(vc.deploy_static(project, html), "Still uploading to Vercel…"):
+        async for ev in _await_with_status(
+            vc.deploy_static(project, html),
+            "Uploading the validated page to Vercel…",
+            event_type="deployment_progress",
+        ):
             if isinstance(ev, dict):
                 yield ("event", ev)
             else:
@@ -435,7 +555,7 @@ async def _run_deploy_last(request, context, has_deploy_connectors):
     if target and target.get("kind") == "site" and target.get("files"):
         # Resumable: redeploy the exact saved file set — no regeneration.
         site = {
-            "project_name": _sanitize_name(target.get("company_name") or target.get("title") or "jarvis-site"),
+            "project_name": _sanitize_name(target.get("company_name") or target.get("title") or "business-website"),
             "framework": "nextjs",
             "needs_database": False,
             "db_plan": None,
@@ -649,6 +769,31 @@ async def business_create(request: CreateRequest):
                                 await asyncio.to_thread(_save_message, sb, conv_id, payload)
                             except Exception as e:
                                 print(f"[CREATE] standalone chat save failed: {e}")
+                yield "data: [DONE]\n\n"
+                return
+
+            # ── MODE 1B: surgical edit of the latest saved standalone website ──
+            if is_website_edit_request(request.message):
+                sb = _get_supabase()
+                if sb:
+                    try:
+                        conv_id, is_new = await asyncio.to_thread(
+                            _ensure_conversation, sb, request.user_id, conv_id, request.message
+                        )
+                        if conv_id and is_new:
+                            yield f'data: {json.dumps({"type": "conv_id", "value": conv_id})}\n\n'
+                    except Exception as e:
+                        print(f"[CREATE] standalone edit conv setup failed: {e}")
+                async for kind, payload in _run_standalone_edit(request, context):
+                    if kind == "event":
+                        yield f"data: {json.dumps(payload)}\n\n"
+                    elif kind == "creation_id":
+                        creation_id = payload
+                    elif kind == "chat_message" and sb and conv_id:
+                        try:
+                            await asyncio.to_thread(_save_message, sb, conv_id, payload)
+                        except Exception as e:
+                            print(f"[CREATE] standalone edit chat save failed: {e}")
                 yield "data: [DONE]\n\n"
                 return
 

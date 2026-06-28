@@ -25,6 +25,19 @@ import { AttachmentsRow } from './AttachmentDisplay'
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 const DEPLOY_POLL_MS = 5000
 const DEPLOY_POLL_MAX_MS = 6 * 60 * 1000
+const DIRECT_DEPLOY_RE = /^\s*(?:(?:deploy|publish|ship|launch|push)\s+(?:it|this|the\s+(?:site|website|page))(?:\s+to\s+(?:vercel|github))?|(?:deploy|publish|push)\s+(?:(?:my|the)\s+)?(?:site|website|page)(?:\s+to\s+(?:vercel|github))?|deploy\s+to\s+(?:vercel|github)|(?:make|take|put)\s+(?:it|this|the\s+(?:site|website|page))\s+(?:live|online)|go\s+live|redeploy(?:\s+it)?|deploy)\s*[!?.]*\s*$/i
+
+function cleanProgressLabel(value = '') {
+  return value.replace(/\s*\(\d+s(?:\s+elapsed)?(?:,\s*[^)]*)?\)\s*$/i, '').trim()
+}
+
+function appendUniqueStage(stages = [], value = '') {
+  const next = cleanProgressLabel(value)
+  if (!next) return stages
+  const cleaned = stages.map(cleanProgressLabel).filter(Boolean)
+  if (cleaned[cleaned.length - 1] === next) return cleaned
+  return [...cleaned.slice(-7), next]
+}
 
 function pendingDeployStorageKey(userId) {
   return `jarvis_pending_deploys_${userId || 'anon'}`
@@ -521,17 +534,16 @@ export default function ChatCanvas({
           return
         }
 
-        const elapsed = Math.round((Date.now() - startedAt) / 1000)
         const status = state === 'UNKNOWN'
-          ? `Can't check deployment status right now (${data.error || 'Vercel API error'}) — retrying… (${elapsed}s)`
-          : `Building on Vercel… (${elapsed}s, ${state})`
+          ? `Vercel status is temporarily unavailable — retrying safely…`
+          : `Vercel is building and validating the site…`
         setMessages(prev => prev.map(m => {
           if (m.id !== messageId) return m
           const updated = {
             ...m,
             deploying: true,
             deploymentStatus: status,
-            deploymentStages: [...(m.deploymentStages || []).slice(-8), status],
+            deploymentStages: appendUniqueStage(m.deploymentStages, status),
           }
           savePendingDeploy(updated)
           return updated
@@ -694,8 +706,10 @@ export default function ChatCanvas({
     // Single backend classification call decides chat vs show-me-how vs
     // create — replaces the old independent regex-detector cascade
     // (agentEditDetector / showMeHowDetector / creationDetector / isDeployConfirmation).
-    let intent = 'chat'
-    if (!hasAttachments) {
+    // Deploy commands are explicit authorization and must never fall into conversational chat.
+    // The create endpoint owns the safe "latest saved artifact → Vercel" execution path.
+    let intent = !hasAttachments && DIRECT_DEPLOY_RE.test(text) ? 'create' : 'chat'
+    if (!hasAttachments && intent === 'chat') {
       try {
         const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant' && typeof m.content === 'string' && m.content)
         const res = await fetch(`${BACKEND}/api/business/classify-intent`, {
@@ -795,6 +809,8 @@ export default function ChatCanvas({
       }])
       setIsThinking(true)
       let createdConversationId = null
+      let creationMode = null
+      let editedCreationId = null
 
       try {
         const res = await fetch(`${BACKEND}/api/business/create`, {
@@ -825,7 +841,30 @@ export default function ChatCanvas({
                 createdConversationId = ev.value
               }
               // Dismiss thinking indicator once the plan (real content) arrives
-              if (ev.type === 'plan') setIsThinking(false)
+              if (ev.type === 'plan') {
+                creationMode = ev.mode || null
+                setIsThinking(false)
+              }
+              if (ev.type === 'html_artifact' && creationMode === 'standalone_edit') {
+                editedCreationId = ev.creation_id || null
+                setMessages(prev => prev.map(existing => {
+                  if (
+                    existing.id === cId ||
+                    existing.role !== 'creation' ||
+                    existing.creationId !== editedCreationId
+                  ) return existing
+                  return {
+                    ...existing,
+                    previewHtml: ev.html,
+                    title: ev.title || existing.title,
+                    projectName: ev.project_name || existing.projectName,
+                    summary: ev.summary || existing.summary,
+                    deploymentStatus: ev.deployment_status || existing.deploymentStatus,
+                    liveUrl: ev.live_url || existing.liveUrl,
+                    complete: true,
+                  }
+                }))
+              }
               if (ev.type === 'deployment_pending') {
                 const pendingMsg = {
                   id: cId,
@@ -853,20 +892,41 @@ export default function ChatCanvas({
                 }
                 if (ev.type === 'agent_status') return { ...m, statuses: { ...m.statuses, [ev.id]: ev.status } }
                 if (ev.type === 'creation_id') return { ...m, creationId: ev.id }
-                if (ev.type === 'creation_stage') return { ...m, stage: ev.stage, stageMessage: ev.message, deploymentStages: ev.stage === 'fallback' ? [...(m.deploymentStages || [])] : (m.deploymentStages || []) }
-                if (ev.type === 'html_artifact') return { ...m, kind: 'standalone', creationId: ev.creation_id || m.creationId, title: ev.title || m.title, previewHtml: ev.html, projectName: ev.project_name, summary: ev.summary, isFallback: ev.is_fallback }
+                if (ev.type === 'creation_stage') return { ...m, stage: ev.stage, stageMessage: ev.message }
+                if (ev.type === 'creation_progress') return { ...m, stageMessage: ev.message }
+                if (ev.type === 'html_artifact') return {
+                  ...m,
+                  kind: 'standalone',
+                  creationId: ev.creation_id || m.creationId,
+                  title: ev.title || m.title,
+                  previewHtml: ev.html,
+                  projectName: ev.project_name,
+                  summary: ev.summary,
+                  isFallback: ev.is_fallback,
+                  deploymentStatus: ev.deployment_status || m.deploymentStatus,
+                  liveUrl: ev.live_url || m.liveUrl,
+                }
                 if (ev.type === 'artifact') return { ...m, artifact: ev.content }
                 if (ev.type === 'complete') return { ...m, complete: true }
                 if (ev.type === 'error') return { ...m, error: ev.value, complete: true }
-                if (ev.type === 'deployment_started') return { ...m, deploying: true, deploymentStages: ['Starting deploy pipeline…'], deploymentStatus: 'Starting deploy pipeline…' }
-                if (ev.type === 'deployment_status') return { ...m, deploying: true, deploymentStatus: ev.message, deploymentStages: [...(m.deploymentStages || []), ev.message] }
-                if (ev.type === 'deployment_pending') return { ...m, complete: true, deploying: true, deploymentStatus: ev.message || 'Building on Vercel…', deploymentStages: [...(m.deploymentStages || []), 'Build triggered on Vercel…'], deploymentId: ev.deployment_id, repoUrl: ev.repo_url || m.repoUrl, expectedUrl: ev.expected_url || m.expectedUrl, dbUrl: ev.db_url || m.dbUrl || null, deploymentError: null }
+                if (ev.type === 'deployment_started') return { ...m, deploying: true, deploymentStages: ['Starting the deploy pipeline…'], deploymentStatus: 'Starting the deploy pipeline…' }
+                if (ev.type === 'deployment_progress') return { ...m, deploying: true, deploymentStatus: ev.message }
+                if (ev.type === 'deployment_status') return { ...m, deploying: true, deploymentStatus: ev.message, deploymentStages: appendUniqueStage(m.deploymentStages, ev.message) }
+                if (ev.type === 'deployment_pending') return { ...m, complete: true, deploying: true, deploymentStatus: ev.message || 'Vercel is building the site…', deploymentStages: appendUniqueStage(m.deploymentStages, 'Build triggered on Vercel…'), deploymentId: ev.deployment_id, repoUrl: ev.repo_url || m.repoUrl, expectedUrl: ev.expected_url || m.expectedUrl, dbUrl: ev.db_url || m.dbUrl || null, deploymentError: null }
                 if (ev.type === 'deployment_complete') return { ...m, deploying: false, deploymentStatus: null, liveUrl: ev.url, repoUrl: ev.repo_url, dbUrl: ev.db_url || null, deploymentMessage: ev.message }
                 if (ev.type === 'deployment_error') return { ...m, deploying: false, deploymentStatus: null, deploymentError: ev.value }
                 return m
               }))
             } catch {}
           }
+        }
+        if (creationMode === 'standalone_edit' && editedCreationId) {
+          setMessages(prev => {
+            const hasExistingCard = prev.some(
+              m => m.id !== cId && m.role === 'creation' && m.creationId === editedCreationId
+            )
+            return hasExistingCard ? prev.filter(m => m.id !== cId) : prev
+          })
         }
       } catch (err) {
         console.error('Creation failed:', err)
@@ -1147,8 +1207,21 @@ export default function ChatCanvas({
                       msg={m}
                       userId={userId}
                       onDeploy={() => sendMessage('deploy it')}
-                      onArtifactUpdate={(artifact) => {
-                        setMessages(prev => prev.map(x => x.id === m.id ? { ...x, artifact } : x))
+                      onArtifactUpdate={(update) => {
+                        setMessages(prev => prev.map(x => {
+                          if (x.id !== m.id) return x
+                          if (typeof update === 'string') return { ...x, artifact: update }
+                          if (update?.html) {
+                            return {
+                              ...x,
+                              previewHtml: update.html,
+                              summary: update.summary || x.summary,
+                              deploymentStatus: update.deploymentStatus || x.deploymentStatus,
+                              liveUrl: update.liveUrl || x.liveUrl,
+                            }
+                          }
+                          return x
+                        }))
                       }}
                     />
                   )

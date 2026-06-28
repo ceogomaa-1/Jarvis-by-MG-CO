@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import RefineModal from './RefineModal'
+import AIThinkingBlock from '@/components/ui/ai-thinking-block'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
@@ -76,13 +77,18 @@ export default function CreationCanvas({ msg, onArtifactUpdate, onDeploy, userId
     deploymentMessage, deploymentError, deploymentId, expectedUrl,
   } = msg
   const [localArtifact, setLocalArtifact] = useState(null)
+  const [localPreviewHtml, setLocalPreviewHtml] = useState(null)
+  const [localDeploymentStatus, setLocalDeploymentStatus] = useState(null)
+  const [localLiveUrl, setLocalLiveUrl] = useState(null)
   const [showRefine, setShowRefine] = useState(false)
   const [downloading, setDownloading] = useState(false)
   // Standalone HTML preview — from the live stream (msg.previewHtml) or rehydrated from the DB.
   const [hydrated, setHydrated] = useState(null)
-  const previewHtml = msg.previewHtml ?? hydrated?.preview_html ?? null
+  const previewHtml = localPreviewHtml ?? msg.previewHtml ?? hydrated?.preview_html ?? null
   const hydratedTitle = title || hydrated?.title
-  const hydratedLiveUrl = liveUrl || hydrated?.vercel_url || hydrated?.live_url || null
+  const hydratedLiveUrl = localLiveUrl || liveUrl || hydrated?.vercel_url || hydrated?.live_url || null
+  const effectiveDeploymentStatus = localDeploymentStatus || deploymentStatus || hydrated?.deployment_status
+  const hasUnpublishedChanges = effectiveDeploymentStatus === 'DIRTY'
 
   // Rehydrate a saved creation after a refresh (CreationCanvas self-fetches its preview).
   useEffect(() => {
@@ -131,7 +137,7 @@ export default function CreationCanvas({ msg, onArtifactUpdate, onDeploy, userId
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `jarvis-creation-${creationId.slice(0, 8)}.pdf`
+      a.download = `creation-${creationId.slice(0, 8)}.pdf`
       a.click()
       URL.revokeObjectURL(url)
     } catch (err) {
@@ -140,9 +146,15 @@ export default function CreationCanvas({ msg, onArtifactUpdate, onDeploy, userId
     setDownloading(false)
   }
 
-  function handleRefined(newArtifact) {
-    setLocalArtifact(newArtifact)
-    if (onArtifactUpdate) onArtifactUpdate(newArtifact)
+  function handleRefined(update) {
+    if (typeof update === 'string') {
+      setLocalArtifact(update)
+    } else if (update?.html) {
+      setLocalPreviewHtml(update.html)
+      if (update.deploymentStatus) setLocalDeploymentStatus(update.deploymentStatus)
+      if (update.liveUrl) setLocalLiveUrl(update.liveUrl)
+    }
+    if (onArtifactUpdate) onArtifactUpdate(update)
   }
 
   return (
@@ -193,6 +205,16 @@ export default function CreationCanvas({ msg, onArtifactUpdate, onDeploy, userId
         </div>
       )}
 
+      {!complete && !previewHtml && !error && (title || stageMessage) && (
+        <AIThinkingBlock
+          label={msg.stage === 'editing' ? 'Applying your website edits' : 'Crafting the website'}
+          status={stageMessage || 'Turning the brief into a polished, client-ready experience…'}
+          activity={deploymentStages}
+          mode={msg.stage === 'editing' ? 'edit' : 'build'}
+          className="mb-3"
+        />
+      )}
+
       {/* Standalone HTML — live preview + download + deploy */}
       {previewHtml && (
         <div style={{
@@ -231,17 +253,53 @@ export default function CreationCanvas({ msg, onArtifactUpdate, onDeploy, userId
               >
                 ⬇ Download HTML
               </button>
-              {hydratedLiveUrl ? (
-                <a
-                  href={hydratedLiveUrl} target="_blank" rel="noopener noreferrer"
+              {complete && creationId && (
+                <button
+                  onClick={() => setShowRefine(true)}
+                  disabled={deploying}
                   style={{
-                    background: '#22c55e', color: '#0a0a0a', borderRadius: 6,
-                    padding: '5px 14px', fontSize: 12, fontWeight: 600,
-                    textDecoration: 'none', fontFamily: 'system-ui, sans-serif',
+                    background: 'rgba(45,127,249,0.1)',
+                    border: '1px solid rgba(45,127,249,0.3)',
+                    borderRadius: 6, padding: '5px 12px',
+                    color: '#70a8ff', fontSize: 12, fontWeight: 600,
+                    cursor: deploying ? 'default' : 'pointer',
+                    fontFamily: 'system-ui, sans-serif',
                   }}
                 >
-                  🚀 Open live site
-                </a>
+                  Edit website
+                </button>
+              )}
+              {hydratedLiveUrl ? (
+                <>
+                  <a
+                    href={hydratedLiveUrl} target="_blank" rel="noopener noreferrer"
+                    style={{
+                      background: hasUnpublishedChanges ? 'rgba(232,232,232,0.07)' : '#22c55e',
+                      color: hasUnpublishedChanges ? 'rgba(232,232,232,0.85)' : '#0a0a0a',
+                      border: hasUnpublishedChanges ? '1px solid rgba(232,232,232,0.15)' : 'none',
+                      borderRadius: 6, padding: '5px 14px', fontSize: 12, fontWeight: 600,
+                      textDecoration: 'none', fontFamily: 'system-ui, sans-serif',
+                    }}
+                  >
+                    Open live site
+                  </a>
+                  {hasUnpublishedChanges && (
+                    <button
+                      onClick={() => onDeploy && onDeploy()}
+                      disabled={deploying}
+                      style={{
+                        background: deploying ? 'rgba(45,127,249,0.15)' : '#2d7ff9',
+                        border: 'none', borderRadius: 6, padding: '5px 14px',
+                        color: deploying ? 'rgba(232,232,232,0.6)' : '#fff',
+                        fontSize: 12, fontWeight: 600,
+                        cursor: deploying ? 'default' : 'pointer',
+                        fontFamily: 'system-ui, sans-serif',
+                      }}
+                    >
+                      {deploying ? 'Publishing…' : 'Redeploy changes'}
+                    </button>
+                  )}
+                </>
               ) : (
                 <button
                   onClick={() => onDeploy && onDeploy()}
@@ -361,42 +419,12 @@ export default function CreationCanvas({ msg, onArtifactUpdate, onDeploy, userId
         }}>
           {deploying && !liveUrl && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <div style={{
-                fontSize: 10, fontWeight: 600, letterSpacing: '0.12em',
-                color: '#2d7ff9', textTransform: 'uppercase', marginBottom: 4,
-              }}>
-                BUILDING
-              </div>
-              {deploymentStages.length > 0 ? (
-                deploymentStages.map((stage, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{
-                      width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-                      background: i === deploymentStages.length - 1 ? '#2d7ff9' : '#22c55e',
-                      animation: i === deploymentStages.length - 1 ? 'pulseDot 1.2s ease-in-out infinite' : 'none',
-                    }} />
-                    <span style={{
-                      fontSize: 12,
-                      color: i === deploymentStages.length - 1 ? 'rgba(232,232,232,0.85)' : 'rgba(232,232,232,0.45)',
-                      fontFamily: 'system-ui, sans-serif',
-                    }}>
-                      {stage}
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{
-                    width: 8, height: 8, borderRadius: '50%',
-                    background: '#2d7ff9',
-                    animation: 'pulseDot 1.2s ease-in-out infinite',
-                    flexShrink: 0,
-                  }} />
-                  <span style={{ fontSize: 12, color: 'rgba(232,232,232,0.75)', fontFamily: 'system-ui, sans-serif' }}>
-                    {deploymentStatus || 'Deploying…'}
-                  </span>
-                </div>
-              )}
+              <AIThinkingBlock
+                label="Publishing your website"
+                status={deploymentStatus || 'Preparing the validated build for Vercel…'}
+                activity={deploymentStages}
+                mode="deploy"
+              />
               {(repoUrl || expectedUrl || deploymentId) && (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
                   {repoUrl && (
@@ -575,6 +603,8 @@ export default function CreationCanvas({ msg, onArtifactUpdate, onDeploy, userId
       {showRefine && creationId && (
         <RefineModal
           creationId={creationId}
+          userId={userId}
+          kind={kind || hydrated?.kind}
           onClose={() => setShowRefine(false)}
           onRefined={handleRefined}
         />

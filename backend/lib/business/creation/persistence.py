@@ -104,6 +104,36 @@ async def update_artifact(creation_id: str, artifact_markdown: str) -> None:
         print(f"PERSISTENCE: update_artifact failed: {e}")
 
 
+async def update_standalone_html(
+    creation_id: str,
+    html: str,
+    summary: str = "",
+    *,
+    has_live_deployment: bool = False,
+) -> None:
+    """Atomically replace the preview and deployable index.html after a surgical edit."""
+    if not _is_valid_uuid(creation_id):
+        return
+    data: dict = {
+        "preview_html": html,
+        "files": [{"path": "index.html", "content": html}],
+        "status": "complete",
+    }
+    if summary:
+        data["artifact_markdown"] = summary
+        data["intro"] = summary
+    if has_live_deployment:
+        # Keep the existing URL visible, but make it explicit that it serves the prior revision
+        # until the operator clicks/says redeploy.
+        data["deployment_status"] = "DIRTY"
+        data["deployment_id"] = None
+        data["deployment_error"] = None
+    try:
+        _client().table("business_creations").update(data).eq("id", creation_id).execute()
+    except Exception as e:
+        print(f"PERSISTENCE: update_standalone_html failed: {e}")
+
+
 # ── Standalone (single-file HTML) creations ──────────────────────────────────
 
 async def save_standalone_creation(

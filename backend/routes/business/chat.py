@@ -447,6 +447,7 @@ async def get_cost_controls():
     """Non-AI deployment probe for the active spend-control revision."""
     return {
         "revision": "prompt-cache-v2",
+        "website_workflow_revision": "surgical-edit-v1",
         "automatic_conversation_caching": True,
         "static_system_caching": True,
         "tool_definition_caching": True,

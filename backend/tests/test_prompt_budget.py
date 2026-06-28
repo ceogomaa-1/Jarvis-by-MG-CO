@@ -43,5 +43,6 @@ async def test_cost_control_probe_reports_active_revision():
 
     result = await get_cost_controls()
     assert result["revision"] == "prompt-cache-v2"
+    assert result["website_workflow_revision"] == "surgical-edit-v1"
     assert result["automatic_conversation_caching"] is True
     assert result["history_char_cap"] > 0

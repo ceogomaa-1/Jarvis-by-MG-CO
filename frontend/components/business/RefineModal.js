@@ -1,24 +1,31 @@
 'use client'
 import { useState } from 'react'
+import AIThinkingBlock from '@/components/ui/ai-thinking-block'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
-export default function RefineModal({ creationId, onClose, onRefined }) {
+export default function RefineModal({ creationId, userId, kind, onClose, onRefined }) {
   const [instruction, setInstruction] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [progress, setProgress] = useState('')
+  const isWebsite = kind === 'standalone'
 
   async function handleRefine() {
     if (!instruction.trim() || loading) return
     setLoading(true)
     setError('')
+    setProgress(isWebsite ? 'Mapping your instruction onto the saved HTML…' : 'Refining the saved artifact…')
 
     try {
       const res = await fetch(`${BACKEND}/api/business/create/${creationId}/refine`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ instruction: instruction.trim() }),
+        body: JSON.stringify({ instruction: instruction.trim(), user_id: userId || '' }),
       })
+      if (!res.ok || !res.body) {
+        throw new Error((await res.text()) || 'Refinement failed')
+      }
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       let buf = ''
@@ -38,6 +45,15 @@ export default function RefineModal({ creationId, onClose, onRefined }) {
           try {
             const ev = JSON.parse(raw)
             if (ev.type === 'artifact') refined = ev.content
+            if (ev.type === 'html_artifact') {
+              refined = {
+                html: ev.html,
+                summary: ev.summary,
+                deploymentStatus: ev.deployment_status,
+                liveUrl: ev.live_url,
+              }
+            }
+            if (ev.type === 'creation_progress') setProgress(ev.message)
             if (ev.type === 'error') setError(ev.value)
           } catch {}
         }
@@ -47,8 +63,8 @@ export default function RefineModal({ creationId, onClose, onRefined }) {
         onRefined(refined)
         onClose()
       }
-    } catch {
-      setError('Refinement failed. Please try again.')
+    } catch (err) {
+      setError(err?.message || 'Refinement failed. Please try again.')
     }
 
     setLoading(false)
@@ -80,16 +96,18 @@ export default function RefineModal({ creationId, onClose, onRefined }) {
           fontSize: 11, fontWeight: 600, letterSpacing: '0.1em',
           color: '#2d7ff9', marginBottom: 8, textTransform: 'uppercase',
         }}>
-          Refine Artifact
+          {isWebsite ? 'Surgical Website Edit' : 'Refine Artifact'}
         </div>
         <div style={{ fontSize: 18, fontWeight: 600, color: '#e8e8e8', marginBottom: 18 }}>
-          What should I improve?
+          {isWebsite ? 'What exactly should change?' : 'What should I improve?'}
         </div>
 
         <textarea
           value={instruction}
           onChange={e => setInstruction(e.target.value)}
-          placeholder='"Make the email shorter and more punchy" or "Add a discount angle to the campaign"'
+          placeholder={isWebsite
+            ? '"Replace the hero headline with…" or "Make only the Book a Table button blue"'
+            : '"Make the email shorter and more punchy" or "Add a discount angle to the campaign"'}
           disabled={loading}
           rows={4}
           style={{
@@ -108,6 +126,15 @@ export default function RefineModal({ creationId, onClose, onRefined }) {
 
         {error && (
           <div style={{ color: '#ef4444', fontSize: 13, marginBottom: 16 }}>{error}</div>
+        )}
+
+        {loading && (
+          <AIThinkingBlock
+            label={isWebsite ? 'Editing without touching the rest' : 'Refining the artifact'}
+            status={progress}
+            mode={isWebsite ? 'edit' : 'build'}
+            className="mb-4"
+          />
         )}
 
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
@@ -137,7 +164,7 @@ export default function RefineModal({ creationId, onClose, onRefined }) {
               transition: 'all 200ms ease',
             }}
           >
-            {loading ? 'Refining...' : 'Refine'}
+            {loading ? (isWebsite ? 'Editing…' : 'Refining…') : (isWebsite ? 'Apply edit' : 'Refine')}
           </button>
         </div>
       </div>

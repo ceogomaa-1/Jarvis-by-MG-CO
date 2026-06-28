@@ -39,6 +39,13 @@ _JARVIS_UI_MARKERS = (
     "jarvis os1",
     "creation 1.0",
 )
+_FORBIDDEN_BUILDER_BRANDING = (
+    "jarvis",
+    "mg&co",
+    "mg & co",
+    "mg-co technologies",
+    "mgco technologies",
+)
 
 
 def extract_url(message: str) -> str:
@@ -169,6 +176,10 @@ def validate_standalone_html(
     if prompt_leaked(raw, user_message):
         errors.append("contains a verbatim fragment of the user's instruction")
 
+    branding = next((item for item in _FORBIDDEN_BUILDER_BRANDING if item in low), None)
+    if branding:
+        errors.append(f"contains forbidden builder branding ({branding})")
+
     marker = next((item for item in _JARVIS_UI_MARKERS if item in text), None)
     if marker:
         errors.append(f"contains Jarvis/chat UI content ({marker})")
@@ -221,6 +232,17 @@ def validate_site_payload(
         errors.append("uses retired framer-motion import instead of motion/react")
     if prompt_leaked(page, user_message):
         errors.append("app/page.tsx contains a verbatim fragment of the user's instruction")
+
+    generated_source = "\n".join(
+        str(payload.get(field) or "")
+        for field in ("page_tsx", "layout_tsx", "globals_css", "summary", "readme_md")
+    ).lower()
+    branding = next(
+        (item for item in _FORBIDDEN_BUILDER_BRANDING if item in generated_source),
+        None,
+    )
+    if branding:
+        errors.append(f"generated website contains forbidden builder branding ({branding})")
 
     page_text = _normalise_text(page)
     marker = next((item for item in _JARVIS_UI_MARKERS if item in page_text), None)

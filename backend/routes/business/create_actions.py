@@ -9,7 +9,15 @@ from fastapi import APIRouter
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 
-from backend.lib.business.creation.persistence import get_creation_row, update_artifact
+from backend.lib.business.creation.persistence import (
+    get_creation_row,
+    update_artifact,
+    update_standalone_html,
+)
+from backend.lib.business.creation.standalone_editor import (
+    WebsiteEditError,
+    edit_standalone_page,
+)
 
 router = APIRouter()
 
@@ -17,7 +25,7 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 REFINE_MODEL = "claude-sonnet-4-6"
 
 _REFINE_SYSTEM = """\
-You are an expert content refiner for Jarvis Business by MG&CO Technologies.
+You are an expert business content refiner.
 Never add Jarvis, MG&CO, "powered by", generator, or AI attribution to the refined artifact.
 
 You receive an existing business deliverable (Markdown) and a specific refinement instruction from the operator.
@@ -37,12 +45,73 @@ class RefineRequest(BaseModel):
     user_id: str = ""
 
 
+def _user_id_to_uuid(user_id: str) -> str:
+    hex_id = (user_id or "").removeprefix("user_")
+    if len(hex_id) == 32 and all(c in "0123456789abcdef" for c in hex_id.lower()):
+        return f"{hex_id[:8]}-{hex_id[8:12]}-{hex_id[12:16]}-{hex_id[16:20]}-{hex_id[20:]}"
+    return user_id
+
+
 @router.post("/business/create/{creation_id}/refine")
 async def refine_creation(creation_id: str, request: RefineRequest):
     """Re-run Claude on the stored artifact with a refinement instruction."""
     row = await get_creation_row(creation_id)
     if not row:
         return Response(content="Not found", status_code=404)
+    if request.user_id and row.get("user_id") != _user_id_to_uuid(request.user_id):
+        return Response(content="Not found", status_code=404)
+
+    if row.get("kind") == "standalone":
+        html = row.get("preview_html") or next(
+            (
+                file.get("content", "")
+                for file in (row.get("files") or [])
+                if file.get("path") == "index.html"
+            ),
+            "",
+        )
+        if not html:
+            return Response(content="No website HTML to edit", status_code=400)
+
+        async def edit_website():
+            try:
+                yield f'data: {json.dumps({"type": "creation_progress", "message": "Mapping the requested change onto the existing page…"})}\n\n'
+                result = await edit_standalone_page(
+                    html,
+                    request.instruction,
+                    {
+                        "client_name": row.get("company_name") or row.get("title") or "",
+                        "company_name": row.get("company_name") or "",
+                        "original_request": row.get("user_message") or "",
+                    },
+                )
+                has_live = bool(row.get("vercel_url") or row.get("live_url"))
+                await update_standalone_html(
+                    creation_id,
+                    result["html"],
+                    result["summary"],
+                    has_live_deployment=has_live,
+                )
+                yield f'data: {json.dumps({"type": "html_artifact", "html": result["html"], "summary": result["summary"], "creation_id": creation_id, "deployment_status": "DIRTY" if has_live else None, "live_url": row.get("live_url") or row.get("vercel_url")})}\n\n'
+                yield f'data: {json.dumps({"type": "complete"})}\n\n'
+                yield "data: [DONE]\n\n"
+            except WebsiteEditError as exc:
+                yield f'data: {json.dumps({"type": "error", "value": str(exc)})}\n\n'
+                yield "data: [DONE]\n\n"
+            except Exception as exc:
+                print(f"WEBSITE_REFINE: Error: {exc}")
+                yield f'data: {json.dumps({"type": "error", "value": "Website edit failed safely; the saved page was not changed."})}\n\n'
+                yield "data: [DONE]\n\n"
+
+        return StreamingResponse(
+            edit_website(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
     artifact = row.get("artifact_markdown") or ""
     if not artifact:
@@ -104,7 +173,7 @@ async def download_creation_pdf(creation_id: str):
         return Response(content="Not found", status_code=404)
 
     artifact = row.get("artifact_markdown") or ""
-    title = row.get("title") or "Jarvis Creation"
+    title = row.get("title") or "Creation"
 
     if not artifact:
         return Response(content="No artifact to export", status_code=400)
@@ -130,7 +199,7 @@ async def download_creation_pdf(creation_id: str):
             topMargin=inch,
             bottomMargin=inch,
             title=title,
-            author="Jarvis by MG&CO",
+            author="",
         )
 
         title_style = ParagraphStyle(
@@ -160,7 +229,7 @@ async def download_creation_pdf(creation_id: str):
 
         safe_title = re.sub(r"[^\w\s-]", "", title)[:40].strip().replace(" ", "-").lower()
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        filename = f"jarvis-{safe_title or 'creation'}-{timestamp}.pdf"
+        filename = f"{safe_title or 'creation'}-{timestamp}.pdf"
 
         return Response(
             content=buffer.getvalue(),
