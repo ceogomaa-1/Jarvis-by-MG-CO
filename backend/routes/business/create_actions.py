@@ -18,11 +18,11 @@ from backend.lib.business.creation.standalone_editor import (
     WebsiteEditError,
     edit_standalone_page,
 )
+from backend.lib.business.model_router import SONNET as REFINE_MODEL
 
 router = APIRouter()
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-REFINE_MODEL = "claude-sonnet-4-6"
 
 _REFINE_SYSTEM = """\
 You are an expert business content refiner.

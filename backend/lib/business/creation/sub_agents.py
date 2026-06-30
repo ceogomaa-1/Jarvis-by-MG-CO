@@ -7,7 +7,7 @@ from backend.lib.grounding import GROUNDING_CONTRACT
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 from backend.lib.business.connectors.registry import available_connectors_summary  # noqa: E402
-SUB_AGENT_MODEL = "claude-sonnet-4-6"
+from backend.lib.business.model_router import SONNET as SUB_AGENT_MODEL  # noqa: E402
 SUB_AGENT_TIMEOUT = 90.0
 
 # ════════════════════════════════════════════════════════════════════

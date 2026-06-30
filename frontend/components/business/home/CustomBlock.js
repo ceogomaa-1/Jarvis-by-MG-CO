@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { GripVertical, X, Plus, Trash2, RefreshCw } from 'lucide-react'
+import { GripVertical, X, Plus, Trash2, RefreshCw, Check } from 'lucide-react'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
@@ -39,13 +39,34 @@ function Header({ title, badge, onDelete }) {
 }
 
 // ── list (e.g. My Expenses) ──────────────────────────────────────────────────
+const inputStyle = {
+  background: 'rgba(255,255,255,0.04)', border: '1px solid var(--os1-border-soft, rgba(255,255,255,0.08))',
+  borderRadius: 7, padding: '5px 8px', color: 'var(--os1-text, #E8E8E6)', fontSize: 11, outline: 'none',
+}
+const editInputStyle = {
+  ...inputStyle, background: 'rgba(255,255,255,0.06)', border: '1px solid var(--home-accent-border, rgba(45,127,249,0.3))',
+  borderRadius: 6, padding: '3px 6px', fontSize: 11.5,
+}
+
+function fmtDue(d) {
+  if (!d) return ''
+  const parsed = new Date(`${d}T00:00:00`)
+  if (Number.isNaN(parsed.getTime())) return d
+  return parsed.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
 function ListBody({ block, userId, onChanged }) {
   const unit = block.config?.unit || '$'
   const items = block.data?.items || []
   const total = block.data?.total ?? items.reduce((s, i) => s + Number(i.amount || 0), 0)
   const [label, setLabel] = useState('')
   const [amount, setAmount] = useState('')
+  const [dueDate, setDueDate] = useState('')
   const [busy, setBusy] = useState(false)
+  const [editingId, setEditingId] = useState(null)
+  const [editLabel, setEditLabel] = useState('')
+  const [editAmount, setEditAmount] = useState('')
+  const [editDue, setEditDue] = useState('')
 
   async function post(path, body) {
     setBusy(true)
@@ -62,8 +83,23 @@ function ListBody({ block, userId, onChanged }) {
     if (!label.trim()) return
     const item = { label: label.trim() }
     if (amount !== '' && !Number.isNaN(Number(amount))) item.amount = Number(amount)
-    setLabel(''); setAmount('')
+    if (dueDate) item.due_date = dueDate
+    setLabel(''); setAmount(''); setDueDate('')
     post('add-item', { item })
+  }
+
+  const startEdit = (it) => {
+    setEditingId(it.id)
+    setEditLabel(it.label || '')
+    setEditAmount(it.amount != null ? String(it.amount) : '')
+    setEditDue(it.due_date || '')
+  }
+
+  const saveEdit = (it) => {
+    const item = { id: it.id, new_label: editLabel.trim() || it.label, due_date: editDue || '' }
+    if (editAmount !== '' && !Number.isNaN(Number(editAmount))) item.amount = Number(editAmount)
+    setEditingId(null)
+    post('update-item', { item })
   }
 
   return (
@@ -74,12 +110,34 @@ function ListBody({ block, userId, onChanged }) {
             Empty — add your first item below, or ask Jarvis to fill it.
           </div>
         )}
-        {items.map((it) => (
-          <div key={it.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '5px 0', borderBottom: '1px solid var(--os1-border-soft, rgba(255,255,255,0.05))' }}>
-            <span style={{ fontSize: 12, color: 'var(--os1-text-dim, #C8C8C6)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.label}</span>
+        {items.map((it) => editingId === it.id ? (
+          <div key={it.id} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 0', borderBottom: '1px solid var(--os1-border-soft, rgba(255,255,255,0.05))' }}>
+            <input autoFocus value={editLabel} onChange={(e) => setEditLabel(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(it); if (e.key === 'Escape') setEditingId(null) }}
+              onMouseDown={(e) => e.stopPropagation()}
+              style={{ ...editInputStyle, flex: 1, minWidth: 0 }} />
+            <input value={editAmount} onChange={(e) => setEditAmount(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(it); if (e.key === 'Escape') setEditingId(null) }}
+              placeholder={unit} inputMode="decimal" onMouseDown={(e) => e.stopPropagation()}
+              style={{ ...editInputStyle, width: 46 }} />
+            <input type="date" value={editDue} onChange={(e) => setEditDue(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(it); if (e.key === 'Escape') setEditingId(null) }}
+              onMouseDown={(e) => e.stopPropagation()}
+              style={{ ...editInputStyle, width: 88, fontSize: 9.5, colorScheme: 'dark' }} />
+            <button onClick={() => saveEdit(it)} className="os1-iconbtn" title="Save" style={{ padding: 1, color: 'var(--home-accent, #5b9bff)' }}>
+              <Check size={13} />
+            </button>
+          </div>
+        ) : (
+          <div key={it.id} onClick={() => startEdit(it)} title="Click to edit"
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '5px 0', borderBottom: '1px solid var(--os1-border-soft, rgba(255,255,255,0.05))', cursor: 'pointer' }}>
+            <span style={{ minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontSize: 12, color: 'var(--os1-text-dim, #C8C8C6)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.label}</span>
+              {it.due_date && <span className="os1-serif-micro" style={{ fontSize: 9, color: 'var(--os1-text-faint, #6E6E6C)' }}>Due {fmtDue(it.due_date)}</span>}
+            </span>
             <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
               {it.amount != null && <span className="font-pixel" style={{ fontSize: 11, color: 'var(--os1-text, #E8E8E6)' }}>{fmtAmount(it.amount, unit)}</span>}
-              <button onClick={() => post('remove-item', { item: { id: it.id } })} className="os1-iconbtn" title="Remove" style={{ padding: 1, color: 'var(--os1-text-faint, #6E6E6C)' }}>
+              <button onClick={(e) => { e.stopPropagation(); post('remove-item', { item: { id: it.id } }) }} className="os1-iconbtn" title="Remove" style={{ padding: 1, color: 'var(--os1-text-faint, #6E6E6C)' }}>
                 <Trash2 size={11} />
               </button>
             </span>
@@ -92,13 +150,16 @@ function ListBody({ block, userId, onChanged }) {
           <span className="font-pixel" style={{ fontSize: 12, color: 'var(--home-accent, #5b9bff)' }}>{fmtAmount(total, unit)}</span>
         </div>
       )}
-      <div style={{ display: 'flex', gap: 6, padding: '8px 12px', borderTop: '1px solid var(--os1-border-soft, rgba(255,255,255,0.06))' }}>
+      <div style={{ display: 'flex', gap: 5, padding: '8px 12px', borderTop: '1px solid var(--os1-border-soft, rgba(255,255,255,0.06))' }}>
         <input value={label} onChange={(e) => setLabel(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()}
           placeholder="Item" onMouseDown={(e) => e.stopPropagation()}
-          style={{ flex: 1, minWidth: 0, background: 'rgba(255,255,255,0.04)', border: '1px solid var(--os1-border-soft, rgba(255,255,255,0.08))', borderRadius: 7, padding: '5px 8px', color: 'var(--os1-text, #E8E8E6)', fontSize: 11, outline: 'none' }} />
+          style={{ ...inputStyle, flex: 1, minWidth: 0 }} />
         <input value={amount} onChange={(e) => setAmount(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()}
           placeholder={unit} inputMode="decimal" onMouseDown={(e) => e.stopPropagation()}
-          style={{ width: 58, background: 'rgba(255,255,255,0.04)', border: '1px solid var(--os1-border-soft, rgba(255,255,255,0.08))', borderRadius: 7, padding: '5px 8px', color: 'var(--os1-text, #E8E8E6)', fontSize: 11, outline: 'none' }} />
+          style={{ ...inputStyle, width: 48 }} />
+        <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()}
+          onMouseDown={(e) => e.stopPropagation()} title="Due date (optional)"
+          style={{ ...inputStyle, width: 84, padding: '5px 4px', fontSize: 9.5, colorScheme: 'dark' }} />
         <button onClick={add} disabled={busy} className="os1-iconbtn" title="Add"
           style={{ padding: '5px 8px', border: '1px solid var(--home-accent-border, rgba(45,127,249,0.3))', borderRadius: 7, color: 'var(--home-accent, #5b9bff)' }}>
           <Plus size={14} />

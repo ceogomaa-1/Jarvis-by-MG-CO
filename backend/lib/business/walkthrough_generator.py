@@ -4,6 +4,8 @@ import re
 
 import httpx
 
+from backend.lib.business.model_router import SONNET
+
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 BRAVE_API_KEY = os.getenv("BRAVE_SEARCH_API_KEY", "")
 
@@ -129,7 +131,7 @@ async def generate_walkthrough(query: str) -> dict:
                     "content-type": "application/json",
                 },
                 json={
-                    "model": "claude-sonnet-4-20250514",
+                    "model": SONNET,
                     "max_tokens": 8096,
                     "system": _SYSTEM,
                     "messages": [{"role": "user", "content": prompt}],

@@ -6,6 +6,8 @@ import httpx
 from fastapi import APIRouter, File, Form, UploadFile
 from fastapi.responses import JSONResponse
 
+from backend.lib.business.model_router import SONNET
+
 router = APIRouter()
 
 
@@ -32,7 +34,7 @@ async def upload_file(
                         "content-type": "application/json",
                     },
                     json={
-                        "model": "claude-sonnet-4-6",
+                        "model": SONNET,
                         "max_tokens": 1024,
                         "messages": [{
                             "role": "user",

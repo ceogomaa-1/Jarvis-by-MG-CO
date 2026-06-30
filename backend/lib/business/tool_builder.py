@@ -27,7 +27,9 @@ _ALWAYS_ON_TOOLS: dict[str, dict] = {
             "bar chart of my monthly revenue' -> create_block block_type='chart' chart_kind='bar' with "
             "items; 'add a notes block' -> create_block block_type='note'; 'pull today's industry news' "
             "-> create_block block_type='news' news_topic=...; 'add coffee $4 to my expenses' -> "
-            "add_item; 'change the accent color to emerald' / 'use a serif font' -> set_theme; 'delete "
+            "add_item; 'rent is due June 5th' / 'change rent to $1300' / 'rename coffee to lunch' -> "
+            "update_item (match the existing item by id or by its current label); 'change the accent "
+            "color to emerald' / 'use a serif font' -> set_theme; 'delete "
             "the expenses block' -> delete_block; 'undo' -> restore; 'move my expenses to the top' -> "
             "move_block. Operate on REAL data the user gives you or that you pull live — never invent "
             "numbers. block_id comes from a previous create_block or the dashboard context. After "
@@ -37,15 +39,15 @@ _ALWAYS_ON_TOOLS: dict[str, dict] = {
             "type": "object",
             "properties": {
                 "action": {"type": "string", "enum": [
-                    "create_block", "update_block", "add_item", "remove_item", "restyle_block",
-                    "move_block", "delete_block", "restore", "set_theme"]},
+                    "create_block", "update_block", "add_item", "remove_item", "update_item",
+                    "restyle_block", "move_block", "delete_block", "restore", "set_theme"]},
                 "block_type": {"type": "string", "enum": ["list", "note", "metric", "chart", "news"],
                                "description": "For create_block."},
-                "block_id": {"type": "string", "description": "Target custom block id (update/add_item/remove_item/restyle/move/delete)."},
+                "block_id": {"type": "string", "description": "Target custom block id (update/add_item/remove_item/update_item/restyle/move/delete)."},
                 "title": {"type": "string"},
                 "items": {"type": "array", "items": {"type": "object"},
-                          "description": "List/chart items, e.g. [{\"label\":\"Rent\",\"amount\":1200}] for a list, or chart points [{\"label\":\"Jan\",\"value\":30}]."},
-                "item": {"type": "object", "description": "A single item for add_item/remove_item, e.g. {\"label\":\"Coffee\",\"amount\":4}."},
+                          "description": "List/chart items, e.g. [{\"label\":\"Rent\",\"amount\":1200,\"due_date\":\"2026-07-05\"}] for a list, or chart points [{\"label\":\"Jan\",\"value\":30}]."},
+                "item": {"type": "object", "description": "A single item. add_item: {\"label\":\"Coffee\",\"amount\":4,\"due_date\":\"2026-07-05\"} (due_date optional, list blocks only). remove_item: {\"id\":...} or {\"label\":...}. update_item: identify with {\"id\":...} (preferred) or {\"label\":\"<current label>\"}, then include only what's changing — \"new_label\" to rename, \"amount\" for a new amount, \"due_date\" for a new/changed due date (empty string clears it)."},
                 "text": {"type": "string", "description": "Body text for a note block."},
                 "metric": {"type": "object", "description": "For a metric block: {value, unit, label, delta}. Carries 'unit' for a list block (e.g. '$')."},
                 "chart_kind": {"type": "string", "enum": ["bar", "line", "pie"]},

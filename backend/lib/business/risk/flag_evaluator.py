@@ -9,9 +9,9 @@ import os
 import httpx
 
 from backend.lib.business.bible_loader import load_bible
+from backend.lib.business.model_router import SONNET as EVALUATOR_MODEL
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-EVALUATOR_MODEL = "claude-sonnet-4-6"
 EVALUATOR_TIMEOUT = 45.0
 
 _EVALUATOR_SYSTEM = """\

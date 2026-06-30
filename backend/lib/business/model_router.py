@@ -4,7 +4,7 @@ import re
 # Model tiers are env-configurable so Mohamed can dial the cost/quality mix
 # without a redeploy. Defaults match the prior hard-coded ids.
 HAIKU = os.getenv("JARVIS_MODEL_CHEAP", "claude-haiku-4-5-20251001")
-SONNET = os.getenv("JARVIS_MODEL_STANDARD", "claude-sonnet-4-6")
+SONNET = os.getenv("JARVIS_MODEL_STANDARD", "claude-sonnet-5")
 OPUS = os.getenv("JARVIS_MODEL_SMART", "claude-opus-4-8")
 
 # Master switch: set JARVIS_MODEL_TIERING=0 to force every turn onto SONNET

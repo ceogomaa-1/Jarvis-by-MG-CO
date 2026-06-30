@@ -11,8 +11,9 @@ import os
 
 import httpx
 
+from backend.lib.business.model_router import SONNET as MODEL
+
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-MODEL = "claude-sonnet-4-6"
 TIMEOUT = 90.0
 
 

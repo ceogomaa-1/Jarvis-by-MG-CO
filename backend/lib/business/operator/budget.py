@@ -12,6 +12,7 @@ to surprise the user with a bill.
 _COST_PER_1K_OUTPUT = {
     "claude-haiku-4-5-20251001": 0.005,
     "claude-sonnet-4-6": 0.015,
+    "claude-sonnet-5": 0.015,
     "claude-opus-4-7": 0.075,
 }
 
@@ -19,6 +20,7 @@ _COST_PER_1K_OUTPUT = {
 _COST_PER_1K_INPUT = {
     "claude-haiku-4-5-20251001": 0.001,
     "claude-sonnet-4-6": 0.003,
+    "claude-sonnet-5": 0.003,
     "claude-opus-4-7": 0.015,
 }
 

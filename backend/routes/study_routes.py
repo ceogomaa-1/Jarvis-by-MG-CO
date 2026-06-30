@@ -126,9 +126,10 @@ async def cache_selftest():
     return out
 
 
+from backend.lib.business.model_router import SONNET as _CAPTURE_MODEL
+
 _NOTES_TABLE = "study_notes"
 _CHATS_TABLE = "study_chats"
-_CAPTURE_MODEL = "claude-sonnet-4-6"
 
 
 def _headers(prefer: str = "return=representation") -> dict:

@@ -14,12 +14,12 @@ from zoneinfo import ZoneInfo
 import httpx
 
 from backend.lib.business.mind.graph import _strength
+from backend.lib.business.model_router import SONNET
 
 SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
-SONNET = "claude-sonnet-4-6"
 TORONTO = ZoneInfo("America/Toronto")
 
 SAMPLE_POOL = 60

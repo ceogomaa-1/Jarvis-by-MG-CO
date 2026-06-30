@@ -300,6 +300,13 @@ async def custom_remove_item(request: CustomItemRequest):
     return await ds.ui_remove_item(request.user_id, request.block_id, request.item or {})
 
 
+@router.post("/business/home/custom/update-item")
+async def custom_update_item(request: CustomItemRequest):
+    if not request.user_id or not request.block_id:
+        raise HTTPException(status_code=400, detail="user_id and block_id required")
+    return await ds.ui_update_item(request.user_id, request.block_id, request.item or {})
+
+
 class CustomBlockRequest(BaseModel):
     user_id: str
     block_id: str

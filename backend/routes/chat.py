@@ -26,6 +26,7 @@ from backend.tools.url_fetch import extract_urls, fetch_url_content
 from backend.usage_limits import check_limit, increment_usage, get_usage, DAILY_MESSAGE_LIMIT
 from backend.farida_personal_loader import _is_farida, load_greeting as _load_farida_greeting
 from backend.lib.personal.relationship_bible import is_relationship_context, build_relationship_injection
+from backend.lib.business.model_router import SONNET
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -761,7 +762,7 @@ async def generate_artifact(request: ChatRequest):
                     "content-type": "application/json",
                 },
                 json={
-                    "model": "claude-sonnet-4-20250514",
+                    "model": SONNET,
                     "max_tokens": 8096,
                     "system": (
                         f"{moment_block}\n\n---\n\n"

@@ -15,6 +15,7 @@ import httpx
 
 from backend.lib.business.brand_config import get_brand_config
 from backend.lib.business.connectors.registry import available_connectors_summary
+from backend.lib.business.model_router import SONNET
 from backend.lib.business.operator.budget import BudgetTracker
 from backend.lib.business.operator.strategist import run_strategist
 from backend.lib.business.operator.researcher import run_researcher
@@ -220,8 +221,8 @@ async def run_operator_for_user(user_id: str, existing_run_id: str | None = None
             return {"status": "failed", "cycles_completed": 1}
 
         # ─── CYCLE 2: RESEARCHER ──────────────────────────────────
-        if budget.can_afford("claude-sonnet-4-6", input_tokens_est=2000, max_output_tokens=3000):
-            budget.charge("claude-sonnet-4-6", input_tokens_est=2000, max_output_tokens=3000)
+        if budget.can_afford(SONNET, input_tokens_est=2000, max_output_tokens=3000):
+            budget.charge(SONNET, input_tokens_est=2000, max_output_tokens=3000)
             researcher_output = await run_researcher(strategist_plan, industry)
         else:
             researcher_output = {"research": {}, "skipped": "budget"}
@@ -238,13 +239,13 @@ async def run_operator_for_user(user_id: str, existing_run_id: str | None = None
         affordable_count = 0
         for _ in moves_to_create:
             if budget.can_afford(
-                "claude-sonnet-4-6",
+                SONNET,
                 input_tokens_est=2000,
                 max_output_tokens=2500,
                 multiplier=creator_cost_multiplier,
             ):
                 budget.charge(
-                    "claude-sonnet-4-6",
+                    SONNET,
                     input_tokens_est=2000,
                     max_output_tokens=2500,
                     multiplier=creator_cost_multiplier,

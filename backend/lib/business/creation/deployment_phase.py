@@ -15,11 +15,11 @@ from typing import AsyncIterator
 import httpx
 
 from backend.lib.business.connectors.registry import list_user_connections
+from backend.lib.business.model_router import SONNET as DEPLOYMENT_MODEL
 from backend.lib.business.tool_builder import build_tools_for_user
 from backend.lib.business.tool_executor import execute_tool
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-DEPLOYMENT_MODEL = "claude-sonnet-4-6"
 DEPLOYMENT_TIMEOUT = 40.0
 
 _CODE_INDICATORS = [

@@ -29,13 +29,13 @@ from backend.lib.business.connectors.registry import (
     list_user_connections,
 )
 from backend.lib.business.mind.ingest import process_new_memory
+from backend.lib.business.model_router import SONNET
 from backend.lib.business.readiness import calculate_readiness
 
 SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
-SONNET = "claude-sonnet-4-6"
 TORONTO = ZoneInfo("America/Toronto")
 
 _VALID_TYPES = {"suggestion", "draft", "warning", "opportunity"}

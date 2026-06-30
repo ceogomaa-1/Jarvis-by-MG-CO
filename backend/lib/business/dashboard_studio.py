@@ -166,6 +166,9 @@ def _norm_items(items, want_amount: bool) -> list[dict]:
                 row["amount" if want_amount else "value"] = float(amt)
             except (TypeError, ValueError):
                 pass
+        due = it.get("due_date") or it.get("due") or it.get("date")
+        if due:
+            row["due_date"] = str(due)[:32]
         out.append(row)
     return out
 
@@ -355,6 +358,51 @@ async def execute_dashboard_tool(action_name: str, inp: dict, user_id: str) -> d
             return {"ok": ok, "action": action, "block_id": bid, "home_changed": True,
                     "message": ("Added." if action == "add_item" else "Removed.") if ok else "Failed."}
 
+        # ── update a single item in place (rename/re-amount/due-date, list + chart) ──
+        if action == "update_item":
+            bid = inp.get("block_id")
+            block = await _get_block(client, user_id, bid) if bid else None
+            if not block:
+                return _err("I couldn't find that block.")
+            btype = block["block_type"]
+            data = block.get("data") or {}
+            key = "items" if btype == "list" else "series"
+            want_amount = btype == "list"
+            arr = list(data.get(key, []))
+            target = inp.get("item") or {}
+            tid = target.get("id")
+            # Matched by id (the common UI path): 'label' is a rename. Matched by name
+            # (the common chat path, e.g. "rename rent to mortgage"): use 'new_label'.
+            match_label = "" if tid else str(target.get("label") or inp.get("text") or "").strip().lower()
+            found = False
+            for row in arr:
+                if (tid and row.get("id") == tid) or (match_label and str(row.get("label", "")).lower() == match_label):
+                    new_label = target.get("new_label") or (target.get("label") if tid else None)
+                    if new_label:
+                        row["label"] = str(new_label)
+                    amt = target.get("amount", target.get("value"))
+                    if amt is not None:
+                        try:
+                            row["amount" if want_amount else "value"] = float(amt)
+                        except (TypeError, ValueError):
+                            pass
+                    if "due_date" in target or "due" in target:
+                        due = target.get("due_date", target.get("due"))
+                        if not due:
+                            row.pop("due_date", None)
+                        else:
+                            row["due_date"] = str(due)[:32]
+                    found = True
+                    break
+            if not found:
+                return _err("I couldn't find that item.")
+            data[key] = arr
+            if btype == "list":
+                data["total"] = _list_total(arr)
+            ok = await _patch_block(client, user_id, bid, {"data": data})
+            return {"ok": ok, "action": action, "block_id": bid, "home_changed": True,
+                    "message": "Updated the item." if ok else "Failed."}
+
         # ── restyle (per-block accent/emphasis) ───────────────────
         if action == "restyle_block":
             bid = inp.get("block_id")
@@ -410,3 +458,7 @@ async def ui_add_item(user_id: str, block_id: str, item: dict) -> dict:
 
 async def ui_remove_item(user_id: str, block_id: str, item: dict) -> dict:
     return await execute_dashboard_tool("control", {"action": "remove_item", "block_id": block_id, "item": item}, user_id)
+
+
+async def ui_update_item(user_id: str, block_id: str, item: dict) -> dict:
+    return await execute_dashboard_tool("control", {"action": "update_item", "block_id": block_id, "item": item}, user_id)

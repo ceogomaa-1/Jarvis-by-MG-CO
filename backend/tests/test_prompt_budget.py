@@ -41,8 +41,8 @@ def test_budget_tracker_supports_batch_discount_multiplier():
     from backend.lib.business.operator.budget import BudgetTracker
 
     budget = BudgetTracker(daily_budget_usd=1)
-    full_cost = budget.estimate_call_cost("claude-sonnet-4-6", 2000, 2500)
-    batch_cost = budget.estimate_call_cost("claude-sonnet-4-6", 2000, 2500, multiplier=0.5)
+    full_cost = budget.estimate_call_cost("claude-sonnet-5", 2000, 2500)
+    batch_cost = budget.estimate_call_cost("claude-sonnet-5", 2000, 2500, multiplier=0.5)
     assert batch_cost == full_cost / 2
 
 

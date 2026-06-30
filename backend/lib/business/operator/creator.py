@@ -15,9 +15,9 @@ import re
 import httpx
 
 from backend.lib.anthropic_batch import AnthropicBatchError, AnthropicBatchTimeout, run_message_batch
+from backend.lib.business.model_router import SONNET as MODEL
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-MODEL = "claude-sonnet-4-6"
 TIMEOUT = 90.0
 
 
