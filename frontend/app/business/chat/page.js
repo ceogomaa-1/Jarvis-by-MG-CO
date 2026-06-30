@@ -96,13 +96,14 @@ export default function BusinessChatPage() {
         await loadConversations(uid)
         await loadMemoryCount(uid)
 
-        // Batch 67: returning users land on Home by default (toggle in the Home top bar).
-        // First-time/just-onboarded users keep the chat so Home composes overnight first.
+        // Batch 67: returning users land on Home by default (toggle in the Home top bar) —
+        // but only once Home actually has composed content, so we never drop someone onto an
+        // empty "compose me" overlay. First-time/just-onboarded users keep the chat.
         if (!justOnboarded) {
           try {
             const res = await fetch(`${BACKEND}/api/business/home?user_id=${encodeURIComponent(uid)}`)
             const data = await res.json()
-            if (data?.settings?.default_landing) setAutoOpenHome(true)
+            if (data?.settings?.default_landing && data?.composed) setAutoOpenHome(true)
           } catch { /* default landing is best-effort */ }
         }
       }
