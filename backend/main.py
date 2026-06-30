@@ -61,6 +61,8 @@ from backend.routes.business.feedback_routes import router as business_feedback_
 from backend.routes.business.email_routes import router as business_email_router
 from backend.routes.business.crm_routes import router as business_crm_router
 from backend.routes.business.leads_routes import router as business_leads_router
+from backend.routes.business.home_routes import router as business_home_router
+from backend.cron.home_adaptive_cron import run_home_adaptive_nightly
 from backend.routes.os1_billing import router as os1_billing_router
 from backend.routes.channels import router as channels_router
 from backend.cron.synapse_cron import run_weekly_synapse_generation
@@ -107,6 +109,12 @@ async def lifespan(app: FastAPI):
         run_weekly_synapse_generation,
         CronTrigger(day_of_week="sun", hour=3, minute=0, timezone="America/Toronto"),
         id="weekly_synapses",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        run_home_adaptive_nightly,
+        CronTrigger(hour=4, minute=30, timezone="America/Toronto"),
+        id="home_adaptive_nightly",
         replace_existing=True,
     )
     scheduler.add_job(
@@ -194,6 +202,7 @@ app.include_router(business_feedback_router, prefix="/api")
 app.include_router(business_email_router, prefix="/api")
 app.include_router(business_crm_router, prefix="/api")
 app.include_router(business_leads_router, prefix="/api")
+app.include_router(business_home_router, prefix="/api")
 app.include_router(os1_billing_router, prefix="/api")
 app.include_router(channels_router, prefix="/api")
 app.include_router(announcements_router, prefix="/api")

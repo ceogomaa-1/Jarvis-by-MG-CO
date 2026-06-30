@@ -231,6 +231,8 @@ export default function ChatCanvas({
   injectPrompt,
   onCrmChanged,   // Phase 3: fired after a successful Jarvis CRM write so the cockpit can refresh
   onLeadsChanged, // mgcoleads: fired after a find/push so the Leads cockpit panel can refresh
+  onHomeChanged,  // Batch 67: fired after a Home layout command so the Home cockpit can refresh
+  surface = null, // Batch 67: 'home' tags the docked Home chat so layout commands route correctly
   compact = false, // Phase 3: docked in the narrow CRM cockpit panel — tighter padding, no side dock
 }) {
   // Horizontal padding shrinks when docked so text/controls aren't clipped in the panel.
@@ -325,12 +327,18 @@ export default function ChatCanvas({
     } catch {}
   }, [])
 
-  // "Act on this ->" from the Morning Queue — drop the action prompt into the input
+  // "Act on this ->" from the Morning Queue — drop the action prompt into the input.
+  // Batch 67: Home block actions set autoSend so one tap actually runs it (the write
+  // path still hits the existing hold-to-confirm before anything external happens).
   useEffect(() => {
     if (!injectPrompt?.text) return
-    setInput(injectPrompt.text)
-    inputRef.current?.focus()
-  }, [injectPrompt])
+    if (injectPrompt.autoSend) {
+      sendMessage(injectPrompt.text)
+    } else {
+      setInput(injectPrompt.text)
+      inputRef.current?.focus()
+    }
+  }, [injectPrompt])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load messages when conversation changes
   useEffect(() => {
@@ -1007,6 +1015,7 @@ export default function ChatCanvas({
           conversation_id: activeConvRef.current || null,
           attachments: attachments.map(a => ({ type: a.type, media_type: a.media_type, data: a.data, name: a.name, storage_path: a.storage_path, size: a.size })),
           node_context: nodeContext,
+          surface: surface || undefined,
         }),
         signal: controller.signal,
       })
@@ -1070,6 +1079,9 @@ export default function ChatCanvas({
               } else if (chunk.type === 'leads_changed') {
                 // A find/push landed — tell the Leads cockpit to refresh its panel.
                 onLeadsChanged?.()
+              } else if (chunk.type === 'home_changed') {
+                // A Home layout command applied — tell the Home cockpit to refresh.
+                onHomeChanged?.()
               } else if (chunk.type === 'pending_action') {
                 if (!gotChunk) {
                   gotChunk = true

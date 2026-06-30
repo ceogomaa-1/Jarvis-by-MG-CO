@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Inbox, BookOpen, Wrench, Star, User, Database, Target } from 'lucide-react'
+import { Inbox, BookOpen, Wrench, Star, User, Database, Target, Home } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { setJarvisMode } from '../../lib/userPreferences'
 
@@ -14,6 +14,7 @@ import ProfileModal from './ProfileModal'
 import FontToggle from './FontToggle'
 import CrmCockpit from './CrmCockpit'
 import LeadsCockpit from './LeadsCockpit'
+import HomeCockpit from './home/HomeCockpit'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
@@ -99,7 +100,7 @@ function MenuItem({ icon, label, hint, badge, onClick }) {
   )
 }
 
-export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, onClose, onActPrompt }) {
+export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, onClose, onActPrompt, autoOpenHome = false }) {
   const router = useRouter()
   const [openModal, setOpenModal] = useState(null)
   const [authUser, setAuthUser] = useState(null)
@@ -108,6 +109,21 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
   const [crmOpen, setCrmOpen] = useState(false)
   const [leadsEnabled, setLeadsEnabled] = useState(false)  // mgcoleads feature flag (env-gated)
   const [leadsOpen, setLeadsOpen] = useState(false)
+  const [homeOpen, setHomeOpen] = useState(false)          // Batch 67 — Jarvis Home cockpit
+
+  // Default-landing: the page resolves the user's Home setting and flips autoOpenHome.
+  useEffect(() => {
+    if (autoOpenHome) setHomeOpen(true)
+  }, [autoOpenHome])
+
+  // Home block "navigate" actions resolve to the existing surfaces.
+  const handleHomeNavigate = (target) => {
+    if (target === 'crm') { setHomeOpen(false); setCrmOpen(true) }
+    else if (target === 'leads') { setHomeOpen(false); setLeadsOpen(true) }
+    else if (target === 'morning_queue') { setHomeOpen(false); openM('queue') }
+    else if (target === 'connections') { openM('connections') }
+    else if (target === 'workflow') { router.push('/business/workflow') }
+  }
 
   useEffect(() => {
     if (!supabase) return
@@ -166,6 +182,9 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
     : '—'
 
   const items = [
+    { label: 'Home', icon: <Home size={17} />,
+      hint: 'your command center — what changed overnight, and one tap to act on it',
+      onClick: () => { onClose?.(); setHomeOpen(true) } },
     { label: 'Morning Queue',         icon: <Inbox size={17} />,    badge: unreadCount > 0, onClick: () => openM('queue') },
     // CRM cockpit — only when the user's Jarvis CRM workspace is provisioned.
     ...(crmWorkspace?.provisioned ? [{
@@ -297,6 +316,9 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
 
       {/* mgcoleads — Leads cockpit (scored pipeline) with the same docked chat */}
       <LeadsCockpit open={leadsOpen} onClose={() => setLeadsOpen(false)} userId={userId} />
+
+      {/* Batch 67 — Jarvis Home: adaptive command center with the same docked chat */}
+      <HomeCockpit open={homeOpen} onClose={() => setHomeOpen(false)} userId={userId} onNavigate={handleHomeNavigate} />
     </>
   )
 }

@@ -26,6 +26,7 @@ export default function BusinessChatPage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [injectPrompt, setInjectPrompt] = useState(null)
+  const [autoOpenHome, setAutoOpenHome] = useState(false)  // Batch 67 — Home as default landing
 
   useFontPref(userId)
 
@@ -94,6 +95,16 @@ export default function BusinessChatPage() {
 
         await loadConversations(uid)
         await loadMemoryCount(uid)
+
+        // Batch 67: returning users land on Home by default (toggle in the Home top bar).
+        // First-time/just-onboarded users keep the chat so Home composes overnight first.
+        if (!justOnboarded) {
+          try {
+            const res = await fetch(`${BACKEND}/api/business/home?user_id=${encodeURIComponent(uid)}`)
+            const data = await res.json()
+            if (data?.settings?.default_landing) setAutoOpenHome(true)
+          } catch { /* default landing is best-effort */ }
+        }
       }
       setLoading(false)
     }).catch(() => setLoading(false))
@@ -220,6 +231,7 @@ export default function BusinessChatPage() {
         onToggle={() => setMenuOpen(o => !o)}
         onClose={() => setMenuOpen(false)}
         onActPrompt={(prompt) => setInjectPrompt({ text: prompt, ts: Date.now() })}
+        autoOpenHome={autoOpenHome}
       />
 
       {/* Body: floating sidebar + chat canvas */}

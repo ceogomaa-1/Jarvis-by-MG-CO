@@ -37,6 +37,15 @@ def test_memory_extraction_only_runs_for_durable_user_context():
     assert should_extract_memories("My business is a dental clinic in Oshawa") is True
 
 
+def test_budget_tracker_supports_batch_discount_multiplier():
+    from backend.lib.business.operator.budget import BudgetTracker
+
+    budget = BudgetTracker(daily_budget_usd=1)
+    full_cost = budget.estimate_call_cost("claude-sonnet-4-6", 2000, 2500)
+    batch_cost = budget.estimate_call_cost("claude-sonnet-4-6", 2000, 2500, multiplier=0.5)
+    assert batch_cost == full_cost / 2
+
+
 @pytest.mark.asyncio
 async def test_cost_control_probe_reports_active_revision():
     from backend.routes.business.chat import get_cost_controls
@@ -45,4 +54,8 @@ async def test_cost_control_probe_reports_active_revision():
     assert result["revision"] == "prompt-cache-v2"
     assert result["website_workflow_revision"] == "surgical-edit-v1"
     assert result["automatic_conversation_caching"] is True
+    assert result["operator_creator_batching"] is True
+    assert result["operator_creator_batch_discount"] == 0.5
+    assert "operator_creator_batch_active_for_2_plus" in result
+    assert "operator_creator_advisor_enabled" in result
     assert result["history_char_cap"] > 0

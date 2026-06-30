@@ -36,19 +36,33 @@ class BudgetTracker:
         model: str,
         input_tokens_est: int,
         max_output_tokens: int,
+        multiplier: float = 1.0,
     ) -> float:
         """Worst-case cost for one call."""
         out_rate = _COST_PER_1K_OUTPUT.get(model, 0.075)
         in_rate = _COST_PER_1K_INPUT.get(model, 0.015)
-        return (max_output_tokens / 1000.0) * out_rate + (input_tokens_est / 1000.0) * in_rate
+        base = (max_output_tokens / 1000.0) * out_rate + (input_tokens_est / 1000.0) * in_rate
+        return base * max(0.0, multiplier)
 
-    def can_afford(self, model: str, input_tokens_est: int, max_output_tokens: int) -> bool:
-        cost = self.estimate_call_cost(model, input_tokens_est, max_output_tokens)
+    def can_afford(
+        self,
+        model: str,
+        input_tokens_est: int,
+        max_output_tokens: int,
+        multiplier: float = 1.0,
+    ) -> bool:
+        cost = self.estimate_call_cost(model, input_tokens_est, max_output_tokens, multiplier)
         return (self.spent_usd + cost) <= self.daily_budget_usd
 
-    def charge(self, model: str, input_tokens_est: int, max_output_tokens: int) -> float:
+    def charge(
+        self,
+        model: str,
+        input_tokens_est: int,
+        max_output_tokens: int,
+        multiplier: float = 1.0,
+    ) -> float:
         """Record a call's cost. Returns the charged amount."""
-        cost = self.estimate_call_cost(model, input_tokens_est, max_output_tokens)
+        cost = self.estimate_call_cost(model, input_tokens_est, max_output_tokens, multiplier)
         self.spent_usd += cost
         self.calls += 1
         return cost

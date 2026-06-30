@@ -18,8 +18,9 @@ from backend.lib.business.connectors.registry import available_connectors_summar
 from backend.lib.business.operator.budget import BudgetTracker
 from backend.lib.business.operator.strategist import run_strategist
 from backend.lib.business.operator.researcher import run_researcher
-from backend.lib.business.operator.creator import run_creator
+from backend.lib.business.operator.creator import creator_batch_enabled, run_creator
 from backend.lib.business.operator.packager import run_packager
+from backend.lib.business.operator.home_composer import compose_home
 
 SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
@@ -233,10 +234,21 @@ async def run_operator_for_user(user_id: str, existing_run_id: str | None = None
 
         # ─── CYCLE 3: CREATOR (parallel sub-agents) ───────────────
         moves_to_create = strategist_plan.get("moves", [])[:6]
+        creator_cost_multiplier = 0.5 if creator_batch_enabled(len(moves_to_create)) else 1.0
         affordable_count = 0
         for _ in moves_to_create:
-            if budget.can_afford("claude-sonnet-4-6", input_tokens_est=2000, max_output_tokens=2500):
-                budget.charge("claude-sonnet-4-6", input_tokens_est=2000, max_output_tokens=2500)
+            if budget.can_afford(
+                "claude-sonnet-4-6",
+                input_tokens_est=2000,
+                max_output_tokens=2500,
+                multiplier=creator_cost_multiplier,
+            ):
+                budget.charge(
+                    "claude-sonnet-4-6",
+                    input_tokens_est=2000,
+                    max_output_tokens=2500,
+                    multiplier=creator_cost_multiplier,
+                )
                 affordable_count += 1
             else:
                 break
@@ -301,6 +313,15 @@ async def run_operator_for_user(user_id: str, existing_run_id: str | None = None
             "total_cost_usd": round(budget.spent_usd, 4),
             "completed_at": "now()",
         })
+
+        # ─── FINAL STEP: COMPOSE HOME ─────────────────────────────
+        # Batch 67: roll everything this run produced — plus the user's standing
+        # signals (risk flags, metrics, leads, calendar) — into the precomputed Home
+        # block cache so the Home view renders instantly. Never fails the run.
+        try:
+            await compose_home(user_id, run_id)
+        except Exception as e:
+            print(f"OPERATOR: compose_home failed for {user_id}: {e}")
 
         print(
             f"OPERATOR: Run complete for {user_id}. "

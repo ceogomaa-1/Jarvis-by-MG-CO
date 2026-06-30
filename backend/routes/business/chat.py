@@ -33,6 +33,7 @@ from backend.lib.business.document_store import save_document
 from backend.lib.business.real_estate.profile import is_real_estate_user
 from backend.lib.business.intent_router import classify_message_intent
 from backend.lib.business import crm_enrich
+from backend.lib.business import home_layout as _home_layout
 from backend.usage_limits import check_limit, increment_usage, get_usage, DAILY_MESSAGE_LIMIT
 from backend.lib.billing import entitlements, config as billing_config, store as billing_store
 from backend.tools.citation_context import init_collector
@@ -328,6 +329,44 @@ class BusinessChatRequest(BaseModel):
     conversation_id: str | None = None
     attachments: list[AttachmentItem] = []
     node_context: dict | None = None
+    surface: str | None = None        # 'home' when sent from the docked Home chat (Batch 67)
+
+
+async def _apply_home_layout_command(user_id: str, message: str) -> tuple[str, bool]:
+    """Phase 2: apply a natural-language Home layout command and persist it.
+
+    Returns (reply_text, changed). Reuses the deterministic parser in home_layout; the
+    docked Home chat routes layout commands here so customization is conversational and live.
+    """
+    layout_url = os.getenv("SUPABASE_URL") or SUPABASE_URL or ""
+    if not layout_url or not SUPABASE_KEY:
+        return "I can't reach your layout store right now.", False
+    headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
+    current = None
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{layout_url}/rest/v1/business_home_layout",
+                headers=headers,
+                params={"select": "layout", "user_id": f"eq.{user_id}", "limit": "1"},
+                timeout=10.0,
+            )
+            if resp.status_code == 200 and resp.json():
+                current = resp.json()[0].get("layout")
+            new_layout, reply, changed = _home_layout.apply_command(current, message)
+            if changed:
+                await client.post(
+                    f"{layout_url}/rest/v1/business_home_layout?on_conflict=user_id",
+                    headers={**headers, "Content-Type": "application/json",
+                             "Prefer": "resolution=merge-duplicates,return=minimal"},
+                    json={"user_id": user_id, "layout": new_layout,
+                          "is_default": False, "updated_at": "now()"},
+                    timeout=12.0,
+                )
+        return reply, changed
+    except Exception as e:
+        print(f"BUSINESS CHAT: home layout command failed: {e}")
+        return "Something went wrong updating your layout.", False
 
 
 def _node_context_block(node_context: dict | None) -> str:
@@ -445,12 +484,18 @@ async def get_user_usage(user_id: str = ""):
 @router.get("/business/cost-controls")
 async def get_cost_controls():
     """Non-AI deployment probe for the active spend-control revision."""
+    from backend.lib.business.operator.creator import creator_advisor_enabled, creator_batch_enabled
+
     return {
         "revision": "prompt-cache-v2",
         "website_workflow_revision": "surgical-edit-v1",
         "automatic_conversation_caching": True,
         "static_system_caching": True,
         "tool_definition_caching": True,
+        "operator_creator_batching": True,
+        "operator_creator_batch_active_for_2_plus": creator_batch_enabled(2),
+        "operator_creator_batch_discount": 0.5,
+        "operator_creator_advisor_enabled": creator_advisor_enabled(),
         "history_char_cap": CHAT_HISTORY_CHAR_CAP,
         "tool_result_char_cap": TOOL_RESULT_CHAR_CAP,
         "max_tool_rounds": MAX_TOOL_ROUNDS,
@@ -481,6 +526,23 @@ async def classify_intent_route(request: IntentClassifyRequest):
 
 @router.post("/business/chat/stream")
 async def business_chat_stream(request: BusinessChatRequest):
+    # Phase 2 (Batch 67): the docked Home chat sends surface="home". If the message is a
+    # deterministic layout command ("move CRM to the top", "build me a CEO dashboard"),
+    # apply it live and emit home_changed — no model call, instant + conversational.
+    if (request.surface == "home" and request.user_id
+            and _home_layout.is_home_layout_command(request.message)):
+        async def _home_cmd_stream():
+            reply, changed = await _apply_home_layout_command(request.user_id, request.message)
+            yield f"data: {json.dumps(reply)}\n\n"
+            if changed:
+                yield f'data: {json.dumps({"type": "home_changed"})}\n\n'
+            yield "data: [DONE]\n\n"
+        return StreamingResponse(
+            _home_cmd_stream(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
+        )
+
     static_prompt, dynamic_prompt, used_memory_ids = await build_system_prompt(request.user_id, request.message)
     dynamic_prompt = cap_dynamic_prompt(dynamic_prompt)
     tools = await build_tools_for_user(request.user_id)

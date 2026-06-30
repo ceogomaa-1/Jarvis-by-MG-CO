@@ -10,8 +10,11 @@ into business_pending_actions as morning approval cards.
 import asyncio
 import json
 import os
+import re
 
 import httpx
+
+from backend.lib.anthropic_batch import AnthropicBatchError, AnthropicBatchTimeout, run_message_batch
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 MODEL = "claude-sonnet-4-6"
@@ -47,15 +50,43 @@ Output ONLY the artifact markdown. No code fences. No preamble.
 """
 
 
-async def _create_one(
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() not in {"0", "false", "no", "off"}
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        return default
+
+
+def creator_batch_enabled(request_count: int) -> bool:
+    """Whether Operator Creator should use Anthropic Message Batches for this fanout."""
+    min_requests = max(1, _env_int("JARVIS_OPERATOR_CREATOR_BATCH_MIN", 2))
+    return (
+        bool(ANTHROPIC_API_KEY)
+        and request_count >= min_requests
+        and _env_bool("JARVIS_OPERATOR_CREATOR_BATCH", True)
+    )
+
+
+def creator_advisor_enabled() -> bool:
+    """Advisor is opt-in: it can improve hard agentic work, but is not a blanket cost saver."""
+    return _env_bool("JARVIS_OPERATOR_CREATOR_ADVISOR", False)
+
+
+def _creator_prompt(
     move: dict,
     research_for_move: dict,
     industry: str,
     business_name: str,
     north_star_label: str,
     connector_summary: str,
-) -> dict:
-    """Run one sub-agent for one move."""
+) -> str:
     prompt = (
         f"BUSINESS: {business_name}\n"
         f"INDUSTRY: {industry}\n"
@@ -77,22 +108,105 @@ async def _create_one(
         f"If not, deliver the artifact as a draft for manual use.)\n\n"
         f"Produce the artifact now."
     )
+    if creator_advisor_enabled():
+        prompt += "\n\n(Advisor: please keep guidance under 80 words. Focus only on the highest-risk strategic miss.)"
+    return prompt
+
+
+def _message_params(prompt: str) -> dict:
+    params: dict = {
+        "model": MODEL,
+        "max_tokens": 2500,
+        "system": [
+            {
+                "type": "text",
+                "text": _CREATOR_SYSTEM,
+                "cache_control": {"type": "ephemeral"},
+            }
+        ],
+        "messages": [{"role": "user", "content": prompt}],
+    }
+    if creator_advisor_enabled():
+        params["tools"] = [
+            {
+                "type": "advisor_20260301",
+                "name": "advisor",
+                "model": os.getenv("JARVIS_OPERATOR_CREATOR_ADVISOR_MODEL", "claude-opus-4-8"),
+                "max_uses": max(1, _env_int("JARVIS_OPERATOR_CREATOR_ADVISOR_MAX_USES", 1)),
+                "max_tokens": max(1024, _env_int("JARVIS_OPERATOR_CREATOR_ADVISOR_MAX_TOKENS", 2048)),
+            }
+        ]
+    return params
+
+
+def _advisor_beta_headers() -> list[str]:
+    return ["advisor-tool-2026-03-01"] if creator_advisor_enabled() else []
+
+
+def _message_headers() -> dict:
+    headers = {
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+    }
+    betas = _advisor_beta_headers()
+    if betas:
+        headers["anthropic-beta"] = ",".join(betas)
+    return headers
+
+
+def _extract_message_text(message: dict) -> str:
+    return "\n".join(
+        block.get("text", "")
+        for block in message.get("content", [])
+        if block.get("type") == "text"
+    ).strip()
+
+
+def _custom_id(move: dict, index: int) -> str:
+    raw = str(move.get("id") or f"move_{index + 1}")
+    safe = re.sub(r"[^a-zA-Z0-9_-]", "_", raw).strip("_") or f"move_{index + 1}"
+    return f"creator_{index + 1}_{safe}"[:64]
+
+
+def _success_payload(move: dict, text: str, *, billing_mode: str, batch_id: str | None = None) -> dict:
+    payload = {
+        "move_id": move.get("id"),
+        "ok": True,
+        "artifact": text,
+        "preparation_type": move.get("preparation_type", ""),
+        "title": move.get("title", ""),
+        "billing_mode": billing_mode,
+    }
+    if batch_id:
+        payload["batch_id"] = batch_id
+    return payload
+
+
+async def _create_one(
+    move: dict,
+    research_for_move: dict,
+    industry: str,
+    business_name: str,
+    north_star_label: str,
+    connector_summary: str,
+) -> dict:
+    """Run one sub-agent for one move."""
+    prompt = _creator_prompt(
+        move,
+        research_for_move,
+        industry,
+        business_name,
+        north_star_label,
+        connector_summary,
+    )
 
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.post(
                 "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": ANTHROPIC_API_KEY,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": MODEL,
-                    "max_tokens": 2500,
-                    "system": _CREATOR_SYSTEM,
-                    "messages": [{"role": "user", "content": prompt}],
-                },
+                headers=_message_headers(),
+                json=_message_params(prompt),
                 timeout=TIMEOUT,
             )
 
@@ -104,14 +218,8 @@ async def _create_one(
                 "artifact": "",
             }
 
-        text = resp.json().get("content", [{}])[0].get("text", "")
-        return {
-            "move_id": move.get("id"),
-            "ok": True,
-            "artifact": text,
-            "preparation_type": move.get("preparation_type", ""),
-            "title": move.get("title", ""),
-        }
+        text = _extract_message_text(resp.json())
+        return _success_payload(move, text, billing_mode="sync")
     except Exception as e:
         return {
             "move_id": move.get("id"),
@@ -119,6 +227,72 @@ async def _create_one(
             "error": str(e),
             "artifact": "",
         }
+
+
+async def _create_many_batch(
+    moves: list[dict],
+    research_map: dict,
+    industry: str,
+    business_name: str,
+    north_star_label: str,
+    connector_summary: str,
+) -> list[dict]:
+    requests: list[dict] = []
+    move_by_custom_id: dict[str, dict] = {}
+
+    for idx, move in enumerate(moves):
+        cid = _custom_id(move, idx)
+        move_by_custom_id[cid] = move
+        prompt = _creator_prompt(
+            move=move,
+            research_for_move=research_map.get(move["id"], {}),
+            industry=industry,
+            business_name=business_name,
+            north_star_label=north_star_label,
+            connector_summary=connector_summary,
+        )
+        requests.append({"custom_id": cid, "params": _message_params(prompt)})
+
+    max_wait = max(60, _env_int("JARVIS_OPERATOR_CREATOR_BATCH_MAX_WAIT_SECONDS", 3600))
+    batch, raw_results = await run_message_batch(
+        requests,
+        beta_headers=_advisor_beta_headers(),
+        max_wait_seconds=max_wait,
+        initial_poll_seconds=max(1, _env_int("JARVIS_OPERATOR_CREATOR_BATCH_POLL_SECONDS", 10)),
+    )
+
+    batch_id = batch.get("id")
+    results_by_id = {r.get("custom_id"): r for r in raw_results}
+    outputs: list[dict] = []
+    for cid, move in move_by_custom_id.items():
+        item = results_by_id.get(cid)
+        if not item:
+            outputs.append({
+                "move_id": move.get("id"),
+                "ok": False,
+                "error": f"Creator batch {batch_id} returned no result for {cid}",
+                "artifact": "",
+                "billing_mode": "batch",
+                "batch_id": batch_id,
+            })
+            continue
+
+        result = item.get("result") or {}
+        result_type = result.get("type")
+        if result_type == "succeeded":
+            text = _extract_message_text(result.get("message") or {})
+            outputs.append(_success_payload(move, text, billing_mode="batch", batch_id=batch_id))
+        else:
+            error = result.get("error") or {}
+            outputs.append({
+                "move_id": move.get("id"),
+                "ok": False,
+                "error": f"Creator batch {result_type or 'unknown'}: {error}",
+                "artifact": "",
+                "billing_mode": "batch",
+                "batch_id": batch_id,
+            })
+    return outputs
 
 
 async def run_creator(
@@ -139,6 +313,32 @@ async def run_creator(
         return []
 
     research_map = (researcher_output.get("research") or {})
+
+    if creator_batch_enabled(len(moves)):
+        try:
+            print(f"OPERATOR CREATOR: using Anthropic Message Batch for {len(moves)} artifacts")
+            return await _create_many_batch(
+                moves=moves,
+                research_map=research_map,
+                industry=industry,
+                business_name=business_name,
+                north_star_label=north_star_label,
+                connector_summary=connector_summary,
+            )
+        except AnthropicBatchTimeout as e:
+            print(f"OPERATOR CREATOR: batch timed out without sync fallback: {e}")
+            return [
+                {
+                    "move_id": m.get("id"),
+                    "ok": False,
+                    "error": str(e),
+                    "artifact": "",
+                    "billing_mode": "batch_timeout",
+                }
+                for m in moves
+            ]
+        except AnthropicBatchError as e:
+            print(f"OPERATOR CREATOR: batch unavailable, falling back to sync fanout: {e}")
 
     tasks = [
         _create_one(
