@@ -83,6 +83,26 @@ async def execute_tool(tool_name: str, tool_input: dict, user_id: str, progress_
             return json.dumps({"error": f"Tool execution error: {e}"})
         return json.dumps(result, default=str)
 
+    # Jarvis GO (Batch 70) — website creation + walkthroughs as chat-callable tools.
+    # Always-on, scoped to user_id internally. Wraps the existing /business/create and
+    # /business/show-me-how generators (no duplicate logic). Deploy is NOT here — it
+    # stays on the legacy SSE path (see chat_tools.py module docstring for why).
+    if connector_type == "website":
+        try:
+            from backend.lib.business.creation.chat_tools import run_website_create
+            result = await run_website_create(tool_input, user_id, progress_cb=progress_cb)
+        except Exception as e:
+            return json.dumps({"error": f"Tool execution error: {e}"})
+        return json.dumps(result, default=str)
+
+    if connector_type == "walkthrough":
+        try:
+            from backend.lib.business.creation.chat_tools import run_walkthrough
+            result = await run_walkthrough(tool_input, user_id, progress_cb=progress_cb)
+        except Exception as e:
+            return json.dumps({"error": f"Tool execution error: {e}"})
+        return json.dumps(result, default=str)
+
     # Web tools are always-on — no connector/credentials needed.
     if connector_type == "web":
         try:

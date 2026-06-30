@@ -59,6 +59,42 @@ _ALWAYS_ON_TOOLS: dict[str, dict] = {
             "required": ["action"],
         },
     },
+    "website__create": {
+        "description": (
+            "Build a brand-new standalone website/landing page, or surgically edit the one you "
+            "most recently built. Use this WHENEVER the user asks you to build, design, make, or "
+            "change a website/page/site/landing page in plain conversation — never tell them to "
+            "go ask separately or that you can't do it here. action='build' for a new page; "
+            "action='edit' for a change to the page you just built (e.g. 'change the headline'). "
+            "'brief' should restate exactly what to build or change, in your own words, with any "
+            "details the user gave you. This only produces a previewable page — it is NEVER "
+            "deployed automatically. If the user wants it live, tell them to say 'deploy it' "
+            "(handled separately, outside this tool, and always asks for nothing more than that "
+            "explicit confirmation)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "action": {"type": "string", "enum": ["build", "edit"]},
+                "brief": {"type": "string", "description": "What to build or change, in plain language, with the user's details folded in."},
+            },
+            "required": ["action", "brief"],
+        },
+    },
+    "walkthrough__generate": {
+        "description": (
+            "Generate an illustrated, step-by-step walkthrough/tutorial for a how-to question. "
+            "Use this when the user asks 'how do I...', 'show me how to...', or otherwise wants a "
+            "guided tutorial with visuals — instead of just explaining the steps in plain text."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "topic": {"type": "string", "description": "What the walkthrough should teach, in plain language."},
+            },
+            "required": ["topic"],
+        },
+    },
     "web__search": {
         "description": (
             "Search the web for current or real-time information — news, sports scores/schedules, "

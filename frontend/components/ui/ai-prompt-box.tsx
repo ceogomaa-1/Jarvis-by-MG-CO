@@ -447,6 +447,9 @@ export interface PromptInputBoxProps {
   enableVoice?: boolean
   enableUpload?: boolean
   showViewToggle?: boolean
+  showGoToggle?: boolean
+  goMode?: boolean
+  onGoModeChange?: (next: boolean) => void
 }
 
 export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxProps>((props, ref) => {
@@ -458,6 +461,9 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
     enableVoice = false,
     enableUpload = true,
     showViewToggle = false,
+    showGoToggle = false,
+    goMode = false,
+    onGoModeChange = () => {},
   } = props
 
   const MAX_FILES = 5
@@ -755,6 +761,37 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
                 className="font-pixel rounded-full px-3.5 py-[3px] text-[12px] text-[#9a9a9a] transition-colors hover:text-[#e8e8e8]"
               >
                 Canvas View
+              </button>
+            </div>
+          )}
+
+          {/* Jarvis | Jarvis GO pill — opt-in mode that skips intent pre-routing and
+              sends every message straight to the brain (tool-driven, no classifier). */}
+          {showGoToggle && !isRecording && (
+            <div
+              className="flex items-center rounded-full bg-[#2e2e2e] p-[3px]"
+              title={goMode ? 'Jarvis GO — everything goes straight to the brain' : 'Classic Jarvis — fast-routes obvious requests'}
+            >
+              <button
+                type="button"
+                onClick={() => onGoModeChange(false)}
+                className={cn(
+                  'font-pixel rounded-full px-3.5 py-[3px] text-[12px] transition-colors',
+                  !goMode ? 'bg-[#4a4a4a] text-[#e8e8e8]' : 'text-[#9a9a9a] hover:text-[#e8e8e8]'
+                )}
+              >
+                Jarvis
+              </button>
+              <span className="mx-1.5 h-4 w-px bg-[#4a4a4a]" />
+              <button
+                type="button"
+                onClick={() => onGoModeChange(true)}
+                className={cn(
+                  'font-pixel rounded-full px-3.5 py-[3px] text-[12px] transition-colors',
+                  goMode ? 'bg-[#2d7ff9] text-white' : 'text-[#9a9a9a] hover:text-[#e8e8e8]'
+                )}
+              >
+                Jarvis GO
               </button>
             </div>
           )}

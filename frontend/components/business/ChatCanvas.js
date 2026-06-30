@@ -250,6 +250,22 @@ export default function ChatCanvas({
   const [usage, setUsage] = useState(null)
   const [isThinking, setIsThinking] = useState(false)
   const [nodeContext, setNodeContext] = useState(null)
+  // Jarvis GO (Batch 70): opt-in toggle that skips intent pre-classification and sends
+  // every message straight to the brain (website__create / walkthrough__generate /
+  // dashboard__control become brain-invoked tools instead of being pre-routed to a
+  // separate endpoint). Off by default; sticky per-browser via localStorage.
+  const [goMode, setGoMode] = useState(false)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      setGoMode(window.localStorage.getItem('jarvis_go_mode') === '1')
+    } catch {}
+  }, [])
+  const handleGoModeChange = (next) => {
+    setGoMode(next)
+    if (typeof window === 'undefined') return
+    try { window.localStorage.setItem('jarvis_go_mode', next ? '1' : '0') } catch {}
+  }
   const msgIdRef = useRef(1)
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
@@ -716,8 +732,14 @@ export default function ChatCanvas({
     // (agentEditDetector / showMeHowDetector / creationDetector / isDeployConfirmation).
     // Deploy commands are explicit authorization and must never fall into conversational chat.
     // The create endpoint owns the safe "latest saved artifact → Vercel" execution path.
+    //
+    // Jarvis GO (Batch 70): skip the classify-intent pre-routing call entirely — every
+    // message (other than an explicit deploy command, which stays on the existing tested
+    // deploy pipeline) goes straight to the brain via /business/chat/stream, which can now
+    // call website__create / walkthrough__generate / dashboard__control as tools instead of
+    // needing to be pre-routed to a separate endpoint.
     let intent = !hasAttachments && DIRECT_DEPLOY_RE.test(text) ? 'create' : 'chat'
-    if (!hasAttachments && intent === 'chat') {
+    if (!hasAttachments && intent === 'chat' && !goMode) {
       try {
         const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant' && typeof m.content === 'string' && m.content)
         const res = await fetch(`${BACKEND}/api/business/classify-intent`, {
@@ -1082,6 +1104,38 @@ export default function ChatCanvas({
               } else if (chunk.type === 'home_changed') {
                 // A Home layout command applied — tell the Home cockpit to refresh.
                 onHomeChanged?.()
+              } else if (chunk.type === 'creation_artifact') {
+                // Jarvis GO (Batch 70): website__create / walkthrough__generate ran as a
+                // brain-invoked tool inside this same stream — build the exact same
+                // role:'creation' / role:'walkthrough' card the classic /business/create
+                // and /business/show-me-how endpoints would have produced.
+                if (!gotChunk) {
+                  gotChunk = true
+                  clearTimeout(firstChunkTimer)
+                  firstChunkTimer = null
+                }
+                setIsThinking(false)
+                const data = chunk.data || {}
+                msgIdRef.current += 1
+                const newId = msgIdRef.current
+                if (chunk.render_as === 'creation') {
+                  setMessages(prev => [...prev, {
+                    id: newId, role: 'creation',
+                    title: data.title || '', intro: '', agents: [], statuses: {},
+                    kind: 'standalone', creationId: data.creation_id || null,
+                    previewHtml: data.html || '', projectName: data.title || '', summary: data.summary || '',
+                    artifact: '', error: data.error || '', complete: true,
+                    deploying: false, deploymentStages: [], deploymentStatus: null, liveUrl: null,
+                    repoUrl: null, dbUrl: null, deploymentMessage: null, deploymentError: null,
+                    deploymentId: null, expectedUrl: null,
+                  }])
+                } else if (chunk.render_as === 'walkthrough') {
+                  setMessages(prev => [...prev, {
+                    id: newId, role: 'walkthrough',
+                    title: data.title || '', intro: data.intro || '', steps: data.steps || [],
+                    loading: false, complete: true, walkthroughData: data, sources: data.sources || [],
+                  }])
+                }
               } else if (chunk.type === 'pending_action') {
                 if (!gotChunk) {
                   gotChunk = true
@@ -1355,6 +1409,9 @@ export default function ChatCanvas({
             enableVoice={false}
             enableUpload={true}
             showViewToggle={true}
+            showGoToggle={!compact}
+            goMode={goMode}
+            onGoModeChange={handleGoModeChange}
           />
           {/* Autonomous Jarvis lever — floats to the right of the input. Hidden when
               docked (compact): it sits outside the panel and would be clipped. */}

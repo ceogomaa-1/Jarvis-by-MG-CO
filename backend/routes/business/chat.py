@@ -99,6 +99,11 @@ LEADS_CHANGED_ACTIONS = frozenset({"leads__find_leads", "leads__push_to_crm"})
 # Home cockpit so the new/edited/restyled block (or theme) shows immediately ("feels live").
 HOME_CHANGED_ACTIONS = frozenset({"dashboard__control"})
 
+# Jarvis GO (Batch 70): these tools return a renderable artifact (website HTML / a
+# walkthrough), not just JSON for the model — their result gets surfaced as a dedicated
+# creation_artifact SSE event so the frontend can build a real UI card for it.
+CREATION_TOOL_ACTIONS = frozenset({"website__create", "walkthrough__generate"})
+
 
 def _describe_action(tool_name: str, tool_input: dict) -> str:
     """Human-readable label for a pending write action."""
@@ -1056,6 +1061,18 @@ async def business_chat_stream(request: BusinessChatRequest):
                         # Batch 68: a dashboard edit landed — refresh the Home cockpit.
                         if tool_name in HOME_CHANGED_ACTIONS and '"error"' not in (result_str or ""):
                             yield f'data: {json.dumps({"type": "home_changed"})}\n\n'
+
+                        # Jarvis GO (Batch 70): website__create / walkthrough__generate produced
+                        # a renderable artifact — surface it as its own event so the frontend can
+                        # build the same role:'creation' / role:'walkthrough' card the classic
+                        # /business/create and /business/show-me-how endpoints would have made.
+                        if tool_name in CREATION_TOOL_ACTIONS:
+                            try:
+                                parsed_result = json.loads(result_str)
+                            except Exception:
+                                parsed_result = None
+                            if isinstance(parsed_result, dict) and parsed_result.get("render_as"):
+                                yield f'data: {json.dumps({"type": "creation_artifact", "render_as": parsed_result["render_as"], "data": parsed_result})}\n\n'
 
                         tool_results.append({
                             "type": "tool_result",
