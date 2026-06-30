@@ -21,6 +21,7 @@ from pydantic import BaseModel
 
 from backend.lib.business.operator.home_composer import compose_home
 from backend.lib.business import home_layout as hl
+from backend.lib.business import dashboard_studio as ds
 
 router = APIRouter()
 
@@ -87,24 +88,30 @@ async def get_home(user_id: str = ""):
             "select": "id,message,proposed_layout,evidence,created_at",
             "user_id": f"eq.{user_id}", "status": "eq.pending",
             "order": "created_at.desc", "limit": "1"})
+        custom_rows = await _get(client, "business_home_custom_blocks", {
+            "select": "*", "user_id": f"eq.{user_id}", "status": "eq.active", "order": "created_at.asc"})
+
+    # Batch 68: user-created blocks render in the same grid as the precomputed ones.
+    custom_views = [ds.block_to_view(r) for r in custom_rows]
+    custom_specs = ds.custom_layout_specs(custom_views)
 
     # Importance ranking drives default order: until the user customizes, regenerate the
     # default layout from the live block score order (debuggable via score_breakdown).
     score_order = [b["block_key"] for b in blocks] if blocks else None
     is_default = True if not layout_row else bool(layout_row.get("is_default", True))
     if is_default:
-        layout = hl.default_layout(score_order)
+        layout = hl.default_layout(score_order, custom=custom_specs)
     else:
-        layout = hl.normalize_layout(layout_row.get("layout"), score_order)
+        layout = hl.normalize_layout(layout_row.get("layout"), score_order, custom=custom_specs)
     settings = (layout_row or {}).get("settings") or {"default_landing": True}
 
     return {
-        "blocks": blocks,
+        "blocks": blocks + custom_views,
         "layout": layout,
         "settings": settings,
         "is_default": is_default,
         "suggestion": suggestions[0] if suggestions else None,
-        "composed": bool(blocks),
+        "composed": bool(blocks) or bool(custom_views),
     }
 
 
@@ -133,10 +140,13 @@ class LayoutRequest(BaseModel):
 async def save_layout(request: LayoutRequest):
     if not request.user_id:
         raise HTTPException(status_code=400, detail="user_id required")
-    layout = hl.normalize_layout(request.layout)
-    # Re-derive logical order/sizes from the dragged grid so NL commands stay consistent.
+    custom_specs = ds.custom_layout_specs(await ds.list_custom_blocks(request.user_id))
+    layout = hl.normalize_layout(request.layout, custom=custom_specs)
+    # Re-derive logical order/sizes from the dragged grid so NL commands stay consistent
+    # (valid_keys includes custom blocks so they aren't dropped).
     if layout.get("layouts", {}).get("lg"):
-        order, sizes = hl.derive_from_layouts(layout["layouts"])
+        valid = set(layout["sizes"].keys())
+        order, sizes = hl.derive_from_layouts(layout["layouts"], valid_keys=valid)
         layout["order"], layout["sizes"] = order, sizes
     async with httpx.AsyncClient() as client:
         ok = await _upsert_layout_row(client, request.user_id, {"layout": layout, "is_default": False})
@@ -214,10 +224,11 @@ class CommandRequest(BaseModel):
 async def layout_command(request: CommandRequest):
     if not request.user_id or not request.command:
         raise HTTPException(status_code=400, detail="user_id and command required")
+    custom_specs = ds.custom_layout_specs(await ds.list_custom_blocks(request.user_id))
     async with httpx.AsyncClient() as client:
         layout_row = await _fetch_layout_row(client, request.user_id)
-        current = hl.normalize_layout((layout_row or {}).get("layout"))
-        new_layout, reply, changed = hl.apply_command(current, request.command)
+        current = hl.normalize_layout((layout_row or {}).get("layout"), custom=custom_specs)
+        new_layout, reply, changed = hl.apply_command(current, request.command, custom=custom_specs)
         if changed:
             await _upsert_layout_row(client, request.user_id, {"layout": new_layout, "is_default": False})
     return {"ok": True, "changed": changed, "reply": reply, "layout": new_layout}
@@ -265,3 +276,49 @@ async def resolve_suggestion(suggestion_id: str, request: ResolveSuggestionReque
             applied = await _upsert_layout_row(client, request.user_id, {"layout": layout, "is_default": False})
             return {"ok": True, "applied": applied, "layout": layout}
     return {"ok": True, "applied": False}
+
+
+# ── Batch 68 — direct dashboard interactions (the grid is editable without chat) ──
+
+class CustomItemRequest(BaseModel):
+    user_id: str
+    block_id: str
+    item: dict
+
+
+@router.post("/business/home/custom/add-item")
+async def custom_add_item(request: CustomItemRequest):
+    if not request.user_id or not request.block_id:
+        raise HTTPException(status_code=400, detail="user_id and block_id required")
+    return await ds.ui_add_item(request.user_id, request.block_id, request.item or {})
+
+
+@router.post("/business/home/custom/remove-item")
+async def custom_remove_item(request: CustomItemRequest):
+    if not request.user_id or not request.block_id:
+        raise HTTPException(status_code=400, detail="user_id and block_id required")
+    return await ds.ui_remove_item(request.user_id, request.block_id, request.item or {})
+
+
+class CustomBlockRequest(BaseModel):
+    user_id: str
+    block_id: str
+
+
+@router.post("/business/home/custom/delete")
+async def custom_delete(request: CustomBlockRequest):
+    if not request.user_id or not request.block_id:
+        raise HTTPException(status_code=400, detail="user_id and block_id required")
+    return await ds.execute_dashboard_tool(
+        "control", {"action": "delete_block", "block_id": request.block_id}, request.user_id)
+
+
+class CustomRestoreRequest(BaseModel):
+    user_id: str
+
+
+@router.post("/business/home/custom/restore")
+async def custom_restore(request: CustomRestoreRequest):
+    if not request.user_id:
+        raise HTTPException(status_code=400, detail="user_id required")
+    return await ds.execute_dashboard_tool("control", {"action": "restore"}, request.user_id)

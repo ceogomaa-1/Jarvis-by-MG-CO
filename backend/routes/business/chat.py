@@ -34,6 +34,7 @@ from backend.lib.business.real_estate.profile import is_real_estate_user
 from backend.lib.business.intent_router import classify_message_intent
 from backend.lib.business import crm_enrich
 from backend.lib.business import home_layout as _home_layout
+from backend.lib.business import dashboard_studio as _dashboard_studio
 from backend.usage_limits import check_limit, increment_usage, get_usage, DAILY_MESSAGE_LIMIT
 from backend.lib.billing import entitlements, config as billing_config, store as billing_store
 from backend.tools.citation_context import init_collector
@@ -93,6 +94,10 @@ CRM_WRITE_ACTIONS = frozenset(TWENTY_WRITE_TOOLS.keys()) | TWENTY_METADATA_WRITE
 # cockpit panel refreshes ("feels live") — independent of the CRM embed refresh above.
 # (push_to_crm fires both: it adds a CRM Company AND flips the lead's pushed flag.)
 LEADS_CHANGED_ACTIONS = frozenset({"leads__find_leads", "leads__push_to_crm"})
+
+# Batch 68: a dashboard__control call mutated the user's Home dashboard — refresh the
+# Home cockpit so the new/edited/restyled block (or theme) shows immediately ("feels live").
+HOME_CHANGED_ACTIONS = frozenset({"dashboard__control"})
 
 
 def _describe_action(tool_name: str, tool_input: dict) -> str:
@@ -344,6 +349,8 @@ async def _apply_home_layout_command(user_id: str, message: str) -> tuple[str, b
     headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
     current = None
     try:
+        custom_specs = _dashboard_studio.custom_layout_specs(
+            await _dashboard_studio.list_custom_blocks(user_id))
         async with httpx.AsyncClient() as client:
             resp = await client.get(
                 f"{layout_url}/rest/v1/business_home_layout",
@@ -353,7 +360,7 @@ async def _apply_home_layout_command(user_id: str, message: str) -> tuple[str, b
             )
             if resp.status_code == 200 and resp.json():
                 current = resp.json()[0].get("layout")
-            new_layout, reply, changed = _home_layout.apply_command(current, message)
+            new_layout, reply, changed = _home_layout.apply_command(current, message, custom=custom_specs)
             if changed:
                 await client.post(
                     f"{layout_url}/rest/v1/business_home_layout?on_conflict=user_id",
@@ -1045,6 +1052,10 @@ async def business_chat_stream(request: BusinessChatRequest):
                         # Same idea for the Leads cockpit panel after a find/push.
                         if tool_name in LEADS_CHANGED_ACTIONS and '"error"' not in (result_str or ""):
                             yield f'data: {json.dumps({"type": "leads_changed"})}\n\n'
+
+                        # Batch 68: a dashboard edit landed — refresh the Home cockpit.
+                        if tool_name in HOME_CHANGED_ACTIONS and '"error"' not in (result_str or ""):
+                            yield f'data: {json.dumps({"type": "home_changed"})}\n\n'
 
                         tool_results.append({
                             "type": "tool_result",

@@ -7,6 +7,33 @@ import HomeGrid from './HomeGrid'
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
+// Batch 68 — theme. Jarvis sets settings.theme via dashboard__control(set_theme); we turn it
+// into CSS variables the blocks read (so "make the accent emerald" / "use a serif font" is live).
+const ACCENT_NAMES = {
+  blue: '#2d7ff9', emerald: '#34d399', green: '#22c55e', teal: '#14b8a6', purple: '#a855f7',
+  violet: '#8b5cf6', pink: '#ec4899', red: '#ef4444', orange: '#f59e0b', amber: '#f59e0b',
+  gold: '#eab308', cyan: '#06b6d4', indigo: '#6366f1', rose: '#f43f5e', lime: '#84cc16',
+}
+const FONTS = {
+  serif: "Georgia, 'Times New Roman', serif",
+  mono: "var(--pixel), 'SFMono-Regular', Menlo, monospace",
+  sans: "inherit",
+}
+
+function resolveTheme(theme) {
+  const t = theme || {}
+  const raw = (t.accent || '').toString().trim().toLowerCase()
+  const accent = raw.startsWith('#') ? raw : (ACCENT_NAMES[raw] || '#2d7ff9')
+  const style = {
+    '--home-accent': accent,
+    '--home-accent-border': accent + '59',  // ~35% alpha
+    '--home-accent-soft': accent + '1f',    // ~12% alpha fill
+  }
+  if (t.font && FONTS[t.font]) style.fontFamily = FONTS[t.font]
+  if (t.background) style.background = t.background
+  return style
+}
+
 // Batch 67 — Jarvis Home: the adaptive command center. A full-screen cockpit (mirrors
 // CrmCockpit / LeadsCockpit) that renders INSTANTLY from the precomputed block cache and
 // docks the same ChatCanvas so you can chat with Jarvis while you work the dashboard.
@@ -160,7 +187,31 @@ export default function HomeCockpit({ open, onClose, userId, onNavigate }) {
     } catch (e) { console.error('sendCommand failed', e) }
   }, [userId])
 
+  // Precomputed blocks hide (recoverable via the Hidden tray); custom blocks soft-delete (undo).
   const handleHideBlock = useCallback((key) => { sendCommand(`hide ${key}`) }, [sendCommand])
+
+  const [deletedToast, setDeletedToast] = useState(false)
+  const handleCustomDelete = useCallback(async (blockId) => {
+    try {
+      await fetch(`${BACKEND}/api/business/home/custom/delete`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, block_id: blockId }),
+      })
+      setDeletedToast(true)
+      fetchHome()
+    } catch (e) { console.error('custom delete failed', e) }
+  }, [userId, fetchHome])
+
+  const restoreDeleted = useCallback(async () => {
+    try {
+      await fetch(`${BACKEND}/api/business/home/custom/restore`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId }),
+      })
+      setDeletedToast(false)
+      fetchHome()
+    } catch (e) { console.error('restore failed', e) }
+  }, [userId, fetchHome])
 
   // ── settings ────────────────────────────────────────────────────────────
   const toggleDefaultLanding = useCallback(async () => {
@@ -204,7 +255,8 @@ export default function HomeCockpit({ open, onClose, userId, onNavigate }) {
         key="home-cockpit"
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         transition={{ duration: 0.2 }}
-        style={{ position: 'fixed', inset: 0, zIndex: 58, background: '#0B0B0C', display: 'flex', flexDirection: 'column' }}
+        style={{ position: 'fixed', inset: 0, zIndex: 58, background: '#0B0B0C', display: 'flex', flexDirection: 'column',
+                 ...resolveTheme(settings.theme) }}
       >
         {/* Top bar */}
         <div style={{
@@ -287,6 +339,18 @@ export default function HomeCockpit({ open, onClose, userId, onNavigate }) {
             </button>
           </div>
         )}
+        {deletedToast && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 16px',
+                        background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--os1-border-soft, rgba(255,255,255,0.06))', flexShrink: 0 }}>
+            <span className="os1-serif-micro" style={{ fontSize: 9, color: 'var(--os1-text-faint, #6E6E6C)' }}>Block deleted.</span>
+            <button onClick={restoreDeleted} className="font-pixel"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 7, fontSize: 9,
+                       border: '1px solid var(--os1-border-soft, rgba(255,255,255,0.08))', background: 'transparent', color: 'var(--os1-text-dim, #A8A8A6)', cursor: 'pointer' }}>
+              <Undo2 size={11} /> Undo
+            </button>
+            <button onClick={() => setDeletedToast(false)} className="os1-iconbtn" title="Dismiss" style={{ padding: 2, color: 'var(--os1-text-faint,#6E6E6C)' }}><X size={12} /></button>
+          </div>
+        )}
 
         {/* Body: grid + docked chat */}
         <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
@@ -316,6 +380,9 @@ export default function HomeCockpit({ open, onClose, userId, onNavigate }) {
                   onAction={handleAction}
                   onHideBlock={handleHideBlock}
                   onLayoutChange={handleLayoutChange}
+                  userId={userId}
+                  onCustomChanged={fetchHome}
+                  onCustomDelete={handleCustomDelete}
                 />
                 {(layout.hidden || []).length > 0 && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 18 }}>

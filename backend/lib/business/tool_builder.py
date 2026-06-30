@@ -18,6 +18,45 @@ from backend.lib.business.twenty.client import TwentyClient
 # Always-on tools: available to every user regardless of connected connectors.
 # ─────────────────────────────────────────────────────────────────────────────
 _ALWAYS_ON_TOOLS: dict[str, dict] = {
+    "dashboard__control": {
+        "description": (
+            "Create, edit, restyle, move, delete, or restore blocks on the user's Jarvis Home "
+            "dashboard, and change its overall theme (colors/fonts). Use this WHENEVER the user asks "
+            "to customize, redesign, add to, or change their Home / dashboard. Examples: 'create a "
+            "block called My Expenses I can add items to' -> create_block block_type='list'; 'make a "
+            "bar chart of my monthly revenue' -> create_block block_type='chart' chart_kind='bar' with "
+            "items; 'add a notes block' -> create_block block_type='note'; 'pull today's industry news' "
+            "-> create_block block_type='news' news_topic=...; 'add coffee $4 to my expenses' -> "
+            "add_item; 'change the accent color to emerald' / 'use a serif font' -> set_theme; 'delete "
+            "the expenses block' -> delete_block; 'undo' -> restore; 'move my expenses to the top' -> "
+            "move_block. Operate on REAL data the user gives you or that you pull live — never invent "
+            "numbers. block_id comes from a previous create_block or the dashboard context. After "
+            "calling, confirm what changed in one short sentence."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "action": {"type": "string", "enum": [
+                    "create_block", "update_block", "add_item", "remove_item", "restyle_block",
+                    "move_block", "delete_block", "restore", "set_theme"]},
+                "block_type": {"type": "string", "enum": ["list", "note", "metric", "chart", "news"],
+                               "description": "For create_block."},
+                "block_id": {"type": "string", "description": "Target custom block id (update/add_item/remove_item/restyle/move/delete)."},
+                "title": {"type": "string"},
+                "items": {"type": "array", "items": {"type": "object"},
+                          "description": "List/chart items, e.g. [{\"label\":\"Rent\",\"amount\":1200}] for a list, or chart points [{\"label\":\"Jan\",\"value\":30}]."},
+                "item": {"type": "object", "description": "A single item for add_item/remove_item, e.g. {\"label\":\"Coffee\",\"amount\":4}."},
+                "text": {"type": "string", "description": "Body text for a note block."},
+                "metric": {"type": "object", "description": "For a metric block: {value, unit, label, delta}. Carries 'unit' for a list block (e.g. '$')."},
+                "chart_kind": {"type": "string", "enum": ["bar", "line", "pie"]},
+                "news_topic": {"type": "string", "description": "Topic to pull live headlines for a news block."},
+                "theme": {"type": "object", "description": "Dashboard theme, any subset of {accent (hex or color name), font ('sans'|'serif'|'mono'), density ('cozy'|'compact'), background (hex)}."},
+                "style": {"type": "object", "description": "Per-block style override, e.g. {accent}."},
+                "position": {"type": "string", "enum": ["top", "bottom"]},
+            },
+            "required": ["action"],
+        },
+    },
     "web__search": {
         "description": (
             "Search the web for current or real-time information — news, sports scores/schedules, "

@@ -73,6 +73,16 @@ async def execute_tool(tool_name: str, tool_input: dict, user_id: str, progress_
             return json.dumps(result.data or {}, default=str)
         return json.dumps({"error": result.error or "Action failed with no error message"})
 
+    # Dashboard Studio (Batch 68) — Jarvis builds/edits the user's Home dashboard. Always-on,
+    # scoped to user_id internally. Only touches the user's own dashboard, so no confirm gate.
+    if connector_type == "dashboard":
+        try:
+            from backend.lib.business.dashboard_studio import execute_dashboard_tool
+            result = await execute_dashboard_tool(action_name, tool_input, user_id)
+        except Exception as e:
+            return json.dumps({"error": f"Tool execution error: {e}"})
+        return json.dumps(result, default=str)
+
     # Web tools are always-on — no connector/credentials needed.
     if connector_type == "web":
         try:

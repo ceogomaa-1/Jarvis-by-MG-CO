@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Responsive, WidthProvider } from 'react-grid-layout'
 import HomeBlock from './HomeBlock'
+import CustomBlock from './CustomBlock'
 
 const ResponsiveGridLayout = WidthProvider(Responsive)
 
@@ -26,7 +27,7 @@ const GRID_CSS = `
 }
 `
 
-export default function HomeGrid({ layout, blocks, onAction, onHideBlock, onLayoutChange }) {
+export default function HomeGrid({ layout, blocks, onAction, onHideBlock, onLayoutChange, userId, onCustomChanged, onCustomDelete }) {
   const [mounted, setMounted] = useState(false)
   const latestLayouts = useRef(layout?.layouts || {})
   useEffect(() => { setMounted(true) }, [])
@@ -67,7 +68,9 @@ export default function HomeGrid({ layout, blocks, onAction, onHideBlock, onLayo
           const block = blockMap[key]
           return (
             <div key={key} style={{ overflow: 'hidden' }}>
-              {block ? (
+              {block && block.custom ? (
+                <CustomBlock block={block} userId={userId} onChanged={onCustomChanged} onDelete={onCustomDelete} />
+              ) : block ? (
                 <HomeBlock block={block} onAction={onAction} onRemove={onHideBlock} />
               ) : (
                 <div className="os1-card" style={{

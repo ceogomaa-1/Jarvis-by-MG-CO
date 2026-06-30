@@ -99,3 +99,49 @@ def test_is_home_layout_command_gate():
 def test_normalize_blank_layout_yields_default():
     assert hl.normalize_layout(None)["order"] == hl.DEFAULT_ORDER
     assert hl.normalize_layout({})["order"] == hl.DEFAULT_ORDER
+
+
+# ── Batch 68: custom blocks participate in the grid ──────────────────────────
+
+CUSTOM = [{"key": "custom:exp1", "w": 4, "h": 4}]
+
+
+def test_default_layout_includes_custom_block():
+    lay = hl.default_layout(None, custom=CUSTOM)
+    assert "custom:exp1" in lay["order"]
+    assert "custom:exp1" in lay["sizes"]
+    lg_keys = {it["i"] for it in lay["layouts"]["lg"]}
+    assert "custom:exp1" in lg_keys
+    # still no overflow
+    for bp, cols in hl.COLS.items():
+        for it in lay["layouts"][bp]:
+            assert it["x"] + it["w"] <= cols
+
+
+def test_normalize_adds_new_custom_block_to_stale_layout():
+    # A saved layout that predates the custom block must still give it a slot.
+    base = hl.default_layout()  # no custom
+    merged = hl.normalize_layout(base, custom=CUSTOM)
+    assert "custom:exp1" in {it["i"] for it in merged["layouts"]["lg"]}
+
+
+def test_layout_command_preserves_custom_block():
+    base = hl.default_layout(None, custom=CUSTOM)
+    lay, _r, changed = hl.apply_command(base, "move CRM to the top", custom=CUSTOM)
+    assert changed
+    assert lay["order"][0] == "pipeline_status"
+    assert "custom:exp1" in lay["order"]
+    assert "custom:exp1" in {it["i"] for it in lay["layouts"]["lg"]}
+
+
+def test_create_block_request_does_not_match_preset():
+    # The exact failure case: this must NOT be parsed as a layout command — it goes to
+    # the brain's dashboard__control tool instead.
+    assert hl.parse_command("create a new block in my dashboard called my expenses that I can add and remove items in") is None
+    assert hl.is_home_layout_command("make me a chart of my revenue") is False
+    assert hl.is_home_layout_command("change the accent color to emerald") is False
+
+
+def test_build_ceo_dashboard_still_matches_preset():
+    op = hl.parse_command("build me a CEO dashboard")
+    assert op and op["op"] == "preset" and op["preset"] == "ceo"

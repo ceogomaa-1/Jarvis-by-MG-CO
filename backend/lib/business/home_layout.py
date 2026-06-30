@@ -88,10 +88,14 @@ def _clamp_size(w: int, h: int, cols: int) -> tuple[int, int]:
     return w, h
 
 
-def build_grid_layouts(order: list[str], sizes: dict, hidden: list[str]) -> dict:
-    """Deterministically pack visible blocks into react-grid-layout positions per breakpoint."""
+def build_grid_layouts(order: list[str], sizes: dict, hidden: list[str], valid_keys: set | None = None) -> dict:
+    """Deterministically pack visible blocks into react-grid-layout positions per breakpoint.
+
+    `valid_keys` lets custom (Batch 68) blocks participate alongside the fixed set; defaults
+    to the built-in BLOCK_KEYS for backward compatibility."""
+    valid = valid_keys if valid_keys is not None else set(BLOCK_KEYS)
     hidden_set = set(hidden or [])
-    visible = [k for k in order if k in BLOCK_KEYS and k not in hidden_set]
+    visible = [k for k in order if k in valid and k not in hidden_set]
     layouts: dict[str, list] = {}
     for bp, cols in COLS.items():
         items, x, y, row_h = [], 0, 0, 0
@@ -112,29 +116,37 @@ def build_grid_layouts(order: list[str], sizes: dict, hidden: list[str]) -> dict
     return layouts
 
 
-def default_layout(order_override: list[str] | None = None) -> dict:
+def default_layout(order_override: list[str] | None = None, custom: list[dict] | None = None) -> dict:
     """A fresh default layout. `order_override` lets the importance ranking (block scores)
-    drive the order for users who haven't customized yet."""
+    drive the order for users who haven't customized yet. `custom` is a list of
+    {key, w, h} for user-created (Batch 68) blocks appended after the built-ins."""
+    custom = custom or []
+    custom_keys = [c["key"] for c in custom]
     order = [k for k in (order_override or DEFAULT_ORDER) if k in BLOCK_KEYS]
     # Append any blocks the override omitted so nothing is silently dropped.
     for k in DEFAULT_ORDER:
         if k not in order:
             order.append(k)
+    order += [k for k in custom_keys if k not in order]
     sizes = {k: dict(DEFAULT_SIZES[k]) for k in BLOCK_KEYS}
+    for c in custom:
+        sizes[c["key"]] = {"w": c.get("w", 4), "h": c.get("h", 3)}
     hidden: list[str] = []
+    valid = set(BLOCK_KEYS) | set(custom_keys)
     return {
         "version": 1,
         "order": order,
         "sizes": sizes,
         "hidden": hidden,
-        "layouts": build_grid_layouts(order, sizes, hidden),
+        "layouts": build_grid_layouts(order, sizes, hidden, valid_keys=valid),
     }
 
 
-def derive_from_layouts(layouts: dict) -> tuple[list[str], dict]:
+def derive_from_layouts(layouts: dict, valid_keys: set | None = None) -> tuple[list[str], dict]:
     """Re-derive logical order + sizes from react-grid-layout `lg` positions (after a drag)."""
+    valid = valid_keys if valid_keys is not None else set(BLOCK_KEYS)
     lg = (layouts or {}).get("lg") or []
-    items = [it for it in lg if it.get("i") in BLOCK_KEYS]
+    items = [it for it in lg if it.get("i") in valid]
     items.sort(key=lambda it: (it.get("y", 0), it.get("x", 0)))
     order = [it["i"] for it in items]
     sizes = {it["i"]: {"w": int(it.get("w", 4)), "h": int(it.get("h", 3))} for it in items}
@@ -144,17 +156,36 @@ def derive_from_layouts(layouts: dict) -> tuple[list[str], dict]:
     return order, sizes
 
 
-def normalize_layout(obj: dict | None, order_override: list[str] | None = None) -> dict:
-    """Coerce any stored/blank layout into the full, renderable shape."""
+def normalize_layout(obj: dict | None, order_override: list[str] | None = None, custom: list[dict] | None = None) -> dict:
+    """Coerce any stored/blank layout into the full, renderable shape.
+
+    `custom` ({key, w, h} list) keeps user-created blocks in the layout across saves and
+    guarantees a freshly-created custom block gets a grid slot even if the stored layout
+    predates it."""
+    custom = custom or []
+    custom_keys = [c["key"] for c in custom]
+    valid = set(BLOCK_KEYS) | set(custom_keys)
     if not obj or not isinstance(obj, dict) or not obj.get("order"):
-        return default_layout(order_override)
-    order = [k for k in obj.get("order", []) if k in BLOCK_KEYS]
+        return default_layout(order_override, custom)
+    order = [k for k in obj.get("order", []) if k in valid]
     for k in DEFAULT_ORDER:
         if k not in order:
             order.append(k)
+    order += [k for k in custom_keys if k not in order]
     sizes = {k: (obj.get("sizes", {}).get(k) or dict(DEFAULT_SIZES[k])) for k in BLOCK_KEYS}
-    hidden = [k for k in obj.get("hidden", []) if k in BLOCK_KEYS]
-    layouts = obj.get("layouts") or build_grid_layouts(order, sizes, hidden)
+    for c in custom:
+        sizes[c["key"]] = obj.get("sizes", {}).get(c["key"]) or {"w": c.get("w", 4), "h": c.get("h", 3)}
+    hidden = [k for k in obj.get("hidden", []) if k in valid]
+    layouts = obj.get("layouts")
+    # If a custom block was added since this layout was saved, it won't be in `layouts` yet —
+    # rebuild so it gets a slot (manual positions are reflowed only in that case).
+    if layouts:
+        lg_keys = {it.get("i") for it in layouts.get("lg", [])}
+        visible = [k for k in order if k not in hidden]
+        if not all(k in lg_keys for k in visible):
+            layouts = build_grid_layouts(order, sizes, hidden, valid_keys=valid)
+    else:
+        layouts = build_grid_layouts(order, sizes, hidden, valid_keys=valid)
     return {"version": 1, "order": order, "sizes": sizes, "hidden": hidden, "layouts": layouts}
 
 
@@ -223,7 +254,15 @@ def parse_command(text: str) -> dict | None:
     if re.search(r"\breset\b|default\s*layout|start\s*over|restore\s*default", t):
         return {"op": "reset"}
 
-    if re.search(r"build|make|create|set\s*up|design|give\s*me", t) and re.search(r"dashboard|layout|home|workspace|cockpit", t):
+    # Whole-dashboard preset reorg ("build me a CEO dashboard") — but NOT when the user is
+    # talking about a specific block/chart/note/custom thing; those go to the brain's
+    # dashboard__control tool (Batch 68), which can actually create/edit arbitrary blocks.
+    _custom_hint = re.search(r"\bblock\b|\bwidget\b|\btile\b|\bcard\b|\bcalled\b|\bnamed\b|"
+                             r"\bchart\b|\bgraph\b|\bnote\b|\bnews\b|\blist\b|expense|"
+                             r"colou?r|font|theme|\bchart\b", t)
+    if (re.search(r"build|make|create|set\s*up|design|give\s*me", t)
+            and re.search(r"dashboard|layout|workspace|cockpit", t)
+            and not _custom_hint):
         return {"op": "preset", "preset": _match_preset(t) or "ceo"}
 
     # hide / remove
@@ -264,9 +303,13 @@ def parse_command(text: str) -> dict | None:
     return None
 
 
-def apply_command(layout_obj: dict | None, text: str) -> tuple[dict, str, bool]:
-    """Apply a parsed NL command. Returns (new_layout, reply_text, changed)."""
-    layout = normalize_layout(layout_obj)
+def apply_command(layout_obj: dict | None, text: str, custom: list[dict] | None = None) -> tuple[dict, str, bool]:
+    """Apply a parsed NL command. Returns (new_layout, reply_text, changed).
+
+    `custom` (Batch 68) keeps user-created blocks in the layout through reorgs/presets."""
+    custom = custom or []
+    layout = normalize_layout(layout_obj, custom=custom)
+    valid = set(layout["sizes"].keys())
     op = parse_command(text)
     if not op:
         return layout, "I couldn't tell what to change. Try: \"move CRM to the top\", \"make Leads bigger\", \"hide revenue\", or \"build me a CEO dashboard\".", False
@@ -274,11 +317,11 @@ def apply_command(layout_obj: dict | None, text: str) -> tuple[dict, str, bool]:
     titles = {k: k.replace("_", " ").title() for k in BLOCK_KEYS}
 
     if op["op"] == "reset":
-        return default_layout(), "Reset Home to the default layout.", True
+        return default_layout(custom=custom), "Reset Home to the default layout.", True
 
     if op["op"] == "preset":
         preset = op["preset"]
-        new = _build_preset(preset)
+        new = normalize_layout(_build_preset(preset), custom=custom)
         return new, f"Built you a {PRESETS[preset]['label']} — reorganized Home around it.", True
 
     order = list(layout["order"])
@@ -321,7 +364,7 @@ def apply_command(layout_obj: dict | None, text: str) -> tuple[dict, str, bool]:
 
     new_layout = {
         "version": 1, "order": order, "sizes": sizes, "hidden": hidden,
-        "layouts": build_grid_layouts(order, sizes, hidden),
+        "layouts": build_grid_layouts(order, sizes, hidden, valid_keys=valid),
     }
     return new_layout, reply, True
 
