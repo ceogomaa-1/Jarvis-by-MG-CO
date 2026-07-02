@@ -129,8 +129,10 @@ async def test_deploy_pipeline_heartbeats_during_slow_github_push(monkeypatch):
         )
     ]
 
+    # Heartbeats are deployment_progress (not _status) since 3ddd30b: keep-alives
+    # replace the current UI line instead of stacking elapsed-time milestone rows.
     assert any(
-        event.get("type") == "deployment_status" and "Still pushing files to GitHub" in event.get("message", "")
+        event.get("type") == "deployment_progress" and "Still pushing files to GitHub" in event.get("message", "")
         for event in events
     )
     assert events[-1]["type"] == "deployment_pending"

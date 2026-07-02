@@ -179,11 +179,19 @@ async def create_operator_run_row(user_id: str) -> str | None:
     return await _create_run_row(user_id)
 
 
-async def run_operator_for_user(user_id: str, existing_run_id: str | None = None) -> dict:
+async def run_operator_for_user(
+    user_id: str,
+    existing_run_id: str | None = None,
+    notify: bool = False,
+) -> dict:
     """Execute the full 4-cycle operator run for one user.
 
     Pass existing_run_id when the caller has already created the run row (e.g. for
     background-task launches that need to return the run_id immediately).
+
+    notify=True (cron runs only) sends the owner the morning brief through the
+    capped notifier — user-triggered runs skip it because the owner is watching
+    the takeover live in the app.
     """
     print(f"OPERATOR: Starting run for user {user_id}")
 
@@ -249,6 +257,23 @@ async def run_operator_for_user(user_id: str, existing_run_id: str | None = None
             "strategist_output": strategist_plan,
             "total_cost_usd": round(budget.spent_usd, 4),
         })
+
+        # Detective questions (Batch 72): persist the strategist's 0-3 gap
+        # questions. save_questions enforces the open-question caps + dedupe.
+        questions_saved = 0
+        if strategist_plan.get("questions"):
+            try:
+                from backend.lib.business.cofounder_questions import save_questions
+                questions_saved = await save_questions(
+                    user_id,
+                    strategist_plan["questions"],
+                    source="strategist",
+                    operator_run_id=run_id,
+                )
+                if questions_saved:
+                    print(f"OPERATOR: detective raised {questions_saved} question(s) for {user_id}")
+            except Exception as e:
+                print(f"OPERATOR: question save failed for {user_id}: {e}")
 
         if strategist_plan.get("error") or not strategist_plan.get("moves"):
             await _patch_run_row(run_id, {
@@ -366,6 +391,36 @@ async def run_operator_for_user(user_id: str, existing_run_id: str | None = None
         except Exception as e:
             print(f"OPERATOR: compose_home failed for {user_id}: {e}")
 
+        # ─── MORNING BRIEF (Batch 72, cron runs only) ─────────────
+        # One respectful notification: what the co-founder prepared overnight.
+        # notify_owner enforces the 2/day cap + dedupe, so this can never spam.
+        if notify and actions_saved:
+            try:
+                from backend.lib.business.notify import notify_owner
+                auto_count = sum(
+                    1 for c in cards if (c.get("execution_plan") or {}).get("mode") == "auto"
+                )
+                body_lines = [
+                    packager_output.get("morning_message", "")
+                    or f"Jarvis prepared {actions_saved} initiatives overnight.",
+                    f"{actions_saved} initiative(s) are waiting in the Boardroom"
+                    + (f" — {auto_count} execute the moment you approve." if auto_count else "."),
+                ]
+                if questions_saved:
+                    body_lines.append(
+                        f"Jarvis also has {questions_saved} question(s) for you — "
+                        "answering them sharpens the next plan."
+                    )
+                await notify_owner(
+                    user_id,
+                    subject=f"Your co-founder prepared {actions_saved} moves — they need your green light",
+                    body_lines=[l for l in body_lines if l],
+                    kind="morning_brief",
+                    dedupe_key=f"run_{run_id}",
+                )
+            except Exception as e:
+                print(f"OPERATOR: morning brief notify failed for {user_id}: {e}")
+
         print(
             f"OPERATOR: Run complete for {user_id}. "
             f"{actions_saved} actions queued. Cost: ${budget.spent_usd:.4f}"
@@ -374,6 +429,7 @@ async def run_operator_for_user(user_id: str, existing_run_id: str | None = None
             "status": "complete",
             "cycles_completed": 4,
             "actions_queued": actions_saved,
+            "questions_raised": questions_saved,
             "total_cost_usd": round(budget.spent_usd, 4),
             "morning_message": packager_output.get("morning_message", ""),
         }

@@ -29,7 +29,9 @@ async def run_operator_nightly():
         if not uid:
             continue
         try:
-            result = await run_operator_for_user(uid)
+            # notify=True: nightly runs send the capped morning-brief email/in-app
+            # (user-triggered runs don't — the owner is watching live).
+            result = await run_operator_for_user(uid, notify=True)
             status = result.get("status", "unknown")
             cost = result.get("total_cost_usd", 0)
             actions = result.get("actions_queued", 0)

@@ -101,6 +101,75 @@ function Receipts({ result }) {
   )
 }
 
+function QuestionCard({ q, onAnswer, onDismiss }) {
+  const [answer, setAnswer] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  async function submit() {
+    if (!answer.trim() || busy) return
+    setBusy(true)
+    await onAnswer(q.id, answer.trim())
+    setBusy(false)
+  }
+
+  return (
+    <div style={{
+      border: '1px solid rgba(168,116,255,0.25)',
+      background: 'rgba(168,116,255,0.05)',
+      borderRadius: 12, marginBottom: 10, padding: '13px 15px',
+    }}>
+      <div style={{ ...PIXEL, fontSize: 12.5, color: '#e8e8e8', lineHeight: 1.55 }}>
+        {q.question}
+      </div>
+      {q.why_it_matters && (
+        <div style={{ fontSize: 10.5, color: 'rgba(232,232,232,0.5)', marginTop: 5, lineHeight: 1.6 }}>
+          Why: {q.why_it_matters}
+        </div>
+      )}
+      {q.unlocks && (
+        <div style={{ fontSize: 10.5, color: 'rgba(168,116,255,0.85)', marginTop: 3, lineHeight: 1.6 }}>
+          🔓 {q.unlocks}
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+        <input
+          value={answer}
+          onChange={e => setAnswer(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') submit() }}
+          placeholder="Your answer — Jarvis remembers it forever"
+          style={{
+            flex: 1, background: 'rgba(232,232,232,0.05)',
+            border: '1px solid rgba(232,232,232,0.12)', borderRadius: 8,
+            padding: '8px 12px', color: '#e8e8e8', fontSize: 12, outline: 'none',
+          }}
+        />
+        <button
+          onClick={submit}
+          disabled={busy || !answer.trim()}
+          style={{
+            ...PIXEL, background: answer.trim() ? '#a874ff' : 'rgba(168,116,255,0.25)',
+            border: 'none', borderRadius: 8, padding: '8px 16px',
+            color: 'white', fontSize: 11, cursor: answer.trim() ? 'pointer' : 'default',
+          }}
+        >
+          {busy ? '…' : 'Answer'}
+        </button>
+        <button
+          onClick={() => onDismiss(q.id)}
+          title="Skip this question"
+          style={{
+            background: 'transparent', border: '1px solid rgba(232,232,232,0.12)',
+            borderRadius: 8, padding: '8px 10px', color: 'rgba(232,232,232,0.45)',
+            fontSize: 11, cursor: 'pointer',
+          }}
+        >
+          skip
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function InitiativeCard({ action, onApprove, onMarkDone, onDecline, onExpand, expanded }) {
   const [declining, setDeclining] = useState(false)
   const [reason, setReason] = useState('')
@@ -292,9 +361,40 @@ export default function PendingActionsStack({ open, onClose, userId }) {
   const [tab, setTab] = useState('approvals')  // 'approvals' | 'done'
   const [actions, setActions] = useState([])
   const [activity, setActivity] = useState([])
+  const [questions, setQuestions] = useState([])
   const [loading, setLoading] = useState(true)
   const [expandedId, setExpandedId] = useState(null)
   const pollRef = useRef(null)
+
+  async function loadQuestions() {
+    try {
+      const res = await fetch(`${BACKEND}/api/business/cofounder/questions?user_id=${encodeURIComponent(userId || '')}`)
+      const data = await res.json()
+      setQuestions(data.questions || [])
+    } catch (e) { console.error('Boardroom questions load failed', e) }
+  }
+
+  async function answerQuestion(id, answer) {
+    try {
+      await fetch(`${BACKEND}/api/business/cofounder/questions/${id}/answer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, answer }),
+      })
+      setQuestions(prev => prev.filter(q => q.id !== id))
+    } catch (e) { console.error('Answer failed', e) }
+  }
+
+  async function dismissQuestion(id) {
+    try {
+      await fetch(`${BACKEND}/api/business/cofounder/questions/${id}/dismiss`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId }),
+      })
+      setQuestions(prev => prev.filter(q => q.id !== id))
+    } catch (e) { console.error('Dismiss failed', e) }
+  }
 
   async function loadApprovals() {
     try {
@@ -319,7 +419,7 @@ export default function PendingActionsStack({ open, onClose, userId }) {
   useEffect(() => {
     if (!open || !userId) return
     setLoading(true)
-    Promise.all([loadApprovals(), loadActivity()]).finally(() => setLoading(false))
+    Promise.all([loadApprovals(), loadActivity(), loadQuestions()]).finally(() => setLoading(false))
     return () => { if (pollRef.current) clearInterval(pollRef.current) }
   }, [open, userId]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -437,6 +537,21 @@ export default function PendingActionsStack({ open, onClose, userId }) {
         </div>
 
         <div style={{ overflowY: 'auto', flex: 1, paddingRight: 4 }} className="os1-scroll">
+          {/* THE DETECTIVE — questions that unlock better moves */}
+          {tab === 'approvals' && !loading && questions.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{
+                ...PIXEL, fontSize: 9.5, letterSpacing: '0.12em',
+                color: '#a874ff', marginBottom: 8, textTransform: 'uppercase',
+              }}>
+                🕵️ Jarvis needs to know — {questions.length} question{questions.length === 1 ? '' : 's'}
+              </div>
+              {questions.map(q => (
+                <QuestionCard key={q.id} q={q} onAnswer={answerQuestion} onDismiss={dismissQuestion} />
+              ))}
+            </div>
+          )}
+
           {loading ? (
             <div style={{ color: 'rgba(232,232,232,0.5)', fontSize: 13, padding: 8 }}>Loading…</div>
           ) : list.length === 0 ? (

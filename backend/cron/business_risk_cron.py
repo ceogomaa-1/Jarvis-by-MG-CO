@@ -131,6 +131,26 @@ async def _run_for_user(user: dict) -> bool:
             evaluator_output=evaluator_output,
         )
         print(f"RISK_CRON: user {uid} {'saved' if ok else 'save FAILED'} (severity={evaluator_output.get('overall_severity')})")
+
+        # Batch 72: a RED flag is one of the two things worth interrupting the
+        # owner for. notify_owner enforces the 2/day cap; dedupe is per-day so
+        # a red flag never emails twice in one day.
+        if ok and evaluator_output.get("overall_severity") == "red":
+            try:
+                from datetime import datetime, timezone
+                from backend.lib.business.notify import notify_owner
+                await notify_owner(
+                    uid,
+                    subject="🚩 Jarvis flagged a red risk in your business",
+                    body_lines=[
+                        evaluator_output.get("summary", "A critical risk flag was raised."),
+                        briefing.get("suggested_action", "") or "Open Jarvis for the full briefing and the suggested move.",
+                    ],
+                    kind="risk_red_flag",
+                    dedupe_key=f"risk_red_{uid}_{datetime.now(timezone.utc).strftime('%Y-%m-%d')}",
+                )
+            except Exception as e:
+                print(f"RISK_CRON: red-flag notify failed for {uid}: {e}")
         return ok
     except Exception as e:
         import traceback

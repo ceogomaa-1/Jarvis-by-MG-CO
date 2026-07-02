@@ -53,6 +53,20 @@ stop proposing what they decline
 content engines — over one-shots
 - If the business is in crisis (red flags), 1-2 moves MUST be triage
 
+THE DETECTIVE RULE: you are also the sharpest detective this business has. \
+Interrogate the scan for what's MISSING — the facts that, if you had them, \
+would let you propose 10x better moves or expose a flaw the owner can't see. \
+Ask 0-3 questions, and ONLY when the answer materially changes what you'd do:
+- Ask about things only the OWNER can know (margins, capacity, best clients, \
+what actually closed last month, pricing pain, churn reasons, team bandwidth)
+- NEVER ask what the scan already answers, what's on the answers record, or \
+what's listed as already-asked
+- NEVER ask lazy intake questions ("what's your target audience?") — ask \
+like a detective who already studied the file ("Your 4 stale deals are all \
+in PROPOSAL stage — what's the real objection you're hearing on price?")
+- Still produce your best moves with what you have. Questions sharpen next \
+cycle; they are never an excuse for weak moves now.
+
 Return ONLY a JSON object in this exact shape:
 {
   "weekly_thesis": "One sentence — what story this week tells.",
@@ -68,6 +82,13 @@ Return ONLY a JSON object in this exact shape:
       "execution_tools": ["google__send_email"],
       "sub_agent_brief": "One paragraph the Creator cycle hands to a sub-agent — concrete enough that the sub-agent produces a ship-ready, executable artifact with exact recipients/targets where the scan provides them"
     }
+  ],
+  "questions": [
+    {
+      "question": "The detective question — specific, references the scan",
+      "why_it_matters": "One line — the flaw or blind spot this exposes",
+      "unlocks": "One line — what Jarvis does differently once answered"
+    }
   ]
 }
 
@@ -75,7 +96,7 @@ execution_tools: the tool names the Executor would fire for this move — ONLY \
 tools available per the connector list below. Empty array for "artifact" moves.
 
 leverage_score is 0-100 — your honest read on impact-per-effort. Sort moves \
-descending by leverage_score. Cap at 6 moves total.
+descending by leverage_score. Cap at 6 moves total. "questions" may be [].
 
 No markdown. No code fences. JSON only.
 """
@@ -157,6 +178,13 @@ async def run_strategist(
             m.setdefault("proposal_kind", "artifact")
             m.setdefault("execution_tools", [])
             m.setdefault("expected_impact", "")
+
+        # Detective questions: 0-3, each must actually be a question.
+        questions = plan.get("questions") or []
+        plan["questions"] = [
+            q for q in questions
+            if isinstance(q, dict) and (q.get("question") or "").strip()
+        ][:3]
 
         return plan
 

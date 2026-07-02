@@ -185,6 +185,19 @@ async def _scan_buffer(user_id: str) -> dict:
     return {"ok": True, "scheduled_posts": len(posts)}
 
 
+async def _scan_qna(user_id: str) -> dict:
+    """The detective's case file: answered facts + questions still open."""
+    from backend.lib.business.cofounder_questions import answers_digest, list_questions
+
+    answered = await answers_digest(user_id, limit=8)
+    open_rows = await list_questions(user_id, status="open", limit=10)
+    return {
+        "ok": True,
+        "answers": answered,
+        "open_questions": [r.get("question", "") for r in open_rows],
+    }
+
+
 async def _scan_decision_history(user_id: str) -> dict:
     """What did the owner approve, decline, and why — the learning signal."""
     if not SUPABASE_URL or not SUPABASE_KEY:
@@ -307,22 +320,37 @@ def build_digest(snapshot: dict) -> str:
             body += "Owner DECLINED before: " + "; ".join(hist["declined"]) + "."
         parts.append(_fmt_section("OWNER DECISION HISTORY (learn from this)", body or "No decisions yet."))
 
+    qna = s.get("qna", {})
+    if qna.get("ok"):
+        if qna.get("answers"):
+            parts.append(_fmt_section(
+                "OWNER ANSWERS ON RECORD (facts you asked for — use them, never re-ask)",
+                qna["answers"],
+            ))
+        if qna.get("open_questions"):
+            parts.append(_fmt_section(
+                "QUESTIONS ALREADY ASKED, STILL UNANSWERED (do NOT re-ask these)",
+                "\n".join(f"- {q}" for q in qna["open_questions"]),
+            ))
+
     return "\n".join(parts).strip()
 
 
 async def run_analyst(user_id: str) -> dict:
     """Run the full parallel scan. Returns {sections, digest, scanned_at, sources_ok}."""
-    crm, leads, google, stripe, buffer_s, decisions = await asyncio.gather(
+    crm, leads, google, stripe, buffer_s, decisions, qna = await asyncio.gather(
         _with_timeout(_scan_crm(user_id), "CRM"),
         _with_timeout(_scan_leads(user_id), "leads"),
         _with_timeout(_scan_google(user_id), "Google"),
         _with_timeout(_scan_stripe(user_id), "Stripe"),
         _with_timeout(_scan_buffer(user_id), "Buffer"),
         _with_timeout(_scan_decision_history(user_id), "history"),
+        _with_timeout(_scan_qna(user_id), "Q&A"),
     )
     sections = {
         "crm": crm, "leads": leads, "google": google,
         "stripe": stripe, "buffer": buffer_s, "decisions": decisions,
+        "qna": qna,
     }
     snapshot = {
         "sections": sections,

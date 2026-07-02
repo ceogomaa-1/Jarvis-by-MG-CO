@@ -1,7 +1,9 @@
-"""Batch 71 — Co-Founder Mode unit tests (no network)."""
+"""Batch 71/72 — Co-Founder Mode unit tests (no network)."""
+from backend.lib.business.notify import DAILY_CAP, _build_html
 from backend.lib.business.operator.analyst import build_digest
 from backend.lib.business.operator.executor_agent import (
     _initiative_prompt,
+    _parse_needs,
     _summarize_tool_result,
 )
 
@@ -72,3 +74,41 @@ def test_tool_result_summary_flags_errors():
     assert ok is True and "a@b.co" in note
     ok, note = _summarize_tool_result("plain text result")
     assert ok is True
+
+
+def test_digest_includes_answers_on_record_and_open_questions():
+    digest = build_digest(_snapshot({
+        "qna": {
+            "ok": True,
+            "answers": "- Q: What's your close rate? -> A: Around 20% on referrals",
+            "open_questions": ["What margin do you make on Emperor tier?"],
+        },
+    }))
+    assert "20% on referrals" in digest
+    assert "never re-ask" in digest
+    assert "do NOT re-ask" in digest
+    assert "Emperor tier" in digest
+
+
+def test_parse_needs_extracts_executor_escalations():
+    report = (
+        "DONE\n"
+        "Sent revival email to sarah@acme.co\n"
+        "Skipped step 2 - no reply-to on record\n"
+        "NEED: Which email should replies go to - sales@ or your personal?\n"
+        "need: What's the discount ceiling I can offer stale deals?\n"
+        "NEEDLESS line that should not match\n"
+    )
+    needs = _parse_needs(report)
+    assert len(needs) == 2
+    assert needs[0].startswith("Which email")
+    assert needs[1].startswith("What's the discount ceiling")
+    assert _parse_needs("") == []
+    assert _parse_needs("DONE\nAll steps executed.") == []
+
+
+def test_notification_email_promises_the_cap():
+    html = _build_html("Your co-founder prepared 4 moves", ["Line one.", "Line two."], "https://jarvismgco.com")
+    assert f"max {DAILY_CAP} a day" in html
+    assert "Line one." in html
+    assert "Open Jarvis" in html

@@ -73,6 +73,11 @@ WHEN FINISHED (or nothing more can be done), reply with plain text:
 LINE 1: "DONE" if at least one step executed, or "FAILED" if nothing could execute.
 THEN: 2-5 short lines — what actually happened, numbers included \
 (e.g. "Sent intro email to sarah@x.com", "Scheduled 3 posts", "Skipped SMS — Twilio not connected").
+THEN, only if a step was skipped because information ONLY THE OWNER has is \
+missing, add one line per gap starting with "NEED: " — a specific question \
+whose answer would let you finish next time (e.g. "NEED: What email address \
+should replies to the Acme deal go to — sales@ or your personal?"). Never \
+NEED something a tool lookup could answer.
 No markdown headers. No apologies. Receipts only.
 """
 
@@ -163,6 +168,18 @@ async def _notify(user_id: str, message: str, insight_type: str) -> None:
             )
     except Exception as e:
         print(f"EXECUTOR: notify exception: {e}")
+
+
+def _parse_needs(report: str) -> list[str]:
+    """Extract 'NEED: …' escalation lines from the executor's final report."""
+    needs = []
+    for ln in (report or "").splitlines():
+        stripped = ln.strip()
+        if stripped.upper().startswith("NEED:"):
+            q = stripped.split(":", 1)[1].strip()
+            if q:
+                needs.append(q)
+    return needs
 
 
 def _summarize_tool_result(result_str: str) -> tuple[bool, str]:
@@ -283,6 +300,30 @@ async def execute_initiative(action_id: str, user_id: str) -> dict:
         f"EXECUTOR: action={action_id} user={user_id} success={success} "
         f"tools={len(receipts)} cost=${cost['total_usd']:.4f} err={error or '-'}"
     )
+
+    # Detective escalation (Batch 72): steps blocked on owner-only information
+    # become co-founder questions — Jarvis asks instead of silently giving up.
+    needs = _parse_needs(final_text)
+    if needs:
+        try:
+            from backend.lib.business.cofounder_questions import save_questions
+            saved_q = await save_questions(
+                user_id,
+                [
+                    {
+                        "question": n,
+                        "why_it_matters": f"Blocked a step of: {action.get('title', 'an approved initiative')}",
+                        "unlocks": "Jarvis finishes this step the moment you answer.",
+                    }
+                    for n in needs if n
+                ],
+                source="executor",
+                action_id=action_id,
+            )
+            if saved_q:
+                print(f"EXECUTOR: raised {saved_q} question(s) from blocked steps")
+        except Exception as e:
+            print(f"EXECUTOR: NEED question save failed: {e}")
 
     now_iso = datetime.now(timezone.utc).isoformat()
     if success:

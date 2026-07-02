@@ -317,3 +317,49 @@ async def update_action(action_id: str, request: UpdateActionRequest):
         return {"ok": False, "error": f"Supabase {resp.status_code}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ════════════════════════════════════════════════════════════════════
+# Co-founder questions (Batch 72) — THE DETECTIVE
+# ════════════════════════════════════════════════════════════════════
+
+@router.get("/business/cofounder/questions")
+async def get_cofounder_questions(user_id: str = "", status: str = "open"):
+    if not user_id:
+        return {"questions": []}
+    from backend.lib.business.cofounder_questions import list_questions
+    if status not in ("open", "answered", "dismissed"):
+        status = "open"
+    return {"questions": await list_questions(user_id, status=status)}
+
+
+class AnswerQuestionRequest(BaseModel):
+    user_id: str
+    answer: str
+
+
+@router.post("/business/cofounder/questions/{question_id}/answer")
+async def answer_cofounder_question(question_id: str, request: AnswerQuestionRequest):
+    """The owner answers — the fact goes on record and feeds every future scan."""
+    if not request.user_id or not request.answer.strip():
+        raise HTTPException(status_code=400, detail="user_id and answer required")
+    from backend.lib.business.cofounder_questions import resolve_question
+    ok = await resolve_question(question_id, request.user_id, answer=request.answer.strip())
+    if not ok:
+        raise HTTPException(status_code=404, detail="Question not found (or not yours)")
+    return {"ok": True}
+
+
+class DismissQuestionRequest(BaseModel):
+    user_id: str
+
+
+@router.post("/business/cofounder/questions/{question_id}/dismiss")
+async def dismiss_cofounder_question(question_id: str, request: DismissQuestionRequest):
+    if not request.user_id:
+        raise HTTPException(status_code=400, detail="user_id required")
+    from backend.lib.business.cofounder_questions import resolve_question
+    ok = await resolve_question(question_id, request.user_id, answer=None)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Question not found (or not yours)")
+    return {"ok": True}
