@@ -25,8 +25,10 @@ _CREATOR_SYSTEM = """\
 You are a CREATOR sub-agent of Jarvis's Operator Agent, running overnight.
 
 Your job: produce a SHIP-READY artifact for the move you've been assigned. \
-The artifact lands in the owner's morning approval queue — they should be \
-able to read it and click Ship without rewriting it.
+The artifact lands in the owner's approval queue — when the owner taps \
+APPROVE, Jarvis's Executor agent runs it FOR REAL through the wired \
+connectors (sends the emails, schedules the posts, updates the CRM). Write \
+the artifact so a machine can execute it without guessing.
 
 Operating posture: Hormozi × Tate × Gary V — owner energy.
 
@@ -34,9 +36,13 @@ Rules:
 - The artifact is markdown
 - Lead with a 1-sentence "what this is" line
 - Then the artifact itself — copy, plan, analysis, whatever the move requires
+- EXECUTION-READY MEANS EXACT: real recipient names/emails from the live \
+scan where provided (never invent addresses — if unknown, write \
+[lookup: <person/company> in CRM] so the Executor resolves it), exact \
+subject lines, exact post text per platform, exact CRM field changes
 - Use vocabulary from the industry — never generic
 - Include any numbers, sources, or specific assumptions inline
-- End with a "What ships next" line — what the owner clicks to deploy this
+- End with a "What ships next" line — what happens when the owner approves
 - NEVER end with "let me know if you have any questions"
 
 Length guidance:
@@ -86,6 +92,7 @@ def _creator_prompt(
     business_name: str,
     north_star_label: str,
     connector_summary: str,
+    scan_digest: str = "",
 ) -> str:
     prompt = (
         f"BUSINESS: {business_name}\n"
@@ -94,9 +101,17 @@ def _creator_prompt(
         f"YOUR ASSIGNED MOVE:\n"
         f"  Title: {move.get('title','')}\n"
         f"  Rationale: {move.get('rationale','')}\n"
+        f"  Expected impact: {move.get('expected_impact','')}\n"
+        f"  Kind: {move.get('proposal_kind','artifact')}"
+        f" (tools: {', '.join(move.get('execution_tools') or []) or 'none'})\n"
         f"  Preparation type: {move.get('preparation_type','')}\n"
         f"  Brief: {move.get('sub_agent_brief','')}\n\n"
     )
+    if scan_digest:
+        prompt += (
+            f"LIVE BUSINESS SCAN (real data — pull names, emails, deals, and "
+            f"numbers from here):\n{scan_digest[:3500]}\n\n"
+        )
     if research_for_move:
         prompt += (
             f"CURRENT RESEARCH (use sparingly, cite if relevant):\n"
@@ -190,6 +205,7 @@ async def _create_one(
     business_name: str,
     north_star_label: str,
     connector_summary: str,
+    scan_digest: str = "",
 ) -> dict:
     """Run one sub-agent for one move."""
     prompt = _creator_prompt(
@@ -199,6 +215,7 @@ async def _create_one(
         business_name,
         north_star_label,
         connector_summary,
+        scan_digest=scan_digest,
     )
 
     try:
@@ -236,6 +253,7 @@ async def _create_many_batch(
     business_name: str,
     north_star_label: str,
     connector_summary: str,
+    scan_digest: str = "",
 ) -> list[dict]:
     requests: list[dict] = []
     move_by_custom_id: dict[str, dict] = {}
@@ -250,6 +268,7 @@ async def _create_many_batch(
             business_name=business_name,
             north_star_label=north_star_label,
             connector_summary=connector_summary,
+            scan_digest=scan_digest,
         )
         requests.append({"custom_id": cid, "params": _message_params(prompt)})
 
@@ -303,6 +322,7 @@ async def run_creator(
     north_star_label: str,
     connector_summary: str,
     max_parallel: int = 6,
+    scan_digest: str = "",
 ) -> list[dict]:
     """
     Spawn one sub-agent per move (capped at max_parallel).
@@ -324,6 +344,7 @@ async def run_creator(
                 business_name=business_name,
                 north_star_label=north_star_label,
                 connector_summary=connector_summary,
+                scan_digest=scan_digest,
             )
         except AnthropicBatchTimeout as e:
             print(f"OPERATOR CREATOR: batch timed out without sync fallback: {e}")
@@ -348,6 +369,7 @@ async def run_creator(
             business_name=business_name,
             north_star_label=north_star_label,
             connector_summary=connector_summary,
+            scan_digest=scan_digest,
         )
         for m in moves
     ]

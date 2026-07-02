@@ -12,6 +12,8 @@ import WelcomeState from './WelcomeState'
 import JarvisAvatar from './JarvisAvatar'
 import ReadinessBar from './ReadinessBar'
 import AutonomousToggle from './AutonomousToggle'
+import CoFounderLever from './CoFounderLever'
+import PendingActionsStack from './PendingActionsStack'
 import ConfirmActionButton from './ConfirmActionButton'
 import { PromptInputBox } from '@/components/ui/ai-prompt-box'
 import UsageCounter from './UsageCounter'
@@ -247,6 +249,10 @@ export default function ChatCanvas({
   const [readiness, setReadiness] = useState(null)
   const [readinessRefresh, setReadinessRefresh] = useState(0)
   const [autonomousEnabled, setAutonomousEnabled] = useState(false)
+  // Batch 71 (Co-Founder Mode): the lever modal owns engage/disengage; the
+  // Boardroom is the approve→execute initiatives queue.
+  const [showLever, setShowLever] = useState(false)
+  const [showBoardroom, setShowBoardroom] = useState(false)
   const [usage, setUsage] = useState(null)
   const [isThinking, setIsThinking] = useState(false)
   const [nodeContext, setNodeContext] = useState(null)
@@ -261,6 +267,17 @@ export default function ChatCanvas({
       setGoMode(window.localStorage.getItem('jarvis_go_mode') === '1')
     } catch {}
   }, [])
+  // Hydrate Co-Founder Mode state so the rocker survives refreshes/sessions.
+  useEffect(() => {
+    if (!userId) return
+    let cancelled = false
+    fetch(`${BACKEND}/api/business/autonomous/state?user_id=${encodeURIComponent(userId)}`)
+      .then(res => res.json())
+      .then(data => { if (!cancelled && data?.enabled) setAutonomousEnabled(true) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [userId])
+
   const handleGoModeChange = (next) => {
     setGoMode(next)
     if (typeof window === 'undefined') return
@@ -1419,15 +1436,32 @@ export default function ChatCanvas({
             <div className="os1-autonomous-dock" style={{ position: 'absolute', left: 'calc(100% + 30px)', bottom: 14 }}>
               <style>{`@media (max-width: 1180px) { .os1-autonomous-dock { display: none !important; } }`}</style>
               <AutonomousToggle
-                userId={userId}
-                apiUrl={BACKEND}
                 isReady={readiness?.is_ready === true}
-                onToggle={setAutonomousEnabled}
+                enabled={autonomousEnabled}
+                onRequestToggle={() => setShowLever(true)}
               />
             </div>
           )}
         </div>
       </div>
+
+      {/* Batch 71 — Co-Founder Mode surfaces */}
+      <CoFounderLever
+        open={showLever}
+        onClose={() => setShowLever(false)}
+        userId={userId}
+        apiUrl={BACKEND}
+        isReady={readiness?.is_ready === true}
+        enabled={autonomousEnabled}
+        onEngaged={() => setAutonomousEnabled(true)}
+        onDisengaged={() => setAutonomousEnabled(false)}
+        onOpenInitiatives={() => { setShowLever(false); setShowBoardroom(true) }}
+      />
+      <PendingActionsStack
+        open={showBoardroom}
+        onClose={() => setShowBoardroom(false)}
+        userId={userId}
+      />
     </motion.div>
   )
 }

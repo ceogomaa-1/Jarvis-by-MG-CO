@@ -1,43 +1,63 @@
 """
 Operator Cycle 4 — PACKAGER.
 
-Reviews everything the prior cycles produced and writes the morning approval
-queue. Each artifact gets classified as internal or external, priority-scored,
-and tagged with the relevant connector if any.
+Batch 71 (Co-Founder Mode): cards are no longer read-only artifacts — each
+card that can be executed carries an execution_plan (the exact steps + tools
+the Executor agent fires when the owner taps Approve). The card is a
+contract: "approve this, and here is precisely what Jarvis will do."
 
-This is the LAST cycle, run on Opus 4.7 because the packaging quality is what
-the user sees in the morning — it earns the spend.
+Reviews everything the prior cycles produced and writes the approval queue.
+Runs on the smart-tier model because the packaging quality is what the user
+sees in the morning — it earns the spend.
 """
 import json
 import os
 
 import httpx
 
+from backend.lib.business.model_router import OPUS
+
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-MODEL = "claude-opus-4-7"
-TIMEOUT = 60.0
+TIMEOUT = 90.0
 
 
 _PACKAGER_SYSTEM = """\
 You are the PACKAGER cycle of Jarvis's Operator Agent. The prior cycles ran \
-overnight and produced artifacts. Your job: package each artifact as a card \
-in the owner's morning approval queue.
+overnight and produced artifacts for a real business owner who enabled \
+Co-Founder Mode. Your job: package each artifact as a card in the owner's \
+approval queue.
+
+THE CONTRACT: when the owner taps APPROVE on a card, Jarvis's Executor agent \
+runs the card's execution_plan for real — sends the emails, schedules the \
+posts, writes to the CRM. So the plan must be honest, specific, and only use \
+tools that are actually wired (see connector list in the user message).
 
 For each creator artifact, decide:
 - action_type: one of "email_draft", "sms_draft", "landing_page", \
-"campaign_bundle", "report", "analysis", "research_brief", "strategy_doc"
+"campaign_bundle", "report", "analysis", "research_brief", "strategy_doc", \
+"outreach_sequence", "crm_update", "social_posts"
 - internal_or_external:
-    - "external" = action would touch the outside world if shipped \
-(send email, send SMS, publish page, post ad)
-    - "internal" = preparation only (analysis, strategy doc, research brief, internal report)
+    - "external" = executing would touch the outside world (send email/SMS, \
+publish, post, schedule)
+    - "internal" = preparation or internal records only (analysis, strategy \
+doc, CRM hygiene)
 - priority: 1-100, LOWER = more urgent
-- connector_type: if external, which connector fires it ("smtp", "twilio", or "" if none wired)
-- title: short, action-oriented ("Ship the Mother's Day SMS to 200 inactive customers")
+- expected_impact: one concrete line — what changes if this executes
+- title: short, action-oriented ("Send revival emails to 4 stale deals")
 - description: 1 sentence — what this card does
+- execution_plan:
+    - mode: "auto" if Jarvis can execute this itself with the wired tools \
+when approved; "manual" if the owner must act by hand (missing connector, or \
+pure reading material)
+    - steps: 2-6 short imperative strings — EXACTLY what the Executor will \
+do, in order, with real targets from the artifact ("Send the drafted email \
+to sarah@acme.co", "Schedule 3 LinkedIn posts for Tue/Thu/Sat 9am")
+    - tools: the tool names the Executor will call (e.g. \
+["google__send_email"]). Empty array when mode is "manual".
 
 Return ONLY JSON:
 {
-  "morning_message": "One paragraph the owner reads first — what got done overnight, what's queued, what's most urgent",
+  "morning_message": "One paragraph the owner reads first — what got done, what's queued, what's most urgent. Owner energy, no fluff.",
   "cards": [
     {
       "move_id": "m1",
@@ -45,13 +65,16 @@ Return ONLY JSON:
       "internal_or_external": "external",
       "title": "...",
       "description": "...",
+      "expected_impact": "...",
       "priority": 25,
-      "connector_type": "smtp",
+      "connector_type": "google",
+      "execution_plan": {"mode": "auto", "steps": ["..."], "tools": ["google__send_email"]},
       "artifact_markdown": "(pass through the creator's artifact verbatim)"
     }
   ]
 }
 
+Never mark mode "auto" with a tool that is not in the wired connector list. \
 No markdown. No code fences.
 """
 
@@ -70,20 +93,27 @@ async def run_packager(
     creator_outputs: list[dict],
     business_name: str,
     north_star_label: str,
+    connector_summary: str = "",
 ) -> dict:
-    """Package the creator outputs into morning approval cards."""
+    """Package the creator outputs into approval cards with execution plans."""
     if not creator_outputs:
         return {"morning_message": "Operator ran but produced no artifacts.", "cards": []}
+
+    moves_by_id = {m.get("id"): m for m in strategist_plan.get("moves", [])}
 
     summary_for_llm = []
     for c in creator_outputs:
         if not c.get("ok"):
             continue
+        move = moves_by_id.get(c.get("move_id"), {})
         summary_for_llm.append({
             "move_id": c.get("move_id"),
             "title": c.get("title"),
             "preparation_type": c.get("preparation_type"),
-            "artifact_excerpt": (c.get("artifact") or "")[:500],
+            "proposal_kind": move.get("proposal_kind", "artifact"),
+            "planned_execution_tools": move.get("execution_tools", []),
+            "expected_impact": move.get("expected_impact", ""),
+            "artifact_excerpt": (c.get("artifact") or "")[:700],
             "artifact_length": len(c.get("artifact") or ""),
         })
 
@@ -91,8 +121,9 @@ async def run_packager(
         f"BUSINESS: {business_name}\n"
         f"NORTH STAR: {north_star_label}\n"
         f"WEEKLY THESIS: {strategist_plan.get('weekly_thesis','')}\n\n"
+        f"WIRED CONNECTORS (only these are executable):\n{connector_summary or '(none)'}\n\n"
         f"CREATOR ARTIFACTS (excerpts):\n{json.dumps(summary_for_llm, indent=2)}\n\n"
-        f"Package each artifact as a morning approval card. Return JSON now."
+        f"Package each artifact as an approval card with an honest execution_plan. Return JSON now."
     )
 
     try:
@@ -105,8 +136,8 @@ async def run_packager(
                     "content-type": "application/json",
                 },
                 json={
-                    "model": MODEL,
-                    "max_tokens": 3000,
+                    "model": OPUS,
+                    "max_tokens": 4000,
                     "system": _PACKAGER_SYSTEM,
                     "messages": [{"role": "user", "content": prompt}],
                 },
@@ -131,6 +162,15 @@ async def run_packager(
             card.setdefault("connector_type", "")
             card.setdefault("title", "Untitled action")
             card.setdefault("description", "")
+            card.setdefault("expected_impact", "")
+            plan = card.get("execution_plan") or {}
+            plan.setdefault("mode", "manual")
+            plan.setdefault("steps", [])
+            plan.setdefault("tools", [])
+            # An "auto" plan with no steps or no tools is not a real plan — demote it.
+            if plan["mode"] == "auto" and (not plan["steps"] or not plan["tools"]):
+                plan["mode"] = "manual"
+            card["execution_plan"] = plan
 
         parsed.setdefault("morning_message", "")
         parsed.setdefault("cards", [])

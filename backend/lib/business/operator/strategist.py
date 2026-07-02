@@ -1,37 +1,56 @@
 """
 Operator Cycle 1 — STRATEGIST.
 
-Calls Claude Opus 4.7 to pick the 3-6 highest-leverage moves that close
-the gap to the user's North Star this week. Returns a structured plan.
+Batch 71 (Co-Founder Mode): the strategist now reads a LIVE business scan —
+real CRM pipeline, real inbox, real lead queue, real revenue — plus the
+owner's past approve/decline decisions, and is required to propose moves
+that Jarvis can EXECUTE through wired connectors, not just describe.
 
-The plan drives all subsequent cycles.
+Calls the smart-tier model to pick the 3-6 highest-leverage moves that close
+the gap to the user's North Star this week. Returns a structured plan that
+drives all subsequent cycles.
 """
 import json
 import os
 
 import httpx
 
+from backend.lib.business.model_router import OPUS
+
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-MODEL = "claude-opus-4-7"
-TIMEOUT = 60.0
+TIMEOUT = 90.0
 
 
 _STRATEGIST_SYSTEM = """\
-You are the STRATEGIST cycle of Jarvis's Operator Agent. You run autonomously \
-overnight on behalf of a real business owner.
+You are the STRATEGIST cycle of Jarvis's Operator Agent — the co-founder of \
+this business, running autonomously on behalf of a real owner who flipped \
+the Co-Founder switch. You have just walked through the live state of the \
+business (the scan below is REAL data pulled minutes ago, not hypotheticals).
 
 Your job: pick the 3 to 6 HIGHEST-LEVERAGE moves the business should make \
-THIS WEEK to close the gap to their North Star target.
+THIS WEEK to close the gap to the North Star.
 
-Operating posture: Hormozi × Tate × Gary V — owner energy, not advisor energy. \
-You operate as if you own the company.
+Operating posture: Hormozi × Tate × Gary V — owner energy, not advisor \
+energy. You operate as if you own the company. Think outside the whole room, \
+not just the box: propose the move the owner hasn't thought of, not the one \
+every generic AI would suggest.
 
 Rules:
-- Each move must be CONCRETE — a specific action, not "improve marketing"
-- Each move must be PREPARABLE OVERNIGHT — you spawn sub-agents in a later cycle to draft, design, analyze
-- NO move that requires the owner to physically do something today (e.g. "hire a new GM")
-- NO move that requires the owner's real-time approval to start (those are next-cycle problems)
-- Prioritize moves that compound — content, systems, sequences, assets — over one-shots
+- GROUND every move in the live scan. Reference the actual numbers, actual \
+stale deals, actual unanswered emails, actual A-grade leads by name. A move \
+that ignores the scan is a wasted move.
+- Each move must be CONCRETE — a specific action with specific targets, not \
+"improve marketing"
+- STRONGLY prefer moves Jarvis can EXECUTE itself through the wired \
+connectors listed below (send the emails, schedule the posts, update the \
+CRM, push the leads). These are proposal_kind "action". Moves that only \
+produce a document for the owner to read are proposal_kind "artifact" — \
+allowed, but they should be the minority.
+- NO move that requires the owner to physically do something today
+- Respect the owner's decision history: double down on what they approve, \
+stop proposing what they decline
+- Prioritize moves that compound — pipeline revival, sequences, systems, \
+content engines — over one-shots
 - If the business is in crisis (red flags), 1-2 moves MUST be triage
 
 Return ONLY a JSON object in this exact shape:
@@ -41,13 +60,19 @@ Return ONLY a JSON object in this exact shape:
     {
       "id": "m1",
       "title": "Short imperative title",
-      "rationale": "1-2 sentences — why this move, why now, what it compounds",
+      "rationale": "1-2 sentences — why this move, why now, grounded in the scan",
+      "expected_impact": "One concrete line — what changes if this ships (use numbers from the scan where possible)",
       "leverage_score": 95,
+      "proposal_kind": "action" | "artifact",
       "preparation_type": "campaign" | "content" | "analysis" | "system" | "research" | "outreach",
-      "sub_agent_brief": "One paragraph that the Creator cycle will hand to a sub-agent — concrete enough that the sub-agent produces a ship-ready artifact"
+      "execution_tools": ["google__send_email"],
+      "sub_agent_brief": "One paragraph the Creator cycle hands to a sub-agent — concrete enough that the sub-agent produces a ship-ready, executable artifact with exact recipients/targets where the scan provides them"
     }
   ]
 }
+
+execution_tools: the tool names the Executor would fire for this move — ONLY \
+tools available per the connector list below. Empty array for "artifact" moves.
 
 leverage_score is 0-100 — your honest read on impact-per-effort. Sort moves \
 descending by leverage_score. Cap at 6 moves total.
@@ -70,6 +95,8 @@ async def run_strategist(
     industry_briefing: str,
     latest_metrics: str,
     latest_flags_summary: str,
+    business_scan_digest: str = "",
+    connector_summary: str = "",
 ) -> dict:
     """
     Run the Strategist cycle. Returns the parsed plan or an error dict.
@@ -78,12 +105,18 @@ async def run_strategist(
     industry_briefing: Bible relevant section (kept empty for v1 — operator is self-contained)
     latest_metrics: user's metrics blob from business_user_metrics
     latest_flags_summary: latest risk flag summary
+    business_scan_digest: the Analyst cycle's live scan of CRM/leads/inbox/revenue/social
+    connector_summary: which connectors are wired and what actions they expose
     """
     prompt = (
         f"BUSINESS: {user_context.get('display_name','their business')}\n"
         f"INDUSTRY: {user_context.get('industry','general')}\n"
         f"NORTH STAR: {user_context.get('north_star_label','$1M ARR')} "
         f"({user_context.get('north_star_usd', 1_000_000)})\n\n"
+        f"LIVE BUSINESS SCAN (pulled minutes ago — this is real):\n"
+        f"{business_scan_digest or '(scan unavailable — fall back to metrics below)'}\n\n"
+        f"WIRED CONNECTORS (what Jarvis can execute):\n"
+        f"{connector_summary or '(none listed)'}\n\n"
         f"LATEST METRICS (from owner):\n{latest_metrics or '(no metrics yet)'}\n\n"
         f"LATEST RISK FLAGS:\n{latest_flags_summary or '(no flags)'}\n\n"
         f"INDUSTRY-SPECIFIC OPERATING WISDOM:\n{industry_briefing or '(none)'}\n\n"
@@ -100,8 +133,8 @@ async def run_strategist(
                     "content-type": "application/json",
                 },
                 json={
-                    "model": MODEL,
-                    "max_tokens": 2048,
+                    "model": OPUS,
+                    "max_tokens": 3000,
                     "system": _STRATEGIST_SYSTEM,
                     "messages": [{"role": "user", "content": prompt}],
                 },
@@ -121,6 +154,9 @@ async def run_strategist(
         )[:6]
         for i, m in enumerate(plan["moves"]):
             m.setdefault("id", f"m{i+1}")
+            m.setdefault("proposal_kind", "artifact")
+            m.setdefault("execution_tools", [])
+            m.setdefault("expected_impact", "")
 
         return plan
 

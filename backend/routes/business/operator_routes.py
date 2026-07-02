@@ -1,10 +1,13 @@
 """
-Operator Agent API.
+Operator Agent API (Batch 71: Co-Founder Mode).
 
-  GET   /business/operator/pending              → pending actions for user
+  GET   /business/operator/pending              → pending initiatives for user
   POST  /business/operator/trigger              → manually trigger a run (returns run_id immediately)
   GET   /business/operator/status/stream        → SSE stream of run lifecycle events
-  PATCH /business/operator/actions/{id}         → update action status (ship/discard/edit)
+  POST  /business/operator/actions/{id}/approve → APPROVE: Jarvis executes the initiative for real
+  GET   /business/operator/actions/{id}         → one initiative (poll while executing)
+  GET   /business/operator/activity             → recently executed initiatives (the receipts)
+  PATCH /business/operator/actions/{id}         → update action status (ship/discard/edit + decline reason)
   GET   /business/operator/runs                 → recent run history
 """
 import asyncio
@@ -16,6 +19,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from backend.lib.business.operator.executor_agent import execute_initiative
 from backend.lib.business.operator.loop import run_operator_for_user, create_operator_run_row
 
 router = APIRouter()
@@ -36,6 +40,17 @@ def _headers() -> dict:
     return {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
 
 
+def _normalize_action(row: dict) -> dict:
+    """Ensure execution_plan / expected_impact are present even on pre-migration
+    rows (where they only live inside artifact_metadata)."""
+    meta = row.get("artifact_metadata") or {}
+    if not row.get("execution_plan"):
+        row["execution_plan"] = meta.get("execution_plan") or {}
+    if not row.get("expected_impact"):
+        row["expected_impact"] = meta.get("expected_impact") or ""
+    return row
+
+
 @router.get("/business/operator/pending")
 async def get_pending_actions(user_id: str = "", limit: int = 20):
     if not user_id:
@@ -46,19 +61,115 @@ async def get_pending_actions(user_id: str = "", limit: int = 20):
                 f"{SUPABASE_URL}/rest/v1/business_pending_actions",
                 headers=_headers(),
                 params={
-                    "select": "id,action_type,title,description,internal_or_external,artifact_markdown,connector_type,priority,status,created_at",
+                    # select * so this works before AND after the batch71 migration
+                    "select": "*",
                     "user_id": f"eq.{user_id}",
-                    "status": "eq.pending",
+                    "status": "in.(pending,executing)",
                     "order": "priority.asc,created_at.desc",
                     "limit": str(min(limit, 50)),
                 },
                 timeout=10.0,
             )
         if resp.status_code == 200:
-            return {"actions": resp.json()}
+            return {"actions": [_normalize_action(r) for r in resp.json()]}
     except Exception as e:
         print(f"OPERATOR_ROUTES: get_pending_actions exception: {e}")
     return {"actions": []}
+
+
+@router.get("/business/operator/activity")
+async def get_activity(user_id: str = "", limit: int = 12):
+    """The receipts: initiatives Jarvis actually executed (or failed), newest first."""
+    if not user_id:
+        return {"actions": []}
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{SUPABASE_URL}/rest/v1/business_pending_actions",
+                headers=_headers(),
+                params={
+                    "select": "*",
+                    "user_id": f"eq.{user_id}",
+                    "status": "in.(executed,execution_failed,shipped)",
+                    "order": "created_at.desc",
+                    "limit": str(min(limit, 30)),
+                },
+                timeout=10.0,
+            )
+        if resp.status_code == 200:
+            rows = [_normalize_action(r) for r in resp.json()]
+            # Legacy 'shipped' rows carry results in shipped_result
+            for r in rows:
+                if not r.get("execution_result") and r.get("shipped_result"):
+                    r["execution_result"] = r["shipped_result"]
+            return {"actions": rows}
+    except Exception as e:
+        print(f"OPERATOR_ROUTES: get_activity exception: {e}")
+    return {"actions": []}
+
+
+@router.get("/business/operator/actions/{action_id}")
+async def get_action(action_id: str, user_id: str = ""):
+    """Poll one initiative — the frontend watches this while Jarvis executes."""
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{SUPABASE_URL}/rest/v1/business_pending_actions",
+                headers=_headers(),
+                params={"select": "*", "id": f"eq.{action_id}", "limit": "1"},
+                timeout=10.0,
+            )
+        if resp.status_code == 200 and resp.json():
+            row = resp.json()[0]
+            if user_id and str(row.get("user_id")) != str(user_id):
+                raise HTTPException(status_code=403, detail="Not your initiative")
+            row = _normalize_action(row)
+            if not row.get("execution_result") and row.get("shipped_result"):
+                row["execution_result"] = row["shipped_result"]
+            return {"action": row}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"OPERATOR_ROUTES: get_action exception: {e}")
+    raise HTTPException(status_code=404, detail="Initiative not found")
+
+
+class ApproveRequest(BaseModel):
+    user_id: str
+
+
+@router.post("/business/operator/actions/{action_id}/approve")
+async def approve_and_execute(action_id: str, request: ApproveRequest, background_tasks: BackgroundTasks):
+    """The moment that matters: the owner approved — Jarvis executes for real.
+
+    Returns immediately; the Executor agent runs in the background. The
+    frontend polls GET /business/operator/actions/{id} for the receipts.
+    """
+    if not request.user_id:
+        raise HTTPException(status_code=400, detail="user_id required")
+
+    # Validate ownership + approvability up front so the click gets an honest answer.
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{SUPABASE_URL}/rest/v1/business_pending_actions",
+                headers=_headers(),
+                params={"select": "id,user_id,status", "id": f"eq.{action_id}", "limit": "1"},
+                timeout=10.0,
+            )
+        rows = resp.json() if resp.status_code == 200 else []
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lookup failed: {e}")
+    if not rows:
+        raise HTTPException(status_code=404, detail="Initiative not found")
+    row = rows[0]
+    if str(row.get("user_id")) != str(request.user_id):
+        raise HTTPException(status_code=403, detail="Not your initiative")
+    if row.get("status") not in ("pending", "edited", "execution_failed"):
+        raise HTTPException(status_code=409, detail=f"Initiative is already {row.get('status')}")
+
+    background_tasks.add_task(execute_initiative, action_id, request.user_id)
+    return {"ok": True, "status": "executing", "action_id": action_id}
 
 
 @router.get("/business/operator/runs")
@@ -167,6 +278,7 @@ async def stream_run_status(run_id: str, user_id: str = ""):
 class UpdateActionRequest(BaseModel):
     status: str  # 'shipped' | 'discarded' | 'edited'
     artifact_markdown: str | None = None
+    decline_reason: str | None = None  # captured on discard — the strategist learns from it
 
 
 @router.patch("/business/operator/actions/{action_id}")
@@ -180,6 +292,8 @@ async def update_action(action_id: str, request: UpdateActionRequest):
         payload["shipped_at"] = "now()"
     if request.artifact_markdown is not None:
         payload["artifact_markdown"] = request.artifact_markdown
+    if request.decline_reason:
+        payload["decline_reason"] = request.decline_reason[:500]
 
     try:
         async with httpx.AsyncClient() as client:
@@ -189,6 +303,15 @@ async def update_action(action_id: str, request: UpdateActionRequest):
                 json=payload,
                 timeout=10.0,
             )
+            if resp.status_code not in (200, 204) and "decline_reason" in payload:
+                # Pre-migration fallback: retry without the batch71 column.
+                payload.pop("decline_reason", None)
+                resp = await client.patch(
+                    f"{SUPABASE_URL}/rest/v1/business_pending_actions?id=eq.{action_id}",
+                    headers={**_headers(), "Content-Type": "application/json", "Prefer": "return=minimal"},
+                    json=payload,
+                    timeout=10.0,
+                )
         if resp.status_code in (200, 204):
             return {"ok": True}
         return {"ok": False, "error": f"Supabase {resp.status_code}"}

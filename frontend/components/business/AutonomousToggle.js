@@ -1,50 +1,31 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 
-// OS1 v2 — horizontal pixel rocker switch + "Autonomous Jarvis" label (per Figma)
-export default function AutonomousToggle({ userId, apiUrl, isReady, onToggle }) {
-  const [isEnabled, setIsEnabled] = useState(false)
+// OS1 v2 — horizontal pixel rocker switch + "Autonomous Jarvis" label (per Figma).
+// Batch 71 (Co-Founder Mode): now a controlled trigger — clicking it never flips
+// the flag directly; it opens the CoFounderLever modal, which owns the whole
+// engage/disengage moment. Parent (ChatCanvas) hydrates + owns `enabled`.
+export default function AutonomousToggle({ isReady, enabled, onRequestToggle }) {
   const [showTooltip, setShowTooltip] = useState(false)
 
-  // Hydrate from backend so the switch survives refreshes/sessions.
-  useEffect(() => {
-    if (!userId) return
-    fetch(`${apiUrl}/api/business/autonomous/state?user_id=${encodeURIComponent(userId)}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data?.enabled) {
-          setIsEnabled(true)
-          onToggle?.(true)
-        }
-      })
-      .catch(console.error)
-  }, [userId, apiUrl]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  function handleToggle() {
+  function handleClick() {
     if (!isReady) {
       setShowTooltip(true)
       setTimeout(() => setShowTooltip(false), 3000)
       return
     }
-    const next = !isEnabled
-    setIsEnabled(next)
-    onToggle?.(next)
-    fetch(`${apiUrl}/api/business/autonomous/toggle`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: userId, enabled: next }),
-    }).catch(console.error)
+    onRequestToggle?.()
   }
 
-  const active = isEnabled && isReady
+  const active = enabled && isReady
 
   return (
     <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 10 }}>
       {/* Horizontal pixel rocker switch */}
       <button
-        onClick={handleToggle}
-        title={!isReady ? 'Complete the readiness bar to unlock' : 'Autonomous Jarvis'}
+        onClick={handleClick}
+        title={!isReady ? 'Complete the readiness bar to unlock' : 'Co-Founder Mode'}
         style={{
           position: 'relative',
           flexShrink: 0,

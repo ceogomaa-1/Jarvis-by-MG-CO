@@ -1,10 +1,16 @@
 """
-Operator Agent main loop. Runs the 4 cycles per user.
+Operator Agent main loop. Runs the cycles per user (Batch 71: Co-Founder Mode).
 
-CYCLE 1: Strategist (Opus)         — pick the moves
+CYCLE 0: Analyst (free, no LLM)    — scan the LIVE business: CRM, leads,
+                                     inbox, calendar, revenue, social queue,
+                                     owner decision history
+CYCLE 1: Strategist (smart tier)   — pick the moves, grounded in the scan
 CYCLE 2: Researcher (Sonnet + web) — back them with current data
-CYCLE 3: Creator (Sonnet × N)      — produce the artifacts in parallel
-CYCLE 4: Packager (Opus)           — write the morning approval cards
+CYCLE 3: Creator (Sonnet × N)      — produce execution-ready artifacts in parallel
+CYCLE 4: Packager (smart tier)     — write approval cards WITH execution plans
+
+When the owner approves a card, executor_agent.execute_initiative runs the
+plan for real through the connector tool layer.
 
 Budget enforcement: BudgetTracker kills the loop before any cycle that would
 exceed the user's daily cap.
@@ -15,7 +21,8 @@ import httpx
 
 from backend.lib.business.brand_config import get_brand_config
 from backend.lib.business.connectors.registry import available_connectors_summary
-from backend.lib.business.model_router import SONNET
+from backend.lib.business.model_router import OPUS, SONNET
+from backend.lib.business.operator.analyst import run_analyst
 from backend.lib.business.operator.budget import BudgetTracker
 from backend.lib.business.operator.strategist import run_strategist
 from backend.lib.business.operator.researcher import run_researcher
@@ -69,40 +76,55 @@ async def _patch_run_row(run_id: str, fields: dict) -> None:
         print(f"OPERATOR: patch_run_row exception: {e}")
 
 
+def _card_row(user_id: str, run_id: str, c: dict, *, legacy: bool) -> dict:
+    row = {
+        "user_id": user_id,
+        "operator_run_id": run_id,
+        "action_type": c.get("action_type", "report"),
+        "title": c.get("title", "Untitled"),
+        "description": c.get("description", ""),
+        "internal_or_external": c.get("internal_or_external", "internal"),
+        "artifact_markdown": c.get("artifact_markdown", ""),
+        "artifact_metadata": {
+            "move_id": c.get("move_id"),
+            "preparation_type": c.get("preparation_type", ""),
+            # Mirror the plan into metadata too so pre-migration rows keep it.
+            "execution_plan": c.get("execution_plan") or {},
+            "expected_impact": c.get("expected_impact", ""),
+        },
+        "connector_type": c.get("connector_type") or None,
+        "priority": c.get("priority", 50),
+    }
+    if not legacy:
+        row["execution_plan"] = c.get("execution_plan") or {}
+        row["expected_impact"] = c.get("expected_impact", "")
+    return row
+
+
 async def _save_pending_actions(user_id: str, run_id: str, cards: list[dict]) -> int:
-    """Bulk-insert cards into business_pending_actions. Returns count saved."""
+    """Bulk-insert cards into business_pending_actions. Returns count saved.
+
+    Tries the batch71 shape (execution_plan / expected_impact columns) first;
+    if the migration hasn't been applied yet, falls back to the legacy shape
+    (the plan still rides along inside artifact_metadata)."""
     if not cards or not SUPABASE_URL or not SUPABASE_KEY:
         return 0
-    payload = [
-        {
-            "user_id": user_id,
-            "operator_run_id": run_id,
-            "action_type": c.get("action_type", "report"),
-            "title": c.get("title", "Untitled"),
-            "description": c.get("description", ""),
-            "internal_or_external": c.get("internal_or_external", "internal"),
-            "artifact_markdown": c.get("artifact_markdown", ""),
-            "artifact_metadata": {
-                "move_id": c.get("move_id"),
-                "preparation_type": c.get("preparation_type", ""),
-            },
-            "connector_type": c.get("connector_type") or None,
-            "priority": c.get("priority", 50),
-        }
-        for c in cards
-    ]
-    try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                f"{SUPABASE_URL}/rest/v1/business_pending_actions",
-                headers={**_headers(), "Prefer": "return=minimal"},
-                json=payload,
-                timeout=20.0,
-            )
-        return len(payload) if resp.status_code in (200, 201, 204) else 0
-    except Exception as e:
-        print(f"OPERATOR: save_pending_actions exception: {e}")
-        return 0
+    for legacy in (False, True):
+        payload = [_card_row(user_id, run_id, c, legacy=legacy) for c in cards]
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(
+                    f"{SUPABASE_URL}/rest/v1/business_pending_actions",
+                    headers={**_headers(), "Prefer": "return=minimal"},
+                    json=payload,
+                    timeout=20.0,
+                )
+            if resp.status_code in (200, 201, 204):
+                return len(payload)
+            print(f"OPERATOR: save_pending_actions {resp.status_code} (legacy={legacy}): {resp.text[:150]}")
+        except Exception as e:
+            print(f"OPERATOR: save_pending_actions exception (legacy={legacy}): {e}")
+    return 0
 
 
 async def _fetch_user_context(user_id: str) -> dict:
@@ -189,8 +211,22 @@ async def run_operator_for_user(user_id: str, existing_run_id: str | None = None
     cycles_completed = 0
 
     try:
+        # ─── CYCLE 0: ANALYST (free — no LLM) ─────────────────────
+        # The co-founder's walk through the live business before proposing
+        # anything. Fail-soft: a dead scan just means a thinner digest.
+        scan_digest = ""
+        try:
+            snapshot = await run_analyst(user_id)
+            scan_digest = snapshot.get("digest", "")
+            # Separate patch: the snapshot column ships in batch71 — if the
+            # migration isn't applied yet this 400s harmlessly on its own.
+            await _patch_run_row(run_id, {"snapshot": snapshot})
+            print(f"OPERATOR: analyst scanned {snapshot.get('sources_ok')} for {user_id}")
+        except Exception as e:
+            print(f"OPERATOR: analyst failed for {user_id}: {e}")
+
         # ─── CYCLE 1: STRATEGIST ──────────────────────────────────
-        if not budget.can_afford("claude-opus-4-7", input_tokens_est=1500, max_output_tokens=2048):
+        if not budget.can_afford(OPUS, input_tokens_est=2500, max_output_tokens=3000):
             await _patch_run_row(run_id, {
                 "status": "budget_capped",
                 "error": "Daily budget exhausted before Strategist",
@@ -198,12 +234,14 @@ async def run_operator_for_user(user_id: str, existing_run_id: str | None = None
             })
             return {"status": "budget_capped", "cycles_completed": 0}
 
-        budget.charge("claude-opus-4-7", input_tokens_est=1500, max_output_tokens=2048)
+        budget.charge(OPUS, input_tokens_est=2500, max_output_tokens=3000)
         strategist_plan = await run_strategist(
             user_context=base_user_ctx,
             industry_briefing="",
             latest_metrics=user_ctx.get("metrics_text", ""),
             latest_flags_summary=user_ctx.get("flags_summary", ""),
+            business_scan_digest=scan_digest,
+            connector_summary=connector_summary,
         )
         cycles_completed = 1
         await _patch_run_row(run_id, {
@@ -265,6 +303,7 @@ async def run_operator_for_user(user_id: str, existing_run_id: str | None = None
                 north_star_label=north_star_label,
                 connector_summary=connector_summary,
                 max_parallel=len(moves_to_create),
+                scan_digest=scan_digest,
             )
         else:
             creator_outputs = []
@@ -276,16 +315,17 @@ async def run_operator_for_user(user_id: str, existing_run_id: str | None = None
         })
 
         # ─── CYCLE 4: PACKAGER ────────────────────────────────────
-        if budget.can_afford("claude-opus-4-7", input_tokens_est=3000, max_output_tokens=3000):
-            budget.charge("claude-opus-4-7", input_tokens_est=3000, max_output_tokens=3000)
+        if budget.can_afford(OPUS, input_tokens_est=3500, max_output_tokens=4000):
+            budget.charge(OPUS, input_tokens_est=3500, max_output_tokens=4000)
             packager_output = await run_packager(
                 strategist_plan=strategist_plan,
                 creator_outputs=creator_outputs,
                 business_name=business_name,
                 north_star_label=north_star_label,
+                connector_summary=connector_summary,
             )
         else:
-            # Budget capped — auto-package without Opus
+            # Budget capped — auto-package without the smart tier
             packager_output = {
                 "morning_message": "Operator ran overnight. Budget capped before Packager — raw artifacts queued for review.",
                 "cards": [
@@ -298,6 +338,8 @@ async def run_operator_for_user(user_id: str, existing_run_id: str | None = None
                         "priority": 50,
                         "connector_type": "",
                         "artifact_markdown": c.get("artifact", ""),
+                        "execution_plan": {"mode": "manual", "steps": [], "tools": []},
+                        "expected_impact": "",
                     }
                     for c in creator_outputs if c.get("ok")
                 ],
