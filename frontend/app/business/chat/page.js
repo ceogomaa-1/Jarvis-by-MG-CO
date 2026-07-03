@@ -7,6 +7,7 @@ import ChatSidebar from '../../../components/business/ChatSidebar'
 import ChatHeaderMenu from '../../../components/business/ChatHeaderMenu'
 import WhatsNewBell from '../../../components/shared/WhatsNew'
 import { getBusinessUser } from '../../../lib/userPreferences'
+import { stashAuthNext } from '../../../lib/authNext'
 import { useFontPref } from '../../../lib/fontPref'
 import TetrisLoader from '../../../components/ui/TetrisLoader'
 
@@ -113,6 +114,7 @@ export default function BusinessChatPage() {
 
   const handleGoogleSignIn = async () => {
     if (!supabase) return
+    stashAuthNext('/business/chat')
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: `${window.location.origin}/auth/callback?next=/business/chat` },

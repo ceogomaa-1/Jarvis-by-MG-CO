@@ -6,6 +6,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { supabase } from '../lib/supabase'
 import { getJarvisMode, setJarvisMode } from '../lib/userPreferences'
+import { popAuthNext, urlHasAuthParams } from '../lib/authNext'
 import ModeToggle from '../components/shared/ModeToggle'
 import WhatsNewBell from '../components/shared/WhatsNew'
 import StudyView, { StudyToggle } from '../components/shared/StudyView'
@@ -1478,6 +1479,15 @@ export default function Home() {
       window.history.replaceState({}, '', '/')
       return  // stay at / — skip mode-check
     }
+    // Auth-fallback recovery: the user started sign-in bound for OS1/business but the
+    // OAuth redirect got dumped at this root (Supabase allowlist fallback). Now that a
+    // session exists, finish the journey they actually started instead of parking them
+    // on Personal — this is the other half of the OS1 login-loop fix.
+    const authNext = popAuthNext()
+    if (authNext && authNext !== '/') {
+      router.replace(authNext)
+      return
+    }
     // If the user just completed onboarding in this session, skip the mode-check.
     // Supabase can fire SIGNED_OUT + SIGNED_IN during PKCE exchange, causing this
     // effect to run again after the ?onboard=personal URL param has been cleared.
@@ -1720,11 +1730,29 @@ export default function Home() {
   }, [loading, isStreaming])
 
   // Redirect unauthenticated users to /welcome once auth check is complete.
-  // Skip if the URL still has ?onboard=* (OAuth callback hasn't resolved yet).
+  // Skip if the URL still has ?onboard=* (OAuth callback hasn't resolved yet). When the
+  // URL carries OAuth material (?code= / ?error= / #access_token) — which happens when
+  // the Supabase redirect allowlist rejects our callback URL and dumps the browser HERE
+  // at the site root — don't wipe it into /welcome instantly (that's the OS1 login
+  // loop). Give the exchange a beat to settle; if no session lands, fall through to
+  // /welcome as before so a genuinely failed sign-in never dead-ends on a blank page.
   useEffect(() => {
     if (authLoading || userId) return
     const params = new URLSearchParams(window.location.search)
-    if (!params.get('onboard')) router.replace('/welcome')
+    if (params.get('onboard')) return
+    if (!urlHasAuthParams()) {
+      router.replace('/welcome')
+      return
+    }
+    const t = setTimeout(async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.user) router.replace('/welcome')
+      } catch {
+        router.replace('/welcome')
+      }
+    }, 2500)
+    return () => clearTimeout(t)
   }, [authLoading, userId, router])
 
   if (authLoading) {

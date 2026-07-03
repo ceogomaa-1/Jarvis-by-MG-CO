@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 import { completeBusinessOnboarding, getBusinessUser } from '../../../lib/userPreferences'
+import { stashAuthNext } from '../../../lib/authNext'
 import { useFontPref } from '../../../lib/fontPref'
 import OS1Cinematic from '../../../components/onboarding/OS1Cinematic'
 import OS1Questions from '../../../components/onboarding/OS1Questions'
@@ -47,6 +48,7 @@ export default function BusinessOnboardingPage() {
       return
     }
     if (supabase) {
+      stashAuthNext('/business/onboarding?step=questions')
       await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: { redirectTo: `${window.location.origin}/business/onboarding?step=questions` },

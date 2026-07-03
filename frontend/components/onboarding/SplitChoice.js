@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { supabase } from '../../lib/supabase'
 import { getBusinessUser } from '../../lib/userPreferences'
+import { stashAuthNext } from '../../lib/authNext'
 
 // ─── Minimal orb (self-contained, no props needed from page.js) ──────────────
 function MiniOrb({ size = 180, accent = '#ff9072' }) {
@@ -290,6 +291,7 @@ export default function SplitChoice() {
 
   const handlePersonalClick = async () => {
     if (!supabase) return
+    stashAuthNext('/?onboard=personal')
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent('/?onboard=personal')}` },

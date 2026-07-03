@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../lib/supabase'
 import { createBusinessUser, setJarvisMode } from '../../lib/userPreferences'
+import { stashAuthNext } from '../../lib/authNext'
 
 const INDUSTRIES = [
   'Restaurants',
@@ -48,6 +49,7 @@ export default function BusinessOnboardingModal({ onClose }) {
     if (!supabase) return
     // Store form data in sessionStorage so it survives the OAuth redirect
     sessionStorage.setItem('jarvis_biz_onboard', JSON.stringify(form))
+    stashAuthNext('/business/chat')
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
