@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../lib/supabase'
 import { createBusinessUser, setJarvisMode } from '../../lib/userPreferences'
-import { stashAuthNext } from '../../lib/authNext'
+import { stashAuthNext, authRedirectBase } from '../../lib/authNext'
 
 const INDUSTRIES = [
   'Restaurants',
@@ -53,7 +53,7 @@ export default function BusinessOnboardingModal({ onClose }) {
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=/business/chat&onboard=business`,
+        redirectTo: `${authRedirectBase()}/auth/callback?next=/business/chat&onboard=business`,
       },
     })
   }

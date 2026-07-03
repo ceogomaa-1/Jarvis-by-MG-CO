@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
 import { jarvisUserId, getOS1Status } from "@/lib/os1"
 import { setJarvisMode } from "@/lib/userPreferences"
-import { stashAuthNext } from "@/lib/authNext"
+import { stashAuthNext, authRedirectBase } from "@/lib/authNext"
 
 const ENTER_OS1 = "/business/chat"
 
@@ -31,7 +31,7 @@ export default function OS1Shell({ children }: { children: React.ReactNode }) {
     stashAuthNext("/os1")
     await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent("/os1")}` },
+      options: { redirectTo: `${authRedirectBase()}/auth/callback?next=${encodeURIComponent("/os1")}` },
     })
   }
 
