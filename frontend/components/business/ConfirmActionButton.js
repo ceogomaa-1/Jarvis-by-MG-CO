@@ -79,7 +79,7 @@ export default function ConfirmActionButton({ action, onConfirm, onCancel }) {
           fontFamily: 'var(--pixel)',
           fontSize: 7,
           letterSpacing: '0.08em',
-          color: 'rgba(236,230,217,0.25)',
+          color: 'rgba(244,244,242,0.25)',
         }}>
           Action cancelled
         </span>
@@ -111,12 +111,12 @@ export default function ConfirmActionButton({ action, onConfirm, onCancel }) {
           userSelect: 'none',
           overflow: 'hidden',
           border: state === 'holding'
-            ? '1px solid rgba(207,138,91,0.4)'
-            : '1px solid rgba(207,138,91,0.2)',
+            ? '1px solid rgba(255,46,81,0.4)'
+            : '1px solid rgba(255,46,81,0.2)',
           background: state === 'holding'
-            ? '#cf8a5b'
-            : 'rgba(207,138,91,0.08)',
-          color: state === 'holding' ? '#0a0a0a' : '#cf8a5b',
+            ? '#ff2e51'
+            : 'rgba(255,46,81,0.08)',
+          color: state === 'holding' ? '#0a0a0a' : '#ff2e51',
           transform: state === 'holding' ? 'scale(0.98)' : 'scale(1)',
           transition: 'background 0.15s ease, color 0.15s ease, transform 0.1s ease',
         }}
@@ -170,19 +170,19 @@ export default function ConfirmActionButton({ action, onConfirm, onCancel }) {
           fontFamily: 'var(--pixel)',
           fontSize: 7,
           letterSpacing: '0.08em',
-          color: 'rgba(236,230,217,0.3)',
+          color: 'rgba(244,244,242,0.3)',
           background: 'none',
-          border: '1px solid rgba(236,230,217,0.06)',
+          border: '1px solid rgba(244,244,242,0.06)',
           cursor: 'pointer',
           transition: 'color 0.2s ease, border-color 0.2s ease',
         }}
         onMouseEnter={e => {
-          e.currentTarget.style.color = 'rgba(236,230,217,0.6)'
-          e.currentTarget.style.borderColor = 'rgba(236,230,217,0.1)'
+          e.currentTarget.style.color = 'rgba(244,244,242,0.6)'
+          e.currentTarget.style.borderColor = 'rgba(244,244,242,0.1)'
         }}
         onMouseLeave={e => {
-          e.currentTarget.style.color = 'rgba(236,230,217,0.3)'
-          e.currentTarget.style.borderColor = 'rgba(236,230,217,0.06)'
+          e.currentTarget.style.color = 'rgba(244,244,242,0.3)'
+          e.currentTarget.style.borderColor = 'rgba(244,244,242,0.06)'
         }}
       >
         Cancel

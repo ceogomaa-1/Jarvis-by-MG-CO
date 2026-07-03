@@ -273,10 +273,16 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
                 <span className="font-pixel" style={{ fontSize: 12 }}>→</span>
               </button>
 
-              {/* Footer: tier + wordmark */}
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', paddingTop: 14 }}>
+              {/* Footer: tier + brand mark */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 14 }}>
                 <span className="os1-label" style={{ fontSize: 8.5 }}>Pro Tier</span>
-                <span className="os1-display" style={{ fontSize: 15, color: 'var(--os1-text-faint)' }}>Jarvis</span>
+                <img
+                  src="/jarvis-logo-mono.png"
+                  alt="Jarvis OS1"
+                  width={20}
+                  height={20}
+                  style={{ display: 'block', opacity: 0.7, filter: 'drop-shadow(0 0 7px rgba(255,46,81,0.3))' }}
+                />
               </div>
             </motion.div>
           </>

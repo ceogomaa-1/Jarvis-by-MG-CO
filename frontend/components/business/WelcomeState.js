@@ -46,13 +46,13 @@ export default function WelcomeState({ onSuggestion, isStreaming = false }) {
         {getDateline()}
       </motion.div>
 
-      {/* The greeting — editorial serif, the one focal point */}
+      {/* The greeting — brand pixel type, neon-lifted, the one focal point */}
       <motion.h1
         {...reveal(0.4)}
-        className="os1-display"
+        className="os1-display os1-glow-text"
         style={{
-          margin: 0, lineHeight: 1.04,
-          fontSize: 'clamp(46px, 6.5vw, 76px)',
+          margin: 0, lineHeight: 1.1,
+          fontSize: 'clamp(36px, 5vw, 58px)',
           color: 'var(--os1-text)',
         }}
       >

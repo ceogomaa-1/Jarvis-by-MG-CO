@@ -428,45 +428,47 @@ html, body {
 .os1-fade-up-delay-3 { transition-delay: 0.45s; }
 .os1-fade-up-delay-4 { transition-delay: 0.6s; }
 
-/* ════════════════════════════════════════════════════════════════
-   OS1 v3 — "Private Office" (Batch 72 redesign)
-   High-end corporate language: warm near-black, ivory ink, hairline
-   structure, a single copper accent. Serif for moments, sans for
-   work, mono for machine labels. Calm motion only.
+/* ================================================================
+   OS1 v4 -- "CRIMSON TERMINAL" (Batch 72 redesign, brand-true)
+   The brand: black void, white ink, pixel terminal display type,
+   one neon crimson accent pulled from the JARVIS planet, mono
+   machine labels. Glow is the signature -- used with discipline.
    Scope: business/OS1 surfaces. Personal Jarvis untouched.
-   Legacy token names (--os1-blue, --pixel) are kept and re-pointed
-   so every existing consumer upgrades in place.
-   ════════════════════════════════════════════════════════════════ */
+   Legacy token names (--os1-blue, --pixel) stay re-pointed so all
+   consumers upgrade in place.
+   ================================================================ */
 :root {
-  --os1-bg: #0b0a09;
-  --os1-bg-raised: #12100e;
-  --os1-surface: #151310;
-  --os1-surface-2: #1c1916;
-  --os1-pill: #1c1916;
-  --os1-bubble: #1e1a16;
-  --os1-border: rgba(237, 230, 216, 0.15);
-  --os1-border-soft: rgba(237, 230, 216, 0.08);
-  --os1-text: #ece6d9;
-  --os1-text-dim: rgba(236, 230, 217, 0.6);
-  --os1-text-faint: rgba(236, 230, 217, 0.38);
-  --os1-text-ghost: rgba(236, 230, 217, 0.2);
-  /* Single interactive accent — copper. --os1-blue is the legacy name,
-     kept so every existing consumer picks up the accent untouched. */
-  --os1-accent: #cf8a5b;
-  --os1-accent-deep: #c84b31;
-  --os1-accent-soft: rgba(207, 138, 91, 0.12);
-  --os1-glow: rgba(207, 138, 91, 0.25);
+  --os1-bg: #050506;
+  --os1-bg-raised: #0b0b0d;
+  --os1-surface: #0e0e11;
+  --os1-surface-2: #16161a;
+  --os1-pill: #131317;
+  --os1-bubble: #131316;
+  --os1-border: rgba(255, 255, 255, 0.14);
+  --os1-border-soft: rgba(255, 255, 255, 0.07);
+  --os1-text: #f4f4f2;
+  --os1-text-dim: rgba(244, 244, 242, 0.6);
+  --os1-text-faint: rgba(244, 244, 242, 0.38);
+  --os1-text-ghost: rgba(244, 244, 242, 0.2);
+  /* Single interactive accent -- the planet crimson. --os1-blue is the
+     legacy name, kept so every existing consumer picks it up untouched. */
+  --os1-accent: #ff2e51;
+  --os1-accent-deep: #d1163c;
+  --os1-accent-soft: rgba(255, 46, 81, 0.12);
+  --os1-glow: rgba(255, 46, 81, 0.35);
   --os1-blue: var(--os1-accent);
   --os1-blue-soft: var(--os1-accent-soft);
-  /* Type: --pixel is the legacy alias every OS1 surface reads — it now
-     serves the premium UI sans. Serif for display, mono for labels. */
+  /* Type: --pixel is the legacy alias every OS1 surface reads for BODY copy --
+     it serves the clean UI sans. The pixel brand font lives in display/brand
+     roles; mono handles machine labels. */
   --pixel: var(--font-sans), 'Inter', system-ui, sans-serif;
+  --os1-brand: var(--font-pixel), 'Pixelify Sans', monospace;
   --os1-serif: var(--font-serif), Georgia, serif;
   --os1-mono: var(--font-jetbrains), ui-monospace, 'SF Mono', Menlo, monospace;
 }
 
-/* Readable Font toggle (Batch 48) — the default IS the readable premium
-   sans now; the toggle remains a harmless no-op for existing users. */
+/* Readable Font toggle (Batch 48) -- the body default IS the readable sans
+   now; the toggle remains a harmless no-op for existing users. */
 html.os1-font-normal {
   --pixel: var(--font-sans), 'Inter', system-ui, sans-serif;
 }
@@ -474,8 +476,8 @@ html.os1-font-normal .font-pixel { letter-spacing: 0 !important; }
 
 .os1-root {
   background:
-    radial-gradient(1100px 700px at 50% -180px, rgba(207, 138, 91, 0.055), transparent 62%),
-    radial-gradient(900px 620px at 88% 112%, rgba(207, 138, 91, 0.03), transparent 60%),
+    radial-gradient(1000px 640px at 50% -180px, rgba(255, 46, 81, 0.07), transparent 60%),
+    radial-gradient(800px 560px at 88% 112%, rgba(255, 46, 81, 0.035), transparent 58%),
     var(--os1-bg);
   color: var(--os1-text);
   font-family: var(--pixel);
@@ -485,14 +487,18 @@ html.os1-font-normal .font-pixel { letter-spacing: 0 !important; }
 }
 .font-pixel { font-family: var(--pixel); }
 
-/* Editorial display type — greetings, headlines, the wordmark */
+/* Brand display type -- wordmarks, greetings, identity moments */
 .os1-display {
-  font-family: var(--os1-serif);
-  font-weight: 400;
-  letter-spacing: -0.015em;
+  font-family: var(--os1-brand);
+  font-weight: 600;
+  letter-spacing: 0.015em;
+}
+/* Neon lift for hero display moments */
+.os1-glow-text {
+  text-shadow: 0 0 26px var(--os1-glow), 0 0 3px rgba(255, 46, 81, 0.25);
 }
 
-/* Machine micro-label — mono, tracked wide, uppercase */
+/* Machine micro-label -- mono, tracked wide, uppercase */
 .os1-label {
   font-family: var(--os1-mono);
   font-size: 10px;
@@ -502,7 +508,7 @@ html.os1-font-normal .font-pixel { letter-spacing: 0 !important; }
   color: var(--os1-text-faint);
 }
 
-/* Legacy micro-timestamp class — now a machine label */
+/* Legacy micro-timestamp class -- machine label */
 .os1-serif-micro {
   font-family: var(--os1-mono);
   color: var(--os1-text-faint);
@@ -510,23 +516,23 @@ html.os1-font-normal .font-pixel { letter-spacing: 0 !important; }
   text-transform: uppercase;
 }
 
-/* Hairline divider — fades at both ends */
+/* Hairline divider -- fades at both ends */
 .os1-hairline {
   height: 1px;
   border: none;
   background: linear-gradient(to right, transparent, var(--os1-border-soft) 18%, var(--os1-border-soft) 82%, transparent);
 }
 
-/* Floating panel (sidebar / menus / modals) — soft-raised, hairline-edged */
+/* Floating panel (sidebar / menus / modals) -- void-raised, hairline-edged */
 .os1-panel {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0) 42%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0) 40%),
     var(--os1-bg-raised);
   border: 1px solid var(--os1-border-soft);
-  border-radius: 16px;
+  border-radius: 14px;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.035),
-    0 32px 80px -44px rgba(0, 0, 0, 0.85);
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 32px 80px -44px rgba(0, 0, 0, 0.9);
 }
 
 /* Card (sessions / menu items / blocks) */
@@ -536,17 +542,17 @@ html.os1-font-normal .font-pixel { letter-spacing: 0 !important; }
   border-radius: 10px;
   transition: border-color 200ms ease, background 200ms ease, transform 200ms ease;
 }
-.os1-card:hover { border-color: var(--os1-border); background: rgba(237, 230, 216, 0.025); }
-.os1-card.active { border-color: rgba(207, 138, 91, 0.32); background: rgba(207, 138, 91, 0.05); }
+.os1-card:hover { border-color: var(--os1-border); background: rgba(255, 255, 255, 0.03); }
+.os1-card.active { border-color: rgba(255, 46, 81, 0.4); background: rgba(255, 46, 81, 0.06); }
 
-/* Sidebar row — quiet list item, hairline-separated */
+/* Sidebar row -- quiet list item */
 .os1-row {
   position: relative;
   border-radius: 8px;
   transition: background 180ms ease, color 180ms ease;
 }
-.os1-row:hover { background: rgba(237, 230, 216, 0.035); }
-.os1-row.active { background: rgba(237, 230, 216, 0.05); }
+.os1-row:hover { background: rgba(255, 255, 255, 0.04); }
+.os1-row.active { background: rgba(255, 46, 81, 0.07); }
 .os1-row.active::before {
   content: '';
   position: absolute;
@@ -557,6 +563,7 @@ html.os1-font-normal .font-pixel { letter-spacing: 0 !important; }
   height: 16px;
   border-radius: 2px;
   background: var(--os1-accent);
+  box-shadow: 0 0 8px var(--os1-glow);
 }
 
 /* Buttons */
@@ -573,17 +580,25 @@ html.os1-font-normal .font-pixel { letter-spacing: 0 !important; }
   font-family: var(--pixel);
   font-size: 13px;
   cursor: pointer;
-  transition: border-color 200ms ease, background 200ms ease, transform 200ms ease;
+  transition: border-color 200ms ease, background 200ms ease, transform 200ms ease, box-shadow 200ms ease;
 }
-.os1-btn:hover { border-color: rgba(237, 230, 216, 0.32); background: rgba(237, 230, 216, 0.04); }
+.os1-btn:hover { border-color: rgba(255, 255, 255, 0.32); background: rgba(255, 255, 255, 0.05); }
 .os1-btn:active { transform: scale(0.98); }
 .os1-btn-primary {
   background: var(--os1-text);
   border-color: var(--os1-text);
-  color: #14110d;
+  color: #0a0a0b;
   font-weight: 500;
 }
 .os1-btn-primary:hover { background: #ffffff; border-color: #ffffff; }
+.os1-btn-accent {
+  background: var(--os1-accent);
+  border-color: var(--os1-accent);
+  color: #ffffff;
+  font-weight: 500;
+  box-shadow: 0 0 22px rgba(255, 46, 81, 0.28);
+}
+.os1-btn-accent:hover { background: #ff4162; border-color: #ff4162; box-shadow: 0 0 30px rgba(255, 46, 81, 0.4); }
 
 /* Icon button */
 .os1-iconbtn {
@@ -598,12 +613,12 @@ html.os1-font-normal .font-pixel { letter-spacing: 0 !important; }
   padding: 6px;
   transition: color 200ms ease, background 200ms ease;
 }
-.os1-iconbtn:hover { color: var(--os1-text); background: rgba(237, 230, 216, 0.05); }
+.os1-iconbtn:hover { color: var(--os1-text); background: rgba(255, 255, 255, 0.06); }
 
-/* Search — hairline field, glows softly on focus */
+/* Search -- hairline field, crimson focus */
 .os1-search {
   width: 100%;
-  background: rgba(237, 230, 216, 0.03);
+  background: rgba(255, 255, 255, 0.035);
   border: 1px solid var(--os1-border-soft);
   border-radius: 999px;
   padding: 8px 14px 8px 34px;
@@ -615,14 +630,14 @@ html.os1-font-normal .font-pixel { letter-spacing: 0 !important; }
 }
 .os1-search::placeholder { color: var(--os1-text-faint); }
 .os1-search:focus {
-  border-color: rgba(207, 138, 91, 0.35);
-  background: rgba(237, 230, 216, 0.045);
-  box-shadow: 0 0 0 3px rgba(207, 138, 91, 0.07);
+  border-color: rgba(255, 46, 81, 0.45);
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: 0 0 0 3px rgba(255, 46, 81, 0.09), 0 0 18px rgba(255, 46, 81, 0.08);
 }
 
-/* Focus ring — keyboard nav stays elegant */
+/* Focus ring -- keyboard nav glows crimson */
 .os1-root :focus-visible {
-  outline: 1px solid rgba(207, 138, 91, 0.55);
+  outline: 1px solid rgba(255, 46, 81, 0.65);
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -630,68 +645,68 @@ html.os1-font-normal .font-pixel { letter-spacing: 0 !important; }
 /* OS1 scrollbar */
 .os1-scroll::-webkit-scrollbar { width: 5px; }
 .os1-scroll::-webkit-scrollbar-track { background: transparent; }
-.os1-scroll::-webkit-scrollbar-thumb { background: rgba(237, 230, 216, 0.12); border-radius: 3px; }
-.os1-scroll::-webkit-scrollbar-thumb:hover { background: rgba(237, 230, 216, 0.22); }
-.os1-scroll { scrollbar-width: thin; scrollbar-color: rgba(237, 230, 216, 0.12) transparent; }
+.os1-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 3px; }
+.os1-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.22); }
+.os1-scroll { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.12) transparent; }
 
-/* Legacy globe-logo class — smooth now, no pixelation */
+/* Brand globe image -- crisp, full brightness */
 .os1-logo-pixel {
   image-rendering: auto;
-  filter: grayscale(1) brightness(0.9);
+  filter: none;
 }
 
-/* OS1 markdown (assistant messages) — editorial: serif heads, calm body */
+/* OS1 markdown (assistant messages) -- clean body, pixel-square markers */
 .os1-markdown { font-family: var(--pixel); }
-.os1-markdown h1, .os1-markdown h2, .os1-markdown h3 { font-family: var(--os1-serif); color: var(--os1-text); font-weight: 400; margin: 22px 0 8px; line-height: 1.28; letter-spacing: -0.01em; }
-.os1-markdown h1 { font-size: 1.5rem; }
-.os1-markdown h2 { font-size: 1.25rem; }
-.os1-markdown h3 { font-size: 1.08rem; }
+.os1-markdown h1, .os1-markdown h2, .os1-markdown h3 { font-family: var(--pixel); color: var(--os1-text); font-weight: 600; margin: 22px 0 8px; line-height: 1.3; letter-spacing: -0.015em; }
+.os1-markdown h1 { font-size: 1.35rem; }
+.os1-markdown h2 { font-size: 1.15rem; }
+.os1-markdown h3 { font-size: 1.02rem; }
 .os1-markdown h1:first-child, .os1-markdown h2:first-child, .os1-markdown h3:first-child { margin-top: 0; }
 .os1-markdown p { margin: 0 0 10px; color: var(--os1-text); }
 .os1-markdown p:last-child { margin-bottom: 0; }
 .os1-markdown ul, .os1-markdown ol { margin: 8px 0 12px 0; padding: 0; list-style: none; }
 .os1-markdown ul li, .os1-markdown ol li { margin-bottom: 6px; padding-left: 18px; position: relative; color: var(--os1-text-dim); }
-.os1-markdown ul li::before { content: ''; position: absolute; left: 2px; top: 0.62em; width: 4px; height: 1px; background: var(--os1-accent); opacity: 0.75; }
+.os1-markdown ul li::before { content: ''; position: absolute; left: 2px; top: 0.58em; width: 4px; height: 4px; background: var(--os1-accent); box-shadow: 0 0 6px rgba(255, 46, 81, 0.4); }
 .os1-markdown ol { counter-reset: item; }
 .os1-markdown ol li { counter-increment: item; }
-.os1-markdown ol li::before { content: counter(item, decimal-leading-zero); position: absolute; left: 0; color: var(--os1-text-faint); font-family: var(--os1-mono); font-size: 10px; top: 0.28em; letter-spacing: 0.04em; }
-.os1-markdown strong { color: #fbf7ee; font-weight: 600; }
+.os1-markdown ol li::before { content: counter(item, decimal-leading-zero); position: absolute; left: 0; color: var(--os1-text-faint); font-family: var(--os1-mono); font-size: 10px; top: 0.3em; letter-spacing: 0.04em; }
+.os1-markdown strong { color: #ffffff; font-weight: 600; }
 .os1-markdown em { color: var(--os1-text-dim); font-style: italic; }
-.os1-markdown a { color: var(--os1-accent); text-decoration: underline; text-decoration-color: rgba(207, 138, 91, 0.4); text-underline-offset: 3px; transition: text-decoration-color 200ms ease; }
-.os1-markdown a:hover { text-decoration-color: var(--os1-accent); }
+.os1-markdown a { color: var(--os1-accent); text-decoration: underline; text-decoration-color: rgba(255, 46, 81, 0.4); text-underline-offset: 3px; transition: text-decoration-color 200ms ease, text-shadow 200ms ease; }
+.os1-markdown a:hover { text-decoration-color: var(--os1-accent); text-shadow: 0 0 12px rgba(255, 46, 81, 0.35); }
 .os1-markdown code { background: var(--os1-surface-2); border-radius: 4px; padding: 2px 6px; font-size: 12.5px; font-family: var(--os1-mono); color: var(--os1-text); }
-.os1-markdown pre { background: var(--os1-surface); border: 1px solid var(--os1-border-soft); border-radius: 12px; padding: 16px; overflow-x: auto; margin: 12px 0; }
+.os1-markdown pre { background: var(--os1-surface); border: 1px solid var(--os1-border-soft); border-radius: 10px; padding: 16px; overflow-x: auto; margin: 12px 0; }
 .os1-markdown pre code { background: none; padding: 0; font-size: 12.5px; }
 .os1-markdown table { border-collapse: collapse; width: 100%; margin: 14px 0; }
 .os1-markdown th { color: var(--os1-text-faint); font-weight: 500; padding: 8px 12px; border-bottom: 1px solid var(--os1-border); font-family: var(--os1-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; text-align: left; }
 .os1-markdown td { padding: 9px 12px; border-bottom: 1px solid var(--os1-border-soft); font-size: 13px; color: var(--os1-text-dim); }
 .os1-markdown tr:last-child td { border-bottom: none; }
-.os1-markdown blockquote { border-left: 1px solid rgba(207, 138, 91, 0.45); margin: 14px 0; padding-left: 16px; color: var(--os1-text-dim); font-family: var(--os1-serif); font-size: 1.05em; font-style: italic; }
+.os1-markdown blockquote { border-left: 2px solid rgba(255, 46, 81, 0.5); margin: 14px 0; padding-left: 16px; color: var(--os1-text-dim); }
 .os1-markdown hr { border: none; height: 1px; background: linear-gradient(to right, transparent, var(--os1-border) 30%, var(--os1-border) 70%, transparent); margin: 22px 0; }
 
-/* OS1 streaming cursor — thin copper caret */
+/* OS1 streaming cursor -- terminal block, crimson-lit */
 .os1-cursor::after {
   content: '';
   display: inline-block;
-  width: 2px;
-  height: 1em;
+  width: 7px;
+  height: 1.02em;
   background: var(--os1-accent);
-  animation: cursorBlink 0.9s ease-in-out infinite;
-  margin-left: 2px;
+  box-shadow: 0 0 10px var(--os1-glow);
+  animation: cursorBlink 0.9s steps(2, start) infinite;
+  margin-left: 3px;
   vertical-align: text-bottom;
-  border-radius: 1px;
 }
 
-/* User bubble — warm charcoal, quiet signature corner */
+/* User bubble -- void panel, quiet signature corner */
 .os1-bubble-user {
   position: relative;
-  background: linear-gradient(180deg, rgba(237, 230, 216, 0.045), rgba(237, 230, 216, 0.015)), var(--os1-bubble);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01)), var(--os1-bubble);
   border: 1px solid var(--os1-border-soft);
-  border-radius: 16px 16px 4px 16px;
+  border-radius: 14px 14px 4px 14px;
   color: var(--os1-text);
 }
 
-/* ── Reveal choreography — blur-to-sharp rise, used across surfaces ── */
+/* -- Reveal choreography -- blur-to-sharp rise, used across surfaces -- */
 @keyframes os1Reveal {
   from { opacity: 0; transform: translateY(14px); filter: blur(6px); }
   to   { opacity: 1; transform: translateY(0); filter: blur(0); }
@@ -713,7 +728,7 @@ html.os1-font-normal .font-pixel { letter-spacing: 0 !important; }
   0%   { background-position: 120% 0; }
   100% { background-position: -20% 0; }
 }
-/* Shimmering machine label — for "working" states */
+/* Shimmering machine label -- for "working" states */
 .os1-shimmer-label {
   font-family: var(--os1-mono);
   font-size: 10px;
@@ -729,40 +744,4 @@ html.os1-font-normal .font-pixel { letter-spacing: 0 !important; }
 @media (prefers-reduced-motion: reduce) {
   .os1-reveal, .os1-reveal-1, .os1-reveal-2, .os1-reveal-3, .os1-reveal-4 { animation-duration: 0.01s; animation-delay: 0s; }
   .os1-shimmer-label { animation: none; color: var(--os1-text-faint); background: none; }
-}
-
-/* === Morph loader (21st.dev) — used while Jarvis lays down a response === */
-@keyframes morph-0 {
-  0%, 100% { transform: translate(0, 0) scale(1); border-radius: 0%; }
-  25% { transform: translate(20px, -20px) scale(1.2); border-radius: 50%; }
-  50% { transform: translate(40px, 0) scale(0.8); border-radius: 25%; }
-  75% { transform: translate(20px, 20px) scale(1.1); border-radius: 75%; }
-}
-@keyframes morph-1 {
-  0%, 100% { transform: translate(0, 0) scale(1) rotate(0deg); border-radius: 0%; }
-  25% { transform: translate(-20px, -20px) scale(1.3) rotate(90deg); border-radius: 50%; }
-  50% { transform: translate(-40px, 0) scale(0.7) rotate(180deg); border-radius: 25%; }
-  75% { transform: translate(-20px, 20px) scale(1.2) rotate(270deg); border-radius: 75%; }
-}
-@keyframes morph-2 {
-  0%, 100% { transform: translate(0, 0) scale(1); border-radius: 0%; }
-  25% { transform: translate(-20px, 20px) scale(0.9); border-radius: 100%; }
-  50% { transform: translate(0, 40px) scale(1.4); border-radius: 0%; }
-  75% { transform: translate(20px, 20px) scale(0.8); border-radius: 50%; }
-}
-@keyframes morph-3 {
-  0%, 100% { transform: translate(0, 0) scale(1) rotate(0deg); border-radius: 0%; }
-  25% { transform: translate(20px, 20px) scale(1.1) rotate(-90deg); border-radius: 25%; }
-  50% { transform: translate(0, -40px) scale(1.3) rotate(-180deg); border-radius: 100%; }
-  75% { transform: translate(-20px, -20px) scale(0.9) rotate(-270deg); border-radius: 75%; }
-}
-
-/* === OS1 grain overlay === */
-.os1-grain::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
-  pointer-events: none;
-  z-index: 1;
 }

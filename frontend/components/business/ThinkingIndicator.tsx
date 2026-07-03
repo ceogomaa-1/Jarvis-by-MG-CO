@@ -27,14 +27,14 @@ export default function ThinkingIndicator() {
         <div
           style={{
             position: "absolute", inset: 0, borderRadius: "50%",
-            border: "1px solid rgba(237,230,216,0.12)",
+            border: "1px solid rgba(255,255,255,0.12)",
           }}
         />
         <div
           style={{
             position: "absolute", inset: -1, borderRadius: "50%",
             border: "1px solid transparent",
-            borderTopColor: "var(--os1-accent, #cf8a5b)",
+            borderTopColor: "var(--os1-accent, #ff2e51)",
             animation: "os1ArcSpin 1.4s cubic-bezier(0.45, 0.1, 0.55, 0.9) infinite",
           }}
         />

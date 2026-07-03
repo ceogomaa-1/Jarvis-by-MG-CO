@@ -62,7 +62,7 @@ function buildInitialEdges() {
     source: 'jarvis-center',
     target: agent.id,
     type: 'smoothstep',
-    style: { stroke: 'rgba(236,230,217,0.2)', strokeWidth: 1 },
+    style: { stroke: 'rgba(244,244,242,0.2)', strokeWidth: 1 },
     animated: true,
   }))
 }
@@ -85,11 +85,11 @@ function CanvasControlPanel({ onTriggerOperator, onTriggerCreation, isRunning })
           display: 'flex', alignItems: 'center', gap: 8,
           padding: '10px 22px', borderRadius: 12,
           border: 'none', cursor: isRunning ? 'not-allowed' : 'pointer',
-          background: isRunning ? 'rgba(236,230,217,0.05)' : '#cf8a5b',
-          color: isRunning ? 'rgba(236,230,217,0.28)' : '#0a0a0a',
+          background: isRunning ? 'rgba(244,244,242,0.05)' : '#ff2e51',
+          color: isRunning ? 'rgba(244,244,242,0.28)' : '#0a0a0a',
           fontFamily: 'var(--pixel)',
           fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase',
-          boxShadow: isRunning ? 'none' : '0 0 28px rgba(207,138,91,0.28)',
+          boxShadow: isRunning ? 'none' : '0 0 28px rgba(255,46,81,0.28)',
           transition: 'all 300ms ease',
         }}
       >
@@ -104,16 +104,16 @@ function CanvasControlPanel({ onTriggerOperator, onTriggerCreation, isRunning })
         style={{
           display: 'flex', alignItems: 'center', gap: 8,
           padding: '10px 22px', borderRadius: 12,
-          background: 'rgba(236,230,217,0.04)',
-          border: '1px solid rgba(236,230,217,0.1)',
+          background: 'rgba(244,244,242,0.04)',
+          border: '1px solid rgba(244,244,242,0.1)',
           cursor: 'pointer',
-          color: 'rgba(236,230,217,0.6)',
+          color: 'rgba(244,244,242,0.6)',
           fontFamily: 'var(--pixel)',
           fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase',
           transition: 'all 200ms ease',
         }}
-        onMouseEnter={e => { e.currentTarget.style.color = 'rgba(236,230,217,0.9)'; e.currentTarget.style.background = 'rgba(236,230,217,0.08)' }}
-        onMouseLeave={e => { e.currentTarget.style.color = 'rgba(236,230,217,0.6)'; e.currentTarget.style.background = 'rgba(236,230,217,0.04)' }}
+        onMouseEnter={e => { e.currentTarget.style.color = 'rgba(244,244,242,0.9)'; e.currentTarget.style.background = 'rgba(244,244,242,0.08)' }}
+        onMouseLeave={e => { e.currentTarget.style.color = 'rgba(244,244,242,0.6)'; e.currentTarget.style.background = 'rgba(244,244,242,0.04)' }}
       >
         <Sparkles size={13} />
         Create Task
@@ -146,7 +146,7 @@ function CreationTaskModal({ onClose, onSubmit }) {
           margin: '0 20px',
           background: 'rgba(12,12,15,0.92)',
           backdropFilter: 'blur(28px)',
-          border: '1px solid rgba(236,230,217,0.12)',
+          border: '1px solid rgba(244,244,242,0.12)',
           borderRadius: 18, padding: 28,
           fontFamily: 'system-ui, sans-serif',
           boxShadow: '0 30px 70px rgba(0,0,0,0.55)',
@@ -155,11 +155,11 @@ function CreationTaskModal({ onClose, onSubmit }) {
         <div style={{
           fontFamily: 'var(--pixel)',
           fontSize: 12, letterSpacing: '0.12em',
-          color: '#ece6d9', textTransform: 'uppercase', marginBottom: 6,
+          color: '#f4f4f2', textTransform: 'uppercase', marginBottom: 6,
         }}>
           Create Task
         </div>
-        <p style={{ fontSize: 12, color: 'rgba(236,230,217,0.42)', lineHeight: 1.65, marginBottom: 16 }}>
+        <p style={{ fontSize: 12, color: 'rgba(244,244,242,0.42)', lineHeight: 1.65, marginBottom: 16 }}>
           Describe what you want Jarvis to create. The Creation 1.0 team (Strategist, Copywriter, Designer, Researcher, Analyst, Reporter) will work on it.
         </p>
         <textarea
@@ -170,16 +170,16 @@ function CreationTaskModal({ onClose, onSubmit }) {
           rows={4}
           style={{
             width: '100%', boxSizing: 'border-box',
-            background: 'rgba(236,230,217,0.03)',
-            border: '1px solid rgba(236,230,217,0.1)',
+            background: 'rgba(244,244,242,0.03)',
+            border: '1px solid rgba(244,244,242,0.1)',
             borderRadius: 10, padding: '10px 13px',
-            color: '#ece6d9', fontSize: 13, lineHeight: 1.6,
+            color: '#f4f4f2', fontSize: 13, lineHeight: 1.6,
             fontFamily: 'system-ui, sans-serif',
             resize: 'none', outline: 'none',
             transition: 'border-color 200ms',
           }}
-          onFocus={e => { e.target.style.borderColor = 'rgba(236,230,217,0.22)' }}
-          onBlur={e => { e.target.style.borderColor = 'rgba(236,230,217,0.1)' }}
+          onFocus={e => { e.target.style.borderColor = 'rgba(244,244,242,0.22)' }}
+          onBlur={e => { e.target.style.borderColor = 'rgba(244,244,242,0.1)' }}
           onKeyDown={e => {
             if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && taskDescription.trim()) {
               onSubmit(taskDescription)
@@ -192,9 +192,9 @@ function CreationTaskModal({ onClose, onSubmit }) {
             onClick={onClose}
             style={{
               background: 'transparent',
-              border: '1px solid rgba(236,230,217,0.1)',
+              border: '1px solid rgba(244,244,242,0.1)',
               borderRadius: 9, padding: '8px 16px',
-              color: 'rgba(236,230,217,0.5)', fontSize: 11,
+              color: 'rgba(244,244,242,0.5)', fontSize: 11,
               fontFamily: 'system-ui', cursor: 'pointer',
             }}
           >
@@ -204,9 +204,9 @@ function CreationTaskModal({ onClose, onSubmit }) {
             onClick={() => { if (taskDescription.trim()) { onSubmit(taskDescription); onClose() } }}
             disabled={!taskDescription.trim()}
             style={{
-              background: taskDescription.trim() ? '#cf8a5b' : 'rgba(207,138,91,0.2)',
+              background: taskDescription.trim() ? '#ff2e51' : 'rgba(255,46,81,0.2)',
               border: 'none', borderRadius: 9, padding: '8px 20px',
-              color: taskDescription.trim() ? '#0a0a0a' : 'rgba(236,230,217,0.25)',
+              color: taskDescription.trim() ? '#0a0a0a' : 'rgba(244,244,242,0.25)',
               fontSize: 11, fontWeight: 500,
               fontFamily: 'system-ui',
               cursor: taskDescription.trim() ? 'pointer' : 'not-allowed',
@@ -364,24 +364,24 @@ export default function WorkflowCanvas({ userId }) {
   }, [])
 
   return (
-    <div style={{ width: '100%', height: 'calc(100vh - 56px)', background: '#0b0a09', position: 'relative' }}>
+    <div style={{ width: '100%', height: 'calc(100vh - 56px)', background: '#050506', position: 'relative' }}>
       <style>{`
         .react-flow__controls {
           background: rgba(15,15,18,0.65) !important;
           backdrop-filter: blur(20px) !important;
-          border: 1px solid rgba(236,230,217,0.12) !important;
+          border: 1px solid rgba(244,244,242,0.12) !important;
           border-radius: 10px !important;
           box-shadow: none !important;
         }
         .react-flow__controls-button {
           background: transparent !important;
           border: none !important;
-          border-bottom: 1px solid rgba(236,230,217,0.07) !important;
-          color: rgba(236,230,217,0.7) !important;
-          fill: rgba(236,230,217,0.7) !important;
+          border-bottom: 1px solid rgba(244,244,242,0.07) !important;
+          color: rgba(244,244,242,0.7) !important;
+          fill: rgba(244,244,242,0.7) !important;
         }
         .react-flow__controls-button:hover {
-          background: rgba(236,230,217,0.06) !important;
+          background: rgba(244,244,242,0.06) !important;
         }
         .react-flow__controls-button:last-child {
           border-bottom: none !important;
@@ -401,13 +401,13 @@ export default function WorkflowCanvas({ userId }) {
         minZoom={0.4}
         maxZoom={1.5}
         proOptions={{ hideAttribution: true }}
-        style={{ background: '#0b0a09' }}
+        style={{ background: '#050506' }}
       >
         <Background
           variant="dots"
           gap={32}
           size={1.2}
-          color="rgba(236,230,217,0.06)"
+          color="rgba(244,244,242,0.06)"
         />
         <Controls position="bottom-left" />
       </ReactFlow>

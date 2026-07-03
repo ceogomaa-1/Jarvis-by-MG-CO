@@ -90,7 +90,7 @@ export default function BusinessOnboardingPage() {
 
   if (!phase) {
     return (
-      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0b0a09' }}>
+      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#050506' }}>
         <TetrisLoader size="md" speed="normal" showLoadingText={true} loadingText="Starting Jarvis..." />
       </div>
     )
@@ -109,7 +109,7 @@ export default function BusinessOnboardingPage() {
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
           gap: 24, padding: 24, textAlign: 'center',
         }}>
-          <p className="font-pixel" style={{ color: '#ece6d9', fontSize: 15, maxWidth: 420, lineHeight: 1.6 }}>
+          <p className="font-pixel" style={{ color: '#f4f4f2', fontSize: 15, maxWidth: 420, lineHeight: 1.6 }}>
             Couldn&apos;t fire up your workspace. Your answers are safe — let&apos;s try again.
           </p>
           <button

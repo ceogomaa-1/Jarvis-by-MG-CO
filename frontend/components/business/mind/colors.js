@@ -1,13 +1,13 @@
 // Cluster palette for The Mind (Batch 47). Maps mind_category -> node color.
 export const MIND_COLORS = {
-  revenue: '#cf8a5b',
+  revenue: '#ff2e51',
   leads: '#41d99a',
-  operations: '#ece6d9',
+  operations: '#f4f4f2',
   people: '#c79bff',
   brand: '#ffb24a',
-  tools: '#767066',
+  tools: '#71717a',
   risk: '#ff5d5d',
-  general: '#9b948a',
+  general: '#a1a1aa',
 }
 
 export const MIND_LABELS = {
@@ -22,7 +22,7 @@ export const MIND_LABELS = {
 }
 
 export const GOLD = '#ffd24a'
-export const QUEUE_BLUE = '#cf8a5b'
+export const QUEUE_BLUE = '#ff2e51'
 
 export function colorForCategory(cat) {
   return MIND_COLORS[cat] || MIND_COLORS.general

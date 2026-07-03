@@ -125,7 +125,7 @@ function ToolStatusPill({ toolName, progress }) {
         padding: '4px 12px', marginBottom: 10,
         borderRadius: 999,
         background: 'var(--os1-accent-soft)',
-        border: '1px solid rgba(207,138,91,0.28)',
+        border: '1px solid rgba(255,46,81,0.28)',
       }}
     >
       <motion.div
@@ -1349,7 +1349,7 @@ export default function ChatCanvas({
         {hasMessages && (
           <div style={{
             position: 'absolute', bottom: 0, left: 0, right: 0, height: 64,
-            background: 'linear-gradient(to bottom, rgba(11,10,9,0), var(--os1-bg))',
+            background: 'linear-gradient(to bottom, rgba(5,5,6,0), var(--os1-bg))',
             pointerEvents: 'none', zIndex: 1,
           }} />
         )}
@@ -1365,7 +1365,7 @@ export default function ChatCanvas({
                 display: 'flex', alignItems: 'center', gap: 8,
                 maxWidth: '100%', padding: '6px 8px 6px 14px',
                 background: 'var(--os1-accent-soft)',
-                border: '1px solid rgba(207,138,91,0.3)',
+                border: '1px solid rgba(255,46,81,0.3)',
                 borderRadius: 999,
                 fontSize: 12, color: 'var(--os1-text)',
               }}>
@@ -1380,8 +1380,8 @@ export default function ChatCanvas({
                   aria-label="Dismiss context"
                   style={{
                     flexShrink: 0, width: 18, height: 18, borderRadius: '50%',
-                    border: 'none', background: 'rgba(236,230,217,0.1)',
-                    color: '#9b948a', cursor: 'pointer', fontSize: 12,
+                    border: 'none', background: 'rgba(244,244,242,0.1)',
+                    color: '#a1a1aa', cursor: 'pointer', fontSize: 12,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     lineHeight: 1, padding: 0,
                   }}

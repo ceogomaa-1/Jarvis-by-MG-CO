@@ -38,7 +38,7 @@ export default function ChatBackground() {
           colors={[
             '#0a0a0a',
             '#1a0f0c',
-            '#0b0a09',
+            '#050506',
             '#1c0e08',
             '#0a0a0a',
             '#140b09',

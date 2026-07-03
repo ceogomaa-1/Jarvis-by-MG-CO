@@ -179,7 +179,7 @@ export const CircleMenu = ({
   arcStart = -Math.PI / 2,
   arcSpan = 2 * Math.PI,
   triggerColor = '#c84b31',
-  itemBgClass = 'bg-[#171411] border border-[rgba(243,234,217,0.18)] hover:bg-[#2a2a2a]',
+  itemBgClass = 'bg-[#101014] border border-[rgba(243,234,217,0.18)] hover:bg-[#2a2a2a]',
 }: CircleMenuProps) => {
   const [isOpen, setIsOpen] = useState(false)
 

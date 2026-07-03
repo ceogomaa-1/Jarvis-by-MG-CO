@@ -85,20 +85,20 @@ export default function RefineModal({ creationId, userId, kind, onClose, onRefin
           background: 'rgba(15, 15, 18, 0.55)',
           backdropFilter: 'blur(28px) saturate(180%)',
           WebkitBackdropFilter: 'blur(28px) saturate(180%)',
-          border: '1px solid rgba(236,230,217,0.15)',
+          border: '1px solid rgba(244,244,242,0.15)',
           borderRadius: 20, padding: '28px 32px',
           maxWidth: 520, width: '100%',
-          boxShadow: '0 24px 60px rgba(0,0,0,0.55), inset 0 1px 0 rgba(236,230,217,0.06)',
+          boxShadow: '0 24px 60px rgba(0,0,0,0.55), inset 0 1px 0 rgba(244,244,242,0.06)',
         }}
         onClick={e => e.stopPropagation()}
       >
         <div style={{
           fontSize: 11, fontWeight: 600, letterSpacing: '0.1em',
-          color: '#cf8a5b', marginBottom: 8, textTransform: 'uppercase',
+          color: '#ff2e51', marginBottom: 8, textTransform: 'uppercase',
         }}>
           {isWebsite ? 'Surgical Website Edit' : 'Refine Artifact'}
         </div>
-        <div style={{ fontSize: 18, fontWeight: 600, color: '#ece6d9', marginBottom: 18 }}>
+        <div style={{ fontSize: 18, fontWeight: 600, color: '#f4f4f2', marginBottom: 18 }}>
           {isWebsite ? 'What exactly should change?' : 'What should I improve?'}
         </div>
 
@@ -112,16 +112,16 @@ export default function RefineModal({ creationId, userId, kind, onClose, onRefin
           rows={4}
           style={{
             width: '100%', boxSizing: 'border-box',
-            background: 'rgba(236,230,217,0.04)',
-            border: '1px solid rgba(236,230,217,0.12)',
+            background: 'rgba(244,244,242,0.04)',
+            border: '1px solid rgba(244,244,242,0.12)',
             borderRadius: 8, padding: '12px 14px',
-            color: '#ece6d9', fontFamily: 'system-ui, sans-serif',
+            color: '#f4f4f2', fontFamily: 'system-ui, sans-serif',
             fontSize: 14, outline: 'none', resize: 'vertical',
             marginBottom: error ? 10 : 20,
             transition: 'border-color 200ms',
           }}
-          onFocus={e => (e.target.style.borderColor = 'rgba(207,138,91,0.4)')}
-          onBlur={e => (e.target.style.borderColor = 'rgba(236,230,217,0.12)')}
+          onFocus={e => (e.target.style.borderColor = 'rgba(255,46,81,0.4)')}
+          onBlur={e => (e.target.style.borderColor = 'rgba(244,244,242,0.12)')}
         />
 
         {error && (
@@ -143,9 +143,9 @@ export default function RefineModal({ creationId, userId, kind, onClose, onRefin
             disabled={loading}
             style={{
               background: 'transparent',
-              border: '1px solid rgba(236,230,217,0.12)',
+              border: '1px solid rgba(244,244,242,0.12)',
               borderRadius: 8, padding: '10px 20px',
-              color: 'rgba(236,230,217,0.6)',
+              color: 'rgba(244,244,242,0.6)',
               cursor: 'pointer', fontFamily: 'system-ui, sans-serif',
               fontSize: 13, fontWeight: 500,
             }}
@@ -156,9 +156,9 @@ export default function RefineModal({ creationId, userId, kind, onClose, onRefin
             onClick={handleRefine}
             disabled={!instruction.trim() || loading}
             style={{
-              background: instruction.trim() && !loading ? '#cf8a5b' : 'rgba(207,138,91,0.12)',
+              background: instruction.trim() && !loading ? '#ff2e51' : 'rgba(255,46,81,0.12)',
               border: 'none', borderRadius: 8, padding: '10px 24px',
-              color: instruction.trim() && !loading ? 'white' : 'rgba(207,138,91,0.4)',
+              color: instruction.trim() && !loading ? 'white' : 'rgba(255,46,81,0.4)',
               cursor: instruction.trim() && !loading ? 'pointer' : 'default',
               fontFamily: 'system-ui, sans-serif', fontSize: 13, fontWeight: 500,
               transition: 'all 200ms ease',

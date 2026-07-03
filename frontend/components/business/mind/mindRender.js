@@ -46,7 +46,7 @@ export function drawEdge(ctx, link, w2s, dimmed) {
 
   ctx.save()
   ctx.globalAlpha = (dimmed ? 0.04 : 1) * Math.max(0.06, Math.min(0.5, link.weight ?? 0.3))
-  ctx.strokeStyle = '#ece6d9'
+  ctx.strokeStyle = '#f4f4f2'
   ctx.lineWidth = 1
   ctx.beginPath()
   ctx.moveTo(a.x, a.y)
@@ -195,7 +195,7 @@ export function drawBlob(ctx, blob, w2s, zoom, opts = {}) {
   if (zoom > 0.3 && blob.count > 1) {
     ctx.save()
     ctx.globalAlpha = opts.dimmed ? 0.1 : 0.8
-    ctx.fillStyle = '#0b0a09'
+    ctx.fillStyle = '#050506'
     ctx.font = `${Math.max(9, 10 * zoom)}px ${getCanvasFontStack()}`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'

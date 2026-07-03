@@ -64,10 +64,10 @@ function LeadCard({ lead, selected, focused, onToggle, onFocus }) {
       className="os1-card"
       style={{
         padding: '14px 16px', marginBottom: 10, cursor: 'pointer',
-        border: focused ? '1px solid var(--os1-accent, #cf8a5b)'
-          : selected ? '1px solid rgba(207,138,91,0.5)'
+        border: focused ? '1px solid var(--os1-accent, #ff2e51)'
+          : selected ? '1px solid rgba(255,46,81,0.5)'
           : '1px solid var(--os1-border-soft, rgba(255,255,255,0.08))',
-        background: focused ? 'rgba(207,138,91,0.06)' : undefined,
+        background: focused ? 'rgba(255,46,81,0.06)' : undefined,
         opacity: lead.pushed_to_crm ? 0.75 : 1, position: 'relative',
       }}
     >
@@ -79,8 +79,8 @@ function LeadCard({ lead, selected, focused, onToggle, onFocus }) {
             title="Select for bulk push"
             style={{
               width: 16, height: 16, borderRadius: 4, flexShrink: 0, marginTop: 2, cursor: 'pointer',
-              border: `1.5px solid ${selected ? 'var(--os1-accent, #cf8a5b)' : 'var(--os1-text-faint, #6E6E6C)'}`,
-              background: selected ? 'var(--os1-accent, #cf8a5b)' : 'transparent',
+              border: `1.5px solid ${selected ? 'var(--os1-accent, #ff2e51)' : 'var(--os1-text-faint, #6E6E6C)'}`,
+              background: selected ? 'var(--os1-accent, #ff2e51)' : 'transparent',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
             {selected && <Check size={11} color="#fff" />}
@@ -471,7 +471,7 @@ export default function LeadsCockpit({ open, onClose, userId }) {
             style={{
               fontSize: 11, padding: '8px 14px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 6,
               border: '1px solid var(--os1-border-soft, rgba(255,255,255,0.08))',
-              background: !niche.trim() ? 'transparent' : 'var(--os1-accent, #cf8a5b)',
+              background: !niche.trim() ? 'transparent' : 'var(--os1-accent, #ff2e51)',
               color: !niche.trim() ? 'var(--os1-text-faint, #6E6E6C)' : '#fff',
               cursor: !niche.trim() || discovering ? 'default' : 'pointer',
             }}
@@ -506,7 +506,7 @@ export default function LeadsCockpit({ open, onClose, userId }) {
                     style={{
                       fontSize: 11, padding: '4px 9px', borderRadius: 6, cursor: 'pointer',
                       border: '1px solid var(--os1-border-soft, rgba(255,255,255,0.08))',
-                      background: tierFilter === t ? 'var(--os1-accent, #cf8a5b)' : 'transparent',
+                      background: tierFilter === t ? 'var(--os1-accent, #ff2e51)' : 'transparent',
                       color: tierFilter === t ? '#fff' : 'var(--os1-text-dim, #A8A8A6)',
                     }}
                   >
@@ -549,7 +549,7 @@ export default function LeadsCockpit({ open, onClose, userId }) {
                 style={{
                   fontSize: 11, padding: '5px 12px', borderRadius: 6,
                   border: '1px solid var(--os1-border-soft, rgba(255,255,255,0.08))',
-                  background: selected.size === 0 ? 'transparent' : 'var(--os1-accent, #cf8a5b)',
+                  background: selected.size === 0 ? 'transparent' : 'var(--os1-accent, #ff2e51)',
                   color: selected.size === 0 ? 'var(--os1-text-faint, #6E6E6C)' : '#fff',
                   cursor: selected.size === 0 || pushing ? 'default' : 'pointer',
                 }}
@@ -653,7 +653,7 @@ export default function LeadsCockpit({ open, onClose, userId }) {
                       className="font-pixel"
                       style={{
                         width: '100%', fontSize: 11, padding: '7px 12px', borderRadius: 6,
-                        border: 'none', background: 'var(--os1-accent, #cf8a5b)', color: '#fff',
+                        border: 'none', background: 'var(--os1-accent, #ff2e51)', color: '#fff',
                         cursor: pushing ? 'default' : 'pointer',
                       }}
                     >
@@ -676,7 +676,7 @@ export default function LeadsCockpit({ open, onClose, userId }) {
                 transition={{ duration: 0.2, ease: 'easeOut' }}
                 style={{
                   borderLeft: '1px solid var(--os1-border-soft, rgba(255,255,255,0.08))',
-                  background: '#0b0a09', display: 'flex', flexDirection: 'column',
+                  background: '#050506', display: 'flex', flexDirection: 'column',
                   minWidth: 300, flexShrink: 0, overflow: 'hidden',
                 }}
               >

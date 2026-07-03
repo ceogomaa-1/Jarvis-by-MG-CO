@@ -9,7 +9,7 @@ export default function BusinessLayout({ children }) {
   // input bar — the legacy top-center toggle is redundant there.
   const hideArcadeToggle = pathname === '/business/chat'
   return (
-    <div style={{ minHeight: '100vh', background: '#0b0a09', color: '#ece6d9' }}>
+    <div style={{ minHeight: '100vh', background: '#050506', color: '#f4f4f2' }}>
       {!hideArcadeToggle && <ArcadeToggle />}
       <AnimatePresence mode="wait">
         <div key={pathname}>

@@ -10,8 +10,8 @@ import {
 const ICONS = { Brain, Search, Sparkles, Package, Compass, PenTool, Palette, Telescope, BarChart3, FileText }
 
 const STATUS_COLOR = {
-  idle:   'rgba(236,230,217,0.3)',
-  active: '#cf8a5b',
+  idle:   'rgba(244,244,242,0.3)',
+  active: '#ff2e51',
   done:   '#7fb069',
   error:  '#ef4444',
 }
@@ -35,8 +35,8 @@ export default function AgentNode({ data, selected }) {
         whileHover={{ scale: 1.06 }}
         animate={agent.status === 'active' ? {
           boxShadow: [
-            '0 0 0 0px rgba(207,138,91,0.5)',
-            '0 0 0 14px rgba(207,138,91,0)',
+            '0 0 0 0px rgba(255,46,81,0.5)',
+            '0 0 0 14px rgba(255,46,81,0)',
           ],
         } : {}}
         transition={agent.status === 'active' ? {
@@ -50,15 +50,15 @@ export default function AgentNode({ data, selected }) {
           backdropFilter: 'blur(20px) saturate(180%)',
           WebkitBackdropFilter: 'blur(20px) saturate(180%)',
           border: agent.status === 'active'
-            ? '1px solid rgba(207,138,91,0.6)'
+            ? '1px solid rgba(255,46,81,0.6)'
             : selected || hovered
-            ? '1px solid rgba(207,138,91,0.5)'
-            : '1px solid rgba(236,230,217,0.12)',
+            ? '1px solid rgba(255,46,81,0.5)'
+            : '1px solid rgba(244,244,242,0.12)',
           display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center',
           gap: 5, cursor: 'pointer', position: 'relative',
           transition: 'border-color 200ms',
-          boxShadow: selected ? '0 0 0 2px rgba(207,138,91,0.25)' : 'none',
+          boxShadow: selected ? '0 0 0 2px rgba(255,46,81,0.25)' : 'none',
         }}
       >
         {/* Status dot */}
@@ -68,11 +68,11 @@ export default function AgentNode({ data, selected }) {
           background: STATUS_COLOR[agent.status] || STATUS_COLOR.idle,
         }} />
 
-        <Icon size={24} color="#ece6d9" />
+        <Icon size={24} color="#f4f4f2" />
         <span style={{
           fontFamily: 'var(--pixel)',
           fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em',
-          color: 'rgba(236,230,217,0.8)', textAlign: 'center',
+          color: 'rgba(244,244,242,0.8)', textAlign: 'center',
           lineHeight: 1.2, padding: '0 6px',
         }}>
           {agent.name}
@@ -88,7 +88,7 @@ export default function AgentNode({ data, selected }) {
           background: 'rgba(15,15,18,0.92)',
           backdropFilter: 'blur(20px) saturate(180%)',
           WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-          border: '1px solid rgba(236,230,217,0.12)',
+          border: '1px solid rgba(244,244,242,0.12)',
           borderRadius: 10, zIndex: 100,
           pointerEvents: 'none',
           boxShadow: '0 12px 32px rgba(0,0,0,0.5)',
@@ -98,15 +98,15 @@ export default function AgentNode({ data, selected }) {
           }}>
             <span style={{
               fontFamily: 'var(--font-sans), system-ui, sans-serif',
-              fontSize: 12, fontWeight: 600, color: '#ece6d9',
+              fontSize: 12, fontWeight: 600, color: '#f4f4f2',
             }}>
               {agent.name}
             </span>
             <span style={{
               fontSize: 9, fontWeight: 700, letterSpacing: '0.1em',
               textTransform: 'uppercase',
-              color: agent.group === 'operator' ? '#cf8a5b' : 'rgba(236,230,217,0.5)',
-              background: agent.group === 'operator' ? 'rgba(207,138,91,0.1)' : 'rgba(236,230,217,0.06)',
+              color: agent.group === 'operator' ? '#ff2e51' : 'rgba(244,244,242,0.5)',
+              background: agent.group === 'operator' ? 'rgba(255,46,81,0.1)' : 'rgba(244,244,242,0.06)',
               padding: '1px 5px', borderRadius: 3,
             }}>
               {agent.group === 'operator' ? 'Operator' : 'Creation'}
@@ -114,7 +114,7 @@ export default function AgentNode({ data, selected }) {
           </div>
           <p style={{
             fontFamily: 'var(--font-sans), system-ui, sans-serif',
-            fontSize: 11, color: 'rgba(236,230,217,0.6)',
+            fontSize: 11, color: 'rgba(244,244,242,0.6)',
             margin: 0, lineHeight: 1.5,
           }}>
             {agent.role}

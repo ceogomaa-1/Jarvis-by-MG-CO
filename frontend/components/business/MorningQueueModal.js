@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react'
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
 const TYPE_META = {
-  suggestion:  { label: 'SUGGESTION',  color: '#cf8a5b' },
-  draft:       { label: 'DRAFT',       color: '#ece6d9' },
+  suggestion:  { label: 'SUGGESTION',  color: '#ff2e51' },
+  draft:       { label: 'DRAFT',       color: '#f4f4f2' },
   warning:     { label: 'WARNING',     color: '#f5a623' },
   opportunity: { label: 'OPPORTUNITY', color: '#22c55e' },
 }
@@ -24,11 +24,11 @@ const GLASS_PANEL = {
   background: 'rgba(15, 15, 18, 0.55)',
   backdropFilter: 'blur(28px) saturate(180%)',
   WebkitBackdropFilter: 'blur(28px) saturate(180%)',
-  border: '1px solid rgba(236,230,217,0.15)',
+  border: '1px solid rgba(244,244,242,0.15)',
   borderRadius: 20,
   padding: 28,
   fontFamily: 'system-ui, sans-serif',
-  boxShadow: '0 24px 60px rgba(0,0,0,0.55), inset 0 1px 0 rgba(236,230,217,0.06)',
+  boxShadow: '0 24px 60px rgba(0,0,0,0.55), inset 0 1px 0 rgba(244,244,242,0.06)',
   maxHeight: '88vh', display: 'flex', flexDirection: 'column',
 }
 
@@ -37,8 +37,8 @@ function QueueCard({ item, onAct, busy }) {
 
   return (
     <div style={{
-      background: 'rgba(236,230,217,0.03)',
-      border: `1px solid ${item.read ? 'rgba(236,230,217,0.08)' : meta.color + '40'}`,
+      background: 'rgba(244,244,242,0.03)',
+      border: `1px solid ${item.read ? 'rgba(244,244,242,0.08)' : meta.color + '40'}`,
       borderRadius: 12, padding: '14px 18px', marginBottom: 10,
     }}>
       <div style={{ marginBottom: 6 }}>
@@ -55,12 +55,12 @@ function QueueCard({ item, onAct, busy }) {
       </div>
       <div style={{
         fontFamily: 'var(--pixel)',
-        fontSize: 13, color: '#ece6d9', marginBottom: 6, lineHeight: 1.4,
+        fontSize: 13, color: '#f4f4f2', marginBottom: 6, lineHeight: 1.4,
       }}>
         {item.title}
       </div>
       {item.body && (
-        <div style={{ fontSize: 12, color: 'rgba(236,230,217,0.6)', marginBottom: 12, lineHeight: 1.6 }}>
+        <div style={{ fontSize: 12, color: 'rgba(244,244,242,0.6)', marginBottom: 12, lineHeight: 1.6 }}>
           {item.body}
         </div>
       )}
@@ -136,13 +136,13 @@ export default function MorningQueueModal({ open, onClose, userId, onAct }) {
         <div style={{
           fontFamily: 'var(--pixel)',
           fontSize: 10, letterSpacing: '0.12em',
-          color: '#cf8a5b', marginBottom: 8, textTransform: 'uppercase',
+          color: '#ff2e51', marginBottom: 8, textTransform: 'uppercase',
         }}>
           MORNING QUEUE
         </div>
         <div style={{
           fontFamily: 'var(--pixel)',
-          fontSize: 13, color: '#ece6d9', marginBottom: 18, lineHeight: 1.5,
+          fontSize: 13, color: '#f4f4f2', marginBottom: 18, lineHeight: 1.5,
         }}>
           {loading
             ? 'Loading…'
@@ -154,7 +154,7 @@ export default function MorningQueueModal({ open, onClose, userId, onAct }) {
         <div style={{ overflowY: 'auto', flex: 1, paddingRight: 4 }} className="os1-scroll">
           {isEmpty && (
             <div style={{ padding: '36px 0', textAlign: 'center' }}>
-              <div className="os1-serif-micro" style={{ fontSize: 11, color: 'rgba(236,230,217,0.45)', lineHeight: 1.8 }}>
+              <div className="os1-serif-micro" style={{ fontSize: 11, color: 'rgba(244,244,242,0.45)', lineHeight: 1.8 }}>
                 Jarvis works while you sleep.<br />
                 First queue lands tomorrow morning.
               </div>
@@ -171,7 +171,7 @@ export default function MorningQueueModal({ open, onClose, userId, onAct }) {
                 onClick={() => setShowYesterday(s => !s)}
                 style={{
                   background: 'transparent', border: 'none',
-                  color: 'rgba(236,230,217,0.4)', fontSize: 11,
+                  color: 'rgba(244,244,242,0.4)', fontSize: 11,
                   fontFamily: 'var(--pixel)',
                   letterSpacing: '0.06em', textTransform: 'uppercase',
                   cursor: 'pointer', padding: '8px 0', marginBottom: 4,
@@ -191,9 +191,9 @@ export default function MorningQueueModal({ open, onClose, userId, onAct }) {
             onClick={onClose}
             style={{
               background: 'transparent',
-              border: '1px solid rgba(236,230,217,0.1)',
+              border: '1px solid rgba(244,244,242,0.1)',
               borderRadius: 12, padding: '10px 24px',
-              color: 'rgba(236,230,217,0.7)', fontSize: 13,
+              color: 'rgba(244,244,242,0.7)', fontSize: 13,
               fontFamily: 'system-ui, sans-serif', cursor: 'pointer',
               transition: 'all 200ms ease',
             }}

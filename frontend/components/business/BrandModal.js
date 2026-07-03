@@ -10,7 +10,7 @@ function Field({ label, children }) {
     <div style={{ marginBottom: 14 }}>
       <label style={{
         display: 'block', fontSize: 9,
-        color: 'rgba(236,230,217,0.5)', marginBottom: 6,
+        color: 'rgba(244,244,242,0.5)', marginBottom: 6,
         textTransform: 'uppercase', letterSpacing: '0.15em',
         fontFamily: 'var(--pixel)',
       }}>
@@ -23,10 +23,10 @@ function Field({ label, children }) {
 
 const inputStyle = {
   width: '100%', boxSizing: 'border-box',
-  background: 'rgba(236,230,217,0.03)',
-  border: '1px solid rgba(236,230,217,0.08)',
+  background: 'rgba(244,244,242,0.03)',
+  border: '1px solid rgba(244,244,242,0.08)',
   borderRadius: 12, padding: '12px 16px',
-  color: '#ece6d9', fontSize: 13,
+  color: '#f4f4f2', fontSize: 13,
   fontFamily: 'system-ui, sans-serif', outline: 'none',
   transition: 'border-color 200ms ease, box-shadow 200ms ease',
 }
@@ -88,8 +88,8 @@ function ImageUploadField({ label, url, onUrlChange, bucket = 'business-brand-as
           <div style={{
             width: 72, height: 72, borderRadius: 12,
             overflow: 'hidden',
-            border: '1px solid rgba(236,230,217,0.08)',
-            background: 'rgba(236,230,217,0.03)',
+            border: '1px solid rgba(244,244,242,0.08)',
+            background: 'rgba(244,244,242,0.03)',
           }}>
             <img
               src={url} alt={label}
@@ -103,8 +103,8 @@ function ImageUploadField({ label, url, onUrlChange, bucket = 'business-brand-as
               position: 'absolute', top: -6, right: -6,
               width: 20, height: 20, borderRadius: '50%',
               background: 'rgba(10,9,8,0.9)',
-              border: '1px solid rgba(236,230,217,0.15)',
-              color: 'rgba(236,230,217,0.7)',
+              border: '1px solid rgba(244,244,242,0.15)',
+              color: 'rgba(244,244,242,0.7)',
               fontSize: 12, lineHeight: 1, cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
@@ -120,30 +120,30 @@ function ImageUploadField({ label, url, onUrlChange, bucket = 'business-brand-as
         display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
         width: '100%', height: 80, borderRadius: 12,
-        border: '1px dashed rgba(236,230,217,0.1)',
-        background: uploading ? 'rgba(236,230,217,0.02)' : 'rgba(236,230,217,0.02)',
+        border: '1px dashed rgba(244,244,242,0.1)',
+        background: uploading ? 'rgba(244,244,242,0.02)' : 'rgba(244,244,242,0.02)',
         cursor: uploading ? 'wait' : 'pointer',
         transition: 'all 200ms ease',
         gap: 4,
       }}
         onMouseEnter={e => {
           if (!uploading) {
-            e.currentTarget.style.border = '1px dashed rgba(236,230,217,0.2)'
-            e.currentTarget.style.background = 'rgba(236,230,217,0.04)'
+            e.currentTarget.style.border = '1px dashed rgba(244,244,242,0.2)'
+            e.currentTarget.style.background = 'rgba(244,244,242,0.04)'
           }
         }}
         onMouseLeave={e => {
-          e.currentTarget.style.border = '1px dashed rgba(236,230,217,0.1)'
-          e.currentTarget.style.background = 'rgba(236,230,217,0.02)'
+          e.currentTarget.style.border = '1px dashed rgba(244,244,242,0.1)'
+          e.currentTarget.style.background = 'rgba(244,244,242,0.02)'
         }}
       >
-        <span style={{ fontSize: 18, color: 'rgba(236,230,217,0.3)' }}>
+        <span style={{ fontSize: 18, color: 'rgba(244,244,242,0.3)' }}>
           {uploading ? '⏳' : '↑'}
         </span>
-        <span style={{ fontSize: 11, color: 'rgba(236,230,217,0.3)', fontFamily: 'system-ui, sans-serif' }}>
+        <span style={{ fontSize: 11, color: 'rgba(244,244,242,0.3)', fontFamily: 'system-ui, sans-serif' }}>
           {uploading ? 'Uploading…' : 'Click to upload or drag & drop'}
         </span>
-        <span style={{ fontSize: 10, color: 'rgba(236,230,217,0.2)', fontFamily: 'system-ui, sans-serif' }}>
+        <span style={{ fontSize: 10, color: 'rgba(244,244,242,0.2)', fontFamily: 'system-ui, sans-serif' }}>
           PNG, JPG up to 2MB
         </span>
         <input
@@ -159,7 +159,7 @@ function ImageUploadField({ label, url, onUrlChange, bucket = 'business-brand-as
       {error && (
         <div style={{
           marginTop: 6, fontSize: 11,
-          color: 'rgba(207,138,91,0.8)',
+          color: 'rgba(255,46,81,0.8)',
           fontFamily: 'system-ui, sans-serif',
         }}>
           {error}
@@ -172,7 +172,7 @@ function ImageUploadField({ label, url, onUrlChange, bucket = 'business-brand-as
 export default function BrandModal({ open, onClose, userId }) {
   const [form, setForm] = useState({
     display_name: '',
-    accent_color: '#cf8a5b',
+    accent_color: '#ff2e51',
     logo_url: '',
     banner_url: '',
     north_star_target_usd: 1000000,
@@ -195,7 +195,7 @@ export default function BrandModal({ open, onClose, userId }) {
         const b = d.brand || {}
         setForm({
           display_name: b.display_name || '',
-          accent_color: b.accent_color || '#cf8a5b',
+          accent_color: b.accent_color || '#ff2e51',
           logo_url: b.logo_url || '',
           banner_url: b.banner_url || '',
           north_star_target_usd: b.north_star_target_usd ?? 1000000,
@@ -244,27 +244,27 @@ export default function BrandModal({ open, onClose, userId }) {
           background: 'rgba(15, 15, 18, 0.55)',
           backdropFilter: 'blur(28px) saturate(180%)',
           WebkitBackdropFilter: 'blur(28px) saturate(180%)',
-          border: '1px solid rgba(236,230,217,0.15)',
+          border: '1px solid rgba(244,244,242,0.15)',
           borderRadius: 20, padding: 28,
           fontFamily: 'system-ui, sans-serif',
-          boxShadow: '0 24px 60px rgba(0,0,0,0.55), inset 0 1px 0 rgba(236,230,217,0.06)',
+          boxShadow: '0 24px 60px rgba(0,0,0,0.55), inset 0 1px 0 rgba(244,244,242,0.06)',
           maxHeight: '88vh', display: 'flex', flexDirection: 'column',
         }}
       >
         <div style={{
           fontFamily: 'var(--pixel)',
           fontSize: 10, letterSpacing: '0.12em',
-          color: '#cf8a5b', marginBottom: 8, textTransform: 'uppercase',
+          color: '#ff2e51', marginBottom: 8, textTransform: 'uppercase',
         }}>
           ⚙️ BRAND & NORTH STAR
         </div>
         <div style={{
           fontFamily: 'var(--pixel)',
-          fontSize: 13, color: '#ece6d9', marginBottom: 4, lineHeight: 1.5,
+          fontSize: 13, color: '#f4f4f2', marginBottom: 4, lineHeight: 1.5,
         }}>
           Customize Jarvis for your business
         </div>
-        <div style={{ fontSize: 12, color: 'rgba(236,230,217,0.5)', marginBottom: 20, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 12, color: 'rgba(244,244,242,0.5)', marginBottom: 20, lineHeight: 1.5 }}>
           The North Star target gets injected into every Jarvis response — it primes every answer toward closing the gap.
         </div>
 
@@ -279,7 +279,7 @@ export default function BrandModal({ open, onClose, userId }) {
               <div style={{
                 fontFamily: 'var(--pixel)',
                 fontSize: 9, letterSpacing: '0.1em',
-                color: 'rgba(236,230,217,0.35)', textTransform: 'uppercase',
+                color: 'rgba(244,244,242,0.35)', textTransform: 'uppercase',
                 marginBottom: 10,
               }}>
                 Identity
@@ -309,7 +309,7 @@ export default function BrandModal({ open, onClose, userId }) {
                     style={{ ...inputStyle, flex: 1 }}
                     value={form.accent_color}
                     onChange={e => set('accent_color', e.target.value)}
-                    placeholder="#cf8a5b"
+                    placeholder="#ff2e51"
                   />
                 </div>
               </Field>
@@ -333,7 +333,7 @@ export default function BrandModal({ open, onClose, userId }) {
               {/* North Star */}
               <div style={{
                 fontSize: 10, fontWeight: 700, letterSpacing: '0.1em',
-                color: 'rgba(236,230,217,0.35)', textTransform: 'uppercase',
+                color: 'rgba(244,244,242,0.35)', textTransform: 'uppercase',
                 marginTop: 20, marginBottom: 10,
               }}>
                 🎯 North Star
@@ -360,10 +360,10 @@ export default function BrandModal({ open, onClose, userId }) {
               </Field>
 
               <div style={{
-                background: 'rgba(207,138,91,0.06)',
-                border: '1px solid rgba(207,138,91,0.15)',
+                background: 'rgba(255,46,81,0.06)',
+                border: '1px solid rgba(255,46,81,0.15)',
                 borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 11,
-                color: 'rgba(236,230,217,0.65)', lineHeight: 1.5,
+                color: 'rgba(244,244,242,0.65)', lineHeight: 1.5,
               }}>
                 Every Jarvis response — chat, sub-agents, and the Operator Agent — is primed with this target. Jarvis filters everything through "does this close the gap to {form.north_star_target_label || '$1M'}?"
               </div>
@@ -371,7 +371,7 @@ export default function BrandModal({ open, onClose, userId }) {
               {/* Operator Agent */}
               <div style={{
                 fontSize: 10, fontWeight: 700, letterSpacing: '0.1em',
-                color: 'rgba(236,230,217,0.35)', textTransform: 'uppercase',
+                color: 'rgba(244,244,242,0.35)', textTransform: 'uppercase',
                 marginTop: 20, marginBottom: 10,
               }}>
                 🤖 Operator Agent
@@ -382,10 +382,10 @@ export default function BrandModal({ open, onClose, userId }) {
                 marginBottom: 12,
               }}>
                 <div>
-                  <div style={{ fontSize: 13, color: '#ece6d9', fontWeight: 500 }}>
+                  <div style={{ fontSize: 13, color: '#f4f4f2', fontWeight: 500 }}>
                     Enable nightly runs
                   </div>
-                  <div style={{ fontSize: 11, color: 'rgba(236,230,217,0.5)', marginTop: 2 }}>
+                  <div style={{ fontSize: 11, color: 'rgba(244,244,242,0.5)', marginTop: 2 }}>
                     Jarvis works overnight — strategy, research, drafts. You approve in the morning.
                   </div>
                 </div>
@@ -393,7 +393,7 @@ export default function BrandModal({ open, onClose, userId }) {
                   onClick={() => set('operator_enabled', !form.operator_enabled)}
                   style={{
                     width: 48, height: 26, borderRadius: 13, border: 'none',
-                    background: form.operator_enabled ? '#22c55e' : 'rgba(236,230,217,0.12)',
+                    background: form.operator_enabled ? '#22c55e' : 'rgba(244,244,242,0.12)',
                     cursor: 'pointer', position: 'relative', transition: 'background 200ms',
                     flexShrink: 0,
                   }}
@@ -417,7 +417,7 @@ export default function BrandModal({ open, onClose, userId }) {
                       onChange={e => set('operator_daily_budget_usd', parseFloat(e.target.value) || 0)}
                       min={0.5} max={50} step={0.5}
                     />
-                    <span style={{ fontSize: 11, color: 'rgba(236,230,217,0.5)' }}>
+                    <span style={{ fontSize: 11, color: 'rgba(244,244,242,0.5)' }}>
                       per night · hard cap · default $5
                     </span>
                   </div>
@@ -437,9 +437,9 @@ export default function BrandModal({ open, onClose, userId }) {
             onClick={onClose}
             style={{
               background: 'transparent',
-              border: '1px solid rgba(236,230,217,0.1)',
+              border: '1px solid rgba(244,244,242,0.1)',
               borderRadius: 12, padding: '10px 24px',
-              color: 'rgba(236,230,217,0.7)', fontSize: 10,
+              color: 'rgba(244,244,242,0.7)', fontSize: 10,
               fontFamily: 'var(--pixel)', cursor: 'pointer',
               letterSpacing: '0.08em', textTransform: 'uppercase',
               transition: 'all 200ms ease',
@@ -451,7 +451,7 @@ export default function BrandModal({ open, onClose, userId }) {
             onClick={handleSave}
             disabled={saving || loading}
             style={{
-              background: saving ? 'rgba(207,138,91,0.5)' : '#cf8a5b',
+              background: saving ? 'rgba(255,46,81,0.5)' : '#ff2e51',
               border: 'none', borderRadius: 12, padding: '10px 24px',
               color: '#0a0a0a', fontSize: 10,
               fontFamily: 'var(--pixel)',

@@ -95,7 +95,7 @@ export default function ReadinessBar({ userId, apiUrl, onReadinessUpdate, refres
                   height: '100%',
                   borderRadius: 999,
                   background: 'var(--os1-blue)',
-                  boxShadow: is_ready ? '0 0 10px rgba(207,138,91,0.55)' : 'none',
+                  boxShadow: is_ready ? '0 0 10px rgba(255,46,81,0.55)' : 'none',
                   position: 'relative',
                   overflow: 'hidden',
                 }}
@@ -135,7 +135,7 @@ export default function ReadinessBar({ userId, apiUrl, onReadinessUpdate, refres
               marginTop: 10,
               padding: '12px 14px',
               overflow: 'hidden',
-              background: '#151310',
+              background: '#0e0e11',
             }}
           >
             <div style={{

@@ -7,7 +7,7 @@ import { GripVertical, X, ArrowRight, Sparkles, Plug } from 'lucide-react'
 // The header doubles as the react-grid-layout drag handle (.home-drag-handle).
 
 const STATUS_TINT = {
-  ok: 'rgba(207,138,91,0.0)',
+  ok: 'rgba(255,46,81,0.0)',
   needs_connection: 'rgba(245,179,90,0.05)',
   empty: 'rgba(255,255,255,0.0)',
 }
@@ -25,8 +25,8 @@ function ActionButton({ action, primary, onClick }) {
         display: 'inline-flex', alignItems: 'center', gap: 7,
         padding: primary ? '9px 14px' : '6px 10px',
         borderRadius: 10,
-        border: primary ? '1px solid var(--home-accent-border, rgba(207,138,91,0.35))' : '1px solid var(--os1-border-soft, rgba(255,255,255,0.08))',
-        background: primary ? 'var(--home-accent-soft, rgba(207,138,91,0.12))' : 'transparent',
+        border: primary ? '1px solid var(--home-accent-border, rgba(255,46,81,0.35))' : '1px solid var(--os1-border-soft, rgba(255,255,255,0.08))',
+        background: primary ? 'var(--home-accent-soft, rgba(255,46,81,0.12))' : 'transparent',
         color: primary ? 'var(--home-accent, #5b9bff)' : 'var(--os1-text-dim, #A8A8A6)',
         fontSize: primary ? 11 : 10, letterSpacing: '0.02em',
         cursor: 'pointer', whiteSpace: 'nowrap',

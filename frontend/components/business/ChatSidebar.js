@@ -103,17 +103,26 @@ export default function ChatSidebar({
         .os1-conv-row:hover .os1-conv-time { opacity: 0; position: absolute; }
       `}</style>
 
-      {/* Wordmark + collapse */}
+      {/* Brand lockup + collapse */}
       <div style={{
-        padding: '20px 18px 0',
+        padding: '18px 18px 0',
         display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
       }}>
         <div>
-          <div className="os1-display" style={{ fontSize: 23, lineHeight: 1, color: 'var(--os1-text)', letterSpacing: '0.02em' }}>
-            Jarvis
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+            <img
+              src="/jarvis-logo-mono.png"
+              alt=""
+              width={22}
+              height={22}
+              style={{ display: 'block', filter: 'drop-shadow(0 0 8px rgba(255,46,81,0.3))' }}
+            />
+            <span className="os1-display" style={{ fontSize: 15, lineHeight: 1, color: 'var(--os1-text)', letterSpacing: '0.06em' }}>
+              JARVIS OS1
+            </span>
           </div>
-          <div className="os1-label" style={{ marginTop: 7, fontSize: 8.5 }}>
-            OS1 · Business
+          <div className="os1-label" style={{ marginTop: 8, fontSize: 8.5 }}>
+            Business
           </div>
         </div>
         <button onClick={onCollapse} className="os1-iconbtn" title="Hide sidebar" style={{ marginTop: -2, marginRight: -4 }}>

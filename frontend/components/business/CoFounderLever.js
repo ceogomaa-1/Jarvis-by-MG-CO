@@ -45,10 +45,10 @@ const PANEL = {
   background: 'rgba(15, 15, 18, 0.6)',
   backdropFilter: 'blur(30px) saturate(180%)',
   WebkitBackdropFilter: 'blur(30px) saturate(180%)',
-  border: '1px solid rgba(236,230,217,0.14)',
+  border: '1px solid rgba(244,244,242,0.14)',
   borderRadius: 24,
   padding: '34px 36px 30px',
-  boxShadow: '0 30px 80px rgba(0,0,0,0.6), 0 0 120px rgba(207,138,91,0.07), inset 0 1px 0 rgba(236,230,217,0.07)',
+  boxShadow: '0 30px 80px rgba(0,0,0,0.6), 0 0 120px rgba(255,46,81,0.07), inset 0 1px 0 rgba(244,244,242,0.07)',
   position: 'relative', overflow: 'hidden',
 }
 
@@ -57,8 +57,8 @@ const PIXEL = { fontFamily: 'var(--pixel)' }
 function Lever({ armed, onEngage }) {
   const y = useMotionValue(0) // 0 = bottom (off) … -TRAVEL = top (on)
   const progress = useTransform(y, [0, -TRAVEL], [0, 1])
-  const glow = useTransform(progress, p => `0 0 ${8 + p * 26}px rgba(207,138,91,${0.25 + p * 0.55})`)
-  const trackGlow = useTransform(progress, p => `rgba(207,138,91,${0.06 + p * 0.22})`)
+  const glow = useTransform(progress, p => `0 0 ${8 + p * 26}px rgba(255,46,81,${0.25 + p * 0.55})`)
+  const trackGlow = useTransform(progress, p => `rgba(255,46,81,${0.06 + p * 0.22})`)
   const [committing, setCommitting] = useState(false)
 
   function handleDragEnd() {
@@ -73,11 +73,11 @@ function Lever({ armed, onEngage }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-      <span style={{ ...PIXEL, fontSize: 9, letterSpacing: '0.18em', color: '#cf8a5b' }}>ON</span>
+      <span style={{ ...PIXEL, fontSize: 9, letterSpacing: '0.18em', color: '#ff2e51' }}>ON</span>
       <motion.div
         style={{
           width: 64, height: TRACK_H, borderRadius: 32,
-          border: '1px solid rgba(236,230,217,0.14)',
+          border: '1px solid rgba(244,244,242,0.14)',
           background: trackGlow,
           position: 'relative',
           boxShadow: 'inset 0 2px 12px rgba(0,0,0,0.5)',
@@ -87,7 +87,7 @@ function Lever({ armed, onEngage }) {
         {[0.25, 0.5, 0.75].map(f => (
           <div key={f} style={{
             position: 'absolute', left: 12, right: 12, top: `${f * 100}%`,
-            height: 1, background: 'rgba(236,230,217,0.07)',
+            height: 1, background: 'rgba(244,244,242,0.07)',
           }} />
         ))}
         <motion.div
@@ -102,7 +102,7 @@ function Lever({ armed, onEngage }) {
             position: 'absolute', left: 5, bottom: 6,
             width: 52, height: KNOB_H, borderRadius: 26,
             background: 'linear-gradient(180deg, #3a3a3e 0%, #232326 100%)',
-            border: '1px solid rgba(236,230,217,0.22)',
+            border: '1px solid rgba(244,244,242,0.22)',
             boxShadow: glow,
             cursor: armed ? 'grab' : 'not-allowed',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -110,11 +110,11 @@ function Lever({ armed, onEngage }) {
           }}
           whileDrag={{ cursor: 'grabbing', scale: 1.04 }}
         >
-          <div style={{ width: 18, height: 3, borderRadius: 2, background: 'rgba(236,230,217,0.4)' }} />
+          <div style={{ width: 18, height: 3, borderRadius: 2, background: 'rgba(244,244,242,0.4)' }} />
         </motion.div>
       </motion.div>
-      <span style={{ ...PIXEL, fontSize: 9, letterSpacing: '0.18em', color: 'rgba(236,230,217,0.35)' }}>OFF</span>
-      <span style={{ ...PIXEL, fontSize: 10, color: 'rgba(236,230,217,0.45)', marginTop: 2 }}>
+      <span style={{ ...PIXEL, fontSize: 9, letterSpacing: '0.18em', color: 'rgba(244,244,242,0.35)' }}>OFF</span>
+      <span style={{ ...PIXEL, fontSize: 10, color: 'rgba(244,244,242,0.45)', marginTop: 2 }}>
         {armed ? 'drag the lever up' : 'locked'}
       </span>
     </div>
@@ -247,7 +247,7 @@ export default function CoFounderLever({
           <div style={{
             position: 'absolute', top: -120, left: '50%', transform: 'translateX(-50%)',
             width: 380, height: 200, borderRadius: '50%',
-            background: 'radial-gradient(closest-side, rgba(207,138,91,0.14), transparent)',
+            background: 'radial-gradient(closest-side, rgba(255,46,81,0.14), transparent)',
             pointerEvents: 'none',
           }} />
 
@@ -255,21 +255,21 @@ export default function CoFounderLever({
           {phase === 'lever' && (
             <div style={{ display: 'flex', gap: 30, alignItems: 'center' }}>
               <div style={{ flex: 1 }}>
-                <div style={{ ...PIXEL, fontSize: 10, letterSpacing: '0.16em', color: '#cf8a5b', marginBottom: 10 }}>
+                <div style={{ ...PIXEL, fontSize: 10, letterSpacing: '0.16em', color: '#ff2e51', marginBottom: 10 }}>
                   CO-FOUNDER MODE
                 </div>
-                <div style={{ ...PIXEL, fontSize: 19, color: '#ece6d9', lineHeight: 1.35, marginBottom: 14 }}>
+                <div style={{ ...PIXEL, fontSize: 19, color: '#f4f4f2', lineHeight: 1.35, marginBottom: 14 }}>
                   Hand Jarvis the keys.
                 </div>
-                <div style={{ fontSize: 12.5, color: 'rgba(236,230,217,0.62)', lineHeight: 1.75, marginBottom: 14 }}>
+                <div style={{ fontSize: 12.5, color: 'rgba(244,244,242,0.62)', lineHeight: 1.75, marginBottom: 14 }}>
                   From this moment, Jarvis handles every aspect of your business like a
                   co-founder — it scans everything, finds the moves, reaches out, posts,
                   creates, and takes action on your behalf.
                 </div>
                 <div style={{
                   fontSize: 11.5, lineHeight: 1.7,
-                  borderLeft: '2px solid rgba(207,138,91,0.5)', paddingLeft: 10,
-                  color: 'rgba(236,230,217,0.55)',
+                  borderLeft: '2px solid rgba(255,46,81,0.5)', paddingLeft: 10,
+                  color: 'rgba(244,244,242,0.55)',
                 }}>
                   Nothing touches the outside world without your green light.
                   You approve — Jarvis executes.
@@ -287,10 +287,10 @@ export default function CoFounderLever({
           {/* ── PHASE: ENGAGING (live takeover) ── */}
           {phase === 'engaging' && (
             <div>
-              <div style={{ ...PIXEL, fontSize: 10, letterSpacing: '0.16em', color: '#cf8a5b', marginBottom: 8 }}>
+              <div style={{ ...PIXEL, fontSize: 10, letterSpacing: '0.16em', color: '#ff2e51', marginBottom: 8 }}>
                 CO-FOUNDER MODE — ENGAGED
               </div>
-              <div style={{ ...PIXEL, fontSize: 17, color: '#ece6d9', marginBottom: 20, lineHeight: 1.4 }}>
+              <div style={{ ...PIXEL, fontSize: 17, color: '#f4f4f2', marginBottom: 20, lineHeight: 1.4 }}>
                 Jarvis is walking through your business right now.
               </div>
               {STEPS.map((s, i) => {
@@ -304,22 +304,22 @@ export default function CoFounderLever({
                         <motion.span
                           animate={{ opacity: [1, 0.3, 1] }}
                           transition={{ repeat: Infinity, duration: 1.4 }}
-                          style={{ color: '#cf8a5b', fontSize: 12, display: 'inline-block' }}
+                          style={{ color: '#ff2e51', fontSize: 12, display: 'inline-block' }}
                         >●</motion.span>
                       ) : (
-                        <span style={{ color: 'rgba(236,230,217,0.3)', fontSize: 12 }}>○</span>
+                        <span style={{ color: 'rgba(244,244,242,0.3)', fontSize: 12 }}>○</span>
                       )}
                     </div>
                     <div>
-                      <div style={{ ...PIXEL, fontSize: 12.5, color: state === 'active' ? '#ece6d9' : 'rgba(236,230,217,0.7)' }}>
+                      <div style={{ ...PIXEL, fontSize: 12.5, color: state === 'active' ? '#f4f4f2' : 'rgba(244,244,242,0.7)' }}>
                         {s.label}
                       </div>
-                      <div style={{ fontSize: 10.5, color: 'rgba(236,230,217,0.4)', marginTop: 2 }}>{s.sub}</div>
+                      <div style={{ fontSize: 10.5, color: 'rgba(244,244,242,0.4)', marginTop: 2 }}>{s.sub}</div>
                     </div>
                   </div>
                 )
               })}
-              <div style={{ fontSize: 10.5, color: 'rgba(236,230,217,0.35)', marginTop: 16, lineHeight: 1.6 }}>
+              <div style={{ fontSize: 10.5, color: 'rgba(244,244,242,0.35)', marginTop: 16, lineHeight: 1.6 }}>
                 This takes a few minutes. You can keep working — the Boardroom fills up when it's done.
               </div>
             </div>
@@ -338,21 +338,21 @@ export default function CoFounderLever({
               <div style={{ ...PIXEL, fontSize: 10, letterSpacing: '0.16em', color: '#22c55e', marginBottom: 10 }}>
                 YOUR CO-FOUNDER IS ON THE JOB
               </div>
-              <div style={{ ...PIXEL, fontSize: 18, color: '#ece6d9', lineHeight: 1.45, marginBottom: 8 }}>
+              <div style={{ ...PIXEL, fontSize: 18, color: '#f4f4f2', lineHeight: 1.45, marginBottom: 8 }}>
                 {pendingCount != null && pendingCount > 0
                   ? `${pendingCount} initiative${pendingCount === 1 ? '' : 's'} ready for your approval.`
                   : 'First initiatives are landing now.'}
               </div>
-              <div style={{ fontSize: 12, color: 'rgba(236,230,217,0.55)', lineHeight: 1.7, marginBottom: 22 }}>
+              <div style={{ fontSize: 12, color: 'rgba(244,244,242,0.55)', lineHeight: 1.7, marginBottom: 22 }}>
                 Real moves on your real data — each one shows exactly what Jarvis
                 will do the second you approve it.
               </div>
               <button
                 onClick={() => onOpenInitiatives?.()}
                 style={{
-                  ...PIXEL, background: '#cf8a5b', border: 'none', borderRadius: 12,
+                  ...PIXEL, background: '#ff2e51', border: 'none', borderRadius: 12,
                   padding: '12px 26px', color: 'white', fontSize: 13, cursor: 'pointer',
-                  boxShadow: '0 0 30px rgba(207,138,91,0.4)',
+                  boxShadow: '0 0 30px rgba(255,46,81,0.4)',
                 }}
               >
                 Enter the Boardroom →
@@ -366,14 +366,14 @@ export default function CoFounderLever({
               <div style={{ ...PIXEL, fontSize: 10, letterSpacing: '0.16em', color: '#f5a623', marginBottom: 12 }}>
                 CO-FOUNDER MODE IS ON
               </div>
-              <div style={{ fontSize: 12.5, color: 'rgba(236,230,217,0.65)', lineHeight: 1.75, marginBottom: 20 }}>
+              <div style={{ fontSize: 12.5, color: 'rgba(244,244,242,0.65)', lineHeight: 1.75, marginBottom: 20 }}>
                 {errorNote}
               </div>
               <button
                 onClick={onClose}
                 style={{
-                  ...PIXEL, background: 'transparent', border: '1px solid rgba(236,230,217,0.18)',
-                  borderRadius: 12, padding: '10px 22px', color: 'rgba(236,230,217,0.75)',
+                  ...PIXEL, background: 'transparent', border: '1px solid rgba(244,244,242,0.18)',
+                  borderRadius: 12, padding: '10px 22px', color: 'rgba(244,244,242,0.75)',
                   fontSize: 12, cursor: 'pointer',
                 }}
               >
@@ -388,17 +388,17 @@ export default function CoFounderLever({
               <div style={{ ...PIXEL, fontSize: 10, letterSpacing: '0.16em', color: '#22c55e', marginBottom: 10 }}>
                 CO-FOUNDER MODE — ACTIVE
               </div>
-              <div style={{ ...PIXEL, fontSize: 17, color: '#ece6d9', lineHeight: 1.4, marginBottom: 8 }}>
+              <div style={{ ...PIXEL, fontSize: 17, color: '#f4f4f2', lineHeight: 1.4, marginBottom: 8 }}>
                 Jarvis is operating your business.
               </div>
-              <div style={{ fontSize: 12, color: 'rgba(236,230,217,0.55)', lineHeight: 1.7, marginBottom: 22 }}>
+              <div style={{ fontSize: 12, color: 'rgba(244,244,242,0.55)', lineHeight: 1.7, marginBottom: 22 }}>
                 It scans nightly, prepares the moves, and executes the ones you approve.
               </div>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
                 <button
                   onClick={() => onOpenInitiatives?.()}
                   style={{
-                    ...PIXEL, background: '#cf8a5b', border: 'none', borderRadius: 12,
+                    ...PIXEL, background: '#ff2e51', border: 'none', borderRadius: 12,
                     padding: '11px 20px', color: 'white', fontSize: 12, cursor: 'pointer',
                   }}
                 >
@@ -423,7 +423,7 @@ export default function CoFounderLever({
               aria-label="Close"
               style={{
                 position: 'absolute', top: 14, right: 16, background: 'transparent',
-                border: 'none', color: 'rgba(236,230,217,0.4)', fontSize: 18, cursor: 'pointer',
+                border: 'none', color: 'rgba(244,244,242,0.4)', fontSize: 18, cursor: 'pointer',
               }}
             >
               ×
