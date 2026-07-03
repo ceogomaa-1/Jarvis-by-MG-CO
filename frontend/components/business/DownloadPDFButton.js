@@ -37,10 +37,10 @@ export default function DownloadPDFButton({ walkthrough }) {
       style={{
         marginTop: 16,
         background: 'transparent',
-        border: '1px solid rgba(45,127,249,0.4)',
+        border: '1px solid rgba(207,138,91,0.4)',
         borderRadius: 6,
         padding: '8px 16px',
-        color: '#2d7ff9',
+        color: '#cf8a5b',
         cursor: loading ? 'wait' : 'pointer',
         fontFamily: 'system-ui, sans-serif',
         fontSize: 11,

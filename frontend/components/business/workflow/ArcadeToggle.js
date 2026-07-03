@@ -14,19 +14,19 @@ export default function ArcadeToggle() {
   return (
     <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[45] flex items-center gap-3">
       <span className={`font-pixel text-[10px] tracking-wider uppercase transition-colors duration-300 ${
-        !isWorkflow ? 'text-[#2d7ff9]' : 'text-[rgba(232,232,232,0.25)]'
+        !isWorkflow ? 'text-[#cf8a5b]' : 'text-[rgba(236,230,217,0.25)]'
       }`}>
         Chat
       </span>
 
       <button
         onClick={toggle}
-        className="relative w-16 h-8 rounded-full border border-[rgba(232,232,232,0.15)] bg-[rgba(10,10,10,0.8)] backdrop-blur-md cursor-pointer transition-all duration-300 hover:border-[rgba(232,232,232,0.25)]"
+        className="relative w-16 h-8 rounded-full border border-[rgba(236,230,217,0.15)] bg-[rgba(10,10,10,0.8)] backdrop-blur-md cursor-pointer transition-all duration-300 hover:border-[rgba(236,230,217,0.25)]"
         aria-label={isWorkflow ? 'Switch to Chat' : 'Switch to Workflow'}
       >
-        <div className="absolute inset-[3px] rounded-full bg-[rgba(232,232,232,0.04)]" />
+        <div className="absolute inset-[3px] rounded-full bg-[rgba(236,230,217,0.04)]" />
         <motion.div
-          className="absolute top-[3px] w-[26px] h-[26px] rounded-full bg-[#2d7ff9] shadow-[0_0_12px_rgba(45,127,249,0.4)] flex items-center justify-center"
+          className="absolute top-[3px] w-[26px] h-[26px] rounded-full bg-[#cf8a5b] shadow-[0_0_12px_rgba(207,138,91,0.4)] flex items-center justify-center"
           animate={{ left: isWorkflow ? 'calc(100% - 29px)' : '3px' }}
           transition={{ type: 'spring', stiffness: 500, damping: 30 }}
         >
@@ -38,7 +38,7 @@ export default function ArcadeToggle() {
       </button>
 
       <span className={`font-pixel text-[10px] tracking-wider uppercase transition-colors duration-300 ${
-        isWorkflow ? 'text-[#2d7ff9]' : 'text-[rgba(232,232,232,0.25)]'
+        isWorkflow ? 'text-[#cf8a5b]' : 'text-[rgba(236,230,217,0.25)]'
       }`}>
         Canvas
       </span>

@@ -10,7 +10,7 @@ const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 // Batch 68 — theme. Jarvis sets settings.theme via dashboard__control(set_theme); we turn it
 // into CSS variables the blocks read (so "make the accent emerald" / "use a serif font" is live).
 const ACCENT_NAMES = {
-  blue: '#2d7ff9', emerald: '#34d399', green: '#22c55e', teal: '#14b8a6', purple: '#a855f7',
+  blue: '#cf8a5b', emerald: '#34d399', green: '#22c55e', teal: '#14b8a6', purple: '#a855f7',
   violet: '#8b5cf6', pink: '#ec4899', red: '#ef4444', orange: '#f59e0b', amber: '#f59e0b',
   gold: '#eab308', cyan: '#06b6d4', indigo: '#6366f1', rose: '#f43f5e', lime: '#84cc16',
 }
@@ -23,7 +23,7 @@ const FONTS = {
 function resolveTheme(theme) {
   const t = theme || {}
   const raw = (t.accent || '').toString().trim().toLowerCase()
-  const accent = raw.startsWith('#') ? raw : (ACCENT_NAMES[raw] || '#2d7ff9')
+  const accent = raw.startsWith('#') ? raw : (ACCENT_NAMES[raw] || '#cf8a5b')
   const style = {
     '--home-accent': accent,
     '--home-accent-border': accent + '59',  // ~35% alpha
@@ -286,7 +286,7 @@ export default function HomeCockpit({ open, onClose, userId, onNavigate }) {
             >
               <span style={{
                 width: 7, height: 7, borderRadius: 999,
-                background: settings.default_landing ? '#2d7ff9' : 'var(--os1-text-faint, #6E6E6C)',
+                background: settings.default_landing ? '#cf8a5b' : 'var(--os1-text-faint, #6E6E6C)',
               }} />
               Default landing
             </button>
@@ -305,8 +305,8 @@ export default function HomeCockpit({ open, onClose, userId, onNavigate }) {
         {suggestion && (
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-            padding: '9px 16px', background: 'rgba(45,127,249,0.08)',
-            borderBottom: '1px solid rgba(45,127,249,0.18)', flexShrink: 0,
+            padding: '9px 16px', background: 'rgba(207,138,91,0.08)',
+            borderBottom: '1px solid rgba(207,138,91,0.18)', flexShrink: 0,
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
               <Sparkles size={14} style={{ color: '#5b9bff', flexShrink: 0 }} />
@@ -316,8 +316,8 @@ export default function HomeCockpit({ open, onClose, userId, onNavigate }) {
             </div>
             <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
               <button onClick={() => resolveSuggestion('accept')} className="font-pixel"
-                style={{ padding: '5px 11px', borderRadius: 8, fontSize: 10, border: '1px solid rgba(45,127,249,0.4)',
-                         background: 'rgba(45,127,249,0.14)', color: '#5b9bff', cursor: 'pointer' }}>
+                style={{ padding: '5px 11px', borderRadius: 8, fontSize: 10, border: '1px solid rgba(207,138,91,0.4)',
+                         background: 'rgba(207,138,91,0.14)', color: '#5b9bff', cursor: 'pointer' }}>
                 Apply
               </button>
               <button onClick={() => resolveSuggestion('reject')} className="font-pixel"
@@ -367,8 +367,8 @@ export default function HomeCockpit({ open, onClose, userId, onNavigate }) {
                   Jarvis composes Home from your overnight Operator run. Compose it now and it&apos;ll be ready every morning.
                 </div>
                 <button onClick={handleRefresh} disabled={refreshing} className="font-pixel"
-                  style={{ padding: '9px 16px', borderRadius: 10, fontSize: 11, border: '1px solid rgba(45,127,249,0.35)',
-                           background: 'rgba(45,127,249,0.12)', color: '#5b9bff', cursor: 'pointer' }}>
+                  style={{ padding: '9px 16px', borderRadius: 10, fontSize: 11, border: '1px solid rgba(207,138,91,0.35)',
+                           background: 'rgba(207,138,91,0.12)', color: '#5b9bff', cursor: 'pointer' }}>
                   {refreshing ? 'Composing…' : 'Compose my Home'}
                 </button>
               </div>
@@ -411,7 +411,7 @@ export default function HomeCockpit({ open, onClose, userId, onNavigate }) {
                 transition={{ duration: 0.2, ease: 'easeOut' }}
                 style={{
                   borderLeft: '1px solid var(--os1-border-soft, rgba(255,255,255,0.08))',
-                  background: '#131313', display: 'flex', flexDirection: 'column',
+                  background: '#0b0a09', display: 'flex', flexDirection: 'column',
                   minWidth: 300, flexShrink: 0, overflow: 'hidden',
                 }}
               >

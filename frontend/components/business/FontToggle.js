@@ -44,8 +44,8 @@ export default function FontToggle({ userId }) {
           width: 56,
           height: 26,
           borderRadius: 999,
-          border: `1px solid ${isNormal ? '#2d7ff9' : '#3d3d3d'}`,
-          background: isNormal ? 'rgba(45,127,249,0.25)' : '#2e2e2e',
+          border: `1px solid ${isNormal ? '#cf8a5b' : '#3a332b'}`,
+          background: isNormal ? 'rgba(207,138,91,0.25)' : '#221e19',
           cursor: 'pointer',
           padding: 0,
           transition: 'background 0.3s ease, border-color 0.3s ease',
@@ -60,7 +60,7 @@ export default function FontToggle({ userId }) {
         </span>
         <span className="font-pixel" style={{
           position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
-          fontSize: 7, lineHeight: 1, color: isNormal ? '#2d7ff9' : '#6a6a6a', userSelect: 'none',
+          fontSize: 7, lineHeight: 1, color: isNormal ? '#cf8a5b' : '#6a6a6a', userSelect: 'none',
           transition: 'color 0.3s ease',
         }}>
           ON
@@ -73,8 +73,8 @@ export default function FontToggle({ userId }) {
           style={{
             position: 'absolute', top: 2, left: 2,
             width: 20, height: 20, borderRadius: 4,
-            background: isNormal ? '#2d7ff9' : '#8a8a8a',
-            boxShadow: isNormal ? '0 0 10px rgba(45,127,249,0.6)' : 'none',
+            background: isNormal ? '#cf8a5b' : '#8c857b',
+            boxShadow: isNormal ? '0 0 10px rgba(207,138,91,0.6)' : 'none',
           }}
         />
       </button>

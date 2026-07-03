@@ -81,8 +81,8 @@ export default function AIThinkingBlock({
   return (
     <div className={cn("flex w-full max-w-2xl flex-col py-2", className)}>
       <div className="mb-3 flex items-center gap-2.5">
-        <span className="flex h-7 w-7 items-center justify-center rounded-full border border-primary/20 bg-primary/10 shadow-[0_0_24px_rgba(45,127,249,0.14)]">
-          <Loader size="sm" className="text-[#2d7ff9]" />
+        <span className="flex h-7 w-7 items-center justify-center rounded-full border border-primary/20 bg-primary/10 shadow-[0_0_24px_rgba(207,138,91,0.14)]">
+          <Loader size="sm" className="text-[#cf8a5b]" />
         </span>
         <p className="ai-thinking-shimmer bg-[length:220%_100%] bg-clip-text text-sm font-medium text-transparent">
           {label}
@@ -111,7 +111,7 @@ export default function AIThinkingBlock({
                 <span
                   className={cn(
                     "mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full",
-                    index === 0 ? "bg-[#2d7ff9] shadow-[0_0_10px_rgba(45,127,249,0.7)]" : "bg-white/20",
+                    index === 0 ? "bg-[#cf8a5b] shadow-[0_0_10px_rgba(207,138,91,0.7)]" : "bg-white/20",
                   )}
                 />
                 <span>{line}</span>
@@ -125,10 +125,10 @@ export default function AIThinkingBlock({
         .ai-thinking-shimmer {
           background-image: linear-gradient(
             110deg,
-            rgba(232, 232, 232, 0.32) 25%,
+            rgba(236, 230, 217, 0.32) 25%,
             rgba(255, 255, 255, 0.96) 48%,
-            rgba(45, 127, 249, 0.92) 56%,
-            rgba(232, 232, 232, 0.32) 78%
+            rgba(207, 138, 91, 0.92) 56%,
+            rgba(236, 230, 217, 0.32) 78%
           );
           animation: ai-thinking-shimmer 4.8s linear infinite;
         }

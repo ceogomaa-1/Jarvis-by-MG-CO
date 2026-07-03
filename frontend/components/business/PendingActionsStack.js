@@ -14,7 +14,7 @@ import { motion } from 'framer-motion'
 // ─────────────────────────────────────────────────────────────────────
 
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
-const PIXEL = { fontFamily: 'var(--font-pixel), monospace' }
+const PIXEL = { fontFamily: 'var(--pixel)' }
 const POLL_MS = 3000
 
 const ACTION_TYPE_LABELS = {
@@ -44,13 +44,13 @@ const GLASS_PANEL = {
   background: 'rgba(15, 15, 18, 0.6)',
   backdropFilter: 'blur(30px) saturate(180%)',
   WebkitBackdropFilter: 'blur(30px) saturate(180%)',
-  border: '1px solid rgba(232,232,232,0.14)',
+  border: '1px solid rgba(236,230,217,0.14)',
   borderRadius: 22, padding: 28,
-  boxShadow: '0 26px 70px rgba(0,0,0,0.55), inset 0 1px 0 rgba(232,232,232,0.06)',
+  boxShadow: '0 26px 70px rgba(0,0,0,0.55), inset 0 1px 0 rgba(236,230,217,0.06)',
   maxHeight: '90vh', display: 'flex', flexDirection: 'column',
 }
 
-function Chip({ children, color = 'rgba(232,232,232,0.5)', border = 'rgba(232,232,232,0.18)' }) {
+function Chip({ children, color = 'rgba(236,230,217,0.5)', border = 'rgba(236,230,217,0.18)' }) {
   return (
     <span style={{
       ...PIXEL, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em',
@@ -75,7 +75,7 @@ function Receipts({ result }) {
         RECEIPTS — WHAT JARVIS ACTUALLY DID
       </div>
       {lines.map((l, i) => (
-        <div key={i} style={{ fontSize: 12, color: 'rgba(232,232,232,0.8)', lineHeight: 1.6 }}>
+        <div key={i} style={{ fontSize: 12, color: 'rgba(236,230,217,0.8)', lineHeight: 1.6 }}>
           {l.replace(/^(DONE|FAILED)\s*$/i, '')}
         </div>
       ))}
@@ -93,7 +93,7 @@ function Receipts({ result }) {
         </div>
       )}
       {typeof result.cost_usd === 'number' && (
-        <div style={{ fontSize: 9.5, color: 'rgba(232,232,232,0.3)', marginTop: 8 }}>
+        <div style={{ fontSize: 9.5, color: 'rgba(236,230,217,0.3)', marginTop: 8 }}>
           execution cost ${result.cost_usd.toFixed(3)}
         </div>
       )}
@@ -118,11 +118,11 @@ function QuestionCard({ q, onAnswer, onDismiss }) {
       background: 'rgba(168,116,255,0.05)',
       borderRadius: 12, marginBottom: 10, padding: '13px 15px',
     }}>
-      <div style={{ ...PIXEL, fontSize: 12.5, color: '#e8e8e8', lineHeight: 1.55 }}>
+      <div style={{ ...PIXEL, fontSize: 12.5, color: '#ece6d9', lineHeight: 1.55 }}>
         {q.question}
       </div>
       {q.why_it_matters && (
-        <div style={{ fontSize: 10.5, color: 'rgba(232,232,232,0.5)', marginTop: 5, lineHeight: 1.6 }}>
+        <div style={{ fontSize: 10.5, color: 'rgba(236,230,217,0.5)', marginTop: 5, lineHeight: 1.6 }}>
           Why: {q.why_it_matters}
         </div>
       )}
@@ -138,9 +138,9 @@ function QuestionCard({ q, onAnswer, onDismiss }) {
           onKeyDown={e => { if (e.key === 'Enter') submit() }}
           placeholder="Your answer — Jarvis remembers it forever"
           style={{
-            flex: 1, background: 'rgba(232,232,232,0.05)',
-            border: '1px solid rgba(232,232,232,0.12)', borderRadius: 8,
-            padding: '8px 12px', color: '#e8e8e8', fontSize: 12, outline: 'none',
+            flex: 1, background: 'rgba(236,230,217,0.05)',
+            border: '1px solid rgba(236,230,217,0.12)', borderRadius: 8,
+            padding: '8px 12px', color: '#ece6d9', fontSize: 12, outline: 'none',
           }}
         />
         <button
@@ -158,8 +158,8 @@ function QuestionCard({ q, onAnswer, onDismiss }) {
           onClick={() => onDismiss(q.id)}
           title="Skip this question"
           style={{
-            background: 'transparent', border: '1px solid rgba(232,232,232,0.12)',
-            borderRadius: 8, padding: '8px 10px', color: 'rgba(232,232,232,0.45)',
+            background: 'transparent', border: '1px solid rgba(236,230,217,0.12)',
+            borderRadius: 8, padding: '8px 10px', color: 'rgba(236,230,217,0.45)',
             fontSize: 11, cursor: 'pointer',
           }}
         >
@@ -184,9 +184,9 @@ function InitiativeCard({ action, onApprove, onMarkDone, onDecline, onExpand, ex
 
   return (
     <div style={{
-      border: `1px solid ${executed ? 'rgba(34,197,94,0.25)' : failed ? 'rgba(245,166,35,0.3)' : 'rgba(232,232,232,0.09)'}`,
+      border: `1px solid ${executed ? 'rgba(34,197,94,0.25)' : failed ? 'rgba(245,166,35,0.3)' : 'rgba(236,230,217,0.09)'}`,
       borderRadius: 12, marginBottom: 10, overflow: 'hidden',
-      background: 'rgba(232,232,232,0.02)',
+      background: 'rgba(236,230,217,0.02)',
     }}>
       {/* Header */}
       <div
@@ -194,25 +194,25 @@ function InitiativeCard({ action, onApprove, onMarkDone, onDecline, onExpand, ex
         style={{
           display: 'flex', alignItems: 'flex-start', gap: 12,
           padding: '13px 15px', cursor: 'pointer',
-          background: expanded ? 'rgba(232,232,232,0.03)' : 'transparent',
+          background: expanded ? 'rgba(236,230,217,0.03)' : 'transparent',
         }}
       >
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
             <Chip>{typeLabel}</Chip>
             {isAuto
-              ? <Chip color="#2d7ff9" border="rgba(45,127,249,0.45)">⚡ Jarvis executes</Chip>
-              : <Chip color="rgba(232,232,232,0.45)" border="rgba(232,232,232,0.2)">manual</Chip>}
+              ? <Chip color="#cf8a5b" border="rgba(207,138,91,0.45)">⚡ Jarvis executes</Chip>
+              : <Chip color="rgba(236,230,217,0.45)" border="rgba(236,230,217,0.2)">manual</Chip>}
             {isExternal && <Chip color="#f5a623" border="rgba(245,166,35,0.4)">external</Chip>}
-            {executing && <Chip color="#2d7ff9" border="rgba(45,127,249,0.45)">executing…</Chip>}
+            {executing && <Chip color="#cf8a5b" border="rgba(207,138,91,0.45)">executing…</Chip>}
             {executed && <Chip color="#22c55e" border="rgba(34,197,94,0.4)">done</Chip>}
             {failed && <Chip color="#f5a623" border="rgba(245,166,35,0.4)">needs attention</Chip>}
           </div>
-          <div style={{ ...PIXEL, fontSize: 13.5, color: '#e8e8e8', lineHeight: 1.45 }}>
+          <div style={{ ...PIXEL, fontSize: 13.5, color: '#ece6d9', lineHeight: 1.45 }}>
             {action.title}
           </div>
           {action.description && (
-            <div style={{ fontSize: 11.5, color: 'rgba(232,232,232,0.55)', marginTop: 4, lineHeight: 1.55 }}>
+            <div style={{ fontSize: 11.5, color: 'rgba(236,230,217,0.55)', marginTop: 4, lineHeight: 1.55 }}>
               {action.description}
             </div>
           )}
@@ -222,25 +222,25 @@ function InitiativeCard({ action, onApprove, onMarkDone, onDecline, onExpand, ex
             </div>
           )}
         </div>
-        <span style={{ fontSize: 11, color: 'rgba(232,232,232,0.35)', flexShrink: 0, marginTop: 2 }}>
+        <span style={{ fontSize: 11, color: 'rgba(236,230,217,0.35)', flexShrink: 0, marginTop: 2 }}>
           {expanded ? '▲' : '▼'}
         </span>
       </div>
 
       {/* Expanded body */}
       {expanded && (
-        <div style={{ borderTop: '1px solid rgba(232,232,232,0.06)', padding: '14px 16px' }}>
+        <div style={{ borderTop: '1px solid rgba(236,230,217,0.06)', padding: '14px 16px' }}>
           {isAuto && (plan.steps || []).length > 0 && !executed && (
             <div style={{
               marginBottom: 14, padding: '12px 14px', borderRadius: 10,
-              background: 'rgba(45,127,249,0.05)', border: '1px solid rgba(45,127,249,0.18)',
+              background: 'rgba(207,138,91,0.05)', border: '1px solid rgba(207,138,91,0.18)',
             }}>
-              <div style={{ ...PIXEL, fontSize: 9, letterSpacing: '0.1em', color: '#2d7ff9', marginBottom: 8 }}>
+              <div style={{ ...PIXEL, fontSize: 9, letterSpacing: '0.1em', color: '#cf8a5b', marginBottom: 8 }}>
                 WHEN YOU APPROVE, JARVIS WILL:
               </div>
               {plan.steps.map((s, i) => (
-                <div key={i} style={{ display: 'flex', gap: 8, fontSize: 12, color: 'rgba(232,232,232,0.75)', lineHeight: 1.7 }}>
-                  <span style={{ color: 'rgba(45,127,249,0.7)', flexShrink: 0 }}>{i + 1}.</span>
+                <div key={i} style={{ display: 'flex', gap: 8, fontSize: 12, color: 'rgba(236,230,217,0.75)', lineHeight: 1.7 }}>
+                  <span style={{ color: 'rgba(207,138,91,0.7)', flexShrink: 0 }}>{i + 1}.</span>
                   <span>{s}</span>
                 </div>
               ))}
@@ -251,12 +251,12 @@ function InitiativeCard({ action, onApprove, onMarkDone, onDecline, onExpand, ex
           {action.artifact_markdown && (
             <details style={{ marginBottom: 4 }}>
               <summary style={{
-                ...PIXEL, fontSize: 10, color: 'rgba(232,232,232,0.5)',
+                ...PIXEL, fontSize: 10, color: 'rgba(236,230,217,0.5)',
                 cursor: 'pointer', letterSpacing: '0.06em', marginBottom: 8,
               }}>
                 VIEW THE WORK
               </summary>
-              <div className="biz-markdown" style={{ fontSize: 12.5, color: 'rgba(232,232,232,0.8)', lineHeight: 1.7, marginTop: 8 }}>
+              <div className="biz-markdown" style={{ fontSize: 12.5, color: 'rgba(236,230,217,0.8)', lineHeight: 1.7, marginTop: 8 }}>
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
                   {action.artifact_markdown}
                 </ReactMarkdown>
@@ -270,9 +270,9 @@ function InitiativeCard({ action, onApprove, onMarkDone, onDecline, onExpand, ex
               <motion.span
                 animate={{ opacity: [1, 0.25, 1] }}
                 transition={{ repeat: Infinity, duration: 1.2 }}
-                style={{ color: '#2d7ff9', fontSize: 13 }}
+                style={{ color: '#cf8a5b', fontSize: 13 }}
               >●</motion.span>
-              <span style={{ ...PIXEL, fontSize: 11.5, color: 'rgba(232,232,232,0.75)' }}>
+              <span style={{ ...PIXEL, fontSize: 11.5, color: 'rgba(236,230,217,0.75)' }}>
                 Jarvis is executing this right now…
               </span>
             </div>
@@ -295,9 +295,9 @@ function InitiativeCard({ action, onApprove, onMarkDone, onDecline, onExpand, ex
                 placeholder="Why not? (optional — Jarvis learns from this)"
                 autoFocus
                 style={{
-                  flex: 1, background: 'rgba(232,232,232,0.05)',
-                  border: '1px solid rgba(232,232,232,0.12)', borderRadius: 8,
-                  padding: '8px 12px', color: '#e8e8e8', fontSize: 12, outline: 'none',
+                  flex: 1, background: 'rgba(236,230,217,0.05)',
+                  border: '1px solid rgba(236,230,217,0.12)', borderRadius: 8,
+                  padding: '8px 12px', color: '#ece6d9', fontSize: 12, outline: 'none',
                 }}
               />
               <button
@@ -330,9 +330,9 @@ function InitiativeCard({ action, onApprove, onMarkDone, onDecline, onExpand, ex
                 <button
                   onClick={() => onApprove(action.id)}
                   style={{
-                    background: '#2d7ff9', border: 'none', borderRadius: 8,
+                    background: '#cf8a5b', border: 'none', borderRadius: 8,
                     padding: '8px 18px', color: 'white', fontSize: 11.5, fontWeight: 600,
-                    cursor: 'pointer', ...PIXEL, boxShadow: '0 0 18px rgba(45,127,249,0.35)',
+                    cursor: 'pointer', ...PIXEL, boxShadow: '0 0 18px rgba(207,138,91,0.35)',
                   }}
                 >
                   ⚡ Approve — Jarvis executes
@@ -504,13 +504,13 @@ export default function PendingActionsStack({ open, onClose, userId }) {
         onClick={e => e.stopPropagation()}
         style={GLASS_PANEL}
       >
-        <div style={{ ...PIXEL, fontSize: 10, letterSpacing: '0.14em', color: '#2d7ff9', marginBottom: 6 }}>
+        <div style={{ ...PIXEL, fontSize: 10, letterSpacing: '0.14em', color: '#cf8a5b', marginBottom: 6 }}>
           🤝 THE BOARDROOM
         </div>
-        <div style={{ ...PIXEL, fontSize: 16, color: '#e8e8e8', marginBottom: 4 }}>
+        <div style={{ ...PIXEL, fontSize: 16, color: '#ece6d9', marginBottom: 4 }}>
           Initiatives from your co-founder
         </div>
-        <div style={{ fontSize: 11.5, color: 'rgba(232,232,232,0.5)', marginBottom: 16, lineHeight: 1.6 }}>
+        <div style={{ fontSize: 11.5, color: 'rgba(236,230,217,0.5)', marginBottom: 16, lineHeight: 1.6 }}>
           Every card shows exactly what Jarvis will do. Approve it — Jarvis executes it for real
           and the receipts land right here.
         </div>
@@ -526,9 +526,9 @@ export default function PendingActionsStack({ open, onClose, userId }) {
               onClick={() => { setTab(t.id); if (t.id === 'done') loadActivity() }}
               style={{
                 ...PIXEL, fontSize: 11, padding: '7px 14px', borderRadius: 8, cursor: 'pointer',
-                background: tab === t.id ? 'rgba(45,127,249,0.14)' : 'transparent',
-                border: `1px solid ${tab === t.id ? 'rgba(45,127,249,0.4)' : 'rgba(232,232,232,0.1)'}`,
-                color: tab === t.id ? '#2d7ff9' : 'rgba(232,232,232,0.55)',
+                background: tab === t.id ? 'rgba(207,138,91,0.14)' : 'transparent',
+                border: `1px solid ${tab === t.id ? 'rgba(207,138,91,0.4)' : 'rgba(236,230,217,0.1)'}`,
+                color: tab === t.id ? '#cf8a5b' : 'rgba(236,230,217,0.55)',
               }}
             >
               {t.label}
@@ -553,10 +553,10 @@ export default function PendingActionsStack({ open, onClose, userId }) {
           )}
 
           {loading ? (
-            <div style={{ color: 'rgba(232,232,232,0.5)', fontSize: 13, padding: 8 }}>Loading…</div>
+            <div style={{ color: 'rgba(236,230,217,0.5)', fontSize: 13, padding: 8 }}>Loading…</div>
           ) : list.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '38px 0' }}>
-              <div style={{ fontSize: 12, color: 'rgba(232,232,232,0.4)', lineHeight: 1.8 }}>
+              <div style={{ fontSize: 12, color: 'rgba(236,230,217,0.4)', lineHeight: 1.8 }}>
                 {tab === 'approvals'
                   ? 'Nothing waiting on you. Jarvis scans nightly — new initiatives land here.'
                   : 'No executed initiatives yet. Approve one and watch the receipts appear.'}
@@ -578,14 +578,14 @@ export default function PendingActionsStack({ open, onClose, userId }) {
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 }}>
-          <span style={{ fontSize: 10.5, color: 'rgba(232,232,232,0.35)' }}>
+          <span style={{ fontSize: 10.5, color: 'rgba(236,230,217,0.35)' }}>
             {tab === 'approvals' ? `${pendingCount} waiting for your green light` : `${activity.length} on the record`}
           </span>
           <button
             onClick={onClose}
             style={{
-              background: 'transparent', border: '1px solid rgba(232,232,232,0.14)',
-              borderRadius: 10, padding: '8px 20px', color: 'rgba(232,232,232,0.7)',
+              background: 'transparent', border: '1px solid rgba(236,230,217,0.14)',
+              borderRadius: 10, padding: '8px 20px', color: 'rgba(236,230,217,0.7)',
               fontSize: 12.5, cursor: 'pointer',
             }}
           >

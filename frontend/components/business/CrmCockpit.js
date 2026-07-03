@@ -115,7 +115,7 @@ export default function CrmCockpit({ open, onClose, userId, workspace }) {
                 transition={{ duration: 0.2, ease: 'easeOut' }}
                 style={{
                   borderLeft: '1px solid var(--os1-border-soft, rgba(255,255,255,0.08))',
-                  background: '#131313', display: 'flex', flexDirection: 'column',
+                  background: '#0b0a09', display: 'flex', flexDirection: 'column',
                   minWidth: 320, flexShrink: 0, overflow: 'hidden',
                 }}
               >

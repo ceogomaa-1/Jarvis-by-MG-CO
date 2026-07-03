@@ -11,7 +11,7 @@ const SOURCE_LABELS = {
 }
 
 const SKILL_TYPE_BADGE = {
-  knowledge: { label: 'KNOWLEDGE', color: '#2d7ff9' },
+  knowledge: { label: 'KNOWLEDGE', color: '#cf8a5b' },
   behavior: { label: 'BEHAVIOR', color: '#c84b31' },
   both: { label: 'KNOWLEDGE + BEHAVIOR', color: '#9b6dff' },
 }
@@ -273,28 +273,28 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
           background: 'rgba(15, 15, 18, 0.55)',
           backdropFilter: 'blur(28px) saturate(180%)',
           WebkitBackdropFilter: 'blur(28px) saturate(180%)',
-          border: '1px solid rgba(232,232,232,0.15)',
+          border: '1px solid rgba(236,230,217,0.15)',
           borderRadius: 20, padding: 28,
           fontFamily: 'system-ui, sans-serif',
-          boxShadow: '0 24px 60px rgba(0,0,0,0.55), inset 0 1px 0 rgba(232,232,232,0.06)',
+          boxShadow: '0 24px 60px rgba(0,0,0,0.55), inset 0 1px 0 rgba(236,230,217,0.06)',
           display: 'flex', flexDirection: 'column',
           maxHeight: '88vh',
         }}
       >
         <div style={{
-          fontFamily: 'var(--font-pixel), monospace',
+          fontFamily: 'var(--pixel)',
           fontSize: 10, letterSpacing: '0.12em',
-          color: '#2d7ff9', marginBottom: 8, textTransform: 'uppercase',
+          color: '#cf8a5b', marginBottom: 8, textTransform: 'uppercase',
         }}>
           KNOWLEDGE BASE
         </div>
         <div style={{
-          fontFamily: 'var(--font-pixel), monospace',
-          fontSize: 13, color: '#e8e8e8', marginBottom: 4, lineHeight: 1.5,
+          fontFamily: 'var(--pixel)',
+          fontSize: 13, color: '#ece6d9', marginBottom: 4, lineHeight: 1.5,
         }}>
           Feed Jarvis what it should know
         </div>
-        <div className="os1-serif-micro" style={{ fontSize: 9, color: 'rgba(232,232,232,0.45)', marginBottom: 16 }}>
+        <div className="os1-serif-micro" style={{ fontSize: 9, color: 'rgba(236,230,217,0.45)', marginBottom: 16 }}>
           stuff you're ready to paste and want me to know right away
         </div>
 
@@ -309,11 +309,11 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
               key={t.key}
               onClick={() => setTab(t.key)}
               style={{
-                background: tab === t.key ? 'rgba(45,127,249,0.15)' : 'transparent',
-                border: `1px solid ${tab === t.key ? '#2d7ff9' : 'rgba(232,232,232,0.12)'}`,
+                background: tab === t.key ? 'rgba(207,138,91,0.15)' : 'transparent',
+                border: `1px solid ${tab === t.key ? '#cf8a5b' : 'rgba(236,230,217,0.12)'}`,
                 borderRadius: 10, padding: '8px 16px',
-                color: tab === t.key ? '#2d7ff9' : 'rgba(232,232,232,0.6)',
-                fontFamily: 'var(--font-pixel), monospace',
+                color: tab === t.key ? '#cf8a5b' : 'rgba(236,230,217,0.6)',
+                fontFamily: 'var(--pixel)',
                 fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em',
                 cursor: 'pointer', transition: 'all 150ms ease',
               }}
@@ -333,10 +333,10 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
               rows={8}
               style={{
                 width: '100%', boxSizing: 'border-box',
-                background: 'rgba(232,232,232,0.04)',
-                border: '1px solid rgba(232,232,232,0.12)',
+                background: 'rgba(236,230,217,0.04)',
+                border: '1px solid rgba(236,230,217,0.12)',
                 borderRadius: 10, padding: '14px 16px',
-                color: '#e8e8e8',
+                color: '#ece6d9',
                 fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
                 fontSize: 13, lineHeight: 1.6, outline: 'none', resize: 'vertical',
                 marginBottom: 12,
@@ -350,16 +350,16 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
               onDrop={e => { e.preventDefault(); setDragOver(false); addFiles(e.dataTransfer.files) }}
               onClick={() => fileInputRef.current?.click()}
               style={{
-                border: `1px dashed ${dragOver ? '#2d7ff9' : 'rgba(232,232,232,0.18)'}`,
+                border: `1px dashed ${dragOver ? '#cf8a5b' : 'rgba(236,230,217,0.18)'}`,
                 borderRadius: 10, padding: '16px',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
                 cursor: 'pointer', marginBottom: 12,
-                background: dragOver ? 'rgba(45,127,249,0.08)' : 'transparent',
+                background: dragOver ? 'rgba(207,138,91,0.08)' : 'transparent',
                 transition: 'all 150ms ease',
               }}
             >
-              <Upload size={16} color="rgba(232,232,232,0.5)" />
-              <span className="os1-serif-micro" style={{ fontSize: 10, color: 'rgba(232,232,232,0.5)' }}>
+              <Upload size={16} color="rgba(236,230,217,0.5)" />
+              <span className="os1-serif-micro" style={{ fontSize: 10, color: 'rgba(236,230,217,0.5)' }}>
                 Drop files here or click to browse — pdf, image, txt, md, csv, docx, zip
               </span>
               <input
@@ -377,17 +377,17 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
                 {files.map((f, idx) => (
                   <div key={`${f.name}-${idx}`} style={{
                     display: 'flex', alignItems: 'center', gap: 6,
-                    background: 'rgba(232,232,232,0.06)',
-                    border: '1px solid rgba(232,232,232,0.12)',
+                    background: 'rgba(236,230,217,0.06)',
+                    border: '1px solid rgba(236,230,217,0.12)',
                     borderRadius: 8, padding: '5px 8px 5px 10px',
                   }}>
-                    <span className="os1-serif-micro" style={{ fontSize: 10, color: '#e8e8e8' }}>{f.name}</span>
+                    <span className="os1-serif-micro" style={{ fontSize: 10, color: '#ece6d9' }}>{f.name}</span>
                     <button
                       onClick={() => removeFile(idx)}
                       disabled={feeding}
                       style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 2 }}
                     >
-                      <X size={12} color="rgba(232,232,232,0.5)" />
+                      <X size={12} color="rgba(236,230,217,0.5)" />
                     </button>
                   </div>
                 ))}
@@ -398,7 +398,7 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
             {progress.length > 0 && (
               <div style={{
                 background: 'rgba(0,0,0,0.35)',
-                border: '1px solid rgba(232,232,232,0.1)',
+                border: '1px solid rgba(236,230,217,0.1)',
                 borderRadius: 10, padding: '12px 14px',
                 marginBottom: 12, maxHeight: 160, overflowY: 'auto',
               }} className="os1-scroll">
@@ -406,8 +406,8 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
                   <div key={idx} className="os1-serif-micro" style={{
                     fontSize: 10, lineHeight: 1.8,
                     color: item.status === 'error' ? '#ff6b6b'
-                      : item.status === 'learned' ? '#2d7ff9'
-                      : 'rgba(232,232,232,0.55)',
+                      : item.status === 'learned' ? '#cf8a5b'
+                      : 'rgba(236,230,217,0.55)',
                     fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
                     whiteSpace: 'pre-wrap', wordBreak: 'break-all',
                   }}>
@@ -424,9 +424,9 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
                 disabled={feeding}
                 style={{
                   background: 'transparent',
-                  border: '1px solid rgba(232,232,232,0.1)',
+                  border: '1px solid rgba(236,230,217,0.1)',
                   borderRadius: 12, padding: '10px 24px',
-                  color: 'rgba(232,232,232,0.7)', fontSize: 13,
+                  color: 'rgba(236,230,217,0.7)', fontSize: 13,
                   fontFamily: 'system-ui, sans-serif', cursor: feeding ? 'default' : 'pointer',
                   transition: 'all 200ms ease',
                 }}
@@ -437,7 +437,7 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
                 onClick={handleFeed}
                 disabled={feeding || (!text.trim() && files.length === 0)}
                 style={{
-                  background: feeding ? 'rgba(45,127,249,0.4)' : '#2d7ff9',
+                  background: feeding ? 'rgba(207,138,91,0.4)' : '#cf8a5b',
                   border: 'none', borderRadius: 12, padding: '10px 24px',
                   color: '#0a0a0a', fontSize: 13, fontWeight: 500,
                   fontFamily: 'system-ui, sans-serif',
@@ -456,14 +456,14 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
           <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
             <div style={{ flex: 1, overflowY: 'auto', minHeight: 100, maxHeight: 380 }} className="os1-scroll">
               {sourcesLoading && (
-                <div className="os1-serif-micro" style={{ fontSize: 11, color: 'rgba(232,232,232,0.4)', padding: '20px 0', textAlign: 'center' }}>
+                <div className="os1-serif-micro" style={{ fontSize: 11, color: 'rgba(236,230,217,0.4)', padding: '20px 0', textAlign: 'center' }}>
                   Loading...
                 </div>
               )}
               {!sourcesLoading && sources.length === 0 && (
                 <div style={{ padding: '32px 0', textAlign: 'center' }}>
-                  <BookOpen size={24} color="rgba(232,232,232,0.25)" style={{ marginBottom: 10 }} />
-                  <div className="os1-serif-micro" style={{ fontSize: 11, color: 'rgba(232,232,232,0.4)' }}>
+                  <BookOpen size={24} color="rgba(236,230,217,0.25)" style={{ marginBottom: 10 }} />
+                  <div className="os1-serif-micro" style={{ fontSize: 11, color: 'rgba(236,230,217,0.4)' }}>
                     Nothing yet — paste something or drop a file in Feed Jarvis.
                   </div>
                 </div>
@@ -476,29 +476,29 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
                 <div key={source.id} style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
                   padding: '12px 14px', marginBottom: 8,
-                  background: 'rgba(232,232,232,0.03)',
-                  border: '1px solid rgba(232,232,232,0.1)',
+                  background: 'rgba(236,230,217,0.03)',
+                  border: '1px solid rgba(236,230,217,0.1)',
                   borderRadius: 10, opacity: isSkill && !enabled ? 0.5 : 1,
                 }}>
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                       <span style={{
-                        fontFamily: 'var(--font-pixel), monospace',
+                        fontFamily: 'var(--pixel)',
                         fontSize: 8, letterSpacing: '0.08em',
-                        color: badge ? badge.color : '#2d7ff9',
-                        border: `1px solid ${badge ? badge.color : 'rgba(45,127,249,0.4)'}55`,
+                        color: badge ? badge.color : '#cf8a5b',
+                        border: `1px solid ${badge ? badge.color : 'rgba(207,138,91,0.4)'}55`,
                         borderRadius: 4, padding: '2px 5px', flexShrink: 0,
                       }}>
                         {badge ? badge.label : (SOURCE_LABELS[source.source_type] || 'TEXT')}
                       </span>
                       <span style={{
-                        color: '#e8e8e8', fontSize: 13,
+                        color: '#ece6d9', fontSize: 13,
                         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                       }}>
                         {source.label}
                       </span>
                     </div>
-                    <div className="os1-serif-micro" style={{ fontSize: 9, color: 'rgba(232,232,232,0.4)' }}>
+                    <div className="os1-serif-micro" style={{ fontSize: 9, color: 'rgba(236,230,217,0.4)' }}>
                       {formatDate(source.created_at)} · {(SOURCE_LABELS[source.source_type] || 'text').toLowerCase()}
                       {isSkill && !enabled ? ' · off' : ''}
                     </div>
@@ -511,7 +511,7 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
                         title={enabled ? 'Enabled — click to turn off' : 'Disabled — click to turn on'}
                         style={{
                           width: 34, height: 18, borderRadius: 9, border: 'none', cursor: 'pointer',
-                          background: enabled ? '#2d7ff9' : 'rgba(232,232,232,0.18)',
+                          background: enabled ? '#cf8a5b' : 'rgba(236,230,217,0.18)',
                           position: 'relative', transition: 'background 150ms ease', marginRight: 4, flexShrink: 0,
                         }}
                       >
@@ -525,13 +525,13 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
                     {isSkill && (
                       <button onClick={() => openSkill(source.id, 'view')}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 6 }} title="View full content">
-                        <Eye size={15} color="rgba(232,232,232,0.45)" />
+                        <Eye size={15} color="rgba(236,230,217,0.45)" />
                       </button>
                     )}
                     {isSkill && (
                       <button onClick={() => openSkill(source.id, 'edit')}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 6 }} title="Edit">
-                        <Pencil size={14} color="rgba(232,232,232,0.45)" />
+                        <Pencil size={14} color="rgba(236,230,217,0.45)" />
                       </button>
                     )}
                     <button
@@ -540,7 +540,7 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
                       style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 6 }}
                       title="Delete"
                     >
-                      <Trash2 size={15} color="rgba(232,232,232,0.4)" />
+                      <Trash2 size={15} color="rgba(236,230,217,0.4)" />
                     </button>
                   </div>
                 </div>
@@ -552,9 +552,9 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
                 onClick={onClose}
                 style={{
                   background: 'transparent',
-                  border: '1px solid rgba(232,232,232,0.1)',
+                  border: '1px solid rgba(236,230,217,0.1)',
                   borderRadius: 12, padding: '10px 24px',
-                  color: 'rgba(232,232,232,0.7)', fontSize: 13,
+                  color: 'rgba(236,230,217,0.7)', fontSize: 13,
                   fontFamily: 'system-ui, sans-serif', cursor: 'pointer',
                   transition: 'all 200ms ease',
                 }}
@@ -570,12 +570,12 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
             {!wishSubmitted ? (
               <>
                 <div style={{
-                  fontFamily: 'var(--font-pixel), monospace',
-                  fontSize: 13, color: '#e8e8e8', marginBottom: 4, lineHeight: 1.5,
+                  fontFamily: 'var(--pixel)',
+                  fontSize: 13, color: '#ece6d9', marginBottom: 4, lineHeight: 1.5,
                 }}>
                   What do you wish Jarvis could do better — or have — that doesn't exist yet?
                 </div>
-                <div className="os1-serif-micro" style={{ fontSize: 9, color: 'rgba(232,232,232,0.45)', marginBottom: 16 }}>
+                <div className="os1-serif-micro" style={{ fontSize: 9, color: 'rgba(236,230,217,0.45)', marginBottom: 16 }}>
                   every wish lands directly on the founder's desk.
                 </div>
                 <textarea
@@ -586,10 +586,10 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
                   rows={8}
                   style={{
                     width: '100%', boxSizing: 'border-box',
-                    background: 'rgba(232,232,232,0.04)',
-                    border: '1px solid rgba(232,232,232,0.12)',
+                    background: 'rgba(236,230,217,0.04)',
+                    border: '1px solid rgba(236,230,217,0.12)',
                     borderRadius: 10, padding: '14px 16px',
-                    color: '#e8e8e8',
+                    color: '#ece6d9',
                     fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
                     fontSize: 13, lineHeight: 1.6, outline: 'none', resize: 'vertical',
                     marginBottom: 12,
@@ -606,9 +606,9 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
                     disabled={wishSubmitting}
                     style={{
                       background: 'transparent',
-                      border: '1px solid rgba(232,232,232,0.1)',
+                      border: '1px solid rgba(236,230,217,0.1)',
                       borderRadius: 12, padding: '10px 24px',
-                      color: 'rgba(232,232,232,0.7)', fontSize: 13,
+                      color: 'rgba(236,230,217,0.7)', fontSize: 13,
                       fontFamily: 'system-ui, sans-serif', cursor: wishSubmitting ? 'default' : 'pointer',
                       transition: 'all 200ms ease',
                     }}
@@ -619,7 +619,7 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
                     onClick={handleWishSubmit}
                     disabled={wishSubmitting || !wishText.trim()}
                     style={{
-                      background: wishSubmitting ? 'rgba(45,127,249,0.4)' : '#2d7ff9',
+                      background: wishSubmitting ? 'rgba(207,138,91,0.4)' : '#cf8a5b',
                       border: 'none', borderRadius: 12, padding: '10px 24px',
                       color: '#0a0a0a', fontSize: 13, fontWeight: 500,
                       fontFamily: 'system-ui, sans-serif',
@@ -634,17 +634,17 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
               </>
             ) : (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 16, padding: '40px 0' }}>
-                <div className="onboarding-pulse" style={{ width: 10, height: 10, background: '#2d7ff9', borderRadius: 2 }} />
+                <div className="onboarding-pulse" style={{ width: 10, height: 10, background: '#cf8a5b', borderRadius: 2 }} />
                 <div style={{
-                  fontFamily: 'var(--font-pixel), monospace',
-                  fontSize: 13, color: '#e8e8e8', lineHeight: 1.6, maxWidth: 340,
+                  fontFamily: 'var(--pixel)',
+                  fontSize: 13, color: '#ece6d9', lineHeight: 1.6, maxWidth: 340,
                 }}>
                   Thanks! Keep your eyes on Jarvis — your request will be seen soon!
                 </div>
                 <button
                   onClick={() => setWishSubmitted(false)}
                   className="os1-serif-micro"
-                  style={{ fontSize: 10, color: '#2d7ff9', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
+                  style={{ fontSize: 10, color: '#cf8a5b', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
                 >
                   make another wish
                 </button>
@@ -669,22 +669,22 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
               style={{
                 width: '100%', maxWidth: 640, maxHeight: '86vh',
                 background: 'rgba(15,15,18,0.92)',
-                border: '1px solid rgba(232,232,232,0.15)', borderRadius: 18, padding: 24,
+                border: '1px solid rgba(236,230,217,0.15)', borderRadius: 18, padding: 24,
                 display: 'flex', flexDirection: 'column', gap: 12,
                 fontFamily: 'system-ui, sans-serif',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ fontFamily: 'var(--font-pixel), monospace', fontSize: 11, color: '#2d7ff9', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                <div style={{ fontFamily: 'var(--pixel)', fontSize: 11, color: '#cf8a5b', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
                   {editMode ? 'Edit Skill' : 'Skill'}
                 </div>
                 <button onClick={() => { setEditingSkill(null); setEditMode(false) }} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 4 }}>
-                  <X size={16} color="rgba(232,232,232,0.6)" />
+                  <X size={16} color="rgba(236,230,217,0.6)" />
                 </button>
               </div>
 
               <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }} className="os1-scroll">
-                <label style={{ fontSize: 10, color: 'rgba(232,232,232,0.5)' }}>Name</label>
+                <label style={{ fontSize: 10, color: 'rgba(236,230,217,0.5)' }}>Name</label>
                 <input
                   value={editingSkill.name || ''}
                   readOnly={!editMode}
@@ -692,7 +692,7 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
                   style={inputStyle(editMode)}
                 />
 
-                <label style={{ fontSize: 10, color: 'rgba(232,232,232,0.5)' }}>Type</label>
+                <label style={{ fontSize: 10, color: 'rgba(236,230,217,0.5)' }}>Type</label>
                 <select
                   value={editingSkill.skill_type || 'knowledge'}
                   disabled={!editMode}
@@ -704,7 +704,7 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
                   <option value="both">Knowledge + Behavior</option>
                 </select>
 
-                <label style={{ fontSize: 10, color: 'rgba(232,232,232,0.5)' }}>Description (when this skill applies)</label>
+                <label style={{ fontSize: 10, color: 'rgba(236,230,217,0.5)' }}>Description (when this skill applies)</label>
                 <input
                   value={editingSkill.description || ''}
                   readOnly={!editMode}
@@ -714,7 +714,7 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
 
                 {(editingSkill.skill_type === 'behavior' || editingSkill.skill_type === 'both') && (
                   <>
-                    <label style={{ fontSize: 10, color: 'rgba(232,232,232,0.5)' }}>Operating instructions (how Jarvis should act)</label>
+                    <label style={{ fontSize: 10, color: 'rgba(236,230,217,0.5)' }}>Operating instructions (how Jarvis should act)</label>
                     <textarea
                       value={editingSkill.operating_instructions || ''}
                       readOnly={!editMode}
@@ -725,7 +725,7 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
                   </>
                 )}
 
-                <label style={{ fontSize: 10, color: 'rgba(232,232,232,0.5)' }}>Full content (stored verbatim)</label>
+                <label style={{ fontSize: 10, color: 'rgba(236,230,217,0.5)' }}>Full content (stored verbatim)</label>
                 <textarea
                   value={editingSkill.full_content || ''}
                   readOnly={!editMode}
@@ -755,16 +755,16 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
 function inputStyle(editable) {
   return {
     width: '100%', boxSizing: 'border-box',
-    background: editable ? 'rgba(232,232,232,0.06)' : 'rgba(232,232,232,0.02)',
-    border: '1px solid rgba(232,232,232,0.12)', borderRadius: 8,
-    padding: '9px 12px', color: '#e8e8e8', fontSize: 13, outline: 'none',
+    background: editable ? 'rgba(236,230,217,0.06)' : 'rgba(236,230,217,0.02)',
+    border: '1px solid rgba(236,230,217,0.12)', borderRadius: 8,
+    padding: '9px 12px', color: '#ece6d9', fontSize: 13, outline: 'none',
     fontFamily: 'system-ui, sans-serif',
   }
 }
 
 function primaryBtnStyle(busy) {
   return {
-    background: busy ? 'rgba(45,127,249,0.4)' : '#2d7ff9', border: 'none', borderRadius: 12,
+    background: busy ? 'rgba(207,138,91,0.4)' : '#cf8a5b', border: 'none', borderRadius: 12,
     padding: '9px 22px', color: '#0a0a0a', fontSize: 13, fontWeight: 500,
     fontFamily: 'system-ui, sans-serif', cursor: busy ? 'default' : 'pointer',
   }

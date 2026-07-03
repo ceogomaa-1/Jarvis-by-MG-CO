@@ -44,7 +44,7 @@ const inputStyle = {
   borderRadius: 7, padding: '5px 8px', color: 'var(--os1-text, #E8E8E6)', fontSize: 11, outline: 'none',
 }
 const editInputStyle = {
-  ...inputStyle, background: 'rgba(255,255,255,0.06)', border: '1px solid var(--home-accent-border, rgba(45,127,249,0.3))',
+  ...inputStyle, background: 'rgba(255,255,255,0.06)', border: '1px solid var(--home-accent-border, rgba(207,138,91,0.3))',
   borderRadius: 6, padding: '3px 6px', fontSize: 11.5,
 }
 
@@ -161,7 +161,7 @@ function ListBody({ block, userId, onChanged }) {
           onMouseDown={(e) => e.stopPropagation()} title="Due date (optional)"
           style={{ ...inputStyle, width: 84, padding: '5px 4px', fontSize: 9.5, colorScheme: 'dark' }} />
         <button onClick={add} disabled={busy} className="os1-iconbtn" title="Add"
-          style={{ padding: '5px 8px', border: '1px solid var(--home-accent-border, rgba(45,127,249,0.3))', borderRadius: 7, color: 'var(--home-accent, #5b9bff)' }}>
+          style={{ padding: '5px 8px', border: '1px solid var(--home-accent-border, rgba(207,138,91,0.3))', borderRadius: 7, color: 'var(--home-accent, #5b9bff)' }}>
           <Plus size={14} />
         </button>
       </div>

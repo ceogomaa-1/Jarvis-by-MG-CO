@@ -60,7 +60,7 @@ export default function ConfirmActionButton({ action, onConfirm, onCancel }) {
         }}>
           <Check size={11} color="#7fb069" />
           <span style={{
-            fontFamily: 'var(--font-pixel), monospace',
+            fontFamily: 'var(--pixel)',
             fontSize: 10,
             letterSpacing: '0.08em',
             color: '#7fb069',
@@ -76,10 +76,10 @@ export default function ConfirmActionButton({ action, onConfirm, onCancel }) {
     return (
       <div style={{ paddingTop: 8, paddingBottom: 8 }}>
         <span style={{
-          fontFamily: 'var(--font-pixel), monospace',
+          fontFamily: 'var(--pixel)',
           fontSize: 7,
           letterSpacing: '0.08em',
-          color: 'rgba(232,232,232,0.25)',
+          color: 'rgba(236,230,217,0.25)',
         }}>
           Action cancelled
         </span>
@@ -103,7 +103,7 @@ export default function ConfirmActionButton({ action, onConfirm, onCancel }) {
           gap: 8,
           padding: '8px 14px',
           borderRadius: 10,
-          fontFamily: 'var(--font-pixel), monospace',
+          fontFamily: 'var(--pixel)',
           fontSize: 7,
           letterSpacing: '0.08em',
           textTransform: 'uppercase',
@@ -111,12 +111,12 @@ export default function ConfirmActionButton({ action, onConfirm, onCancel }) {
           userSelect: 'none',
           overflow: 'hidden',
           border: state === 'holding'
-            ? '1px solid rgba(45,127,249,0.4)'
-            : '1px solid rgba(45,127,249,0.2)',
+            ? '1px solid rgba(207,138,91,0.4)'
+            : '1px solid rgba(207,138,91,0.2)',
           background: state === 'holding'
-            ? '#2d7ff9'
-            : 'rgba(45,127,249,0.08)',
-          color: state === 'holding' ? '#0a0a0a' : '#2d7ff9',
+            ? '#cf8a5b'
+            : 'rgba(207,138,91,0.08)',
+          color: state === 'holding' ? '#0a0a0a' : '#cf8a5b',
           transform: state === 'holding' ? 'scale(0.98)' : 'scale(1)',
           transition: 'background 0.15s ease, color 0.15s ease, transform 0.1s ease',
         }}
@@ -167,22 +167,22 @@ export default function ConfirmActionButton({ action, onConfirm, onCancel }) {
         style={{
           padding: '8px 12px',
           borderRadius: 10,
-          fontFamily: 'var(--font-pixel), monospace',
+          fontFamily: 'var(--pixel)',
           fontSize: 7,
           letterSpacing: '0.08em',
-          color: 'rgba(232,232,232,0.3)',
+          color: 'rgba(236,230,217,0.3)',
           background: 'none',
-          border: '1px solid rgba(232,232,232,0.06)',
+          border: '1px solid rgba(236,230,217,0.06)',
           cursor: 'pointer',
           transition: 'color 0.2s ease, border-color 0.2s ease',
         }}
         onMouseEnter={e => {
-          e.currentTarget.style.color = 'rgba(232,232,232,0.6)'
-          e.currentTarget.style.borderColor = 'rgba(232,232,232,0.1)'
+          e.currentTarget.style.color = 'rgba(236,230,217,0.6)'
+          e.currentTarget.style.borderColor = 'rgba(236,230,217,0.1)'
         }}
         onMouseLeave={e => {
-          e.currentTarget.style.color = 'rgba(232,232,232,0.3)'
-          e.currentTarget.style.borderColor = 'rgba(232,232,232,0.06)'
+          e.currentTarget.style.color = 'rgba(236,230,217,0.3)'
+          e.currentTarget.style.borderColor = 'rgba(236,230,217,0.06)'
         }}
       >
         Cancel

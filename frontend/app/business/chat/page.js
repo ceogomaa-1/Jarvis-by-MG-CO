@@ -154,19 +154,17 @@ export default function BusinessChatPage() {
 
   if (loading) {
     return (
-      <div style={{
+      <div className="os1-root" style={{
         height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: '#131313',
       }}>
-        <TetrisLoader size="md" speed="normal" showLoadingText={true} loadingText="Starting Jarvis..." />
+        <TetrisLoader size="md" speed="normal" showLoadingText={true} loadingText="Starting Jarvis" />
       </div>
     )
   }
 
   return (
-    <div className="os1-root" style={{
+    <div className="os1-root os1-grain" style={{
       height: '100vh', display: 'flex',
-      background: '#131313',
       position: 'relative', overflow: 'hidden',
     }}>
       {/* Collapsed-state sidebar toggle — floats top-left when sidebar is hidden */}
@@ -204,14 +202,8 @@ export default function BusinessChatPage() {
       {!userId && (
         <button
           onClick={handleGoogleSignIn}
-          style={{
-            position: 'fixed', top: 24, right: 76, zIndex: 45,
-            background: 'transparent', border: '1px solid var(--os1-border)',
-            borderRadius: 999, padding: '6px 16px',
-            color: 'var(--os1-text-dim)', cursor: 'pointer',
-            fontFamily: 'var(--pixel)', fontSize: 13,
-            transition: 'all 200ms ease',
-          }}
+          className="os1-btn"
+          style={{ position: 'fixed', top: 24, right: 76, zIndex: 45, padding: '6px 16px' }}
         >
           Sign in
         </button>

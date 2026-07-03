@@ -28,7 +28,7 @@ const THEMES = {
     titleStyle: { fontFamily: "Georgia, 'Times New Roman', serif", fontWeight: 400 },
   },
   business: {
-    accent: '#2d7ff9',
+    accent: '#cf8a5b',
     card: '#141414',
     border: 'rgba(255,255,255,0.09)',
     ink: '#ededed',

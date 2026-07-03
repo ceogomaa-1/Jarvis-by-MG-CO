@@ -17,7 +17,7 @@ const GRID_CSS = `
 .jarvis-home-grid .react-grid-item.cssTransforms { transition-property: transform, width, height; }
 .jarvis-home-grid .react-grid-item.resizing { transition: none; z-index: 3; will-change: width, height; }
 .jarvis-home-grid .react-grid-item.react-draggable-dragging { transition: none; z-index: 4; will-change: transform; }
-.jarvis-home-grid .react-grid-item.react-grid-placeholder { background: rgba(45,127,249,0.16); border: 1px dashed rgba(45,127,249,0.45); border-radius: 14px; transition-duration: 100ms; z-index: 2; }
+.jarvis-home-grid .react-grid-item.react-grid-placeholder { background: rgba(207,138,91,0.16); border: 1px dashed rgba(207,138,91,0.45); border-radius: 14px; transition-duration: 100ms; z-index: 2; }
 .jarvis-home-grid .react-grid-item > .react-resizable-handle { position: absolute; width: 20px; height: 20px; bottom: 0; right: 0; cursor: se-resize; }
 .jarvis-home-grid .react-grid-item > .react-resizable-handle::after { content: ""; position: absolute; right: 5px; bottom: 5px; width: 6px; height: 6px; border-right: 2px solid rgba(255,255,255,0.28); border-bottom: 2px solid rgba(255,255,255,0.28); }
 @media (prefers-reduced-motion: reduce) {

@@ -3,24 +3,16 @@
 import { useEffect, useState } from "react"
 
 const THINKING_PHRASES = [
-  "thinking",
-  "processing",
-  "analyzing",
-  "working on it",
-  "on it",
-  "cooking",
+  "Thinking",
+  "Processing",
+  "Analyzing",
+  "Working on it",
+  "On it",
+  "Composing",
 ]
 
 export default function ThinkingIndicator() {
-  const [dots, setDots] = useState("")
   const [phraseIndex, setPhraseIndex] = useState(0)
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setDots((prev) => (prev.length >= 3 ? "" : prev + "."))
-    }, 400)
-    return () => clearInterval(interval)
-  }, [])
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -31,39 +23,24 @@ export default function ThinkingIndicator() {
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "4px 0 16px" }}>
-      <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", width: 28, height: 28 }}>
+      <div style={{ position: "relative", width: 22, height: 22 }}>
         <div
           style={{
-            position: "absolute",
-            width: 28,
-            height: 28,
-            borderRadius: "50%",
-            backgroundColor: "rgba(45,127,249,0.15)",
-            animation: "thinkPulseOuter 1.5s ease-in-out infinite",
+            position: "absolute", inset: 0, borderRadius: "50%",
+            border: "1px solid rgba(237,230,216,0.12)",
           }}
         />
         <div
           style={{
-            position: "relative",
-            width: 10,
-            height: 10,
-            borderRadius: "50%",
-            backgroundColor: "#2d7ff9",
-            boxShadow: "0 0 12px rgba(45,127,249,0.5)",
-            animation: "thinkPulseInner 1.5s ease-in-out infinite",
+            position: "absolute", inset: -1, borderRadius: "50%",
+            border: "1px solid transparent",
+            borderTopColor: "var(--os1-accent, #cf8a5b)",
+            animation: "os1ArcSpin 1.4s cubic-bezier(0.45, 0.1, 0.55, 0.9) infinite",
           }}
         />
       </div>
-      <span
-        style={{
-          fontFamily: "'var(--font-pixel)', monospace",
-          fontSize: 8,
-          color: "rgba(232,232,232,0.4)",
-          letterSpacing: "0.12em",
-          minWidth: 120,
-        }}
-      >
-        {THINKING_PHRASES[phraseIndex]}{dots}
+      <span className="os1-shimmer-label" style={{ minWidth: 120 }}>
+        {THINKING_PHRASES[phraseIndex]}
       </span>
     </div>
   )

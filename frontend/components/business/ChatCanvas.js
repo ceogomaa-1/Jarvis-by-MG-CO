@@ -20,7 +20,6 @@ import UsageCounter from './UsageCounter'
 import { supabase } from '../../lib/supabase'
 import TetrisLoader from '../ui/TetrisLoader'
 import ThinkingIndicator from './ThinkingIndicator'
-import UniqueLoading from '@/components/ui/morph-loading'
 import { uploadChatAttachment } from '../../lib/business/attachments'
 import { AttachmentsRow } from './AttachmentDisplay'
 
@@ -79,16 +78,16 @@ function UserBubble({ content, attachments }) {
       <AttachmentsRow attachments={attachments} />
       {content && (
         <div className="os1-bubble-user" style={{
-          maxWidth: '70%', padding: '14px 18px 8px',
+          maxWidth: '70%', padding: '13px 18px 9px',
           fontSize: 14,
-          fontFamily: 'var(--pixel)', lineHeight: 1.55,
+          fontFamily: 'var(--pixel)', lineHeight: 1.6,
         }}>
           {content}
           <div className="os1-serif-micro" style={{
-            fontSize: 8.5, textAlign: 'right', marginTop: 8,
-            color: 'var(--os1-text-faint)',
+            fontSize: 8, textAlign: 'right', marginTop: 8,
+            color: 'var(--os1-text-ghost)',
           }}>
-            Just Now
+            Just now
           </div>
         </div>
       )}
@@ -96,23 +95,12 @@ function UserBubble({ content, attachments }) {
   )
 }
 
-// Morph loader shown while Jarvis is laying down a response (before the first
-// token arrives). `.dark` forces the loader squares to render in light (white)
-// so they're visible on the dark OS1 chat surface.
+// Shown while Jarvis is laying down a response (before the first token
+// arrives) — a quiet copper arc with a shimmering machine label.
 function ThinkingDots() {
   return (
-    <div
-      className="dark"
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        minHeight: 56,
-        paddingLeft: 20,
-        marginBottom: 8,
-        overflow: 'visible',
-      }}
-    >
-      <UniqueLoading variant="morph" size="sm" />
+    <div style={{ display: 'flex', alignItems: 'center', minHeight: 40, marginBottom: 8 }}>
+      <ThinkingIndicator />
     </div>
   )
 }
@@ -133,21 +121,21 @@ function ToolStatusPill({ toolName, progress }) {
       exit={{ opacity: 0, y: -4 }}
       transition={{ duration: 0.2 }}
       style={{
-        display: 'inline-flex', alignItems: 'center', gap: 6,
-        padding: '4px 10px', marginBottom: 8,
+        display: 'inline-flex', alignItems: 'center', gap: 7,
+        padding: '4px 12px', marginBottom: 10,
         borderRadius: 999,
-        background: 'var(--os1-blue-soft)',
-        border: '1px solid rgba(45,127,249,0.3)',
+        background: 'var(--os1-accent-soft)',
+        border: '1px solid rgba(207,138,91,0.28)',
       }}
     >
       <motion.div
-        style={{ width: 6, height: 6, background: 'var(--os1-blue)', flexShrink: 0 }}
+        style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--os1-accent)', flexShrink: 0 }}
         animate={{ opacity: [0.4, 1, 0.4] }}
         transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
       />
-      <span className="font-pixel" style={{
-        fontSize: 11, letterSpacing: '0.05em',
-        color: 'var(--os1-blue)', textTransform: progress ? 'none' : 'lowercase',
+      <span style={{
+        fontFamily: 'var(--os1-mono)', fontSize: 10, letterSpacing: '0.1em',
+        color: 'var(--os1-accent)', textTransform: progress ? 'none' : 'lowercase',
       }}>
         {pretty}
       </span>
@@ -163,15 +151,8 @@ function AssistantBubble({ content, chunks, streaming, toolStatus, toolProgress 
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: 'easeOut' }}
-      style={{ marginBottom: 30, maxWidth: '80%', display: 'flex', gap: 10 }}
+      style={{ marginBottom: 32, maxWidth: '82%' }}
     >
-      {/* Pixel bullet point — per Figma */}
-      <span className="font-pixel" style={{
-        color: 'var(--os1-text-dim)', fontSize: 14, lineHeight: 1.8, flexShrink: 0,
-        paddingTop: 1,
-      }}>
-        ·
-      </span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <AnimatePresence>
           {streaming && (toolStatus || toolProgress) && (
@@ -1311,16 +1292,13 @@ export default function ChatCanvas({
                   return (
                     <div key={m.id ?? i}>
                       {m.is_proactive && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
                           <span style={{
-                            width: 7, height: 7, background: 'var(--os1-blue)', display: 'inline-block',
+                            width: 5, height: 5, borderRadius: '50%',
+                            background: 'var(--os1-accent)', display: 'inline-block',
+                            boxShadow: '0 0 8px var(--os1-glow)',
                           }} />
-                          <span className="font-pixel" style={{
-                            fontSize: 10,
-                            letterSpacing: '0.06em',
-                            textTransform: 'uppercase',
-                            color: 'var(--os1-text-faint)',
-                          }}>
+                          <span className="os1-label">
                             Proactive Insight
                           </span>
                         </div>
@@ -1370,8 +1348,8 @@ export default function ChatCanvas({
         {/* Gradient fade above input */}
         {hasMessages && (
           <div style={{
-            position: 'absolute', bottom: 0, left: 0, right: 0, height: 56,
-            background: 'linear-gradient(to bottom, transparent, #131313)',
+            position: 'absolute', bottom: 0, left: 0, right: 0, height: 64,
+            background: 'linear-gradient(to bottom, rgba(11,10,9,0), var(--os1-bg))',
             pointerEvents: 'none', zIndex: 1,
           }} />
         )}
@@ -1386,10 +1364,10 @@ export default function ChatCanvas({
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 8,
                 maxWidth: '100%', padding: '6px 8px 6px 14px',
-                background: 'rgba(45,127,249,0.08)',
-                border: '1px solid rgba(45,127,249,0.3)',
+                background: 'var(--os1-accent-soft)',
+                border: '1px solid rgba(207,138,91,0.3)',
                 borderRadius: 999,
-                fontSize: 12, color: '#e8e8e8',
+                fontSize: 12, color: 'var(--os1-text)',
               }}>
                 <span style={{
                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
@@ -1402,8 +1380,8 @@ export default function ChatCanvas({
                   aria-label="Dismiss context"
                   style={{
                     flexShrink: 0, width: 18, height: 18, borderRadius: '50%',
-                    border: 'none', background: 'rgba(232,232,232,0.1)',
-                    color: '#9a9a9a', cursor: 'pointer', fontSize: 12,
+                    border: 'none', background: 'rgba(236,230,217,0.1)',
+                    color: '#9b948a', cursor: 'pointer', fontSize: 12,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     lineHeight: 1, padding: 0,
                   }}

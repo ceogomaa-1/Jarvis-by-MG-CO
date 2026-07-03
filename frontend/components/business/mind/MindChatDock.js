@@ -101,8 +101,8 @@ export default function MindChatDock({ userId, onMemoryUsed, onMemoryBorn }) {
       {status && (
         <div style={{
           fontFamily: 'var(--pixel)', fontSize: 9, letterSpacing: '0.2em',
-          color: '#2d7ff9', textTransform: 'uppercase',
-          textShadow: '0 0 8px rgba(45,127,249,0.6)',
+          color: '#cf8a5b', textTransform: 'uppercase',
+          textShadow: '0 0 8px rgba(207,138,91,0.6)',
         }}>
           {status}
         </div>

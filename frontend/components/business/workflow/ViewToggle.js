@@ -17,7 +17,7 @@ export default function ViewToggle() {
         background: 'rgba(15,15,18,0.65)',
         backdropFilter: 'blur(20px) saturate(180%)',
         WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-        border: '1px solid rgba(232,232,232,0.12)',
+        border: '1px solid rgba(236,230,217,0.12)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         cursor: 'pointer', outline: 'none',
         animation: 'viewTogglePulse 2s ease-in-out infinite',
@@ -25,13 +25,13 @@ export default function ViewToggle() {
     >
       <style>{`
         @keyframes viewTogglePulse {
-          0%,100% { box-shadow: 0 0 0 0 rgba(45,127,249,0.4); }
-          50%      { box-shadow: 0 0 0 12px rgba(45,127,249,0); }
+          0%,100% { box-shadow: 0 0 0 0 rgba(207,138,91,0.4); }
+          50%      { box-shadow: 0 0 0 12px rgba(207,138,91,0); }
         }
       `}</style>
       {isWorkflow
-        ? <MessageSquare size={18} color="#e8e8e8" />
-        : <Workflow size={18} color="#e8e8e8" />
+        ? <MessageSquare size={18} color="#ece6d9" />
+        : <Workflow size={18} color="#ece6d9" />
       }
     </button>
   )

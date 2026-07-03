@@ -32,8 +32,8 @@ export default function AutonomousToggle({ isReady, enabled, onRequestToggle }) 
           width: 56,
           height: 26,
           borderRadius: 999,
-          border: `1px solid ${active ? '#2d7ff9' : '#3d3d3d'}`,
-          background: active ? 'rgba(45,127,249,0.25)' : '#2e2e2e',
+          border: `1px solid ${active ? '#cf8a5b' : '#3a332b'}`,
+          background: active ? 'rgba(207,138,91,0.25)' : '#221e19',
           cursor: isReady ? 'pointer' : 'not-allowed',
           opacity: !isReady ? 0.45 : 1,
           padding: 0,
@@ -49,7 +49,7 @@ export default function AutonomousToggle({ isReady, enabled, onRequestToggle }) 
         </span>
         <span className="font-pixel" style={{
           position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
-          fontSize: 7, lineHeight: 1, color: active ? '#2d7ff9' : '#6a6a6a', userSelect: 'none',
+          fontSize: 7, lineHeight: 1, color: active ? '#cf8a5b' : '#6a6a6a', userSelect: 'none',
           transition: 'color 0.3s ease',
         }}>
           ON
@@ -62,8 +62,8 @@ export default function AutonomousToggle({ isReady, enabled, onRequestToggle }) 
           style={{
             position: 'absolute', top: 2, left: 2,
             width: 20, height: 20, borderRadius: 4,
-            background: active ? '#2d7ff9' : '#8a8a8a',
-            boxShadow: active ? '0 0 10px rgba(45,127,249,0.6)' : 'none',
+            background: active ? '#cf8a5b' : '#8c857b',
+            boxShadow: active ? '0 0 10px rgba(207,138,91,0.6)' : 'none',
           }}
         />
       </button>
@@ -93,7 +93,7 @@ export default function AutonomousToggle({ isReady, enabled, onRequestToggle }) 
             right: 0,
             marginBottom: 10,
             padding: '10px 13px',
-            background: '#1a1a1a',
+            background: '#171411',
             whiteSpace: 'nowrap',
             zIndex: 50,
             pointerEvents: 'none',

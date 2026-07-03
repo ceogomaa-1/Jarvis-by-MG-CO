@@ -26,12 +26,25 @@ export default function Login() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'var(--bg)',
+      background: `
+        radial-gradient(900px 600px at 50% -160px, rgba(255,144,114,0.06), transparent 60%),
+        var(--bg)
+      `,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       padding: '1rem',
+      position: 'relative',
+      overflow: 'hidden',
     }}>
+      <style>{`
+        @keyframes loginReveal {
+          from { opacity: 0; transform: translateY(16px); filter: blur(6px); }
+          to   { opacity: 1; transform: translateY(0); filter: blur(0); }
+        }
+        .login-reveal { animation: loginReveal 1s cubic-bezier(0.16, 1, 0.3, 1) both; }
+      `}</style>
+
       <div style={{
         width: '100%',
         maxWidth: 400,
@@ -41,7 +54,7 @@ export default function Login() {
         gap: 0,
       }}>
         {/* Wordmark */}
-        <div style={{
+        <div className="login-reveal" style={{
           fontFamily: 'var(--display)',
           fontSize: '2.8rem',
           letterSpacing: '0.55em',
@@ -52,7 +65,7 @@ export default function Login() {
         }}>
           JARVIS
         </div>
-        <div style={{
+        <div className="login-reveal" style={{
           fontFamily: 'var(--sans)',
           fontSize: '0.65rem',
           letterSpacing: '0.4em',
@@ -61,27 +74,31 @@ export default function Login() {
           textTransform: 'uppercase',
           fontWeight: 400,
           marginTop: 4,
+          animationDelay: '0.12s',
         }}>
           by MG &amp; Co
         </div>
 
         {/* Subtitle */}
-        <div style={{
+        <div className="login-reveal" style={{
           fontFamily: 'var(--serif)',
-          fontSize: '1.05rem',
+          fontSize: '1.15rem',
           color: 'var(--ink-soft)',
           fontWeight: 300,
+          fontStyle: 'italic',
           letterSpacing: 0.2,
-          marginTop: 32,
+          marginTop: 34,
           marginBottom: 40,
           textAlign: 'center',
           lineHeight: 1.5,
+          animationDelay: '0.24s',
         }}>
           Your personal AI. Sign in to continue.
         </div>
 
         {/* Google button */}
         <button
+          className="login-reveal"
           onClick={handleGoogleLogin}
           disabled={loading}
           style={{
@@ -90,24 +107,29 @@ export default function Login() {
             alignItems: 'center',
             justifyContent: 'center',
             gap: 14,
-            padding: '14px 24px',
+            padding: '15px 24px',
             background: 'rgba(243,234,217,0.04)',
             border: '1px solid var(--line)',
-            borderRadius: 12,
+            borderRadius: 999,
             cursor: loading ? 'default' : 'pointer',
-            transition: 'border-color 250ms ease, background 250ms ease',
+            transition: 'border-color 250ms ease, background 250ms ease, transform 250ms ease, box-shadow 250ms ease',
             outline: 'none',
             opacity: loading ? 0.6 : 1,
+            animationDelay: '0.36s',
           }}
           onMouseEnter={e => {
             if (!loading) {
               e.currentTarget.style.borderColor = 'rgba(255,144,114,0.4)'
               e.currentTarget.style.background = 'rgba(255,144,114,0.05)'
+              e.currentTarget.style.transform = 'translateY(-1px)'
+              e.currentTarget.style.boxShadow = '0 12px 32px -18px rgba(255,144,114,0.35)'
             }
           }}
           onMouseLeave={e => {
             e.currentTarget.style.borderColor = 'var(--line)'
             e.currentTarget.style.background = 'rgba(243,234,217,0.04)'
+            e.currentTarget.style.transform = 'translateY(0)'
+            e.currentTarget.style.boxShadow = 'none'
           }}
         >
           {/* Google logo */}
@@ -140,7 +162,7 @@ export default function Login() {
           </div>
         )}
 
-        <div style={{
+        <div className="login-reveal" style={{
           marginTop: 48,
           fontFamily: 'var(--sans)',
           fontSize: '0.65rem',
@@ -149,6 +171,7 @@ export default function Login() {
           textAlign: 'center',
           lineHeight: 1.8,
           opacity: 0.6,
+          animationDelay: '0.5s',
         }}>
           Your conversation and memory persist<br />
           across every session.

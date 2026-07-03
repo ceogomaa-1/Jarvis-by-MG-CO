@@ -11,14 +11,14 @@ const ICON_CONFIG = {
   stripe:       { text: 'S',   bg: '#635BFF', color: '#fff' },
   twilio:       { text: 'T',   bg: '#F22F46', color: '#fff' },
   smtp:         { text: '✉',   bg: '#4A90D9', color: '#fff' },
-  elevenlabs:   { text: 'XI',  bg: '#1a1a1a', color: '#fff', border: '1px solid rgba(255,255,255,0.12)' },
+  elevenlabs:   { text: 'XI',  bg: '#171411', color: '#fff', border: '1px solid rgba(255,255,255,0.12)' },
   notion:       { text: 'N',   bg: '#ffffff', color: '#000' },
   google:       { text: 'G',   bg: '#4285F4', color: '#fff' },
   canva:        { text: 'C',   bg: '#00C4CC', color: '#fff' },
   gohighlevel:     { text: 'GHL', bg: '#FF6B35', color: '#fff', small: true },
   github:          { text: 'G',   bg: '#24292e', color: '#fff' },
   vercel:          { text: 'V',   bg: '#000000', color: '#fff', border: '1px solid rgba(255,255,255,0.15)' },
-  supabase_project: { text: 'S',  bg: '#3ECF8E', color: '#1a1a1a' },
+  supabase_project: { text: 'S',  bg: '#3ECF8E', color: '#171411' },
 }
 
 function ConnectorIcon({ name, size = 40 }) {
@@ -27,7 +27,7 @@ function ConnectorIcon({ name, size = 40 }) {
     <div style={{
       width: size, height: size, borderRadius: 10,
       background: cfg.bg,
-      border: cfg.border || '1px solid rgba(232,232,232,0.08)',
+      border: cfg.border || '1px solid rgba(236,230,217,0.08)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       flexShrink: 0,
       color: cfg.color,
@@ -55,9 +55,9 @@ function CredentialForm({ manifest, userId, onSave, saving, feedback }) {
     return (
       <div style={{ paddingTop: 14 }}>
         {manifest.docs_url && (
-          <p style={{ fontSize: 11, color: 'rgba(232,232,232,0.45)', marginBottom: 12, lineHeight: 1.5 }}>
+          <p style={{ fontSize: 11, color: 'rgba(236,230,217,0.45)', marginBottom: 12, lineHeight: 1.5 }}>
             {manifest.description}{' '}
-            <a href={manifest.docs_url} target="_blank" rel="noreferrer" style={{ color: '#2d7ff9' }}>
+            <a href={manifest.docs_url} target="_blank" rel="noreferrer" style={{ color: '#cf8a5b' }}>
               Learn more
             </a>
           </p>
@@ -69,7 +69,7 @@ function CredentialForm({ manifest, userId, onSave, saving, feedback }) {
           href={authUrl}
           style={{
             display: 'inline-flex', alignItems: 'center', gap: 6,
-            background: '#2d7ff9', borderRadius: 8, padding: '8px 16px',
+            background: '#cf8a5b', borderRadius: 8, padding: '8px 16px',
             color: '#fff', fontSize: 11, fontWeight: 500,
             textDecoration: 'none', fontFamily: 'system-ui, sans-serif',
             transition: 'opacity 200ms ease',
@@ -84,8 +84,8 @@ function CredentialForm({ manifest, userId, onSave, saving, feedback }) {
   return (
     <div style={{ paddingTop: 12 }}>
       {manifest.docs_url && (
-        <p style={{ fontSize: 11, color: 'rgba(232,232,232,0.45)', marginBottom: 10, lineHeight: 1.5 }}>
-          <a href={manifest.docs_url} target="_blank" rel="noreferrer" style={{ color: '#2d7ff9' }}>
+        <p style={{ fontSize: 11, color: 'rgba(236,230,217,0.45)', marginBottom: 10, lineHeight: 1.5 }}>
+          <a href={manifest.docs_url} target="_blank" rel="noreferrer" style={{ color: '#cf8a5b' }}>
             Where do I get this?
           </a>
         </p>
@@ -93,9 +93,9 @@ function CredentialForm({ manifest, userId, onSave, saving, feedback }) {
       {manifest.status_note && (
         <div style={{
           marginBottom: 10, padding: '6px 10px',
-          background: 'rgba(232,232,232,0.03)',
-          border: '1px solid rgba(232,232,232,0.08)',
-          borderRadius: 7, fontSize: 10, color: 'rgba(232,232,232,0.5)', lineHeight: 1.5,
+          background: 'rgba(236,230,217,0.03)',
+          border: '1px solid rgba(236,230,217,0.08)',
+          borderRadius: 7, fontSize: 10, color: 'rgba(236,230,217,0.5)', lineHeight: 1.5,
         }}>
           ℹ️ {manifest.status_note}
         </div>
@@ -104,7 +104,7 @@ function CredentialForm({ manifest, userId, onSave, saving, feedback }) {
         <div key={field.name} style={{ marginBottom: 8 }}>
           <label style={{
             display: 'block', fontSize: 10, fontWeight: 500,
-            color: 'rgba(232,232,232,0.6)', marginBottom: 3,
+            color: 'rgba(236,230,217,0.6)', marginBottom: 3,
             letterSpacing: '0.04em', textTransform: 'uppercase',
           }}>
             {field.label}{field.required !== false ? ' *' : ''}
@@ -116,10 +116,10 @@ function CredentialForm({ manifest, userId, onSave, saving, feedback }) {
             placeholder={field.placeholder || ''}
             style={{
               width: '100%', boxSizing: 'border-box',
-              background: 'rgba(232,232,232,0.04)',
-              border: '1px solid rgba(232,232,232,0.1)',
+              background: 'rgba(236,230,217,0.04)',
+              border: '1px solid rgba(236,230,217,0.1)',
               borderRadius: 8, padding: '8px 11px',
-              color: '#e8e8e8', fontSize: 12,
+              color: '#ece6d9', fontSize: 12,
               fontFamily: field.type === 'password' ? 'ui-monospace, monospace' : 'system-ui, sans-serif',
               outline: 'none',
             }}
@@ -133,7 +133,7 @@ function CredentialForm({ manifest, userId, onSave, saving, feedback }) {
           disabled={saving}
           style={{
             display: 'flex', alignItems: 'center', gap: 6,
-            background: saving ? 'rgba(45,127,249,0.5)' : '#2d7ff9',
+            background: saving ? 'rgba(207,138,91,0.5)' : '#cf8a5b',
             border: 'none', borderRadius: 8, padding: '7px 16px',
             color: '#fff', fontSize: 11, fontWeight: 500,
             fontFamily: 'system-ui, sans-serif',
@@ -170,7 +170,7 @@ function ConnectedDetails({ connection, onDisconnect, onTest, testing }) {
         </span>
       </div>
       {tested && (
-        <p style={{ fontSize: 10, color: 'rgba(232,232,232,0.35)', marginBottom: 10 }}>
+        <p style={{ fontSize: 10, color: 'rgba(236,230,217,0.35)', marginBottom: 10 }}>
           Last tested: {tested}
           {connection.last_test_result && (
             <span style={{ marginLeft: 6, color: isOk ? 'rgba(127,176,105,0.6)' : 'rgba(239,68,68,0.6)' }}>
@@ -186,9 +186,9 @@ function ConnectedDetails({ connection, onDisconnect, onTest, testing }) {
           style={{
             display: 'flex', alignItems: 'center', gap: 5,
             background: 'transparent',
-            border: '1px solid rgba(232,232,232,0.1)',
+            border: '1px solid rgba(236,230,217,0.1)',
             borderRadius: 8, padding: '6px 12px',
-            color: 'rgba(232,232,232,0.6)', fontSize: 10,
+            color: 'rgba(236,230,217,0.6)', fontSize: 10,
             fontFamily: 'system-ui', cursor: testing ? 'not-allowed' : 'pointer',
           }}
         >
@@ -303,14 +303,14 @@ function GhlAccountSlot({ slot, manifest, userId, account, onChanged }) {
   return (
     <div style={{
       marginBottom: 10, padding: '10px 12px', borderRadius: 10,
-      background: 'rgba(232,232,232,0.02)',
-      border: '1px solid rgba(232,232,232,0.06)',
+      background: 'rgba(236,230,217,0.02)',
+      border: '1px solid rgba(236,230,217,0.06)',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
         <span style={{
-          fontFamily: 'var(--font-pixel), monospace',
+          fontFamily: 'var(--pixel)',
           fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase',
-          color: 'rgba(232,232,232,0.5)',
+          color: 'rgba(236,230,217,0.5)',
         }}>
           {slot.name}
         </span>
@@ -323,7 +323,7 @@ function GhlAccountSlot({ slot, manifest, userId, account, onChanged }) {
           }}>
             <div style={{ width: 5, height: 5, borderRadius: '50%', background: isActive ? '#7fb069' : '#ef4444' }} />
             <span style={{
-              fontFamily: 'var(--font-pixel), monospace',
+              fontFamily: 'var(--pixel)',
               fontSize: 8, letterSpacing: '0.08em', color: isActive ? '#7fb069' : '#ef4444',
             }}>{isActive ? 'Connected' : 'Invalid'}</span>
           </span>
@@ -332,11 +332,11 @@ function GhlAccountSlot({ slot, manifest, userId, account, onChanged }) {
 
       {isConnected ? (
         <>
-          <p style={{ fontSize: 11, color: 'rgba(232,232,232,0.6)', margin: '0 0 8px' }}>
+          <p style={{ fontSize: 11, color: 'rgba(236,230,217,0.6)', margin: '0 0 8px' }}>
             {account.display_name || slot.name}
           </p>
           {account.last_tested_at && (
-            <p style={{ fontSize: 10, color: 'rgba(232,232,232,0.35)', marginBottom: 8 }}>
+            <p style={{ fontSize: 10, color: 'rgba(236,230,217,0.35)', marginBottom: 8 }}>
               Last tested: {new Date(account.last_tested_at).toLocaleString()}
               {account.last_test_result && (
                 <span style={{ marginLeft: 6, color: isActive ? 'rgba(127,176,105,0.6)' : 'rgba(239,68,68,0.6)' }}>
@@ -353,9 +353,9 @@ function GhlAccountSlot({ slot, manifest, userId, account, onChanged }) {
               style={{
                 display: 'flex', alignItems: 'center', gap: 5,
                 background: 'transparent',
-                border: '1px solid rgba(232,232,232,0.1)',
+                border: '1px solid rgba(236,230,217,0.1)',
                 borderRadius: 8, padding: '6px 12px',
-                color: 'rgba(232,232,232,0.6)', fontSize: 10,
+                color: 'rgba(236,230,217,0.6)', fontSize: 10,
                 fontFamily: 'system-ui', cursor: testing ? 'not-allowed' : 'pointer',
               }}
             >
@@ -383,7 +383,7 @@ function GhlAccountSlot({ slot, manifest, userId, account, onChanged }) {
           <div style={{ marginBottom: 8 }}>
             <label style={{
               display: 'block', fontSize: 10, fontWeight: 500,
-              color: 'rgba(232,232,232,0.6)', marginBottom: 3,
+              color: 'rgba(236,230,217,0.6)', marginBottom: 3,
               letterSpacing: '0.04em', textTransform: 'uppercase',
             }}>
               Account Name
@@ -395,10 +395,10 @@ function GhlAccountSlot({ slot, manifest, userId, account, onChanged }) {
               placeholder={`e.g. "${slot.name} — Main Brokerage"`}
               style={{
                 width: '100%', boxSizing: 'border-box',
-                background: 'rgba(232,232,232,0.04)',
-                border: '1px solid rgba(232,232,232,0.1)',
+                background: 'rgba(236,230,217,0.04)',
+                border: '1px solid rgba(236,230,217,0.1)',
                 borderRadius: 8, padding: '8px 11px',
-                color: '#e8e8e8', fontSize: 12,
+                color: '#ece6d9', fontSize: 12,
                 fontFamily: 'system-ui, sans-serif', outline: 'none',
               }}
             />
@@ -407,7 +407,7 @@ function GhlAccountSlot({ slot, manifest, userId, account, onChanged }) {
             <div key={field.name} style={{ marginBottom: 8 }}>
               <label style={{
                 display: 'block', fontSize: 10, fontWeight: 500,
-                color: 'rgba(232,232,232,0.6)', marginBottom: 3,
+                color: 'rgba(236,230,217,0.6)', marginBottom: 3,
                 letterSpacing: '0.04em', textTransform: 'uppercase',
               }}>
                 {field.label}{field.required !== false ? ' *' : ''}
@@ -419,10 +419,10 @@ function GhlAccountSlot({ slot, manifest, userId, account, onChanged }) {
                 placeholder={field.placeholder || ''}
                 style={{
                   width: '100%', boxSizing: 'border-box',
-                  background: 'rgba(232,232,232,0.04)',
-                  border: '1px solid rgba(232,232,232,0.1)',
+                  background: 'rgba(236,230,217,0.04)',
+                  border: '1px solid rgba(236,230,217,0.1)',
                   borderRadius: 8, padding: '8px 11px',
-                  color: '#e8e8e8', fontSize: 12,
+                  color: '#ece6d9', fontSize: 12,
                   fontFamily: field.type === 'password' ? 'ui-monospace, monospace' : 'system-ui, sans-serif',
                   outline: 'none',
                 }}
@@ -436,7 +436,7 @@ function GhlAccountSlot({ slot, manifest, userId, account, onChanged }) {
               disabled={saving}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6,
-                background: saving ? 'rgba(45,127,249,0.5)' : '#2d7ff9',
+                background: saving ? 'rgba(207,138,91,0.5)' : '#cf8a5b',
                 border: 'none', borderRadius: 8, padding: '7px 16px',
                 color: '#fff', fontSize: 11, fontWeight: 500,
                 fontFamily: 'system-ui, sans-serif',
@@ -458,8 +458,8 @@ function GhlAccountsPanel({ manifest, userId, accounts, onChanged }) {
   return (
     <div style={{ paddingTop: 12 }}>
       {manifest.docs_url && (
-        <p style={{ fontSize: 11, color: 'rgba(232,232,232,0.45)', marginBottom: 10, lineHeight: 1.5 }}>
-          <a href={manifest.docs_url} target="_blank" rel="noreferrer" style={{ color: '#2d7ff9' }}>
+        <p style={{ fontSize: 11, color: 'rgba(236,230,217,0.45)', marginBottom: 10, lineHeight: 1.5 }}>
+          <a href={manifest.docs_url} target="_blank" rel="noreferrer" style={{ color: '#cf8a5b' }}>
             Where do I get this?
           </a>
         </p>
@@ -467,14 +467,14 @@ function GhlAccountsPanel({ manifest, userId, accounts, onChanged }) {
       {manifest.status_note && (
         <div style={{
           marginBottom: 10, padding: '6px 10px',
-          background: 'rgba(232,232,232,0.03)',
-          border: '1px solid rgba(232,232,232,0.08)',
-          borderRadius: 7, fontSize: 10, color: 'rgba(232,232,232,0.5)', lineHeight: 1.5,
+          background: 'rgba(236,230,217,0.03)',
+          border: '1px solid rgba(236,230,217,0.08)',
+          borderRadius: 7, fontSize: 10, color: 'rgba(236,230,217,0.5)', lineHeight: 1.5,
         }}>
           ℹ️ {manifest.status_note}
         </div>
       )}
-      <p style={{ fontSize: 10, color: 'rgba(232,232,232,0.35)', marginBottom: 10, lineHeight: 1.5 }}>
+      <p style={{ fontSize: 10, color: 'rgba(236,230,217,0.35)', marginBottom: 10, lineHeight: 1.5 }}>
         Connect up to 3 GoHighLevel accounts — Jarvis will scan all of them for stale leads by default,
         or you can ask it to focus on one ("just check the Main Brokerage account").
       </p>
@@ -498,7 +498,7 @@ function FeedbackBar({ ok, message }) {
       marginBottom: 10, padding: '7px 10px', borderRadius: 8,
       background: ok ? 'rgba(127,176,105,0.08)' : 'rgba(239,68,68,0.08)',
       border: `1px solid ${ok ? 'rgba(127,176,105,0.2)' : 'rgba(239,68,68,0.2)'}`,
-      color: '#e8e8e8', fontSize: 11, fontFamily: 'system-ui', lineHeight: 1.4,
+      color: '#ece6d9', fontSize: 11, fontFamily: 'system-ui', lineHeight: 1.4,
     }}>
       {ok ? '✅' : '❌'} {message}
     </div>
@@ -518,11 +518,11 @@ function ConnectorCard({ manifest, connection, accounts, onAccountsChanged, user
     <div style={{
       borderRadius: 14,
       border: isConnected
-        ? ' 1px solid rgba(45,127,249,0.18)'
-        : '1px solid rgba(232,232,232,0.06)',
+        ? ' 1px solid rgba(207,138,91,0.18)'
+        : '1px solid rgba(236,230,217,0.06)',
       background: isConnected
-        ? 'rgba(45,127,249,0.03)'
-        : 'rgba(232,232,232,0.015)',
+        ? 'rgba(207,138,91,0.03)'
+        : 'rgba(236,230,217,0.015)',
       overflow: 'hidden',
       transition: 'border-color 200ms, background 200ms',
     }}>
@@ -536,9 +536,9 @@ function ConnectorCard({ manifest, connection, accounts, onAccountsChanged, user
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
             <span style={{
-              fontFamily: 'var(--font-pixel), monospace',
+              fontFamily: 'var(--pixel)',
               fontSize: 11, letterSpacing: '0.1em',
-              color: '#e8e8e8', textTransform: 'uppercase',
+              color: '#ece6d9', textTransform: 'uppercase',
             }}>
               {manifest.display_name}
             </span>
@@ -551,7 +551,7 @@ function ConnectorCard({ manifest, connection, accounts, onAccountsChanged, user
               }}>
                 <div style={{ width: 5, height: 5, borderRadius: '50%', background: isActive ? '#7fb069' : '#ef4444' }} />
                 <span style={{
-                  fontFamily: 'var(--font-pixel), monospace',
+                  fontFamily: 'var(--pixel)',
                   fontSize: 8, letterSpacing: '0.08em', color: isActive ? '#7fb069' : '#ef4444',
                 }}>{activeAccounts.length}/3 connected</span>
               </span>
@@ -565,7 +565,7 @@ function ConnectorCard({ manifest, connection, accounts, onAccountsChanged, user
               }}>
                 <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#7fb069' }} />
                 <span style={{
-                  fontFamily: 'var(--font-pixel), monospace',
+                  fontFamily: 'var(--pixel)',
                   fontSize: 8, letterSpacing: '0.08em', color: '#7fb069',
                 }}>Connected</span>
               </span>
@@ -579,13 +579,13 @@ function ConnectorCard({ manifest, connection, accounts, onAccountsChanged, user
               }}>
                 <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#ef4444' }} />
                 <span style={{
-                  fontFamily: 'var(--font-pixel), monospace',
+                  fontFamily: 'var(--pixel)',
                   fontSize: 8, letterSpacing: '0.08em', color: '#ef4444',
                 }}>Invalid</span>
               </span>
             )}
           </div>
-          <p style={{ fontSize: 11, color: 'rgba(232,232,232,0.38)', margin: 0, lineHeight: 1.4, fontFamily: 'system-ui' }}>
+          <p style={{ fontSize: 11, color: 'rgba(236,230,217,0.38)', margin: 0, lineHeight: 1.4, fontFamily: 'system-ui' }}>
             {manifest.description}
           </p>
         </div>
@@ -595,9 +595,9 @@ function ConnectorCard({ manifest, connection, accounts, onAccountsChanged, user
             <button
               onClick={(e) => { e.stopPropagation(); setExpanded(true) }}
               style={{
-                background: '#2d7ff9', border: 'none', borderRadius: 8,
+                background: '#cf8a5b', border: 'none', borderRadius: 8,
                 padding: '6px 13px',
-                fontFamily: 'var(--font-pixel), monospace',
+                fontFamily: 'var(--pixel)',
                 fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase',
                 color: '#0a0a0a', cursor: 'pointer', transition: 'opacity 200ms',
               }}
@@ -605,7 +605,7 @@ function ConnectorCard({ manifest, connection, accounts, onAccountsChanged, user
               Connect
             </button>
           )}
-          <div style={{ color: 'rgba(232,232,232,0.3)' }}>
+          <div style={{ color: 'rgba(236,230,217,0.3)' }}>
             {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </div>
         </div>
@@ -624,7 +624,7 @@ function ConnectorCard({ manifest, connection, accounts, onAccountsChanged, user
           >
             <div style={{
               padding: '0 16px 14px',
-              borderTop: '1px solid rgba(232,232,232,0.04)',
+              borderTop: '1px solid rgba(236,230,217,0.04)',
             }}>
               {isMultiAccount ? (
                 <GhlAccountsPanel
@@ -810,9 +810,9 @@ export default function ConnectionsModal({ open, onClose, userId }) {
           background: 'rgba(12,12,15,0.9)',
           backdropFilter: 'blur(28px) saturate(180%)',
           WebkitBackdropFilter: 'blur(28px) saturate(180%)',
-          border: '1px solid rgba(232,232,232,0.1)',
+          border: '1px solid rgba(236,230,217,0.1)',
           borderRadius: 20,
-          boxShadow: '0 30px 70px rgba(0,0,0,0.6), inset 0 1px 0 rgba(232,232,232,0.05)',
+          boxShadow: '0 30px 70px rgba(0,0,0,0.6), inset 0 1px 0 rgba(236,230,217,0.05)',
           display: 'flex', flexDirection: 'column',
           overflow: 'hidden',
           fontFamily: 'system-ui, sans-serif',
@@ -821,29 +821,29 @@ export default function ConnectionsModal({ open, onClose, userId }) {
         {/* Header */}
         <div style={{
           padding: '20px 22px 16px',
-          borderBottom: '1px solid rgba(232,232,232,0.06)',
+          borderBottom: '1px solid rgba(236,230,217,0.06)',
           flexShrink: 0,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
             <div>
               <div style={{
-                fontFamily: 'var(--font-pixel), monospace',
+                fontFamily: 'var(--pixel)',
                 fontSize: 10, letterSpacing: '0.14em',
-                color: '#2d7ff9', textTransform: 'uppercase', marginBottom: 4,
+                color: '#cf8a5b', textTransform: 'uppercase', marginBottom: 4,
               }}>
                 Connections
               </div>
-              <p style={{ fontSize: 11, color: 'rgba(232,232,232,0.4)', margin: 0, lineHeight: 1.4 }}>
+              <p style={{ fontSize: 11, color: 'rgba(236,230,217,0.4)', margin: 0, lineHeight: 1.4 }}>
                 Wire Jarvis into your real systems. All credentials are encrypted at rest.
               </p>
             </div>
             <button
               onClick={onClose}
               style={{
-                background: 'rgba(232,232,232,0.05)',
-                border: '1px solid rgba(232,232,232,0.08)',
+                background: 'rgba(236,230,217,0.05)',
+                border: '1px solid rgba(236,230,217,0.08)',
                 borderRadius: 8, padding: 6, cursor: 'pointer',
-                color: 'rgba(232,232,232,0.5)', display: 'flex', alignItems: 'center',
+                color: 'rgba(236,230,217,0.5)', display: 'flex', alignItems: 'center',
                 transition: 'all 200ms',
               }}
             >
@@ -855,7 +855,7 @@ export default function ConnectionsModal({ open, onClose, userId }) {
           <div style={{ position: 'relative' }}>
             <Search size={13} style={{
               position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)',
-              color: 'rgba(232,232,232,0.25)', pointerEvents: 'none',
+              color: 'rgba(236,230,217,0.25)', pointerEvents: 'none',
             }} />
             <input
               type="text"
@@ -864,15 +864,15 @@ export default function ConnectionsModal({ open, onClose, userId }) {
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
                 width: '100%', boxSizing: 'border-box',
-                background: 'rgba(232,232,232,0.03)',
-                border: '1px solid rgba(232,232,232,0.07)',
+                background: 'rgba(236,230,217,0.03)',
+                border: '1px solid rgba(236,230,217,0.07)',
                 borderRadius: 10, padding: '8px 12px 8px 32px',
-                color: '#e8e8e8', fontSize: 12,
+                color: '#ece6d9', fontSize: 12,
                 fontFamily: 'system-ui', outline: 'none',
                 transition: 'border-color 200ms',
               }}
-              onFocus={e => { e.target.style.borderColor = 'rgba(232,232,232,0.15)' }}
-              onBlur={e => { e.target.style.borderColor = 'rgba(232,232,232,0.07)' }}
+              onFocus={e => { e.target.style.borderColor = 'rgba(236,230,217,0.15)' }}
+              onBlur={e => { e.target.style.borderColor = 'rgba(236,230,217,0.07)' }}
             />
           </div>
         </div>
@@ -884,13 +884,13 @@ export default function ConnectionsModal({ open, onClose, userId }) {
           {loading ? (
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              padding: 48, color: 'rgba(232,232,232,0.3)', gap: 10,
+              padding: 48, color: 'rgba(236,230,217,0.3)', gap: 10,
             }}>
               <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
               <span style={{ fontSize: 12 }}>Loading connectors…</span>
             </div>
           ) : filteredManifests.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 40, color: 'rgba(232,232,232,0.3)', fontSize: 12 }}>
+            <div style={{ textAlign: 'center', padding: 40, color: 'rgba(236,230,217,0.3)', fontSize: 12 }}>
               No connectors match "{searchQuery}"
             </div>
           ) : (

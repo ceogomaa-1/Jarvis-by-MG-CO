@@ -72,8 +72,8 @@ export default function ChannelsPanel({ userId, email }) {
   return (
     <div style={{
       borderRadius: 14, marginBottom: 14,
-      border: '1px solid rgba(45,127,249,0.18)',
-      background: 'rgba(45,127,249,0.03)',
+      border: '1px solid rgba(207,138,91,0.18)',
+      background: 'rgba(207,138,91,0.03)',
       overflow: 'hidden',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px' }}>
@@ -85,12 +85,12 @@ export default function ChannelsPanel({ userId, email }) {
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
-            fontFamily: 'var(--font-pixel), monospace', fontSize: 11, letterSpacing: '0.1em',
-            color: '#e8e8e8', textTransform: 'uppercase', marginBottom: 2,
+            fontFamily: 'var(--pixel)', fontSize: 11, letterSpacing: '0.1em',
+            color: '#ece6d9', textTransform: 'uppercase', marginBottom: 2,
           }}>
             Jarvis on Telegram
           </div>
-          <p style={{ fontSize: 11, color: 'rgba(232,232,232,0.4)', margin: 0, lineHeight: 1.4 }}>
+          <p style={{ fontSize: 11, color: 'rgba(236,230,217,0.4)', margin: 0, lineHeight: 1.4 }}>
             Chat the same OS1 Jarvis from Telegram — text & files. Actions that change your data
             stay in the web app.
           </p>
@@ -101,16 +101,16 @@ export default function ChannelsPanel({ userId, email }) {
             background: 'rgba(127,176,105,0.1)', border: '1px solid rgba(127,176,105,0.18)', flexShrink: 0,
           }}>
             <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#7fb069' }} />
-            <span style={{ fontFamily: 'var(--font-pixel), monospace', fontSize: 8, letterSpacing: '0.08em', color: '#7fb069' }}>
+            <span style={{ fontFamily: 'var(--pixel)', fontSize: 8, letterSpacing: '0.08em', color: '#7fb069' }}>
               Linked
             </span>
           </span>
         )}
       </div>
 
-      <div style={{ padding: '0 16px 14px', borderTop: '1px solid rgba(232,232,232,0.04)' }}>
+      <div style={{ padding: '0 16px 14px', borderTop: '1px solid rgba(236,230,217,0.04)' }}>
         {loading ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 0', color: 'rgba(232,232,232,0.4)', fontSize: 11 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 0', color: 'rgba(236,230,217,0.4)', fontSize: 11 }}>
             <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> Loading…
           </div>
         ) : !state?.telegram_enabled ? (
@@ -119,7 +119,7 @@ export default function ChannelsPanel({ userId, email }) {
           <Note>Chatting Jarvis on Telegram is for OS1 subscribers. Subscribe to enable it.</Note>
         ) : telegramLink ? (
           <div style={{ paddingTop: 12 }}>
-            <p style={{ fontSize: 11, color: 'rgba(232,232,232,0.6)', margin: '0 0 10px' }}>
+            <p style={{ fontSize: 11, color: 'rgba(236,230,217,0.6)', margin: '0 0 10px' }}>
               Connected{telegramLink.channel_username ? ` as @${telegramLink.channel_username}` : ''}. Just message the bot normally.
             </p>
             <button onClick={unlink} disabled={busy} style={btn('danger')}>
@@ -138,13 +138,13 @@ export default function ChannelsPanel({ userId, email }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                   <code style={{
                     fontFamily: 'ui-monospace, monospace', fontSize: 18, letterSpacing: '0.18em',
-                    color: '#2d7ff9', background: 'rgba(45,127,249,0.08)', padding: '6px 12px', borderRadius: 8,
+                    color: '#cf8a5b', background: 'rgba(207,138,91,0.08)', padding: '6px 12px', borderRadius: 8,
                   }}>{code.code}</code>
                   <button onClick={copyCode} style={btn('ghost')}>
                     {copied ? <Check size={11} /> : <Copy size={11} />} {copied ? 'Copied' : 'Copy'}
                   </button>
                 </div>
-                <ol style={{ fontSize: 11, color: 'rgba(232,232,232,0.55)', lineHeight: 1.7, margin: '0 0 12px', paddingLeft: 16 }}>
+                <ol style={{ fontSize: 11, color: 'rgba(236,230,217,0.55)', lineHeight: 1.7, margin: '0 0 12px', paddingLeft: 16 }}>
                   <li>Open the Telegram bot{state?.bot_username ? ` (@${state.bot_username})` : ''}.</li>
                   <li>Send it this code (or tap the button below).</li>
                   <li>You're linked — start chatting Jarvis right there.</li>
@@ -154,7 +154,7 @@ export default function ChannelsPanel({ userId, email }) {
                     <Send size={11} /> Open in Telegram &amp; link
                   </a>
                 )}
-                <p style={{ fontSize: 10, color: 'rgba(232,232,232,0.3)', marginTop: 10 }}>
+                <p style={{ fontSize: 10, color: 'rgba(236,230,217,0.3)', marginTop: 10 }}>
                   Code expires in 15 minutes. Generate a new one any time.
                 </p>
               </div>
@@ -172,9 +172,9 @@ function Note({ children, danger }) {
   return (
     <div style={{
       marginTop: 10, padding: '8px 11px', borderRadius: 8,
-      background: danger ? 'rgba(239,68,68,0.07)' : 'rgba(232,232,232,0.03)',
-      border: `1px solid ${danger ? 'rgba(239,68,68,0.18)' : 'rgba(232,232,232,0.08)'}`,
-      fontSize: 11, color: danger ? 'rgba(239,68,68,0.85)' : 'rgba(232,232,232,0.5)', lineHeight: 1.5,
+      background: danger ? 'rgba(239,68,68,0.07)' : 'rgba(236,230,217,0.03)',
+      border: `1px solid ${danger ? 'rgba(239,68,68,0.18)' : 'rgba(236,230,217,0.08)'}`,
+      fontSize: 11, color: danger ? 'rgba(239,68,68,0.85)' : 'rgba(236,230,217,0.5)', lineHeight: 1.5,
     }}>
       {children}
     </div>
@@ -187,7 +187,7 @@ function btn(kind) {
     padding: '7px 14px', fontSize: 11, fontWeight: 500, fontFamily: 'system-ui, sans-serif',
     cursor: 'pointer', border: 'none', transition: 'all 200ms',
   }
-  if (kind === 'primary') return { ...base, background: '#2d7ff9', color: '#fff' }
+  if (kind === 'primary') return { ...base, background: '#cf8a5b', color: '#fff' }
   if (kind === 'danger') return { ...base, background: 'transparent', color: 'rgba(239,68,68,0.8)', border: '1px solid rgba(239,68,68,0.22)' }
-  return { ...base, background: 'transparent', color: 'rgba(232,232,232,0.6)', border: '1px solid rgba(232,232,232,0.12)' }
+  return { ...base, background: 'transparent', color: 'rgba(236,230,217,0.6)', border: '1px solid rgba(236,230,217,0.12)' }
 }

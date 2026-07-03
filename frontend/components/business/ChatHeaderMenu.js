@@ -11,7 +11,6 @@ import BrandModal from './BrandModal'
 import ConnectionsModal from './ConnectionsModal'
 import KnowledgeBaseModal from './KnowledgeBaseModal'
 import ProfileModal from './ProfileModal'
-import FontToggle from './FontToggle'
 import CrmCockpit from './CrmCockpit'
 import LeadsCockpit from './LeadsCockpit'
 import HomeCockpit from './home/HomeCockpit'
@@ -24,8 +23,9 @@ function UnreadBadge() {
   return (
     <span style={{
       position: 'absolute', top: 2, right: 2,
-      width: 8, height: 8, borderRadius: 2,
-      background: '#2d7ff9',
+      width: 7, height: 7, borderRadius: '50%',
+      background: 'var(--os1-accent)',
+      boxShadow: '0 0 8px var(--os1-glow)',
     }} />
   )
 }
@@ -36,28 +36,6 @@ function HamburgerIcon() {
       <line x1="4" y1="7" x2="20" y2="7" />
       <line x1="4" y1="12" x2="20" y2="12" />
       <line x1="4" y1="17" x2="20" y2="17" />
-    </svg>
-  )
-}
-
-function SpaceInvaderIcon({ size = 22 }) {
-  // 8-bit space invader, drawn as pixel rects
-  const px = size / 11
-  const cells = [
-    [2,0],[8,0],
-    [3,1],[7,1],
-    [2,2],[3,2],[4,2],[5,2],[6,2],[7,2],[8,2],
-    [1,3],[2,3],[4,3],[5,3],[6,3],[8,3],[9,3],
-    [0,4],[1,4],[2,4],[3,4],[4,4],[5,4],[6,4],[7,4],[8,4],[9,4],[10,4],
-    [0,5],[2,5],[3,5],[4,5],[5,5],[6,5],[7,5],[8,5],[10,5],
-    [0,6],[2,6],[8,6],[10,6],
-    [3,7],[4,7],[6,7],[7,7],
-  ]
-  return (
-    <svg width={size} height={size * 8 / 11} viewBox={`0 0 ${size} ${size * 8 / 11}`} style={{ display: 'block' }}>
-      {cells.map(([x, y], i) => (
-        <rect key={i} x={x * px} y={y * px} width={px} height={px} fill="var(--os1-text-dim)" />
-      ))}
     </svg>
   )
 }
@@ -83,8 +61,9 @@ function MenuItem({ icon, label, hint, badge, onClick }) {
         {badge && (
           <span style={{
             position: 'absolute', top: -3, right: -5,
-            width: 7, height: 7, borderRadius: 2,
-            background: '#2d7ff9',
+            width: 6, height: 6, borderRadius: '50%',
+            background: 'var(--os1-accent)',
+            boxShadow: '0 0 8px var(--os1-glow)',
           }} />
         )}
       </span>
@@ -240,8 +219,6 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
                 width: PANEL_WIDTH, zIndex: 55,
                 display: 'flex', flexDirection: 'column',
                 padding: '16px 16px 18px',
-                background: '#131313',
-                boxShadow: '0 12px 48px rgba(0,0,0,0.5)',
               }}
             >
               {/* Top row: profile icon + hamburger (closes) */}
@@ -259,22 +236,23 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
               </div>
 
               {/* Identity block */}
-              <div className="font-pixel" style={{ fontSize: 17, color: 'var(--os1-text)', marginBottom: 7, lineHeight: 1.2 }}>
+              <div className="os1-display" style={{ fontSize: 21, color: 'var(--os1-text)', marginBottom: 8, lineHeight: 1.15 }}>
                 {displayName}
               </div>
-              <div className="os1-serif-micro" style={{ fontSize: 9.5, marginBottom: 3 }}>{email}</div>
-              <div className="os1-serif-micro" style={{ fontSize: 9.5, marginBottom: 3 }}>User ID: {shortId}</div>
-              <div className="os1-serif-micro" style={{ fontSize: 9.5 }}>Joined {joined}</div>
+              <div className="os1-serif-micro" style={{ fontSize: 8.5, marginBottom: 4, textTransform: 'none', letterSpacing: '0.06em' }}>{email}</div>
+              <div className="os1-serif-micro" style={{ fontSize: 8.5, marginBottom: 4 }}>ID {shortId}</div>
+              <div className="os1-serif-micro" style={{ fontSize: 8.5 }}>Joined {joined}</div>
 
               {/* Divider */}
-              <div style={{ height: 1, background: 'var(--os1-border-soft)', margin: '18px 0 22px' }} />
+              <div className="os1-hairline" style={{ margin: '18px 0 20px' }} />
 
               {/* Menu items */}
               <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }} className="os1-scroll">
                 {items.map(item => (
                   <MenuItem key={item.label} icon={item.icon} label={item.label} hint={item.hint} badge={item.badge} onClick={item.onClick} />
                 ))}
-                <FontToggle userId={userId} />
+                {/* FontToggle retired in Batch 72 — the default font IS the readable
+                    premium sans now; the pref remains honored via useFontPref. */}
               </div>
 
               {/* Switch to Personal Jarvis */}
@@ -295,10 +273,10 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
                 <span className="font-pixel" style={{ fontSize: 12 }}>→</span>
               </button>
 
-              {/* Footer: Pro Tier + invader */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 14 }}>
-                <span className="font-pixel" style={{ fontSize: 13, color: 'var(--os1-text-dim)' }}>Pro Tier</span>
-                <SpaceInvaderIcon size={26} />
+              {/* Footer: tier + wordmark */}
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', paddingTop: 14 }}>
+                <span className="os1-label" style={{ fontSize: 8.5 }}>Pro Tier</span>
+                <span className="os1-display" style={{ fontSize: 15, color: 'var(--os1-text-faint)' }}>Jarvis</span>
               </div>
             </motion.div>
           </>

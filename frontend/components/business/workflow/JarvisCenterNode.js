@@ -16,7 +16,7 @@ export default function JarvisCenterNode() {
         position: 'absolute',
         width: 280, height: 280,
         borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(45,127,249,0.55) 0%, transparent 70%)',
+        background: 'radial-gradient(circle, rgba(207,138,91,0.55) 0%, transparent 70%)',
         animation: 'centerGlowPulse 3s ease-in-out infinite',
         pointerEvents: 'none',
         zIndex: 0,
@@ -44,7 +44,7 @@ export default function JarvisCenterNode() {
                 cx={120 + 110 * Math.cos(angle)}
                 cy={120 + 110 * Math.sin(angle)}
                 r={1.5}
-                fill="rgba(232,232,232,0.6)"
+                fill="rgba(236,230,217,0.6)"
               />
             )
           })}
@@ -58,7 +58,7 @@ export default function JarvisCenterNode() {
                 cx={120 + 95 * Math.cos(angle)}
                 cy={120 + 95 * Math.sin(angle)}
                 r={1.5}
-                fill="rgba(232,232,232,0.4)"
+                fill="rgba(236,230,217,0.4)"
               />
             )
           })}
@@ -71,7 +71,7 @@ export default function JarvisCenterNode() {
           width: 140, height: 140, borderRadius: '50%',
           background: 'rgba(10,9,8,0.85)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          border: '1px solid rgba(232,232,232,0.1)',
+          border: '1px solid rgba(236,230,217,0.1)',
           overflow: 'hidden',
         }}>
           <Image
@@ -85,14 +85,14 @@ export default function JarvisCenterNode() {
         </div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
           <span style={{
-            fontFamily: 'var(--font-pixel), monospace',
-            fontSize: 16, color: '#e8e8e8',
+            fontFamily: 'var(--pixel)',
+            fontSize: 16, color: '#ece6d9',
           }}>
             Jarvis
           </span>
           <span style={{
-            fontFamily: 'var(--font-pixel), monospace',
-            fontSize: 11, color: '#2d7ff9',
+            fontFamily: 'var(--pixel)',
+            fontSize: 11, color: '#cf8a5b',
             letterSpacing: '0.1em',
           }}>
             OS1

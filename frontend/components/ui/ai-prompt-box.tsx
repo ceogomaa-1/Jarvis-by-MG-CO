@@ -18,8 +18,8 @@ function injectScrollbarStyles() {
   const styles = `
     .jarvis-prompt-textarea::-webkit-scrollbar { width: 6px; }
     .jarvis-prompt-textarea::-webkit-scrollbar-track { background: transparent; }
-    .jarvis-prompt-textarea::-webkit-scrollbar-thumb { background-color: #3a3a3a; border-radius: 3px; }
-    .jarvis-prompt-textarea::-webkit-scrollbar-thumb:hover { background-color: #4a4a4a; }
+    .jarvis-prompt-textarea::-webkit-scrollbar-thumb { background-color: rgba(237,230,216,0.14); border-radius: 3px; }
+    .jarvis-prompt-textarea::-webkit-scrollbar-thumb:hover { background-color: rgba(237,230,216,0.24); }
   `
   const sheet = document.createElement('style')
   sheet.innerText = styles
@@ -36,7 +36,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
   ({ className, ...props }, ref) => (
     <textarea
       className={cn(
-        'jarvis-prompt-textarea font-pixel flex w-full rounded-md border-none bg-transparent px-3 py-2.5 text-[15px] text-[#e8e8e8] placeholder:text-[#6e6e6e] placeholder:font-pixel placeholder:text-[14px] focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 min-h-[44px] resize-none',
+        'jarvis-prompt-textarea font-pixel flex w-full rounded-md border-none bg-transparent px-3 py-2.5 text-[15px] text-[#ece6d9] placeholder:text-[rgba(236,230,217,0.35)] placeholder:font-pixel placeholder:text-[14px] focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 min-h-[44px] resize-none',
         className
       )}
       ref={ref}
@@ -61,7 +61,7 @@ const TooltipContent = React.forwardRef<
     ref={ref}
     sideOffset={sideOffset}
     className={cn(
-      'z-50 overflow-hidden rounded-md border border-[rgba(232,232,232,0.12)] bg-[#1a1a1a] px-3 py-1.5 text-sm text-[#e8e8e8] shadow-md animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95',
+      'z-50 overflow-hidden rounded-md border border-[rgba(236,230,217,0.12)] bg-[#1c1916] px-3 py-1.5 text-sm text-[#ece6d9] shadow-md animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95',
       className
     )}
     {...props}
@@ -98,14 +98,14 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        'fixed left-[50%] top-[50%] z-50 grid w-full max-w-[90vw] md:max-w-[800px] translate-x-[-50%] translate-y-[-50%] gap-4 border border-[rgba(232,232,232,0.12)] bg-[#0a0a0a] p-0 shadow-xl duration-300 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 rounded-2xl',
+        'fixed left-[50%] top-[50%] z-50 grid w-full max-w-[90vw] md:max-w-[800px] translate-x-[-50%] translate-y-[-50%] gap-4 border border-[rgba(236,230,217,0.12)] bg-[#12100e] p-0 shadow-xl duration-300 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 rounded-2xl',
         className
       )}
       {...props}
     >
       {children}
-      <DialogPrimitive.Close className="absolute right-4 top-4 z-10 rounded-full bg-[rgba(232,232,232,0.08)] p-2 hover:bg-[rgba(232,232,232,0.16)] transition-all">
-        <X className="h-5 w-5 text-[#e8e8e8]" />
+      <DialogPrimitive.Close className="absolute right-4 top-4 z-10 rounded-full bg-[rgba(236,230,217,0.08)] p-2 hover:bg-[rgba(236,230,217,0.16)] transition-all">
+        <X className="h-5 w-5 text-[#ece6d9]" />
         <span className="sr-only">Close</span>
       </DialogPrimitive.Close>
     </DialogPrimitive.Content>
@@ -119,7 +119,7 @@ const DialogTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
     ref={ref}
-    className={cn('text-lg font-semibold leading-none tracking-tight text-[#e8e8e8]', className)}
+    className={cn('text-lg font-semibold leading-none tracking-tight text-[#ece6d9]', className)}
     {...props}
   />
 ))
@@ -135,9 +135,9 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = 'default', size = 'default', ...props }, ref) => {
     const variantClasses: Record<string, string> = {
-      default: 'bg-[#e8e8e8] hover:bg-[#e8e8e8]/85 text-[#0a0a0a]',
-      outline: 'border border-[rgba(232,232,232,0.12)] bg-transparent hover:bg-[rgba(232,232,232,0.06)]',
-      ghost: 'bg-transparent hover:bg-[rgba(232,232,232,0.06)]',
+      default: 'bg-[#ece6d9] hover:bg-[#fffdf7] text-[#14110d]',
+      outline: 'border border-[rgba(236,230,217,0.12)] bg-transparent hover:bg-[rgba(236,230,217,0.06)]',
+      ghost: 'bg-transparent hover:bg-[rgba(236,230,217,0.06)]',
     }
     const sizeClasses: Record<string, string> = {
       default: 'h-10 px-4 py-2',
@@ -209,13 +209,13 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     >
       <div className="flex items-center gap-2 mb-3">
         <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-        <span className="font-mono text-sm text-[#e8e8e8]/80">{fmt(time)}</span>
+        <span className="font-mono text-sm text-[#ece6d9]/80">{fmt(time)}</span>
       </div>
       <div className="w-full h-10 flex items-center justify-center gap-0.5 px-4">
         {[...Array(visualizerBars)].map((_, i) => (
           <div
             key={i}
-            className="w-0.5 rounded-full bg-[#e8e8e8]/50 animate-pulse"
+            className="w-0.5 rounded-full bg-[#ece6d9]/50 animate-pulse"
             style={{
               height: `${Math.max(15, Math.random() * 100)}%`,
               animationDelay: `${i * 0.05}s`,
@@ -245,7 +245,7 @@ const ImageViewDialog: React.FC<{ imageUrl: string | null; onClose: () => void }
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
           transition={{ duration: 0.2 }}
-          className="relative bg-[#0a0a0a] rounded-2xl overflow-hidden shadow-2xl"
+          className="relative bg-[#12100e] rounded-2xl overflow-hidden shadow-2xl"
         >
           <img src={imageUrl} alt="Preview" className="w-full max-h-[80vh] object-contain rounded-2xl" />
         </motion.div>
@@ -327,8 +327,8 @@ const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(
           <div
             ref={ref}
             className={cn(
-              'rounded-[22px] border border-[#3d3d3d] bg-[#131313] p-3 transition-all duration-300',
-              isLoading && 'border-[#555555]',
+              'rounded-[20px] border border-[rgba(237,230,216,0.1)] bg-[rgba(21,19,16,0.9)] backdrop-blur-xl p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03),0_24px_60px_-36px_rgba(0,0,0,0.9)] transition-all duration-300 focus-within:border-[rgba(207,138,91,0.35)] focus-within:shadow-[inset_0_1px_0_rgba(255,255,255,0.03),0_0_0_3px_rgba(207,138,91,0.07),0_24px_60px_-36px_rgba(0,0,0,0.9)]',
+              isLoading && 'border-[rgba(207,138,91,0.3)]',
               className
             )}
             onDragOver={onDragOver}
@@ -432,7 +432,7 @@ const PromptInputAction: React.FC<PromptInputActionProps> = ({
 // ────────────────────────────────────────────────────────────────
 const CustomDivider: React.FC = () => (
   <div className="relative h-6 w-[1.5px] mx-1">
-    <div className="absolute inset-0 bg-gradient-to-t from-transparent via-[#2d7ff9]/50 to-transparent rounded-full" />
+    <div className="absolute inset-0 bg-gradient-to-t from-transparent via-[#cf8a5b]/40 to-transparent rounded-full" />
   </div>
 )
 
@@ -590,20 +590,20 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
           <div className="flex flex-wrap gap-2 p-0 pb-1">
             {fileEntries.map((entry) => (
               <div key={entry.id} className="relative group w-16 h-16 rounded-xl overflow-hidden flex-shrink-0"
-                style={{ backgroundColor: 'rgba(232,232,232,0.06)', border: '1px solid rgba(232,232,232,0.1)' }}>
+                style={{ backgroundColor: 'rgba(236,230,217,0.06)', border: '1px solid rgba(236,230,217,0.1)' }}>
                 {isImageFile(entry.file) && entry.preview ? (
                   <div className="w-full h-full cursor-pointer" onClick={() => setSelectedImage(entry.preview)}>
                     <img src={entry.preview} alt={entry.file.name} className="h-full w-full object-cover" />
                   </div>
                 ) : isImageFile(entry.file) && !entry.preview ? (
                   <div className="w-full h-full flex items-center justify-center">
-                    <span className="text-xs" style={{ color: 'rgba(232,232,232,0.3)' }}>…</span>
+                    <span className="text-xs" style={{ color: 'rgba(236,230,217,0.3)' }}>…</span>
                   </div>
                 ) : (
                   <div className="w-full h-full flex flex-col items-center justify-center p-1 gap-0.5">
                     <span className="text-sm">{entry.file.type === 'application/pdf' ? '📄' : '📝'}</span>
                     <span className="text-center w-full truncate px-0.5"
-                      style={{ fontFamily: 'system-ui', fontSize: '6px', color: 'rgba(232,232,232,0.5)' }}>
+                      style={{ fontFamily: 'system-ui', fontSize: '6px', color: 'rgba(236,230,217,0.5)' }}>
                       {entry.file.name}
                     </span>
                   </div>
@@ -624,9 +624,9 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
                 onClick={() => uploadInputRef.current?.click()}
                 className="w-16 h-16 rounded-xl flex items-center justify-center flex-shrink-0"
                 style={{
-                  backgroundColor: 'rgba(232,232,232,0.02)',
-                  border: '1px dashed rgba(232,232,232,0.12)',
-                  color: 'rgba(232,232,232,0.25)',
+                  backgroundColor: 'rgba(236,230,217,0.02)',
+                  border: '1px dashed rgba(236,230,217,0.12)',
+                  color: 'rgba(236,230,217,0.25)',
                   fontSize: '20px', cursor: 'pointer',
                 }}
               >
@@ -668,7 +668,7 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
                   <button
                     type="button"
                     onClick={() => imageInputRef.current?.click()}
-                    className="flex h-8 w-8 text-[#9a9a9a] cursor-pointer items-center justify-center rounded-lg transition-colors hover:text-[#e8e8e8] hover:bg-[rgba(255,255,255,0.05)]"
+                    className="flex h-8 w-8 text-[rgba(236,230,217,0.45)] cursor-pointer items-center justify-center rounded-lg transition-colors hover:text-[#ece6d9] hover:bg-[rgba(237,230,216,0.05)]"
                     disabled={isRecording}
                   >
                     <ImageIcon className="h-[18px] w-[18px]" />
@@ -691,7 +691,7 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
                   <button
                     type="button"
                     onClick={() => uploadInputRef.current?.click()}
-                    className="flex h-8 w-8 text-[#9a9a9a] cursor-pointer items-center justify-center rounded-lg transition-colors hover:text-[#e8e8e8] hover:bg-[rgba(255,255,255,0.05)]"
+                    className="flex h-8 w-8 text-[rgba(236,230,217,0.45)] cursor-pointer items-center justify-center rounded-lg transition-colors hover:text-[#ece6d9] hover:bg-[rgba(237,230,216,0.05)]"
                     disabled={isRecording}
                   >
                     <Paperclip className="h-[17px] w-[17px]" />
@@ -720,8 +720,8 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
                 className={cn(
                   'flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg transition-colors',
                   showOperator
-                    ? 'text-[#2d7ff9] bg-[rgba(45,127,249,0.12)]'
-                    : 'text-[#9a9a9a] hover:text-[#e8e8e8] hover:bg-[rgba(255,255,255,0.05)]'
+                    ? 'text-[#cf8a5b] bg-[rgba(207,138,91,0.12)]'
+                    : 'text-[rgba(236,230,217,0.45)] hover:text-[#ece6d9] hover:bg-[rgba(237,230,216,0.05)]'
                 )}
               >
                 <SquareTerminal className="h-[18px] w-[18px]" />
@@ -736,8 +736,8 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
                 className={cn(
                   'flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg transition-colors',
                   showShowMe
-                    ? 'text-[#2d7ff9] bg-[rgba(45,127,249,0.12)]'
-                    : 'text-[#9a9a9a] hover:text-[#e8e8e8] hover:bg-[rgba(255,255,255,0.05)]'
+                    ? 'text-[#cf8a5b] bg-[rgba(207,138,91,0.12)]'
+                    : 'text-[rgba(236,230,217,0.45)] hover:text-[#ece6d9] hover:bg-[rgba(237,230,216,0.05)]'
                 )}
               >
                 <PenLine className="h-[17px] w-[17px]" />
@@ -747,18 +747,18 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
 
           {/* Center: Chat View | Canvas View pill */}
           {showViewToggle && !isRecording && (
-            <div className="flex items-center rounded-full bg-[#2e2e2e] p-[3px]">
+            <div className="flex items-center rounded-full border border-[rgba(237,230,216,0.08)] bg-[rgba(237,230,216,0.04)] p-[3px]">
               <button
                 type="button"
-                className="font-pixel rounded-full bg-[#4a4a4a] px-3.5 py-[3px] text-[12px] text-[#e8e8e8]"
+                className="font-pixel rounded-full bg-[rgba(237,230,216,0.12)] px-3.5 py-[3px] text-[12px] text-[#ece6d9]"
               >
                 Chat View
               </button>
-              <span className="mx-1.5 h-4 w-px bg-[#4a4a4a]" />
+              <span className="mx-1.5 h-4 w-px bg-[rgba(237,230,216,0.1)]" />
               <button
                 type="button"
                 onClick={() => router.push('/business/workflow')}
-                className="font-pixel rounded-full px-3.5 py-[3px] text-[12px] text-[#9a9a9a] transition-colors hover:text-[#e8e8e8]"
+                className="font-pixel rounded-full px-3.5 py-[3px] text-[12px] text-[rgba(236,230,217,0.45)] transition-colors hover:text-[#ece6d9]"
               >
                 Canvas View
               </button>
@@ -769,7 +769,7 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
               sends every message straight to the brain (tool-driven, no classifier). */}
           {showGoToggle && !isRecording && (
             <div
-              className="flex items-center rounded-full bg-[#2e2e2e] p-[3px]"
+              className="flex items-center rounded-full border border-[rgba(237,230,216,0.08)] bg-[rgba(237,230,216,0.04)] p-[3px]"
               title={goMode ? 'Jarvis GO — everything goes straight to the brain' : 'Classic Jarvis — fast-routes obvious requests'}
             >
               <button
@@ -777,18 +777,18 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
                 onClick={() => onGoModeChange(false)}
                 className={cn(
                   'font-pixel rounded-full px-3.5 py-[3px] text-[12px] transition-colors',
-                  !goMode ? 'bg-[#4a4a4a] text-[#e8e8e8]' : 'text-[#9a9a9a] hover:text-[#e8e8e8]'
+                  !goMode ? 'bg-[rgba(237,230,216,0.12)] text-[#ece6d9]' : 'text-[rgba(236,230,217,0.45)] hover:text-[#ece6d9]'
                 )}
               >
                 Jarvis
               </button>
-              <span className="mx-1.5 h-4 w-px bg-[#4a4a4a]" />
+              <span className="mx-1.5 h-4 w-px bg-[rgba(237,230,216,0.1)]" />
               <button
                 type="button"
                 onClick={() => onGoModeChange(true)}
                 className={cn(
                   'font-pixel rounded-full px-3.5 py-[3px] text-[12px] transition-colors',
-                  goMode ? 'bg-[#2d7ff9] text-white' : 'text-[#9a9a9a] hover:text-[#e8e8e8]'
+                  goMode ? 'bg-[#cf8a5b] text-[#14110d] font-medium' : 'text-[rgba(236,230,217,0.45)] hover:text-[#ece6d9]'
                 )}
               >
                 Jarvis GO
@@ -813,8 +813,8 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
                 isRecording
                   ? 'bg-transparent hover:bg-[rgba(255,255,255,0.06)] text-red-500'
                   : hasContent
-                  ? 'bg-[#e8e8e8] hover:bg-[#ffffff] text-[#131313]'
-                  : 'bg-[#2e2e2e] hover:bg-[#3a3a3a] text-[#8a8a8a]'
+                  ? 'bg-[#ece6d9] hover:bg-[#fffdf7] text-[#14110d] shadow-[0_0_18px_rgba(207,138,91,0.25)]'
+                  : 'bg-[rgba(237,230,216,0.07)] hover:bg-[rgba(237,230,216,0.12)] text-[rgba(236,230,217,0.4)]'
               )}
               onClick={() => {
                 if (isRecording) setIsRecording(false)

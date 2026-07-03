@@ -32,14 +32,14 @@ function truncate(text, n) {
   return text.length > n ? `${text.slice(0, n).trim()}...` : text
 }
 
-function pixelButton({ accent = '#2d7ff9', muted = false } = {}) {
+function pixelButton({ accent = '#cf8a5b', muted = false } = {}) {
   return {
     width: '100%',
     background: muted ? 'transparent' : accent,
-    border: muted ? '1px solid rgba(232,232,232,0.18)' : 'none',
+    border: muted ? '1px solid rgba(236,230,217,0.18)' : 'none',
     borderRadius: 4,
     padding: '12px 0',
-    color: muted ? '#9a9a9a' : (accent === GOLD ? '#131313' : '#ffffff'),
+    color: muted ? '#9b948a' : (accent === GOLD ? '#0b0a09' : '#ffffff'),
     fontSize: 10,
     fontFamily: 'var(--pixel)',
     cursor: 'pointer',
@@ -94,7 +94,7 @@ export default function NodeCard({ node, userId, onClose, onForget }) {
   const isSynapse = node.type === 'synapse'
   const isGap = node.type === 'gap'
   const isQueue = node.type === 'queue_item'
-  const accent = isSynapse ? GOLD : isQueue ? '#2d7ff9' : colorForCategory(node.mind_category)
+  const accent = isSynapse ? GOLD : isQueue ? '#cf8a5b' : colorForCategory(node.mind_category)
 
   return (
     <AnimatePresence>
@@ -110,7 +110,7 @@ export default function NodeCard({ node, userId, onClose, onForget }) {
           background: 'rgba(19,19,19,0.85)',
           backdropFilter: 'blur(24px) saturate(160%)',
           WebkitBackdropFilter: 'blur(24px) saturate(160%)',
-          borderLeft: `1px solid ${isSynapse ? 'rgba(255,210,74,0.35)' : 'rgba(232,232,232,0.12)'}`,
+          borderLeft: `1px solid ${isSynapse ? 'rgba(255,210,74,0.35)' : 'rgba(236,230,217,0.12)'}`,
           boxShadow: isSynapse ? `inset 0 0 40px rgba(255,210,74,0.06)` : 'none',
           display: 'flex', flexDirection: 'column',
           overflowY: 'auto', zIndex: 40,
@@ -121,10 +121,10 @@ export default function NodeCard({ node, userId, onClose, onForget }) {
           <button
             onClick={onClose}
             style={{
-              background: 'rgba(232,232,232,0.06)',
-              border: '1px solid rgba(232,232,232,0.12)',
+              background: 'rgba(236,230,217,0.06)',
+              border: '1px solid rgba(236,230,217,0.12)',
               borderRadius: 6, padding: 8, cursor: 'pointer',
-              color: '#e8e8e8', display: 'flex', alignItems: 'center',
+              color: '#ece6d9', display: 'flex', alignItems: 'center',
             }}
           >
             <X size={14} />
@@ -141,7 +141,7 @@ export default function NodeCard({ node, userId, onClose, onForget }) {
               }}>
                 ✦ Golden Synapse
               </div>
-              <div style={{ fontSize: 10, color: '#6e6e6e', letterSpacing: '0.05em' }}>
+              <div style={{ fontSize: 10, color: '#767066', letterSpacing: '0.05em' }}>
                 {relativeTime(node.created_at)}
               </div>
             </div>
@@ -149,7 +149,7 @@ export default function NodeCard({ node, userId, onClose, onForget }) {
             <div>
               <div style={{
                 fontFamily: 'var(--pixel)', fontSize: 11, letterSpacing: '0.2em',
-                color: '#e8e8e8', textTransform: 'uppercase', marginBottom: 8,
+                color: '#ece6d9', textTransform: 'uppercase', marginBottom: 8,
               }}>
                 Knowledge Gap
               </div>
@@ -159,18 +159,18 @@ export default function NodeCard({ node, userId, onClose, onForget }) {
             <div>
               <div style={{
                 fontFamily: 'var(--pixel)', fontSize: 11, letterSpacing: '0.2em',
-                color: '#2d7ff9', textTransform: 'uppercase', marginBottom: 8,
+                color: '#cf8a5b', textTransform: 'uppercase', marginBottom: 8,
               }}>
                 Morning Queue
               </div>
-              <div style={{ fontSize: 10, color: '#2d7ff9', letterSpacing: '0.05em' }}>
+              <div style={{ fontSize: 10, color: '#cf8a5b', letterSpacing: '0.05em' }}>
                 born {node.created_at ? new Date(node.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''} ⚡
               </div>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <CategoryPill category={node.mind_category} />
-              <div style={{ fontSize: 10, color: '#6e6e6e', letterSpacing: '0.05em' }}>
+              <div style={{ fontSize: 10, color: '#767066', letterSpacing: '0.05em' }}>
                 {SOURCE_LABELS[node.source] || 'From a conversation'} · {relativeTime(node.created_at)}
               </div>
             </div>
@@ -179,15 +179,15 @@ export default function NodeCard({ node, userId, onClose, onForget }) {
           {/* Body */}
           {isSynapse ? (
             <>
-              <div style={{ fontSize: 14, color: '#e8e8e8', lineHeight: 1.7 }}>
+              <div style={{ fontSize: 14, color: '#ece6d9', lineHeight: 1.7 }}>
                 {node.insight}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {[node._a, node._b].map((m, i) => m && (
                   <div key={i} style={{
-                    fontSize: 12, color: '#9a9a9a', lineHeight: 1.6,
+                    fontSize: 12, color: '#9b948a', lineHeight: 1.6,
                     padding: '10px 12px', borderRadius: 4,
-                    background: 'rgba(232,232,232,0.03)',
+                    background: 'rgba(236,230,217,0.03)',
                     border: `1px solid ${colorForCategory(m.mind_category)}33`,
                     borderLeft: `2px solid ${colorForCategory(m.mind_category)}`,
                   }}>
@@ -197,16 +197,16 @@ export default function NodeCard({ node, userId, onClose, onForget }) {
               </div>
             </>
           ) : isGap ? (
-            <div style={{ fontSize: 14, color: '#e8e8e8', lineHeight: 1.7 }}>
+            <div style={{ fontSize: 14, color: '#ece6d9', lineHeight: 1.7 }}>
               {node.label}
             </div>
           ) : isQueue ? (
-            <div style={{ fontSize: 14, color: '#e8e8e8', lineHeight: 1.7 }}>
+            <div style={{ fontSize: 14, color: '#ece6d9', lineHeight: 1.7 }}>
               {node.title}
             </div>
           ) : (
             <>
-              <div style={{ fontSize: 14, color: '#e8e8e8', lineHeight: 1.7 }}>
+              <div style={{ fontSize: 14, color: '#ece6d9', lineHeight: 1.7 }}>
                 {node.memory}
               </div>
 
@@ -214,11 +214,11 @@ export default function NodeCard({ node, userId, onClose, onForget }) {
               <div>
                 <div style={{
                   fontFamily: 'var(--pixel)', fontSize: 9, letterSpacing: '0.2em',
-                  color: '#6e6e6e', textTransform: 'uppercase', marginBottom: 6,
+                  color: '#767066', textTransform: 'uppercase', marginBottom: 6,
                 }}>
                   Strength
                 </div>
-                <div style={{ height: 4, borderRadius: 2, background: 'rgba(232,232,232,0.08)', overflow: 'hidden' }}>
+                <div style={{ height: 4, borderRadius: 2, background: 'rgba(236,230,217,0.08)', overflow: 'hidden' }}>
                   <div style={{
                     height: '100%', width: `${Math.round((node.strength || 0) * 100)}%`,
                     background: accent, boxShadow: `0 0 8px ${accent}`,
@@ -231,16 +231,16 @@ export default function NodeCard({ node, userId, onClose, onForget }) {
                 <div>
                   <div style={{
                     fontFamily: 'var(--pixel)', fontSize: 9, letterSpacing: '0.2em',
-                    color: '#6e6e6e', textTransform: 'uppercase', marginBottom: 8,
+                    color: '#767066', textTransform: 'uppercase', marginBottom: 8,
                   }}>
                     Related
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {node._related.map(rel => (
                       <div key={rel.id} style={{
-                        fontSize: 11, color: '#9a9a9a', lineHeight: 1.5,
+                        fontSize: 11, color: '#9b948a', lineHeight: 1.5,
                         padding: '8px 10px', borderRadius: 4,
-                        background: 'rgba(232,232,232,0.03)',
+                        background: 'rgba(236,230,217,0.03)',
                         borderLeft: `2px solid ${colorForCategory(rel.mind_category)}`,
                       }}>
                         {truncate(rel.memory, 100)}
@@ -272,7 +272,7 @@ export default function NodeCard({ node, userId, onClose, onForget }) {
 
             {isGap && (
               <button
-                style={pixelButton({ accent: '#2d7ff9' })}
+                style={pixelButton({ accent: '#cf8a5b' })}
                 onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.1)')}
                 onMouseLeave={e => (e.currentTarget.style.filter = 'brightness(1)')}
                 onClick={() => goToChat({
@@ -288,7 +288,7 @@ export default function NodeCard({ node, userId, onClose, onForget }) {
 
             {isQueue && (
               <button
-                style={pixelButton({ accent: '#2d7ff9' })}
+                style={pixelButton({ accent: '#cf8a5b' })}
                 onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.1)')}
                 onMouseLeave={e => (e.currentTarget.style.filter = 'brightness(1)')}
                 onClick={actOnQueueItem}
@@ -300,7 +300,7 @@ export default function NodeCard({ node, userId, onClose, onForget }) {
             {!isSynapse && !isGap && !isQueue && (
               <>
                 <button
-                  style={pixelButton({ accent: '#2d7ff9' })}
+                  style={pixelButton({ accent: '#cf8a5b' })}
                   onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.1)')}
                   onMouseLeave={e => (e.currentTarget.style.filter = 'brightness(1)')}
                   onClick={() => goToChat({

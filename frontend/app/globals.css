@@ -429,62 +429,161 @@ html, body {
 .os1-fade-up-delay-4 { transition-delay: 0.6s; }
 
 /* ════════════════════════════════════════════════════════════════
-   OS1 v2 — "Pixel Terminal" theme (Jarvis Business redesign)
-   Scope: business chat surfaces only. Personal Jarvis untouched.
+   OS1 v3 — "Private Office" (Batch 72 redesign)
+   High-end corporate language: warm near-black, ivory ink, hairline
+   structure, a single copper accent. Serif for moments, sans for
+   work, mono for machine labels. Calm motion only.
+   Scope: business/OS1 surfaces. Personal Jarvis untouched.
+   Legacy token names (--os1-blue, --pixel) are kept and re-pointed
+   so every existing consumer upgrades in place.
    ════════════════════════════════════════════════════════════════ */
 :root {
-  --os1-bg: #131313;
-  --os1-border: #3d3d3d;
-  --os1-border-soft: #2e2e2e;
-  --os1-text: #e8e8e8;
-  --os1-text-dim: #a3a3a3;
-  --os1-text-faint: #6e6e6e;
-  --os1-text-ghost: #4d4d4d;
-  --os1-surface: #1c1c1c;
-  --os1-surface-2: #262626;
-  --os1-pill: #2e2e2e;
-  --os1-bubble: #3a3a3a;
-  --os1-blue: #2d7ff9;
-  --os1-blue-soft: rgba(45, 127, 249, 0.18);
-  --pixel: var(--font-pixel), 'Pixelify Sans', monospace;
+  --os1-bg: #0b0a09;
+  --os1-bg-raised: #12100e;
+  --os1-surface: #151310;
+  --os1-surface-2: #1c1916;
+  --os1-pill: #1c1916;
+  --os1-bubble: #1e1a16;
+  --os1-border: rgba(237, 230, 216, 0.15);
+  --os1-border-soft: rgba(237, 230, 216, 0.08);
+  --os1-text: #ece6d9;
+  --os1-text-dim: rgba(236, 230, 217, 0.6);
+  --os1-text-faint: rgba(236, 230, 217, 0.38);
+  --os1-text-ghost: rgba(236, 230, 217, 0.2);
+  /* Single interactive accent — copper. --os1-blue is the legacy name,
+     kept so every existing consumer picks up the accent untouched. */
+  --os1-accent: #cf8a5b;
+  --os1-accent-deep: #c84b31;
+  --os1-accent-soft: rgba(207, 138, 91, 0.12);
+  --os1-glow: rgba(207, 138, 91, 0.25);
+  --os1-blue: var(--os1-accent);
+  --os1-blue-soft: var(--os1-accent-soft);
+  /* Type: --pixel is the legacy alias every OS1 surface reads — it now
+     serves the premium UI sans. Serif for display, mono for labels. */
+  --pixel: var(--font-sans), 'Inter', system-ui, sans-serif;
   --os1-serif: var(--font-serif), Georgia, serif;
+  --os1-mono: var(--font-jetbrains), ui-monospace, 'SF Mono', Menlo, monospace;
 }
 
-/* Readable Font toggle (Batch 48) — flips every OS1 surface that reads
-   --pixel/.font-pixel from the brand pixel font to Inter. */
+/* Readable Font toggle (Batch 48) — the default IS the readable premium
+   sans now; the toggle remains a harmless no-op for existing users. */
 html.os1-font-normal {
   --pixel: var(--font-sans), 'Inter', system-ui, sans-serif;
 }
 html.os1-font-normal .font-pixel { letter-spacing: 0 !important; }
 
 .os1-root {
-  background: var(--os1-bg);
+  background:
+    radial-gradient(1100px 700px at 50% -180px, rgba(207, 138, 91, 0.055), transparent 62%),
+    radial-gradient(900px 620px at 88% 112%, rgba(207, 138, 91, 0.03), transparent 60%),
+    var(--os1-bg);
   color: var(--os1-text);
   font-family: var(--pixel);
+  letter-spacing: -0.008em;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 .font-pixel { font-family: var(--pixel); }
-.os1-serif-micro {
+
+/* Editorial display type — greetings, headlines, the wordmark */
+.os1-display {
   font-family: var(--os1-serif);
+  font-weight: 400;
+  letter-spacing: -0.015em;
+}
+
+/* Machine micro-label — mono, tracked wide, uppercase */
+.os1-label {
+  font-family: var(--os1-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
   color: var(--os1-text-faint);
-  letter-spacing: 0.04em;
 }
 
-/* Floating outlined panel (sidebar / menu) */
+/* Legacy micro-timestamp class — now a machine label */
+.os1-serif-micro {
+  font-family: var(--os1-mono);
+  color: var(--os1-text-faint);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* Hairline divider — fades at both ends */
+.os1-hairline {
+  height: 1px;
+  border: none;
+  background: linear-gradient(to right, transparent, var(--os1-border-soft) 18%, var(--os1-border-soft) 82%, transparent);
+}
+
+/* Floating panel (sidebar / menus / modals) — soft-raised, hairline-edged */
 .os1-panel {
-  background: var(--os1-bg);
-  border: 1px solid var(--os1-border);
-  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0) 42%),
+    var(--os1-bg-raised);
+  border: 1px solid var(--os1-border-soft);
+  border-radius: 16px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.035),
+    0 32px 80px -44px rgba(0, 0, 0, 0.85);
 }
 
-/* Outlined card (session cards / menu items) */
+/* Card (sessions / menu items / blocks) */
 .os1-card {
   background: transparent;
   border: 1px solid var(--os1-border-soft);
-  border-radius: 12px;
-  transition: border-color 160ms ease, background 160ms ease;
+  border-radius: 10px;
+  transition: border-color 200ms ease, background 200ms ease, transform 200ms ease;
 }
-.os1-card:hover { border-color: var(--os1-border); background: rgba(255,255,255,0.025); }
-.os1-card.active { border-color: #555555; background: rgba(255,255,255,0.04); }
+.os1-card:hover { border-color: var(--os1-border); background: rgba(237, 230, 216, 0.025); }
+.os1-card.active { border-color: rgba(207, 138, 91, 0.32); background: rgba(207, 138, 91, 0.05); }
+
+/* Sidebar row — quiet list item, hairline-separated */
+.os1-row {
+  position: relative;
+  border-radius: 8px;
+  transition: background 180ms ease, color 180ms ease;
+}
+.os1-row:hover { background: rgba(237, 230, 216, 0.035); }
+.os1-row.active { background: rgba(237, 230, 216, 0.05); }
+.os1-row.active::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2px;
+  height: 16px;
+  border-radius: 2px;
+  background: var(--os1-accent);
+}
+
+/* Buttons */
+.os1-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: transparent;
+  border: 1px solid var(--os1-border);
+  border-radius: 999px;
+  padding: 8px 18px;
+  color: var(--os1-text);
+  font-family: var(--pixel);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 200ms ease, background 200ms ease, transform 200ms ease;
+}
+.os1-btn:hover { border-color: rgba(237, 230, 216, 0.32); background: rgba(237, 230, 216, 0.04); }
+.os1-btn:active { transform: scale(0.98); }
+.os1-btn-primary {
+  background: var(--os1-text);
+  border-color: var(--os1-text);
+  color: #14110d;
+  font-weight: 500;
+}
+.os1-btn-primary:hover { background: #ffffff; border-color: #ffffff; }
 
 /* Icon button */
 .os1-iconbtn {
@@ -497,92 +596,139 @@ html.os1-font-normal .font-pixel { letter-spacing: 0 !important; }
   justify-content: center;
   border-radius: 8px;
   padding: 6px;
-  transition: color 150ms ease, background 150ms ease;
+  transition: color 200ms ease, background 200ms ease;
 }
-.os1-iconbtn:hover { color: var(--os1-text); background: rgba(255,255,255,0.05); }
+.os1-iconbtn:hover { color: var(--os1-text); background: rgba(237, 230, 216, 0.05); }
 
-/* Search pill */
+/* Search — hairline field, glows softly on focus */
 .os1-search {
   width: 100%;
-  background: var(--os1-pill);
-  border: none;
+  background: rgba(237, 230, 216, 0.03);
+  border: 1px solid var(--os1-border-soft);
   border-radius: 999px;
   padding: 8px 14px 8px 34px;
-  color: var(--os1-text-dim);
+  color: var(--os1-text);
   font-family: var(--pixel);
   font-size: 13px;
   outline: none;
+  transition: border-color 200ms ease, background 200ms ease, box-shadow 200ms ease;
 }
 .os1-search::placeholder { color: var(--os1-text-faint); }
+.os1-search:focus {
+  border-color: rgba(207, 138, 91, 0.35);
+  background: rgba(237, 230, 216, 0.045);
+  box-shadow: 0 0 0 3px rgba(207, 138, 91, 0.07);
+}
+
+/* Focus ring — keyboard nav stays elegant */
+.os1-root :focus-visible {
+  outline: 1px solid rgba(207, 138, 91, 0.55);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
 
 /* OS1 scrollbar */
 .os1-scroll::-webkit-scrollbar { width: 5px; }
 .os1-scroll::-webkit-scrollbar-track { background: transparent; }
-.os1-scroll::-webkit-scrollbar-thumb { background: #3a3a3a; border-radius: 3px; }
-.os1-scroll::-webkit-scrollbar-thumb:hover { background: #4a4a4a; }
-.os1-scroll { scrollbar-width: thin; scrollbar-color: #3a3a3a transparent; }
+.os1-scroll::-webkit-scrollbar-thumb { background: rgba(237, 230, 216, 0.12); border-radius: 3px; }
+.os1-scroll::-webkit-scrollbar-thumb:hover { background: rgba(237, 230, 216, 0.22); }
+.os1-scroll { scrollbar-width: thin; scrollbar-color: rgba(237, 230, 216, 0.12) transparent; }
 
-/* Pixelated rendering for the mono globe logo */
+/* Legacy globe-logo class — smooth now, no pixelation */
 .os1-logo-pixel {
-  image-rendering: pixelated;
-  filter: grayscale(1) brightness(0.85);
+  image-rendering: auto;
+  filter: grayscale(1) brightness(0.9);
 }
 
-/* OS1 markdown (assistant messages) — monochrome */
+/* OS1 markdown (assistant messages) — editorial: serif heads, calm body */
 .os1-markdown { font-family: var(--pixel); }
-.os1-markdown h1, .os1-markdown h2, .os1-markdown h3 { font-family: var(--pixel); color: var(--os1-text); font-weight: 600; margin: 18px 0 8px; line-height: 1.3; }
-.os1-markdown h1 { font-size: 1.25rem; }
-.os1-markdown h2 { font-size: 1.1rem; }
-.os1-markdown h3 { font-size: 1rem; }
+.os1-markdown h1, .os1-markdown h2, .os1-markdown h3 { font-family: var(--os1-serif); color: var(--os1-text); font-weight: 400; margin: 22px 0 8px; line-height: 1.28; letter-spacing: -0.01em; }
+.os1-markdown h1 { font-size: 1.5rem; }
+.os1-markdown h2 { font-size: 1.25rem; }
+.os1-markdown h3 { font-size: 1.08rem; }
 .os1-markdown h1:first-child, .os1-markdown h2:first-child, .os1-markdown h3:first-child { margin-top: 0; }
 .os1-markdown p { margin: 0 0 10px; color: var(--os1-text); }
 .os1-markdown p:last-child { margin-bottom: 0; }
-.os1-markdown ul, .os1-markdown ol { margin: 8px 0 10px 0; padding: 0; list-style: none; }
-.os1-markdown ul li, .os1-markdown ol li { margin-bottom: 5px; padding-left: 16px; position: relative; color: var(--os1-text-dim); }
-.os1-markdown ul li::before { content: '·'; position: absolute; left: 2px; top: 0; color: var(--os1-text-faint); font-size: 16px; line-height: 1.4; }
+.os1-markdown ul, .os1-markdown ol { margin: 8px 0 12px 0; padding: 0; list-style: none; }
+.os1-markdown ul li, .os1-markdown ol li { margin-bottom: 6px; padding-left: 18px; position: relative; color: var(--os1-text-dim); }
+.os1-markdown ul li::before { content: ''; position: absolute; left: 2px; top: 0.62em; width: 4px; height: 1px; background: var(--os1-accent); opacity: 0.75; }
 .os1-markdown ol { counter-reset: item; }
 .os1-markdown ol li { counter-increment: item; }
-.os1-markdown ol li::before { content: counter(item) '.'; position: absolute; left: 0; color: var(--os1-text-faint); font-size: 12px; top: 2px; }
-.os1-markdown strong { color: #ffffff; font-weight: 600; }
+.os1-markdown ol li::before { content: counter(item, decimal-leading-zero); position: absolute; left: 0; color: var(--os1-text-faint); font-family: var(--os1-mono); font-size: 10px; top: 0.28em; letter-spacing: 0.04em; }
+.os1-markdown strong { color: #fbf7ee; font-weight: 600; }
 .os1-markdown em { color: var(--os1-text-dim); font-style: italic; }
-.os1-markdown a { color: var(--os1-blue); text-decoration: underline; text-underline-offset: 2px; }
-.os1-markdown code { background: var(--os1-surface-2); border-radius: 4px; padding: 2px 6px; font-size: 13px; font-family: ui-monospace, 'SF Mono', Menlo, monospace; color: var(--os1-text); }
+.os1-markdown a { color: var(--os1-accent); text-decoration: underline; text-decoration-color: rgba(207, 138, 91, 0.4); text-underline-offset: 3px; transition: text-decoration-color 200ms ease; }
+.os1-markdown a:hover { text-decoration-color: var(--os1-accent); }
+.os1-markdown code { background: var(--os1-surface-2); border-radius: 4px; padding: 2px 6px; font-size: 12.5px; font-family: var(--os1-mono); color: var(--os1-text); }
 .os1-markdown pre { background: var(--os1-surface); border: 1px solid var(--os1-border-soft); border-radius: 12px; padding: 16px; overflow-x: auto; margin: 12px 0; }
-.os1-markdown pre code { background: none; padding: 0; font-size: 13px; }
-.os1-markdown table { border-collapse: collapse; width: 100%; margin: 12px 0; }
-.os1-markdown th { color: var(--os1-text-dim); font-weight: 600; padding: 8px 12px; border-bottom: 1px solid var(--os1-border); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; text-align: left; }
-.os1-markdown td { padding: 8px 12px; border-bottom: 1px solid var(--os1-border-soft); font-size: 13px; color: var(--os1-text-dim); }
+.os1-markdown pre code { background: none; padding: 0; font-size: 12.5px; }
+.os1-markdown table { border-collapse: collapse; width: 100%; margin: 14px 0; }
+.os1-markdown th { color: var(--os1-text-faint); font-weight: 500; padding: 8px 12px; border-bottom: 1px solid var(--os1-border); font-family: var(--os1-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; text-align: left; }
+.os1-markdown td { padding: 9px 12px; border-bottom: 1px solid var(--os1-border-soft); font-size: 13px; color: var(--os1-text-dim); }
 .os1-markdown tr:last-child td { border-bottom: none; }
-.os1-markdown blockquote { border-left: 2px solid var(--os1-border); margin: 12px 0; padding-left: 16px; color: var(--os1-text-faint); font-style: italic; }
-.os1-markdown hr { border: none; height: 1px; background: var(--os1-border-soft); margin: 20px 0; }
+.os1-markdown blockquote { border-left: 1px solid rgba(207, 138, 91, 0.45); margin: 14px 0; padding-left: 16px; color: var(--os1-text-dim); font-family: var(--os1-serif); font-size: 1.05em; font-style: italic; }
+.os1-markdown hr { border: none; height: 1px; background: linear-gradient(to right, transparent, var(--os1-border) 30%, var(--os1-border) 70%, transparent); margin: 22px 0; }
 
-/* OS1 streaming cursor — monochrome */
+/* OS1 streaming cursor — thin copper caret */
 .os1-cursor::after {
-  content: '▌';
-  color: var(--os1-text-dim);
-  font-size: 0.9em;
-  animation: cursorBlink 0.8s ease-in-out infinite;
-  margin-left: 1px;
-  display: inline;
+  content: '';
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: var(--os1-accent);
+  animation: cursorBlink 0.9s ease-in-out infinite;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  border-radius: 1px;
 }
 
-/* User bubble tail (sharp corner, bottom-right) */
+/* User bubble — warm charcoal, quiet signature corner */
 .os1-bubble-user {
   position: relative;
-  background: var(--os1-bubble);
-  border-radius: 18px 18px 4px 18px;
+  background: linear-gradient(180deg, rgba(237, 230, 216, 0.045), rgba(237, 230, 216, 0.015)), var(--os1-bubble);
+  border: 1px solid var(--os1-border-soft);
+  border-radius: 16px 16px 4px 16px;
   color: var(--os1-text);
 }
-.os1-bubble-user::after {
-  content: '';
-  position: absolute;
-  right: -7px;
-  bottom: 0;
-  width: 0;
-  height: 0;
-  border-style: solid;
-  border-width: 0 0 12px 12px;
-  border-color: transparent transparent var(--os1-bubble) transparent;
+
+/* ── Reveal choreography — blur-to-sharp rise, used across surfaces ── */
+@keyframes os1Reveal {
+  from { opacity: 0; transform: translateY(14px); filter: blur(6px); }
+  to   { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+.os1-reveal { animation: os1Reveal 0.9s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.os1-reveal-1 { animation-delay: 0.08s; }
+.os1-reveal-2 { animation-delay: 0.2s; }
+.os1-reveal-3 { animation-delay: 0.34s; }
+.os1-reveal-4 { animation-delay: 0.5s; }
+
+@keyframes os1ArcSpin {
+  to { transform: rotate(360deg); }
+}
+@keyframes os1Breathe {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50%      { opacity: 1; transform: scale(1.035); }
+}
+@keyframes os1TextShimmer {
+  0%   { background-position: 120% 0; }
+  100% { background-position: -20% 0; }
+}
+/* Shimmering machine label — for "working" states */
+.os1-shimmer-label {
+  font-family: var(--os1-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  background: linear-gradient(90deg, var(--os1-text-faint) 40%, var(--os1-text) 50%, var(--os1-text-faint) 60%) 0 0 / 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: os1TextShimmer 2.2s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .os1-reveal, .os1-reveal-1, .os1-reveal-2, .os1-reveal-3, .os1-reveal-4 { animation-duration: 0.01s; animation-delay: 0s; }
+  .os1-shimmer-label { animation: none; color: var(--os1-text-faint); background: none; }
 }
 
 /* === Morph loader (21st.dev) — used while Jarvis lays down a response === */

@@ -471,7 +471,7 @@ export default function MindCanvas({ userId }) {
   return (
     <div
       ref={containerRef}
-      style={{ position: 'relative', flex: '1 1 auto', minHeight: 0, overflow: 'hidden', background: '#131313' }}
+      style={{ position: 'relative', flex: '1 1 auto', minHeight: 0, overflow: 'hidden', background: '#0b0a09' }}
     >
       <canvas
         ref={canvasRef}
@@ -489,7 +489,7 @@ export default function MindCanvas({ userId }) {
         }}>
           <div style={{
             fontFamily: 'var(--pixel)', fontSize: 11, letterSpacing: '0.2em',
-            color: '#6e6e6e', textTransform: 'uppercase',
+            color: '#767066', textTransform: 'uppercase',
           }}>
             Loading your Mind...
           </div>
@@ -504,7 +504,7 @@ export default function MindCanvas({ userId }) {
         }}>
           <div style={{
             fontFamily: 'var(--pixel)', fontSize: 12, letterSpacing: '0.15em',
-            color: '#6e6e6e', lineHeight: 2.4, textTransform: 'uppercase',
+            color: '#767066', lineHeight: 2.4, textTransform: 'uppercase',
           }}>
             Your Mind is still forming.<br />Talk to Jarvis to begin.
           </div>
@@ -515,7 +515,7 @@ export default function MindCanvas({ userId }) {
       <div style={{
         position: 'absolute', top: 16, left: 16,
         fontFamily: 'var(--pixel)', fontSize: 10, letterSpacing: '0.15em',
-        color: '#6e6e6e', textTransform: 'uppercase', pointerEvents: 'none',
+        color: '#767066', textTransform: 'uppercase', pointerEvents: 'none',
       }}>
         {nodeCount} {nodeCount === 1 ? 'memory' : 'memories'}
       </div>
@@ -529,8 +529,8 @@ export default function MindCanvas({ userId }) {
             fontFamily: 'var(--pixel)', fontSize: 10, letterSpacing: '0.15em',
             padding: '7px 14px', textTransform: 'uppercase',
             background: 'rgba(255,210,74,0.06)',
-            color: findingSynapses ? '#6e6e6e' : GOLD,
-            border: `1px solid ${findingSynapses ? 'rgba(232,232,232,0.12)' : 'rgba(255,210,74,0.4)'}`,
+            color: findingSynapses ? '#767066' : GOLD,
+            border: `1px solid ${findingSynapses ? 'rgba(236,230,217,0.12)' : 'rgba(255,210,74,0.4)'}`,
             borderRadius: 4, cursor: findingSynapses ? 'default' : 'pointer',
             boxShadow: findingSynapses ? 'none' : `0 0 14px rgba(255,210,74,0.18)`,
             transition: 'all 0.2s ease',
@@ -541,7 +541,7 @@ export default function MindCanvas({ userId }) {
         {synapseMsg && (
           <div style={{
             fontFamily: 'var(--pixel)', fontSize: 9, letterSpacing: '0.1em',
-            color: '#6e6e6e', textTransform: 'uppercase',
+            color: '#767066', textTransform: 'uppercase',
           }}>
             {synapseMsg}
           </div>
@@ -555,7 +555,7 @@ export default function MindCanvas({ userId }) {
             <div key={key} style={{
               display: 'flex', alignItems: 'center', gap: 8,
               fontSize: 9, fontFamily: 'var(--pixel)', letterSpacing: '0.1em',
-              color: '#6e6e6e', textTransform: 'uppercase',
+              color: '#767066', textTransform: 'uppercase',
             }}>
               <span style={{
                 width: 7, height: 7, display: 'inline-block',

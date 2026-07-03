@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react'
 const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
 
 const TYPE_META = {
-  suggestion:  { label: 'SUGGESTION',  color: '#2d7ff9' },
-  draft:       { label: 'DRAFT',       color: '#e8e8e8' },
+  suggestion:  { label: 'SUGGESTION',  color: '#cf8a5b' },
+  draft:       { label: 'DRAFT',       color: '#ece6d9' },
   warning:     { label: 'WARNING',     color: '#f5a623' },
   opportunity: { label: 'OPPORTUNITY', color: '#22c55e' },
 }
@@ -24,11 +24,11 @@ const GLASS_PANEL = {
   background: 'rgba(15, 15, 18, 0.55)',
   backdropFilter: 'blur(28px) saturate(180%)',
   WebkitBackdropFilter: 'blur(28px) saturate(180%)',
-  border: '1px solid rgba(232,232,232,0.15)',
+  border: '1px solid rgba(236,230,217,0.15)',
   borderRadius: 20,
   padding: 28,
   fontFamily: 'system-ui, sans-serif',
-  boxShadow: '0 24px 60px rgba(0,0,0,0.55), inset 0 1px 0 rgba(232,232,232,0.06)',
+  boxShadow: '0 24px 60px rgba(0,0,0,0.55), inset 0 1px 0 rgba(236,230,217,0.06)',
   maxHeight: '88vh', display: 'flex', flexDirection: 'column',
 }
 
@@ -37,13 +37,13 @@ function QueueCard({ item, onAct, busy }) {
 
   return (
     <div style={{
-      background: 'rgba(232,232,232,0.03)',
-      border: `1px solid ${item.read ? 'rgba(232,232,232,0.08)' : meta.color + '40'}`,
+      background: 'rgba(236,230,217,0.03)',
+      border: `1px solid ${item.read ? 'rgba(236,230,217,0.08)' : meta.color + '40'}`,
       borderRadius: 12, padding: '14px 18px', marginBottom: 10,
     }}>
       <div style={{ marginBottom: 6 }}>
         <span style={{
-          fontFamily: 'var(--font-pixel), monospace',
+          fontFamily: 'var(--pixel)',
           fontSize: 9, fontWeight: 700, letterSpacing: '0.1em',
           color: meta.color,
           border: `1px solid ${meta.color}66`,
@@ -54,13 +54,13 @@ function QueueCard({ item, onAct, busy }) {
         </span>
       </div>
       <div style={{
-        fontFamily: 'var(--font-pixel), monospace',
-        fontSize: 13, color: '#e8e8e8', marginBottom: 6, lineHeight: 1.4,
+        fontFamily: 'var(--pixel)',
+        fontSize: 13, color: '#ece6d9', marginBottom: 6, lineHeight: 1.4,
       }}>
         {item.title}
       </div>
       {item.body && (
-        <div style={{ fontSize: 12, color: 'rgba(232,232,232,0.6)', marginBottom: 12, lineHeight: 1.6 }}>
+        <div style={{ fontSize: 12, color: 'rgba(236,230,217,0.6)', marginBottom: 12, lineHeight: 1.6 }}>
           {item.body}
         </div>
       )}
@@ -73,7 +73,7 @@ function QueueCard({ item, onAct, busy }) {
             border: `1px solid ${meta.color}66`,
             borderRadius: 8, padding: '6px 14px',
             color: meta.color, fontSize: 11, fontWeight: 600,
-            fontFamily: 'var(--font-pixel), monospace',
+            fontFamily: 'var(--pixel)',
             cursor: busy ? 'default' : 'pointer',
             transition: 'all 150ms ease',
           }}
@@ -134,15 +134,15 @@ export default function MorningQueueModal({ open, onClose, userId, onAct }) {
     <div onClick={onClose} style={GLASS_OVERLAY}>
       <div onClick={e => e.stopPropagation()} style={GLASS_PANEL}>
         <div style={{
-          fontFamily: 'var(--font-pixel), monospace',
+          fontFamily: 'var(--pixel)',
           fontSize: 10, letterSpacing: '0.12em',
-          color: '#2d7ff9', marginBottom: 8, textTransform: 'uppercase',
+          color: '#cf8a5b', marginBottom: 8, textTransform: 'uppercase',
         }}>
           MORNING QUEUE
         </div>
         <div style={{
-          fontFamily: 'var(--font-pixel), monospace',
-          fontSize: 13, color: '#e8e8e8', marginBottom: 18, lineHeight: 1.5,
+          fontFamily: 'var(--pixel)',
+          fontSize: 13, color: '#ece6d9', marginBottom: 18, lineHeight: 1.5,
         }}>
           {loading
             ? 'Loading…'
@@ -154,7 +154,7 @@ export default function MorningQueueModal({ open, onClose, userId, onAct }) {
         <div style={{ overflowY: 'auto', flex: 1, paddingRight: 4 }} className="os1-scroll">
           {isEmpty && (
             <div style={{ padding: '36px 0', textAlign: 'center' }}>
-              <div className="os1-serif-micro" style={{ fontSize: 11, color: 'rgba(232,232,232,0.45)', lineHeight: 1.8 }}>
+              <div className="os1-serif-micro" style={{ fontSize: 11, color: 'rgba(236,230,217,0.45)', lineHeight: 1.8 }}>
                 Jarvis works while you sleep.<br />
                 First queue lands tomorrow morning.
               </div>
@@ -171,8 +171,8 @@ export default function MorningQueueModal({ open, onClose, userId, onAct }) {
                 onClick={() => setShowYesterday(s => !s)}
                 style={{
                   background: 'transparent', border: 'none',
-                  color: 'rgba(232,232,232,0.4)', fontSize: 11,
-                  fontFamily: 'var(--font-pixel), monospace',
+                  color: 'rgba(236,230,217,0.4)', fontSize: 11,
+                  fontFamily: 'var(--pixel)',
                   letterSpacing: '0.06em', textTransform: 'uppercase',
                   cursor: 'pointer', padding: '8px 0', marginBottom: 4,
                 }}
@@ -191,9 +191,9 @@ export default function MorningQueueModal({ open, onClose, userId, onAct }) {
             onClick={onClose}
             style={{
               background: 'transparent',
-              border: '1px solid rgba(232,232,232,0.1)',
+              border: '1px solid rgba(236,230,217,0.1)',
               borderRadius: 12, padding: '10px 24px',
-              color: 'rgba(232,232,232,0.7)', fontSize: 13,
+              color: 'rgba(236,230,217,0.7)', fontSize: 13,
               fontFamily: 'system-ui, sans-serif', cursor: 'pointer',
               transition: 'all 200ms ease',
             }}

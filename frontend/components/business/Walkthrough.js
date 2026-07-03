@@ -48,9 +48,9 @@ function WalkthroughStep({ step, stepIndex }) {
           transition={{ duration: 0.22 }}
           style={{
             width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
-            background: 'rgba(45,127,249,0.14)', border: '1px solid rgba(45,127,249,0.4)',
+            background: 'rgba(207,138,91,0.14)', border: '1px solid rgba(207,138,91,0.4)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 11, fontWeight: 700, color: '#2d7ff9',
+            fontSize: 11, fontWeight: 700, color: '#cf8a5b',
             fontFamily: 'system-ui, sans-serif',
           }}
         >
@@ -59,7 +59,7 @@ function WalkthroughStep({ step, stepIndex }) {
 
         <div style={{ flex: 1 }}>
           <p style={{
-            margin: 0, fontSize: 14, color: '#e8e8e8',
+            margin: 0, fontSize: 14, color: '#ece6d9',
             lineHeight: 1.6, fontFamily: 'system-ui, sans-serif', minHeight: 22,
           }}>
             <TypewriterText
@@ -74,7 +74,7 @@ function WalkthroughStep({ step, stepIndex }) {
               transition={{ delay: 0.15 }}
               style={{
                 margin: '5px 0 0', fontSize: 12,
-                color: 'rgba(232,232,232,0.45)',
+                color: 'rgba(236,230,217,0.45)',
                 fontFamily: 'system-ui, sans-serif',
                 fontStyle: 'italic', lineHeight: 1.45,
               }}
@@ -97,14 +97,14 @@ function WalkthroughStep({ step, stepIndex }) {
             dangerouslySetInnerHTML={{ __html: step.visual.svg_content }}
             style={{
               width: '100%', borderRadius: 8, overflow: 'hidden',
-              border: '1px solid rgba(232,232,232,0.08)',
+              border: '1px solid rgba(236,230,217,0.08)',
               lineHeight: 0, // prevents whitespace gap below SVG
             }}
           />
           {step.visual.caption && (
             <p style={{
               margin: '5px 0 0', fontSize: 11,
-              color: 'rgba(232,232,232,0.35)',
+              color: 'rgba(236,230,217,0.35)',
               fontFamily: 'system-ui, sans-serif',
               fontStyle: 'italic',
             }}>
@@ -125,11 +125,11 @@ function Sources({ sources }) {
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }}
       transition={{ delay: 0.3 }}
-      style={{ marginTop: 20, paddingTop: 14, borderTop: '1px solid rgba(232,232,232,0.07)' }}
+      style={{ marginTop: 20, paddingTop: 14, borderTop: '1px solid rgba(236,230,217,0.07)' }}
     >
       <div style={{
         fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase',
-        color: 'rgba(232,232,232,0.3)', fontFamily: 'system-ui, sans-serif', marginBottom: 8,
+        color: 'rgba(236,230,217,0.3)', fontFamily: 'system-ui, sans-serif', marginBottom: 8,
       }}>
         Sources
       </div>
@@ -141,11 +141,11 @@ function Sources({ sources }) {
             <a key={i} href={s.url} target="_blank" rel="noopener noreferrer"
               style={{
                 display: 'flex', alignItems: 'center', gap: 6,
-                fontSize: 11, color: 'rgba(232,232,232,0.45)',
+                fontSize: 11, color: 'rgba(236,230,217,0.45)',
                 textDecoration: 'none', fontFamily: 'system-ui, sans-serif',
               }}
-              onMouseEnter={e => e.currentTarget.style.color = 'rgba(232,232,232,0.75)'}
-              onMouseLeave={e => e.currentTarget.style.color = 'rgba(232,232,232,0.45)'}
+              onMouseEnter={e => e.currentTarget.style.color = 'rgba(236,230,217,0.75)'}
+              onMouseLeave={e => e.currentTarget.style.color = 'rgba(236,230,217,0.45)'}
             >
               {hostname && (
                 <img
@@ -174,7 +174,7 @@ export default function Walkthrough({ title, intro, steps, loading, sources }) {
           initial={{ opacity: 0 }} animate={{ opacity: 1 }}
           style={{
             fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase',
-            color: '#2d7ff9', marginBottom: 8, fontWeight: 600,
+            color: '#cf8a5b', marginBottom: 8, fontWeight: 600,
             fontFamily: 'system-ui, sans-serif',
           }}
         >
@@ -187,7 +187,7 @@ export default function Walkthrough({ title, intro, steps, loading, sources }) {
           initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25 }}
           style={{
-            fontSize: 13, color: 'rgba(232,232,232,0.65)',
+            fontSize: 13, color: 'rgba(236,230,217,0.65)',
             marginBottom: 18, lineHeight: 1.65,
             fontFamily: 'system-ui, sans-serif',
           }}
@@ -206,13 +206,13 @@ export default function Walkthrough({ title, intro, steps, loading, sources }) {
         <div style={{ display: 'flex', gap: 5, padding: '8px 0', alignItems: 'center' }}>
           {[0, 1, 2].map(i => (
             <motion.div key={i}
-              style={{ width: 6, height: 6, borderRadius: '50%', background: '#2d7ff9' }}
+              style={{ width: 6, height: 6, borderRadius: '50%', background: '#cf8a5b' }}
               animate={{ scale: [0.8, 1.2, 0.8], opacity: [0.3, 1, 0.3] }}
               transition={{ duration: 1.1, delay: i * 0.18, repeat: Infinity }}
             />
           ))}
           <span style={{
-            fontSize: 11, color: 'rgba(232,232,232,0.35)',
+            fontSize: 11, color: 'rgba(236,230,217,0.35)',
             marginLeft: 6, fontFamily: 'system-ui, sans-serif',
           }}>
             generating steps…
