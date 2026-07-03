@@ -27,6 +27,18 @@ export function popAuthNext() {
   }
 }
 
+// Base origin for OAuth redirectTo. On production we deliberately use the APEX
+// host: it is the entry the Supabase allowlist accepts today (probed live — the
+// www callback gets rejected and falls back to the Site URL, which is the loop),
+// and the platform 308s apex→www with the query intact, where the domain-wide
+// auth cookies complete the exchange. Previews and localhost use their own
+// origin (allowlist permitting).
+export function authRedirectBase() {
+  if (typeof window === 'undefined') return ''
+  if (window.location.hostname.endsWith('jarvismgco.com')) return 'https://jarvismgco.com'
+  return window.location.origin
+}
+
 // True while the URL still carries OAuth material the Supabase client needs to
 // consume (?code= / ?error= from PKCE, #access_token from implicit links).
 export function urlHasAuthParams() {

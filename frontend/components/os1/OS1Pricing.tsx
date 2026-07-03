@@ -6,7 +6,7 @@ import { Pricing2, type PricingPlan } from "@/components/ui/pricing-cards"
 import { supabase } from "@/lib/supabase"
 import { jarvisUserId, getOS1Status, startCheckout } from "@/lib/os1"
 import { setJarvisMode } from "@/lib/userPreferences"
-import { stashAuthNext } from "@/lib/authNext"
+import { stashAuthNext, authRedirectBase } from "@/lib/authNext"
 
 const PLANS: PricingPlan[] = [
   {
@@ -87,7 +87,7 @@ export default function OS1Pricing() {
       stashAuthNext("/os1")
       await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent("/os1")}` },
+        options: { redirectTo: `${authRedirectBase()}/auth/callback?next=${encodeURIComponent("/os1")}` },
       })
       return
     }
