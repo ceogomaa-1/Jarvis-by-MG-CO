@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { getNotificationPermission, getPushSubscription, isPushSupported, subscribeToPush } from '../../lib/push'
 
-const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
+import { BACKEND } from '@/lib/backend'
 
 const SNOOZE_PRESETS = [
   { label: '+15m', value: 'in 15 minutes' },

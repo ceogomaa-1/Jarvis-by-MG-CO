@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { X, Search, ChevronDown, ChevronUp, Loader2, Unplug } from 'lucide-react'
 import ChannelsPanel from './ChannelsPanel'
 
-const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
+import { BACKEND } from '@/lib/backend'
 
 // ── Connector brand icons (colored letter blocks) ─────────────────────────────
 const ICON_CONFIG = {

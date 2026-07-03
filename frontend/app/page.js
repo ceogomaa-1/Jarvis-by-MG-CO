@@ -20,7 +20,7 @@ import UsageCounter from '../components/business/UsageCounter'
 import { AttachmentsRow } from '../components/shared/AttachmentDisplay'
 import { uploadChatAttachment } from '../lib/attachments'
 
-const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
+import { BACKEND } from '@/lib/backend'
 const DEV_MODE = true
 
 const OPENING_MESSAGE = {
@@ -1221,7 +1221,7 @@ function GoogleConnectPrompt({ userId, onConnected }) {
   ]
 
   const handleConnect = () => {
-    window.location.href = `https://jarvis-backend-4oz6.onrender.com/api/google/auth/${userId}`
+    window.location.href = `${BACKEND}/api/google/auth/${userId}`
   }
 
   useEffect(() => {

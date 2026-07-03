@@ -3,7 +3,7 @@
 import { useRef, useState, useCallback } from 'react'
 import { PromptInputBox } from '@/components/ui/ai-prompt-box'
 
-const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
+import { BACKEND } from '@/lib/backend'
 
 // Docked bottom-center chat input for The Mind. Streams the same
 // /business/chat/stream endpoint as ChatCanvas, but only surfaces

@@ -140,9 +140,15 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Jarvis by MG&CO", version="0.1.0", lifespan=lifespan)
 
+# Browser CORS allowlist. Non-browser callers (Stripe/channel webhooks, server-to-
+# server) ignore CORS entirely, so this only governs which web origins may READ
+# responses: the Jarvis frontend (jarvismgco.com + subdomains), Vercel preview
+# deploys, and local dev. Was "*" — narrowed so arbitrary sites can't call the API
+# from a browser. No production origin is affected.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[],
+    allow_origin_regex=r"https://(.*\.)?jarvismgco\.com|https://.*\.vercel\.app|http://localhost:\d+|http://127\.0\.0\.1:\d+",
     allow_credentials=False,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],

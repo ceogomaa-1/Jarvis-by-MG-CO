@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useLayoutEffect } from 'react'
 
-const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
+import { BACKEND } from '@/lib/backend'
 const STORAGE_KEY = 'jarvis_font_pref'
 const CLASS_NAME = 'os1-font-normal'
 

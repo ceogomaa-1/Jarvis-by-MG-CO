@@ -16,7 +16,7 @@ import CrmCockpit from './CrmCockpit'
 import LeadsCockpit from './LeadsCockpit'
 import HomeCockpit from './home/HomeCockpit'
 
-const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
+import { BACKEND } from '@/lib/backend'
 
 const PANEL_WIDTH = 248
 

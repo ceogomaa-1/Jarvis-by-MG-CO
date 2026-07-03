@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import AIThinkingBlock from '@/components/ui/ai-thinking-block'
 
-const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
+import { BACKEND } from '@/lib/backend'
 
 export default function RefineModal({ creationId, userId, kind, onClose, onRefined }) {
   const [instruction, setInstruction] = useState('')

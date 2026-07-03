@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Loader2, Send, Unplug, Copy, Check } from 'lucide-react'
 
-const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
+import { BACKEND } from '@/lib/backend'
 
 // Jarvis on Telegram / WhatsApp — link an external chat identity to this OS1 account so the
 // user can DM the same OS1 brain. OS1-only (Personal is untouched). Gated to subscribers.

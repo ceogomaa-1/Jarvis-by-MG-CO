@@ -1,5 +1,5 @@
 // OS1 paywall client helpers — talk to the backend billing API (same host as userPreferences).
-const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
+import { BACKEND } from '@/lib/backend'
 
 // App user_id form used everywhere in Jarvis: 'user_' + hex(auth uuid).
 export function jarvisUserId(authUserId) {

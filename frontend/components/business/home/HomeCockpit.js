@@ -5,7 +5,7 @@ import { X, MessageSquare, RefreshCw, Home as HomeIcon, Sparkles, Undo2 } from '
 import ChatCanvas from '../ChatCanvas'
 import HomeGrid from './HomeGrid'
 
-const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
+import { BACKEND } from '@/lib/backend'
 
 // Batch 68 — theme. Jarvis sets settings.theme via dashboard__control(set_theme); we turn it
 // into CSS variables the blocks read (so "make the accent emerald" / "use a serif font" is live).

@@ -5,7 +5,7 @@
  * All API calls go through our backend — no API keys in the browser.
  */
 
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || ''
+import { BACKEND } from '@/lib/backend'
 
 // ── StreamingAudioPlayer — Web Audio API PCM streaming ───────────────────────
 // Receives raw PCM float32 LE at 22050 Hz from the backend and schedules

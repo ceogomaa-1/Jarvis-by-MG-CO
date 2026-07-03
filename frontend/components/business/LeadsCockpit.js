@@ -5,7 +5,7 @@ import { X, MessageSquare, RefreshCw, Phone, Globe, MapPin, Star, Check, Search 
 import ChatCanvas from './ChatCanvas'
 import { loadGoogleMaps, mapsBrowserKey } from '../../lib/googleMaps'
 
-const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
+import { BACKEND } from '@/lib/backend'
 
 // mgcoleads — the Leads cockpit. Mirrors CrmCockpit 1:1: a full-screen shell with the SAME
 // docked ChatCanvas on the right. Main panel = the old mgcoleads layout: a "Client Discovery"

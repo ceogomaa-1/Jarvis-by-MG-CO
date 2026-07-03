@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { sanitizeSvg } from '@/lib/sanitizeSvg'
 
 // ─── Typewriter ───────────────────────────────────────────────────────────────
 
@@ -94,7 +95,7 @@ function WalkthroughStep({ step, stepIndex }) {
           style={{ marginLeft: 40 }}
         >
           <div
-            dangerouslySetInnerHTML={{ __html: step.visual.svg_content }}
+            dangerouslySetInnerHTML={{ __html: sanitizeSvg(step.visual.svg_content) }}
             style={{
               width: '100%', borderRadius: 8, overflow: 'hidden',
               border: '1px solid rgba(232,232,232,0.08)',

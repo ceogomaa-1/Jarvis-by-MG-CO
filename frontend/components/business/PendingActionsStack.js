@@ -13,7 +13,7 @@ import { motion } from 'framer-motion'
 // actually got sent/posted/updated) land back on the card.
 // ─────────────────────────────────────────────────────────────────────
 
-const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
+import { BACKEND } from '@/lib/backend'
 const PIXEL = { fontFamily: 'var(--font-pixel), monospace' }
 const POLL_MS = 3000
 

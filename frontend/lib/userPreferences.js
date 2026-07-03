@@ -1,4 +1,4 @@
-const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
+import { BACKEND } from '@/lib/backend'
 
 export async function getJarvisMode(userId) {
   if (!userId) return null

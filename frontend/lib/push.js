@@ -3,7 +3,7 @@
 // VAPID public key, and persists the subscription to the backend
 // (public.push_subscriptions, upserted on user_id+endpoint).
 
-const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
+import { BACKEND } from '@/lib/backend'
 
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)

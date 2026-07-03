@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 
-const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
+import { BACKEND } from '@/lib/backend'
 
 const TYPE_META = {
   suggestion:  { label: 'SUGGESTION',  color: '#2d7ff9' },

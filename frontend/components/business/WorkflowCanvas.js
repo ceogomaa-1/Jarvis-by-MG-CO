@@ -14,7 +14,7 @@ import JarvisCenterNode from './workflow/JarvisCenterNode'
 import AgentNode from './workflow/AgentNode'
 import AgentInspectorPanel from './workflow/AgentInspectorPanel'
 
-const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
+import { BACKEND } from '@/lib/backend'
 
 // Agent IDs for the 4-cycle operator pipeline (in execution order)
 const OPERATOR_STAGES = [

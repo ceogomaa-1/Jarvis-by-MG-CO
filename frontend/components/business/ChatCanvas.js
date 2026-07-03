@@ -24,7 +24,7 @@ import UniqueLoading from '@/components/ui/morph-loading'
 import { uploadChatAttachment } from '../../lib/business/attachments'
 import { AttachmentsRow } from './AttachmentDisplay'
 
-const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
+import { BACKEND } from '@/lib/backend'
 const DEPLOY_POLL_MS = 5000
 const DEPLOY_POLL_MAX_MS = 6 * 60 * 1000
 const DIRECT_DEPLOY_RE = /^\s*(?:(?:deploy|publish|ship|launch|push)\s+(?:it|this|the\s+(?:site|website|page))(?:\s+to\s+(?:vercel|github))?|(?:deploy|publish|push)\s+(?:(?:my|the)\s+)?(?:site|website|page)(?:\s+to\s+(?:vercel|github))?|deploy\s+to\s+(?:vercel|github)|(?:make|take|put)\s+(?:it|this|the\s+(?:site|website|page))\s+(?:live|online)|go\s+live|redeploy(?:\s+it)?|deploy)\s*[!?.]*\s*$/i

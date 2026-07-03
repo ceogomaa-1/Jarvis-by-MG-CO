@@ -1,7 +1,7 @@
 // Batch 56 — "What's New" announcements client.
 // Shared by Jarvis Personal (app/page.js) and Jarvis OS1 (business ChatCanvas).
 
-const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
+import { BACKEND } from '@/lib/backend'
 
 export async function fetchAnnouncements(userId) {
   if (!userId) return { announcements: [], unread_count: 0, count: 0 }

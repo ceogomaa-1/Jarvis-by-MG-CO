@@ -1,7 +1,7 @@
 // Study Mode API — separate study notes + multi-chat storage.
 // Backend routes live in backend/routes/study_routes.py.
 
-const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
+import { BACKEND } from '@/lib/backend'
 
 async function j(res) {
   if (!res.ok) throw new Error(`${res.status} ${await res.text().catch(() => '')}`)

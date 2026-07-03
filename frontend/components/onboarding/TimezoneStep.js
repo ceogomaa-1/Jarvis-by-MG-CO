@@ -4,7 +4,7 @@ import LoadingTransition from './LoadingTransition'
 import { FallingPattern } from './FallingPattern'
 import { preloadSounds } from '../../lib/soundPlayer'
 
-const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
+import { BACKEND } from '@/lib/backend'
 
 const TIMEZONE_OPTIONS = [
   { label: 'Toronto / New York (ET)', value: 'America/Toronto' },

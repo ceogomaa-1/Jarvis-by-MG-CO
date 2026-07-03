@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { GripVertical, X, Plus, Trash2, RefreshCw, Check } from 'lucide-react'
 
-const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
+import { BACKEND } from '@/lib/backend'
 
 // Batch 68 — a user-created dashboard block. Five types, all on REAL data:
 //   list (add/remove items + total) · note · metric · chart (bar/line/pie) · news (live web).

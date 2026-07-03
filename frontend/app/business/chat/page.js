@@ -11,7 +11,7 @@ import { stashAuthNext, authRedirectBase } from '../../../lib/authNext'
 import { useFontPref } from '../../../lib/fontPref'
 import TetrisLoader from '../../../components/ui/TetrisLoader'
 
-const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
+import { BACKEND } from '@/lib/backend'
 
 export default function BusinessChatPage() {
   const router = useRouter()

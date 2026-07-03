@@ -11,7 +11,7 @@ import {
 import NodeCard from './NodeCard'
 import MindChatDock from './MindChatDock'
 
-const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
+import { BACKEND } from '@/lib/backend'
 const MOBILE_BREAKPOINT = 768
 const MIN_ZOOM = 0.15
 const MAX_ZOOM = 3.5

@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { BookOpen, Upload, X, Trash2, Eye, Pencil } from 'lucide-react'
 
-const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
+import { BACKEND } from '@/lib/backend'
 const ACCEPT = '.pdf,.png,.jpg,.jpeg,.txt,.md,.csv,.docx,.zip'
 
 const SOURCE_LABELS = {

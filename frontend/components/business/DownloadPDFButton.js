@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 
-const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
+import { BACKEND } from '@/lib/backend'
 
 export default function DownloadPDFButton({ walkthrough }) {
   const [loading, setLoading] = useState(false)

@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { X, MessageSquare, ExternalLink, RefreshCw } from 'lucide-react'
 import ChatCanvas from './ChatCanvas'
 
-const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
+import { BACKEND } from '@/lib/backend'
 
 // Phase 3 — the Jarvis CRM cockpit: the user's own white-labeled CRM embedded,
 // with the existing Business chat docked as a collapsible side panel. The docked

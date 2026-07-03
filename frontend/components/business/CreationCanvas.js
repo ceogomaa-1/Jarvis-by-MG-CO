@@ -5,7 +5,7 @@ import remarkGfm from 'remark-gfm'
 import RefineModal from './RefineModal'
 import AIThinkingBlock from '@/components/ui/ai-thinking-block'
 
-const BACKEND = 'https://jarvis-backend-4oz6.onrender.com'
+import { BACKEND } from '@/lib/backend'
 
 const ROLE_LABELS = {
   strategist: 'STRATEGIST',
