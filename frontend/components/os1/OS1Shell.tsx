@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
 import { jarvisUserId, getOS1Status } from "@/lib/os1"
 import { setJarvisMode } from "@/lib/userPreferences"
+import { stashAuthNext } from "@/lib/authNext"
 
 const ENTER_OS1 = "/business/chat"
 
@@ -26,6 +27,8 @@ export default function OS1Shell({ children }: { children: React.ReactNode }) {
 
   async function login() {
     if (!supabase) return
+    // Survives a Supabase Site-URL fallback: the personal root honors this stash.
+    stashAuthNext("/os1")
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent("/os1")}` },
@@ -46,6 +49,10 @@ export default function OS1Shell({ children }: { children: React.ReactNode }) {
     const checkout = params.get("checkout")
     if (checkout === "cancel") {
       setNotice("Checkout canceled — pick a plan whenever you're ready.")
+      window.history.replaceState({}, "", "/os1")
+    }
+    if (params.get("auth_error")) {
+      setNotice("Sign-in hit a snag — please try again. If it keeps happening, refresh this page first.")
       window.history.replaceState({}, "", "/os1")
     }
 

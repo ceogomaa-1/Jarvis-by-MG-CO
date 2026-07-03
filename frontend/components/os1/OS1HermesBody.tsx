@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { jarvisUserId, getOS1Status, startCheckout } from "@/lib/os1"
 import { setJarvisMode } from "@/lib/userPreferences"
+import { stashAuthNext } from "@/lib/authNext"
 
 // Jarvis OS1 — redesigned Hermes / terminal / ASCII body, APPENDED below the existing
 // (loved) hero + operator/connections/etc sections. RESTYLE ONLY: the three tier cards
@@ -379,6 +380,7 @@ export default function OS1HermesBody() {
       try {
         localStorage.setItem("os1_intent", JSON.stringify({ plan: plan.id, interval }))
       } catch {}
+      stashAuthNext("/os1")
       await supabase.auth.signInWithOAuth({
         provider: "google",
         options: { redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent("/os1")}` },

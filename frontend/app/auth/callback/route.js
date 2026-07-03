@@ -47,5 +47,12 @@ export async function GET(request) {
     console.error('Auth callback error:', error)
   }
 
+  // Exchange failed (or no code). Send the user back to the app they were entering —
+  // OS1/business flows must NEVER dead-end on the Personal login page: that page
+  // restarts OAuth with next=/?onboard=personal and manufactures the OS1 login loop.
+  // /os1 always renders with its own login button, so it's a safe recovery surface.
+  if (next.startsWith('/os1') || next.startsWith('/business')) {
+    return NextResponse.redirect(`${origin}/os1?auth_error=1`)
+  }
   return NextResponse.redirect(`${origin}/login?error=auth_failed`)
 }
