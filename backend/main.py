@@ -16,12 +16,13 @@ from contextlib import asynccontextmanager
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 logger = logging.getLogger("jarvis")
 from backend.utils.env import ANTHROPIC_API_KEY
+from backend.lib import auth as auth_layer
 from backend.routes.chat import router as chat_router
 from backend.routes.memory_routes import router as memory_router
 from backend.routes.user_routes import router as user_router
@@ -138,7 +139,14 @@ async def lifespan(app: FastAPI):
     print("CRON: Scheduler stopped")
 
 
-app = FastAPI(title="Jarvis by MG&CO", version="0.1.0", lifespan=lifespan)
+# Global auth dependency (Batch 74). Observe-only until REQUIRE_AUTH is set; see
+# backend/lib/auth.py. A dependency (not middleware) so streaming stays untouched.
+app = FastAPI(
+    title="Jarvis by MG&CO",
+    version="0.1.0",
+    lifespan=lifespan,
+    dependencies=[Depends(auth_layer.auth_dependency)],
+)
 
 # Browser CORS allowlist. Non-browser callers (Stripe/channel webhooks, server-to-
 # server) ignore CORS entirely, so this only governs which web origins may READ
@@ -230,3 +238,11 @@ async def root():
 async def health():
     """Instant 200 — used by the frontend to warm up the Render dyno before the first chat message."""
     return {"status": "ok"}
+
+
+@app.get("/api/_authobs")
+async def auth_observe_stats():
+    """Batch 74 observe readout: token coverage on protected routes. Temporary
+    scaffolding to confirm the frontend attaches a valid token everywhere BEFORE
+    enforcement (REQUIRE_AUTH) is switched on. No secrets or user data."""
+    return auth_layer.observation_stats()

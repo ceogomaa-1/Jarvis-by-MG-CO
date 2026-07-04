@@ -1,6 +1,7 @@
 import { Instrument_Serif, Inter, Press_Start_2P, Pixelify_Sans, Fredoka, Fraunces, JetBrains_Mono, Hanken_Grotesk } from 'next/font/google'
 import './globals.css'
 import AgentationProvider from '../components/dev/AgentationProvider'
+import AuthTokenBridge from '../components/auth/AuthTokenBridge'
 
 const instrumentSerif = Instrument_Serif({
   weight: ['400'],
@@ -88,6 +89,7 @@ export default function RootLayout({ children }) {
     <html lang="en" className={`${instrumentSerif.variable} ${inter.variable} ${pressStart.variable} ${pixelify.variable} ${fredoka.variable} ${fraunces.variable} ${jetbrainsMono.variable} ${hankenGrotesk.variable}`}>
       <body style={{ backgroundColor: '#0a0908', margin: 0, padding: 0, height: '100vh' }}>
         {children}
+        <AuthTokenBridge />
         <AgentationProvider />
       </body>
     </html>
