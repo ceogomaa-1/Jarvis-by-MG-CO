@@ -246,3 +246,11 @@ async def auth_observe_stats():
     scaffolding to confirm the frontend attaches a valid token everywhere BEFORE
     enforcement (REQUIRE_AUTH) is switched on. No secrets or user data."""
     return auth_layer.observation_stats()
+
+
+@app.get("/api/_chatdiag")
+async def chat_diag():
+    """Recent backend error captures (type + short message) so production failures
+    can be pinpointed without server-log access. No secrets or user data."""
+    from backend.lib import diag
+    return {"recent_errors": diag.recent_errors()}

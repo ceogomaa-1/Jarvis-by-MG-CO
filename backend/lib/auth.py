@@ -39,6 +39,7 @@ REQUIRE_AUTH = os.getenv("REQUIRE_AUTH", "").strip().lower() in ("1", "true", "y
 # because the middleware only inspects /api/*.
 _EXEMPT_PREFIXES = (
     "/api/_authobs",  # the observe readout itself
+    "/api/_chatdiag",  # the error-capture readout
     "/api/os1/webhook",
     "/api/os1/contact",
     "/api/google/auth",

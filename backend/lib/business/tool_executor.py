@@ -114,7 +114,14 @@ async def execute_tool(tool_name: str, tool_input: dict, user_id: str, progress_
             return json.dumps(result.data or {}, default=str)
         return json.dumps({"error": result.error or "Action failed with no error message"})
 
-    connector = await get_connector_for_user(user_id, connector_type)
+    # Resolving the connector fetches the user's stored credentials over the network,
+    # which can fail transiently. That fetch was previously uncaught here, so a hiccup
+    # took down the whole chat turn ("Something went wrong"). Return a normal error
+    # result instead — the model narrates it and the turn survives.
+    try:
+        connector = await get_connector_for_user(user_id, connector_type)
+    except Exception as e:
+        return json.dumps({"error": f"Could not reach {connector_type} right now: {e}. Try again in a moment."})
     if not connector:
         return json.dumps({
             "error": (

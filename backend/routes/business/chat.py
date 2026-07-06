@@ -29,6 +29,7 @@ from backend.lib.business.tool_builder import (
     TWENTY_METADATA_TOOLS, TWENTY_METADATA_WRITE, TWENTY_METADATA_DESTRUCTIVE,
 )
 from backend.lib.business.tool_executor import execute_tool
+from backend.lib import diag
 from backend.lib.business.document_store import save_document
 from backend.lib.business.real_estate.profile import is_real_estate_user
 from backend.lib.business.intent_router import classify_message_intent
@@ -1046,7 +1047,16 @@ async def business_chat_stream(request: BusinessChatRequest):
                     tool_results = []
                     for block, tool_task, _ in running_tools:
                         tool_name = block["name"]
-                        result_str = await tool_task
+                        # A tool must never take down the whole turn. If the task raised,
+                        # turn it into a normal error result the model can narrate and
+                        # keep going, rather than letting it reach the outer handler.
+                        try:
+                            result_str = await tool_task
+                        except Exception as tool_err:
+                            import traceback as _tb
+                            _tb.print_exc()
+                            diag.record_error("tool", tool_name, tool_err)
+                            result_str = json.dumps({"error": f"{tool_name} could not complete: {tool_err}"})
                         yield f'data: {json.dumps({"type": "tool_call", "name": tool_name, "status": "complete"})}\n\n'
 
                         # "Feels live": signal the embedded CRM view to refresh after a
@@ -1104,7 +1114,8 @@ async def business_chat_stream(request: BusinessChatRequest):
             import traceback
             print(f"BUSINESS CHAT: Error: {e}")
             traceback.print_exc()
-            yield f'data: {json.dumps("Something went wrong. Please try again.")}\n\n'
+            diag.record_error("business_chat_stream", "stream", e)
+            yield f'data: {json.dumps("I hit a snag finishing that one — mind giving it another go? If the same request keeps doing it, tell me and I will get to the bottom of it.")}\n\n'
             yield "data: [DONE]\n\n"
             return
 
