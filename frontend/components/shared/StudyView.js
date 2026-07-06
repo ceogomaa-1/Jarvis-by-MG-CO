@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import StudyDrawer from './StudyDrawer'
+import DumpLearnBin from './dumplearn/DumpLearnBin'
+import LessonView from './dumplearn/LessonView'
 import { JarvisVoice } from '../../lib/jarvisVoice'
 import {
   createStudyNote, createStudyChat, updateStudyChat, getStudyChat, captureStudyNote, updateStudyNote,
@@ -138,6 +140,11 @@ export default function StudyView({ name, onToggle, userId, backend }) {
   // Live brain indicator (Study Mode A/B): which model answered + any fallback reason.
   const [brain, setBrain] = useState(null)        // 'grok' | 'claude' | null
   const [brainNote, setBrainNote] = useState(null) // fallback reason string, if any
+
+  // Dump Learn — the bin-dump-and-explain flagship feature (its own overlay flow).
+  const [dumpLearnPhase, setDumpLearnPhase] = useState(null) // null | 'bin' | 'lesson'
+  const [dumpLearnBinId, setDumpLearnBinId] = useState(null)
+  const [dumpLearnLevel, setDumpLearnLevel] = useState('graduate')
   const camInputRef = useRef(null)
   const libInputRef = useRef(null)
 
@@ -523,7 +530,25 @@ export default function StudyView({ name, onToggle, userId, backend }) {
           <div style={{ marginTop: 22, fontFamily: 'var(--font-display-round), var(--sans)', fontSize: 24, fontWeight: 600, color: CREAM, textAlign: 'center', letterSpacing: '0.01em' }}>
             {timeOfDay()}, {displayName}
           </div>
-          <div style={{ marginTop: 56, display: 'grid', gridTemplateColumns: 'repeat(2, 150px)', gap: 16 }}>
+          <button
+            onClick={() => setDumpLearnPhase('bin')}
+            style={{
+              marginTop: 40, width: 316, padding: '16px 20px', borderRadius: 20, cursor: 'pointer',
+              background: 'linear-gradient(135deg, rgba(255,144,114,0.16), rgba(255,144,114,0.04))',
+              border: '1px solid rgba(255,144,114,0.4)', display: 'flex', alignItems: 'center', gap: 14,
+              boxShadow: '0 8px 24px rgba(255,144,114,0.15)', animation: 'dlTileGlow 3.2s ease-in-out infinite',
+              textAlign: 'left',
+            }}
+          >
+            <style>{`@keyframes dlTileGlow { 0%,100% { box-shadow: 0 8px 24px rgba(255,144,114,0.12); } 50% { box-shadow: 0 8px 30px rgba(255,144,114,0.28); } }`}</style>
+            <span style={{ fontSize: 28 }}>🗑️✨</span>
+            <div>
+              <div style={{ fontFamily: 'var(--font-display-round), var(--sans)', fontSize: 16.5, fontWeight: 700, color: CREAM }}>Dump & Learn</div>
+              <div style={{ fontFamily: 'var(--sans)', fontSize: 12, color: 'rgba(243,234,217,0.6)', marginTop: 2 }}>drop anything, understand everything</div>
+            </div>
+          </button>
+
+          <div style={{ marginTop: 20, display: 'grid', gridTemplateColumns: 'repeat(2, 150px)', gap: 16 }}>
             <ActionButton label="Capture a note" onClick={actions.note} />
             <ActionButton label="Quick Quiz" onClick={actions.quiz} />
             <ActionButton label="Summarize" onClick={actions.summarize} />
@@ -698,6 +723,27 @@ export default function StudyView({ name, onToggle, userId, backend }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Dump Learn — flagship bin-dump-and-explain flow */}
+      {dumpLearnPhase === 'bin' && (
+        <DumpLearnBin
+          userId={userId}
+          onLearnThis={(binId, level) => {
+            setDumpLearnBinId(binId)
+            setDumpLearnLevel(level)
+            setDumpLearnPhase('lesson')
+          }}
+          onClose={() => setDumpLearnPhase(null)}
+        />
+      )}
+      {dumpLearnPhase === 'lesson' && dumpLearnBinId && (
+        <LessonView
+          userId={userId}
+          binId={dumpLearnBinId}
+          initialLevel={dumpLearnLevel}
+          onClose={() => setDumpLearnPhase(null)}
+        />
       )}
     </div>
   )

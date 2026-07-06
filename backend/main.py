@@ -29,6 +29,7 @@ from backend.routes.user_routes import router as user_router
 from backend.routes.proactive_routes import router as proactive_router
 from backend.routes.notes_routes import router as notes_router
 from backend.routes.study_routes import router as study_router
+from backend.routes.dump_learn_routes import router as dump_learn_router
 from backend.routes.push_routes import router as push_router
 from backend.routes.voice_routes import router as voice_router
 from backend.routes.history_routes import router as history_router
@@ -188,6 +189,7 @@ app.include_router(user_router, prefix="/api")
 app.include_router(proactive_router, prefix="/api")
 app.include_router(notes_router, prefix="/api")
 app.include_router(study_router, prefix="/api")
+app.include_router(dump_learn_router, prefix="/api")
 app.include_router(push_router, prefix="/api")
 app.include_router(voice_router, prefix="/api")
 app.include_router(history_router, prefix="/api")
