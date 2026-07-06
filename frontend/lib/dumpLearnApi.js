@@ -9,7 +9,12 @@ import { userIdToUuid } from '@/lib/attachments'
 export const DUMP_LEARN_BUCKET = 'dump-learn-uploads'
 
 async function j(res) {
-  if (!res.ok) throw new Error(`${res.status} ${await res.text().catch(() => '')}`)
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    let message = body
+    try { message = JSON.parse(body).detail || body } catch { /* not JSON — use raw text */ }
+    throw new Error(message || `Request failed (${res.status})`)
+  }
   return res.json()
 }
 

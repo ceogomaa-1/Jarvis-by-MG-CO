@@ -80,6 +80,14 @@ def _write_headers(prefer: str = "return=representation") -> dict:
     return {**_read_headers(), "Content-Type": "application/json", "Prefer": prefer}
 
 
+def _extract_text(data: dict) -> str:
+    """Join every text-type content block. Never assume content[0] is text —
+    other block types can lead or the list can be empty (matches the same
+    defensive filter study_routes.py applies via the SDK: `if b.type == 'text'`)."""
+    blocks = data.get("content") or []
+    return "".join(b.get("text", "") for b in blocks if isinstance(b, dict) and b.get("type") == "text").strip()
+
+
 # ── Per-kind extraction ───────────────────────────────────────────────────────
 
 def _pdf_text(content: bytes) -> str:
@@ -187,7 +195,7 @@ async def _image_to_text(content: bytes, media_type: str) -> tuple[str, str | No
             )
         if resp.status_code != 200:
             return "", f"Couldn't read this image (API error {resp.status_code})."
-        text = resp.json().get("content", [{}])[0].get("text", "").strip()
+        text = _extract_text(resp.json())
     except Exception as e:
         return "", f"Couldn't read this image ({type(e).__name__})."
     if not text.strip():
@@ -292,7 +300,7 @@ async def build_skeleton(text: str, label: str) -> str:
         if resp.status_code != 200:
             print(f"DUMP_LEARN: skeleton API error {resp.status_code}: {resp.text[:200]}")
             return ""
-        return resp.json().get("content", [{}])[0].get("text", "").strip()
+        return _extract_text(resp.json())
     except Exception as e:
         print(f"DUMP_LEARN: skeleton error: {e}")
         return ""

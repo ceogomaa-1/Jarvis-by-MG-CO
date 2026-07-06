@@ -56,6 +56,32 @@ def test_extract_source_unsupported_kind_is_honest_error():
     assert "Unsupported" in result["error"]
 
 
+# ── _extract_text: never assume content[0] is a text block ───────────────────
+# (this was the actual bug behind the empty "Explanation" card: content[0][0]
+# was blindly indexed instead of filtering for type == "text")
+
+def test_extract_text_ingest_joins_only_text_blocks():
+    data = {"content": [{"type": "thinking", "thinking": "..."}, {"type": "text", "text": "hello"}]}
+    assert ing._extract_text(data) == "hello"
+
+
+def test_extract_text_ingest_handles_empty_content_list():
+    assert ing._extract_text({"content": []}) == ""
+
+
+def test_extract_text_ingest_handles_missing_content_key():
+    assert ing._extract_text({}) == ""
+
+
+def test_extract_text_engine_joins_only_text_blocks():
+    data = {"content": [{"type": "redacted_thinking"}, {"type": "text", "text": "a"}, {"type": "text", "text": "b"}]}
+    assert eng._extract_text(data) == "ab"
+
+
+def test_extract_text_engine_handles_empty_content_list():
+    assert eng._extract_text({"content": []}) == ""
+
+
 # ── engine: cache fingerprint ─────────────────────────────────────────────────
 
 def test_fingerprint_stable_for_same_items():

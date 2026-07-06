@@ -120,6 +120,15 @@ recalling a definition.
 }
 
 
+def _extract_text(data: dict) -> str:
+    """Join every text-type content block. Never assume content[0] is text —
+    other block types (thinking, redacted_thinking, ...) can lead, and an
+    empty content list must not raise (matches the same defensive filter
+    study_routes.py already applies via the SDK: `if b.type == 'text'`)."""
+    blocks = data.get("content") or []
+    return "".join(b.get("text", "") for b in blocks if isinstance(b, dict) and b.get("type") == "text").strip()
+
+
 def _read_headers() -> dict:
     return {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
 
@@ -289,12 +298,30 @@ async def explain_bin(bin_id: str, user_id: str, level: str, items: list[dict]) 
     usage_acc.add_message_start(data.get("usage") or {})
     usage_acc.add_round_output((data.get("usage") or {}).get("output_tokens", 0))
 
-    raw = data.get("content", [{}])[0].get("text", "").strip()
+    raw = _extract_text(data)
+    if not raw:
+        return {
+            "lesson": None, "cached": False, "cost": usage_acc.cost(),
+            "error": "Jarvis couldn't generate an explanation from this material — try again, or add a bit more to the bin.",
+        }
     lesson = _parse_json_response(raw) or _fallback_lesson(raw)
     lesson.setdefault("tldr", "")
     lesson.setdefault("sections", [])
     lesson.setdefault("mind_map", None)
     lesson.setdefault("quiz", [])
+
+    # A technically-valid (or fallback) lesson can still carry no real content —
+    # e.g. a single thin item with barely any extracted text. Never hand the
+    # frontend an empty card to render silently; say so and skip caching it, so
+    # a later retry (or more material) isn't blocked by a cached blank result.
+    has_content = bool((lesson.get("tldr") or "").strip()) or any(
+        (s.get("body_md") or "").strip() for s in (lesson.get("sections") or [])
+    )
+    if not has_content:
+        return {
+            "lesson": None, "cached": False, "cost": usage_acc.cost(),
+            "error": "There wasn't enough in this material for a full lesson — try adding more to the bin, or ask a specific question below.",
+        }
 
     cost = usage_acc.cost()
     await _store_explanation(bin_id, user_id, level, fp, lesson, SONNET, cost.get("total_usd", 0.0))
@@ -384,5 +411,7 @@ async def answer_followup(bin_id: str, user_id: str, level: str, items: list[dic
     data = resp.json()
     usage_acc.add_message_start(data.get("usage") or {})
     usage_acc.add_round_output((data.get("usage") or {}).get("output_tokens", 0))
-    answer = data.get("content", [{}])[0].get("text", "").strip()
+    answer = _extract_text(data)
+    if not answer:
+        return {"answer": "", "cost": usage_acc.cost(), "error": "Jarvis couldn't answer that — try rephrasing."}
     return {"answer": answer, "cost": usage_acc.cost(), "error": None}
