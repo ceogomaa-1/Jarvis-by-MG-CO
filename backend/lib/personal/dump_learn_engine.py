@@ -46,7 +46,15 @@ EXPLANATIONS_TABLE = "dump_learn_explanations"
 _GRADUATE_CHARS_PER_ITEM = 8_000
 _EXPERT_CHARS_PER_ITEM = 20_000
 
-_MAX_TOKENS = {"child": 2200, "graduate": 2800, "expert": 4500}
+# Generous headroom over a typical multi-section lesson (TL;DR + several
+# sections + mind map + quiz, all as JSON). Too tight a budget truncates the
+# response mid-JSON, which fails to parse — this is what produced the "raw
+# JSON dumped into the lesson" bug: the fallback wrapped the truncated raw
+# text verbatim instead of erroring. Fixed at the source by giving enough
+# room that truncation is rare, PLUS a retry (see _MAX_EXPLAIN_ATTEMPTS)
+# for when it still happens.
+_MAX_TOKENS = {"child": 3000, "graduate": 4000, "expert": 7000}
+_MAX_EXPLAIN_ATTEMPTS = 2
 
 _RESPONSE_SCHEMA = """\
 Respond with ONLY valid JSON (no markdown fences, no preamble), matching exactly:
@@ -162,15 +170,6 @@ def _parse_json_response(raw: str) -> dict | None:
     return data if isinstance(data, dict) else None
 
 
-def _fallback_lesson(raw_text: str) -> dict:
-    """Never let a parse failure lose the model's work — surface it as one section
-    rather than erroring out (same 'never silently drop' principle as jarvis_skills)."""
-    return {
-        "tldr": "",
-        "sections": [{"heading": "Explanation", "body_md": raw_text, "callout_type": None, "callout_text": None}],
-        "mind_map": None,
-        "quiz": [],
-    }
 
 
 def _assemble_context(items: list[dict], level: str) -> str:
@@ -262,49 +261,67 @@ async def explain_bin(bin_id: str, user_id: str, level: str, items: list[dict]) 
 
     context = _assemble_context(ready, level)
     usage_acc = UsageAccumulator(SONNET)
-    try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": ANTHROPIC_API_KEY,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": SONNET,
-                    "max_tokens": _MAX_TOKENS.get(level, 2800),
-                    "system": [{
-                        "type": "text",
-                        "text": _LEVEL_PROMPTS[level],
-                        "cache_control": {"type": "ephemeral"},
-                    }],
-                    "messages": [{"role": "user", "content": f"MATERIAL TO EXPLAIN:\n\n{context}"}],
-                },
-                timeout=90.0,
-            )
-    except Exception as e:
-        return {"lesson": None, "cached": False, "cost": None, "error": f"Explaining failed ({type(e).__name__})."}
+    max_tokens = _MAX_TOKENS.get(level, 2800)
 
-    if resp.status_code != 200:
-        print(f"DUMP_LEARN: explain API error {resp.status_code}: {resp.text[:300]}")
-        return {"lesson": None, "cached": False, "cost": None, "error": "Explaining is temporarily unavailable."}
+    lesson: dict | None = None
+    last_error: str | None = None
+    for attempt in range(_MAX_EXPLAIN_ATTEMPTS):
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers={
+                        "x-api-key": ANTHROPIC_API_KEY,
+                        "anthropic-version": "2023-06-01",
+                        "content-type": "application/json",
+                    },
+                    json={
+                        "model": SONNET,
+                        "max_tokens": max_tokens,
+                        "system": [{
+                            "type": "text",
+                            "text": _LEVEL_PROMPTS[level],
+                            "cache_control": {"type": "ephemeral"},
+                        }],
+                        "messages": [{"role": "user", "content": f"MATERIAL TO EXPLAIN:\n\n{context}"}],
+                    },
+                    timeout=90.0,
+                )
+        except Exception as e:
+            last_error = f"Explaining failed ({type(e).__name__})."
+            continue
 
-    data = resp.json()
-    # Non-streaming Anthropic responses carry the FULL usage block already (input +
-    # cache buckets + final output_tokens) — add_message_start intentionally skips
-    # output_tokens (it's built for streaming's message_start event), so pair it with
-    # one add_round_output call to get the complete, non-double-counted total.
-    usage_acc.add_message_start(data.get("usage") or {})
-    usage_acc.add_round_output((data.get("usage") or {}).get("output_tokens", 0))
+        if resp.status_code != 200:
+            print(f"DUMP_LEARN: explain API error {resp.status_code} (attempt {attempt + 1}): {resp.text[:300]}")
+            last_error = "Explaining is temporarily unavailable."
+            continue
 
-    raw = _extract_text(data)
-    if not raw:
-        return {
-            "lesson": None, "cached": False, "cost": usage_acc.cost(),
-            "error": "Jarvis couldn't generate an explanation from this material — try again, or add a bit more to the bin.",
-        }
-    lesson = _parse_json_response(raw) or _fallback_lesson(raw)
+        data = resp.json()
+        # Non-streaming Anthropic responses carry the FULL usage block already (input +
+        # cache buckets + final output_tokens) — add_message_start intentionally skips
+        # output_tokens (it's built for streaming's message_start event), so pair it with
+        # one add_round_output call to get the complete, non-double-counted total.
+        usage_acc.add_message_start(data.get("usage") or {})
+        usage_acc.add_round_output((data.get("usage") or {}).get("output_tokens", 0))
+
+        raw = _extract_text(data)
+        if not raw:
+            last_error = "Jarvis couldn't generate an explanation from this material."
+            continue
+
+        parsed = _parse_json_response(raw)
+        if parsed:
+            lesson = parsed
+            break
+        # Invalid/truncated JSON — NEVER show raw JSON to the user (that was the bug).
+        # Retry once; a fresh completion usually self-corrects. Log a snippet for
+        # diagnosis without dumping the whole (possibly huge) payload.
+        print(f"DUMP_LEARN: explain JSON parse failed (attempt {attempt + 1}), raw[:200]={raw[:200]!r}")
+        last_error = "Jarvis had trouble formatting this explanation — try again."
+
+    if not lesson:
+        return {"lesson": None, "cached": False, "cost": usage_acc.cost(), "error": last_error or "Explaining is temporarily unavailable."}
+
     lesson.setdefault("tldr", "")
     lesson.setdefault("sections", [])
     lesson.setdefault("mind_map", None)

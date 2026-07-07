@@ -117,11 +117,90 @@ def test_parse_json_response_invalid_returns_none():
     assert eng._parse_json_response("not json at all") is None
 
 
-def test_fallback_lesson_never_drops_the_models_output():
-    lesson = eng._fallback_lesson("some raw explanation text")
-    assert lesson["sections"][0]["body_md"] == "some raw explanation text"
-    assert lesson["quiz"] == []
-    assert lesson["mind_map"] is None
+# ── engine: explain_bin never leaks raw JSON to the user ──────────────────────
+# Regression coverage for the real production bug: a truncated/invalid model
+# response used to get wrapped verbatim into the lesson body via a "never drop
+# the model's output" fallback — which meant the user saw literal `{"tldr": ...`
+# JSON syntax in the UI. explain_bin now retries once on a parse failure, and
+# if it still can't get valid JSON, returns an honest error — never raw text.
+
+class _FakeResp:
+    def __init__(self, status_code, body):
+        self.status_code = status_code
+        self._body = body
+
+    def json(self):
+        return self._body
+
+    @property
+    def text(self):
+        return str(self._body)
+
+
+def _usage_body(text):
+    return {"content": [{"type": "text", "text": text}], "usage": {"input_tokens": 5, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0, "output_tokens": 5}}
+
+
+def _fake_client(post_fn):
+    class _Client:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def get(self, url, headers=None, params=None, timeout=None):
+            return _FakeResp(200, [])  # cache miss
+
+        async def post(self, url, headers=None, json=None, timeout=None):
+            if "anthropic.com" in url:
+                return post_fn()
+            return _FakeResp(204, {})  # cache write
+
+    return lambda *a, **k: _Client()
+
+
+def _ready_item():
+    return {"id": "1", "status": "ready", "extracted_text": "some material", "updated_at": "t1", "token_estimate": 10, "source_name": "Doc"}
+
+
+def test_explain_bin_retries_on_truncated_json_then_succeeds(monkeypatch):
+    monkeypatch.setattr(eng, "ANTHROPIC_API_KEY", "fake-key")
+    monkeypatch.setattr(eng, "SUPABASE_URL", "https://x.test")
+    monkeypatch.setattr(eng, "SUPABASE_KEY", "service-key")
+
+    calls = {"n": 0}
+    valid = '{"tldr": "ok", "sections": [{"heading": "H", "body_md": "B"}], "mind_map": null, "quiz": []}'
+
+    def post_fn():
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return _FakeResp(200, _usage_body('{"tldr": "truncated mid-string'))  # invalid JSON
+        return _FakeResp(200, _usage_body(valid))
+
+    monkeypatch.setattr(eng.httpx, "AsyncClient", _fake_client(post_fn))
+
+    result = asyncio.run(eng.explain_bin("bin1", "user1", "graduate", [_ready_item()]))
+
+    assert calls["n"] == 2
+    assert result["lesson"]["tldr"] == "ok"
+
+
+def test_explain_bin_never_leaks_raw_json_after_exhausting_retries(monkeypatch):
+    monkeypatch.setattr(eng, "ANTHROPIC_API_KEY", "fake-key")
+    monkeypatch.setattr(eng, "SUPABASE_URL", "https://x.test")
+    monkeypatch.setattr(eng, "SUPABASE_KEY", "service-key")
+
+    def post_fn():
+        return _FakeResp(200, _usage_body('{"tldr": "still truncated'))  # always invalid
+
+    monkeypatch.setattr(eng.httpx, "AsyncClient", _fake_client(post_fn))
+
+    result = asyncio.run(eng.explain_bin("bin1", "user1", "graduate", [_ready_item()]))
+
+    assert result["lesson"] is None
+    assert "{" not in result["error"]  # the exact regression: raw JSON syntax must never reach the user
+    assert result["error"]
 
 
 # ── engine: level-dependent context assembly ──────────────────────────────────
