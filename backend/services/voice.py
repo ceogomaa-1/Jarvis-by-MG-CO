@@ -79,6 +79,7 @@ def _build_voice_kwargs(
 # call. Scans the outgoing reply text (not the user's message) since that's
 # what's about to be spoken. First matching emotion wins.
 _EMOTION_RULES: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"\b(sleep|sleepy|drift off|close your eyes|wind down|get some rest|take it easy|breathe|relax(ed|ing)?|unwind)\b", re.I), "calm"),
     (re.compile(r"\b(sorry|that sucks|rough day|hard time|tough break|that'?s awful|i know that hurts)\b", re.I), "sympathetic"),
     (re.compile(r"\b(haha|lmao|lol|hehe|ha-{1,2})\b", re.I), "happy"),
     (re.compile(r"\b(babe|ya albi|ya 3omri|handsome|gorgeous)\b", re.I), "flirtatious"),
@@ -105,7 +106,7 @@ def derive_expression(text: str) -> tuple[str | None, str | None]:
     speed = None
     if bang_count >= 2 or emotion == "excited":
         speed = "fast"
-    elif "..." in text or emotion == "sympathetic":
+    elif "..." in text or emotion in ("sympathetic", "calm"):
         speed = "slow"
 
     return speed, emotion
