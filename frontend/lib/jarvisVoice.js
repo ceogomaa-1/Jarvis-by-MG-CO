@@ -7,6 +7,30 @@
 
 import { BACKEND } from '@/lib/backend'
 
+// ── Ramble ("keep talking") mode — trigger detection ─────────────────────────
+// Cheap, paraphrase-tolerant regex scan, no network call. Mirrors
+// backend/services/ramble.py::detect_ramble_intent — keep the two in sync.
+const RAMBLE_INTENT_PATTERNS = [
+  /\bkeep (on )?talking\b/i,
+  /\bdon'?t (ever )?stop talking\b/i,
+  /\bkeep going\b/i,
+  /\bjust keep (talking|going|rambling|chatting)\b/i,
+  /\bdon'?t stop\b/i,
+  /\bkeep rambling\b/i,
+  /\bjust ramble\b/i,
+  /\btalk to me\b/i,
+  /\bsay more\b/i,
+  /\bkeep the conversation going\b/i,
+  /\bnever stop talking\b/i,
+  /\btired of (responding|replying|answering)\b/i,
+  /\bjust talk\b/i,
+]
+
+function detectRambleIntent(text) {
+  if (!text) return false
+  return RAMBLE_INTENT_PATTERNS.some((p) => p.test(text))
+}
+
 // ── StreamingAudioPlayer — Web Audio API PCM streaming ───────────────────────
 // Receives raw PCM float32 LE at 22050 Hz from the backend and schedules
 // chunks on a single AudioContext timeline so playback is gapless.
@@ -185,6 +209,7 @@ export class JarvisVoice {
     this._vad = null
     this._handsFreeActive = false
     this._lastSpeakStart = 0   // timestamp when Jarvis last started speaking
+    this._rambleAbort = null  // AbortController for an active ramble SSE stream, if any
 
     this._audioPlayer = new StreamingAudioPlayer()
     this._audioPlayer.onStart = () => this.onSpeakingStart?.()
@@ -243,6 +268,7 @@ export class JarvisVoice {
           // Real user speech detected — interrupt Jarvis
           console.log('VAD: user speaking, interrupting Jarvis')
           this._audioPlayer.stop()
+          this.stopRamble()
           this.onSpeakingEnd?.()
         },
 
@@ -270,6 +296,7 @@ export class JarvisVoice {
     this._vad?.destroy()
     this._vad = null
     this._audioPlayer.stop()
+    this.stopRamble()
     this.onSpeakingEnd?.()
     console.log('VAD: stopped')
   }
@@ -285,8 +312,14 @@ export class JarvisVoice {
       if (!res.ok) throw new Error(`STT ${res.status}`)
       const data = await res.json()
       if (data.skipped || !data.text?.trim()) return
-      console.log('STT:', data.text)
-      await sendCb?.(data.text.trim())
+      const text = data.text.trim()
+      console.log('STT:', text)
+      if (detectRambleIntent(text)) {
+        console.log('RAMBLE: intent detected, entering continuous-talk mode')
+        this.startRamble(text)
+        return
+      }
+      await sendCb?.(text)
     } catch (err) {
       console.error('JarvisVoice: transcribe error', err)
     }
@@ -308,11 +341,79 @@ export class JarvisVoice {
     this.onSpeakingEnd?.()
   }
 
+  // ── Ramble ("keep talking") mode ────────────────────────────────────────
+  // Server keeps generating successive text chunks (backend/services/ramble.py)
+  // until stopRamble() cancels it; each chunk is spoken via the existing
+  // speak() -> /voice/synthesize-stream pipeline, not a separate one.
+
+  async startRamble(seedText) {
+    this.stopRamble()
+    const controller = new AbortController()
+    this._rambleAbort = controller
+
+    try {
+      const res = await fetch(`${BACKEND}/api/voice/ramble/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: this.userId || '', text: seedText || '' }),
+        signal: controller.signal,
+      })
+      if (!res.ok || !res.body) throw new Error(`ramble start ${res.status}`)
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      while (true) {
+        let done, value
+        try {
+          ;({ done, value } = await reader.read())
+        } catch {
+          break  // aborted (barge-in) — expected, not an error
+        }
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() ?? ''
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          const raw = line.slice(6)
+          if (raw === '[DONE]') return
+          try {
+            const parsed = JSON.parse(raw)
+            if (parsed?.chunk) this.speak(parsed.chunk)
+          } catch {
+            // ignore malformed SSE line
+          }
+        }
+      }
+    } catch (err) {
+      if (err?.name !== 'AbortError') console.error('JarvisVoice: ramble error', err)
+    } finally {
+      if (this._rambleAbort === controller) this._rambleAbort = null
+    }
+  }
+
+  stopRamble() {
+    if (this._rambleAbort) {
+      this._rambleAbort.abort()
+      this._rambleAbort = null
+    }
+    if (this.userId) {
+      // Fire-and-forget — the barge-in that triggers this can't wait on a round trip.
+      fetch(`${BACKEND}/api/voice/ramble/stop`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: this.userId }),
+      }).catch(() => {})
+    }
+  }
+
   // ── Cleanup ──────────────────────────────────────────────────────────────
 
   destroy() {
     this.stopHandsFree()
     this.stopSpeaking()
+    this.stopRamble()
   }
 
   // ── Internals ────────────────────────────────────────────────────────────

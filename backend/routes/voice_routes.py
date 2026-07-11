@@ -581,12 +581,20 @@ async def transcribe_audio(audio: UploadFile = File(...), user_id: str = Form(""
 class SynthRequest(BaseModel):
     text: str
     user_id: str = ""
+    # Expression controls — all optional. When speed/emotion are both omitted,
+    # they're auto-derived from the text via a cheap heuristic (see
+    # backend.services.voice.derive_expression). Pass them explicitly to
+    # override (used by /voice/test and /voice/test-tags for auditioning).
+    speed: Optional[str] = None
+    emotion: Optional[str] = None
+    volume: Optional[float] = None
+    model_id: Optional[str] = None
 
 
 @router.post("/voice/synthesize")
 async def synthesize_speech(req: SynthRequest):
     from fastapi.responses import Response as FastResponse
-    from backend.services.voice import synthesize_jarvis_voice, check_rate_limit
+    from backend.services.voice import synthesize_jarvis_voice, check_rate_limit, derive_expression
     t0 = time.time()
 
     if not os.getenv("CARTESIA_API_KEY"):
@@ -596,10 +604,16 @@ async def synthesize_speech(req: SynthRequest):
     if err:
         raise HTTPException(status_code=429, detail=err)
 
+    speed, emotion = req.speed, req.emotion
+    if speed is None and emotion is None:
+        speed, emotion = derive_expression(req.text)
+
     try:
-        audio_bytes = await synthesize_jarvis_voice(req.text)
+        audio_bytes = await synthesize_jarvis_voice(
+            req.text, speed=speed, emotion=emotion, volume=req.volume, model_id=req.model_id
+        )
         tts_ms = int((time.time() - t0) * 1000)
-        print(f"VOICE_TTS: user_id={req.user_id!r} tts={tts_ms}ms chars={len(req.text)}")
+        print(f"VOICE_TTS: user_id={req.user_id!r} tts={tts_ms}ms chars={len(req.text)} speed={speed} emotion={emotion}")
         return FastResponse(content=audio_bytes, media_type="audio/mpeg")
     except Exception as e:
         print(f"VOICE_TTS_ERROR: {e}")
@@ -610,7 +624,7 @@ async def synthesize_speech(req: SynthRequest):
 async def synthesize_speech_stream(req: SynthRequest):
     """Stream raw PCM float32 LE at 22050 Hz. First chunk arrives in ~200ms."""
     from fastapi.responses import StreamingResponse
-    from backend.services.voice import stream_jarvis_voice, check_rate_limit
+    from backend.services.voice import stream_jarvis_voice, check_rate_limit, derive_expression
 
     if not os.getenv("CARTESIA_API_KEY"):
         raise HTTPException(status_code=503, detail="CARTESIA_API_KEY not configured")
@@ -623,8 +637,12 @@ async def synthesize_speech_stream(req: SynthRequest):
     if err:
         raise HTTPException(status_code=429, detail=err)
 
+    speed, emotion = req.speed, req.emotion
+    if speed is None and emotion is None:
+        speed, emotion = derive_expression(text)
+
     return StreamingResponse(
-        stream_jarvis_voice(text),
+        stream_jarvis_voice(text, speed=speed, emotion=emotion, volume=req.volume, model_id=req.model_id),
         media_type="application/octet-stream",
         headers={
             "X-Audio-Encoding": "pcm_f32le",
@@ -659,7 +677,13 @@ async def list_voices():
 async def test_voice_tags():
     """Diagnostic: test which Cartesia audio tags produce audible effects.
     Returns JSON with audio byte sizes — larger = more audio = tag worked.
-    Hit /api/voice/test-tags to verify, then update the voice prompt accordingly."""
+    Hit /api/voice/test-tags to verify, then update the voice prompt accordingly.
+
+    Also runs a set of speed/emotion/volume/model_id audition combos (same
+    voice_id, same text throughout) so byte-size deltas isolate the effect of
+    each control before anything gets wired into production replies. To
+    actually LISTEN instead of comparing byte counts, hit /voice/test with
+    the same speed/emotion/model_id query params."""
     from backend.services.voice import synthesize_jarvis_voice
 
     if not os.getenv("CARTESIA_API_KEY"):
@@ -679,22 +703,140 @@ async def test_voice_tags():
             results.append({"text": text, "audio_bytes": len(audio), "ok": True})
         except Exception as e:
             results.append({"text": text, "error": str(e), "ok": False})
+
+    # ── Expression controls audition ──────────────────────────────────────
+    # Same voice_id + same sample text throughout — isolates each control.
+    expression_cases = [
+        {"label": "sonic-2 baseline (current prod, unchanged)", "model_id": "sonic-2", "speed": None, "emotion": None, "volume": None},
+        {"label": "sonic-2 + speed=slow",                        "model_id": "sonic-2", "speed": "slow", "emotion": None, "volume": None},
+        {"label": "sonic-2 + speed=fast",                        "model_id": "sonic-2", "speed": "fast", "emotion": None, "volume": None},
+        {"label": "sonic-3 baseline (no controls)",               "model_id": "sonic-3", "speed": None, "emotion": None, "volume": None},
+        {"label": "sonic-3 + emotion=excited",                    "model_id": "sonic-3", "speed": None, "emotion": "excited", "volume": None},
+        {"label": "sonic-3 + emotion=curious",                    "model_id": "sonic-3", "speed": None, "emotion": "curious", "volume": None},
+        {"label": "sonic-3 + emotion=sympathetic + speed=slow",   "model_id": "sonic-3", "speed": "slow", "emotion": "sympathetic", "volume": None},
+        {"label": "sonic-3 + whisper (calm, slow, low volume)",   "model_id": "sonic-3", "speed": "slow", "emotion": "calm", "volume": 0.6},
+    ]
+    sample_text = "Hey, I wanted to check in and see how you're actually doing today."
+    for case in expression_cases:
+        try:
+            audio = await synthesize_jarvis_voice(
+                sample_text,
+                model_id=case["model_id"],
+                speed=case["speed"],
+                emotion=case["emotion"],
+                volume=case["volume"],
+            )
+            results.append({**case, "text": sample_text, "audio_bytes": len(audio), "ok": True})
+        except Exception as e:
+            results.append({**case, "error": str(e), "ok": False})
     return results
+
+
+# ─── Continuous-talk ("ramble") mode ──────────────────────────────────────────
+# Self-contained and opt-in: only reachable via /voice/ramble/start, which
+# nothing calls automatically. Doesn't touch /chat, /chat/stream, or the
+# one-shot synthesize endpoints above.
+
+class RambleStartRequest(BaseModel):
+    user_id: str
+    text: str = ""  # the user's "keep talking" utterance, used as the seed
+
+
+class RambleStopRequest(BaseModel):
+    user_id: str
+
+
+@router.post("/voice/ramble/start")
+async def ramble_start(req: RambleStartRequest):
+    """Continuous-talk mode: streams successive text chunks over SSE until
+    cancelled (POST /voice/ramble/stop — fired by the frontend on VAD
+    barge-in) or a safety limit hits (RAMBLE_MAX_SECONDS / RAMBLE_MAX_CHUNKS).
+    The frontend speaks each chunk via the existing TTS pipeline
+    (JarvisVoice.speak() -> /voice/synthesize-stream) — this endpoint only
+    generates text, it does not touch audio."""
+    from fastapi.responses import StreamingResponse
+    from backend.services.ramble import ramble_chunks
+
+    if not req.user_id:
+        raise HTTPException(status_code=400, detail="user_id is required")
+    if not os.getenv("ANTHROPIC_API_KEY"):
+        raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY not configured")
+
+    memory_context, user_model_context, history, time_ctx = await asyncio.gather(
+        get_relevant_memories(req.user_id, req.text or "general context and what we were just talking about"),
+        summarize_user_for_prompt(req.user_id),
+        get_conversation_history(req.user_id, limit=10),
+        format_user_time_context(req.user_id),
+    )
+    safe_history = [
+        {"role": m["role"], "content": m["content"]}
+        for m in history
+        if isinstance(m.get("content"), str) and m["content"].strip()
+    ]
+
+    async def event_generator():
+        try:
+            async for chunk in ramble_chunks(
+                user_id=req.user_id,
+                seed_text=req.text,
+                conversation_history=safe_history,
+                memory_context=memory_context,
+                user_model_context=user_model_context,
+                live_context=time_ctx,
+            ):
+                yield f"data: {json_module.dumps({'chunk': chunk})}\n\n"
+        except Exception as e:
+            print(f"RAMBLE_STREAM_ERROR: {e}")
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.post("/voice/ramble/stop")
+async def ramble_stop(req: RambleStopRequest):
+    """Fired by the frontend the moment VAD detects barge-in — kills the
+    server-side generation loop so it stops burning LLM/TTS calls for a
+    monologue nobody's listening to."""
+    from backend.services.ramble import cancel_ramble
+    cancel_ramble(req.user_id)
+    return {"status": "stopping"}
 
 
 @router.get("/voice/test")
 async def test_voice(
     text: str = Query("Hey what's up brother, glad you're back."),
     voice_id: str = Query(None),
+    speed: str = Query(None, description='"slow" | "normal" | "fast"'),
+    emotion: str = Query(None, description='sonic-3 emotion label, e.g. "excited", "curious", "sad", "calm"'),
+    volume: float = Query(None, description="0.5-2.0, sonic-3 only"),
+    model_id: str = Query(None, description='e.g. "sonic-2" (default/current prod) or "sonic-3"'),
 ):
-    """Hit /api/voice/test?voice_id=XXX&text=... to audition a Cartesia voice in the browser."""
+    """Hit /api/voice/test?voice_id=XXX&text=...&model_id=sonic-3&emotion=excited&speed=fast
+    to actually LISTEN to a Cartesia voice + expression combo in the browser before
+    wiring anything into production. Defaults are unchanged from before this batch —
+    omitting model_id/speed/emotion/volume reproduces the exact current prod sound."""
     from fastapi.responses import Response as FastResponse
     from backend.services.voice import synthesize_jarvis_voice, JARVIS_VOICE_ID
 
     if not os.getenv("CARTESIA_API_KEY"):
         raise HTTPException(status_code=503, detail="CARTESIA_API_KEY not configured")
     try:
-        audio_bytes = await synthesize_jarvis_voice(text, voice_id=voice_id or JARVIS_VOICE_ID)
+        audio_bytes = await synthesize_jarvis_voice(
+            text,
+            voice_id=voice_id or JARVIS_VOICE_ID,
+            speed=speed,
+            emotion=emotion,
+            volume=volume,
+            model_id=model_id,
+        )
         return FastResponse(content=audio_bytes, media_type="audio/mpeg")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
