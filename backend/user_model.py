@@ -243,7 +243,7 @@ async def update_user_model(user_id: str, user_message: str, jarvis_response: st
         extraction_prompt = (
             f'Analyze this conversation exchange and extract any new information about the user to update their profile.\n\n'
             f'User message: "{user_message}"\n'
-            f'Jarvis response: "{jarvis_response}"\n\n'
+            f'Rue response: "{jarvis_response}"\n\n'
             f'Current user profile:\n{json.dumps(model, indent=2)}\n\n'
             f'Return ONLY a valid JSON object with ONLY the fields that should be updated based on this exchange. '
             f'Do not include fields that have not changed. Do not include any explanation or markdown. Only return the JSON.\n\n'
@@ -344,7 +344,7 @@ async def summarize_user_for_prompt(user_id: str) -> str:
         if role_company:
             lines.append(f"Role: {role_company}")
 
-        lines.append(f"Trust level with Jarvis: {trust} ({count} interactions)")
+        lines.append(f"Trust level with Rue: {trust} ({count} interactions)")
 
         if energy:
             lines.append(f"Current energy: {energy}")

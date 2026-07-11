@@ -2,8 +2,8 @@
 Phase 3 — CRM cockpit support endpoint.
 
 Tells the frontend whether to show the "CRM" nav item for this user and where to embed
-their white-labeled Jarvis CRM. Resolves the SAME per-user workspace the agent uses
-(Phase 2 routing), so the cockpit shows exactly the tenant Jarvis writes to.
+their white-labeled Rue CRM. Resolves the SAME per-user workspace the agent uses
+(Phase 2 routing), so the cockpit shows exactly the tenant Rue writes to.
 """
 import re
 
@@ -24,7 +24,7 @@ async def tls_check(domain: str = ""):
     """Caddy on-demand-TLS `ask`: 200 = issue a cert, anything else = refuse.
 
     Allows the apex and any subdomain that maps to a provisioned workspace, so certs
-    are only ever minted for real Jarvis CRM workspaces (prevents cert-abuse). Fast.
+    are only ever minted for real Rue CRM workspaces (prevents cert-abuse). Fast.
     """
     host = (domain or "").strip().lower().split(":")[0]
     if host == CRM_ROOT:
@@ -51,7 +51,7 @@ async def crm_workspace(user_id: str):
             "pending": False,
             "shared": False,
             "embed_url": ws["base_url"],
-            "display_name": ws.get("display_name") or "Jarvis CRM",
+            "display_name": ws.get("display_name") or "Rue CRM",
             "subdomain": ws.get("subdomain"),
         }
 
@@ -63,11 +63,11 @@ async def crm_workspace(user_id: str):
             "pending": False,
             "shared": True,
             "embed_url": os.getenv("TWENTY_API_URL", "").rstrip("/") or None,
-            "display_name": "Jarvis CRM",
+            "display_name": "Rue CRM",
             "subdomain": None,
         }
 
     # Not provisioned yet — distinguish "setting up your CRM…" from "never started".
     pending = await workspaces.is_pending(user_id)
     return {"provisioned": False, "pending": pending, "shared": False,
-            "embed_url": None, "display_name": "Jarvis CRM", "subdomain": None}
+            "embed_url": None, "display_name": "Rue CRM", "subdomain": None}

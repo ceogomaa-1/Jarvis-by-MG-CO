@@ -45,7 +45,7 @@ LEADS_TOOLS: dict[str, dict] = {
     },
     "leads__push_to_crm": {
         "description": (
-            "[MG&CO Leads] Push selected scored leads into the Jarvis CRM as Companies, with the "
+            "[MG&CO Leads] Push selected scored leads into the Rue CRM as Companies, with the "
             "gap/pitch attached as a note — closes the loop (scrape → score → pitch → track). Select by "
             "tier (e.g. all A-tier) and/or explicit business names. Idempotent (skips leads already "
             "pushed; companies de-dupe on name). Use when the user says 'add these to my CRM' / 'add the "
@@ -65,7 +65,7 @@ LEADS_TOOLS: dict[str, dict] = {
 
 
 async def execute_leads_tool(action_name: str, inp: dict, user_id: str) -> ConnectorResult:
-    # Defense-in-depth: Jarvis Leads is Emperor-only. tool_builder already withholds these
+    # Defense-in-depth: Rue Leads is Emperor-only. tool_builder already withholds these
     # tools from non-Emperor users, but gate the cash-cost actions here too in case a tool
     # call slips through (stale toolset, replay, etc.). Fail open on a billing lookup error.
     if action_name in ("find_leads", "push_to_crm") and user_id:
@@ -75,7 +75,7 @@ async def execute_leads_tool(action_name: str, inp: dict, user_id: str) -> Conne
             if not allowed:
                 return ConnectorResult(
                     ok=False,
-                    error="Jarvis Leads is an Emperor-tier feature. Upgrade to Emperor to use it.",
+                    error="Rue Leads is an Emperor-tier feature. Upgrade to Emperor to use it.",
                 )
         except Exception:
             pass

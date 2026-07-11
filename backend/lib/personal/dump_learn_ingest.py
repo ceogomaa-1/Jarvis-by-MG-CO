@@ -1,5 +1,5 @@
 """
-Dump Learn — ingestion (Jarvis Personal, Study Mode).
+Dump Learn — ingestion (Rue Personal, Study Mode).
 
 This is where the feature's token economics actually happen: every dumped source
 (pdf/docx/pptx/url/youtube/image/text) is parsed down to lean, lossless canonical

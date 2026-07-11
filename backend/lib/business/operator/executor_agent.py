@@ -46,7 +46,7 @@ def _headers() -> dict:
 
 
 _EXECUTOR_SYSTEM = """\
-You are the EXECUTOR of Jarvis OS1 — the co-founder's hands.
+You are the EXECUTOR of Rue OS1 — the co-founder's hands.
 
 The business owner just APPROVED one specific initiative. Your only job is to \
 EXECUTE it now, for real, using the tools available to you.
@@ -302,7 +302,7 @@ async def execute_initiative(action_id: str, user_id: str) -> dict:
     )
 
     # Detective escalation (Batch 72): steps blocked on owner-only information
-    # become co-founder questions — Jarvis asks instead of silently giving up.
+    # become co-founder questions — Rue asks instead of silently giving up.
     needs = _parse_needs(final_text)
     if needs:
         try:
@@ -313,7 +313,7 @@ async def execute_initiative(action_id: str, user_id: str) -> dict:
                     {
                         "question": n,
                         "why_it_matters": f"Blocked a step of: {action.get('title', 'an approved initiative')}",
-                        "unlocks": "Jarvis finishes this step the moment you answer.",
+                        "unlocks": "Rue finishes this step the moment you answer.",
                     }
                     for n in needs if n
                 ],

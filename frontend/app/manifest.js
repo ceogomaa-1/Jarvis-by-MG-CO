@@ -1,7 +1,7 @@
 export default function manifest() {
   return {
-    name: 'Jarvis — Your Personal AI',
-    short_name: 'Jarvis',
+    name: 'Rue — Your Personal AI',
+    short_name: 'Rue',
     description: 'The first AI that actually gets to know you. Built by MG&CO Technologies.',
     start_url: '/',
     display: 'standalone',

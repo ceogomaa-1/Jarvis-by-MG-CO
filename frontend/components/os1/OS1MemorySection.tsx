@@ -71,7 +71,7 @@ export default function OS1MemorySection() {
           className="os1-fade-up os1-fade-up-delay-2 text-center max-w-xl mx-auto mb-20"
           style={{ fontFamily: "'Inter', sans-serif", fontSize: "16px", lineHeight: 1.7, color: "rgba(243,234,217,0.5)" }}
         >
-          Jarvis doesn't start from zero. It extracts facts, preferences, and patterns from every exchange and builds a permanent memory layer that compounds over time.
+          Rue doesn't start from zero. It extracts facts, preferences, and patterns from every exchange and builds a permanent memory layer that compounds over time.
         </p>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-20">
@@ -124,7 +124,7 @@ export default function OS1MemorySection() {
             className="font-arcade text-center pt-4"
             style={{ fontSize: "7px", color: "rgba(243,234,217,0.2)", letterSpacing: "0.2em" }}
           >
-            EXAMPLE MEMORIES FROM A LIVE JARVIS INSTANCE
+            EXAMPLE MEMORIES FROM A LIVE RUE INSTANCE
           </p>
         </div>
       </div>

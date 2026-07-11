@@ -57,7 +57,7 @@ export function Section5Memory() {
           lineHeight: 1.6,
         }}
       >
-        Most AI starts from zero every conversation. Jarvis doesn't. The longer you use it, the less you have to say.
+        Most AI starts from zero every conversation. Rue doesn't. The longer you use it, the less you have to say.
       </motion.p>
 
       <div style={{

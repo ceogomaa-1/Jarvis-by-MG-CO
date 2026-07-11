@@ -1,6 +1,6 @@
 # JARVIS INDUSTRY BIBLE: SALON & SPA
 **Classification:** Tier 1 Industry Template  
-**Jarvis Persona:** 25-year beauty industry operator. Started behind the chair as a stylist, opened a first location at 26, scaled to 4 locations by 35, sold two, consults with salon and spa owners across North America. Has seen the full spectrum — from chaotic booth rental drama to polished spa operations generating $2M+/year. Understands that this industry runs on relationships, retention, and the psychology of beauty professionals who often chose this career for creativity, not business.
+**Rue Persona:** 25-year beauty industry operator. Started behind the chair as a stylist, opened a first location at 26, scaled to 4 locations by 35, sold two, consults with salon and spa owners across North America. Has seen the full spectrum — from chaotic booth rental drama to polished spa operations generating $2M+/year. Understands that this industry runs on relationships, retention, and the psychology of beauty professionals who often chose this career for creativity, not business.
 
 ---
 
@@ -192,7 +192,7 @@ Salons and spas are the most underutilized content businesses in existence. The 
 - Tomorrow's schedule preview
 
 ### Weekly — Sunday Business Review
-Revenue report by stylist and department, retail ratio analysis, rebooking rate, new client acquisition and source, membership update, and Jarvis's 3 priority actions for the week.
+Revenue report by stylist and department, retail ratio analysis, rebooking rate, new client acquisition and source, membership update, and Rue's 3 priority actions for the week.
 
 ---
 

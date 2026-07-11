@@ -1,4 +1,4 @@
-# Jarvis by MG&CO
+# Rue by MG&CO
 
 A next-generation personal AI that learns you over time, initiates conversations proactively, and acts as a fully agentic assistant. Inspired by Samantha from "Her."
 
@@ -30,7 +30,7 @@ cd backend && uvicorn main:app --reload --port 8000
 cd frontend && npm run dev
 ```
 
-Open **http://localhost:3000** to talk to Jarvis.
+Open **http://localhost:3000** to talk to Rue.
 
 ---
 
@@ -39,10 +39,10 @@ Open **http://localhost:3000** to talk to Jarvis.
 | Phase | Status | Description |
 |-------|--------|-------------|
 | Phase 0 | ✅ Complete | Project scaffold, backend API, frontend UI, Claude integration |
-| Phase 1 | Pending | Mem0 memory — Jarvis remembers every conversation |
+| Phase 1 | Pending | Mem0 memory — Rue remembers every conversation |
 | Phase 2 | Pending | User model — dynamic profile that compounds over time |
-| Phase 3 | Pending | Proactive triggers — Jarvis initiates conversations |
-| Phase 4 | Pending | Agentic tools — Jarvis takes actions in the world |
+| Phase 3 | Pending | Proactive triggers — Rue initiates conversations |
+| Phase 4 | Pending | Agentic tools — Rue takes actions in the world |
 | Phase 5 | Pending | Voice interface |
 | Phase 6 | Pending | Mobile app |
 

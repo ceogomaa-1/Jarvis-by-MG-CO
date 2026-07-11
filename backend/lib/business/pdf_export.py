@@ -72,7 +72,7 @@ def generate_pdf(walkthrough: dict, brand_name: str = "") -> bytes:
 
     story.append(Paragraph(walkthrough.get("title", "Walkthrough"), title_style))
     date_str = datetime.now().strftime("%B %d, %Y")
-    story.append(Paragraph(f"Jarvis for Business · {date_str}", meta_style))
+    story.append(Paragraph(f"Rue for Business · {date_str}", meta_style))
 
     intro = walkthrough.get("intro", "")
     if intro:

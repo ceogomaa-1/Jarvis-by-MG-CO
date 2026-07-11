@@ -7,7 +7,7 @@ import HomeGrid from './HomeGrid'
 
 import { BACKEND } from '@/lib/backend'
 
-// Batch 68 — theme. Jarvis sets settings.theme via dashboard__control(set_theme); we turn it
+// Batch 68 — theme. Rue sets settings.theme via dashboard__control(set_theme); we turn it
 // into CSS variables the blocks read (so "make the accent emerald" / "use a serif font" is live).
 const ACCENT_NAMES = {
   blue: '#2d7ff9', emerald: '#34d399', green: '#22c55e', teal: '#14b8a6', purple: '#a855f7',
@@ -34,10 +34,10 @@ function resolveTheme(theme) {
   return style
 }
 
-// Batch 67 — Jarvis Home: the adaptive command center. A full-screen cockpit (mirrors
+// Batch 67 — Rue Home: the adaptive command center. A full-screen cockpit (mirrors
 // CrmCockpit / LeadsCockpit) that renders INSTANTLY from the precomputed block cache and
-// docks the same ChatCanvas so you can chat with Jarvis while you work the dashboard.
-// Blocks act through that docked chat (one tap → Jarvis runs it, behind hold-to-confirm).
+// docks the same ChatCanvas so you can chat with Rue while you work the dashboard.
+// Blocks act through that docked chat (one tap → Rue runs it, behind hold-to-confirm).
 export default function HomeCockpit({ open, onClose, userId, onNavigate }) {
   const [blocks, setBlocks] = useState([])
   const [layout, setLayout] = useState(null)
@@ -150,7 +150,7 @@ export default function HomeCockpit({ open, onClose, userId, onNavigate }) {
     } else if (action.kind === 'connect') {
       onNavigate?.('connections')
     } else {
-      // 'chat' (and any fallback): one tap → Jarvis runs it in the docked chat.
+      // 'chat' (and any fallback): one tap → Rue runs it in the docked chat.
       setChatOpen(true)
       setInjectPrompt({ text: action.prompt || action.label, autoSend: true, ts: Date.now() })
     }
@@ -268,7 +268,7 @@ export default function HomeCockpit({ open, onClose, userId, onNavigate }) {
             <HomeIcon size={16} style={{ color: 'var(--os1-text-dim, #A8A8A6)' }} />
             <span className="font-pixel" style={{ fontSize: 14, color: 'var(--os1-text, #F5F5F4)' }}>Home</span>
             <span className="os1-serif-micro" style={{ fontSize: 9, color: 'var(--os1-text-faint, #6E6E6C)' }}>
-              Jarvis thinks about your business so you don&apos;t have to
+              Rue thinks about your business so you don&apos;t have to
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -364,7 +364,7 @@ export default function HomeCockpit({ open, onClose, userId, onNavigate }) {
                 <HomeIcon size={28} style={{ color: 'var(--os1-text-faint, #6E6E6C)' }} />
                 <div className="font-pixel" style={{ fontSize: 14, color: 'var(--os1-text, #F5F5F4)' }}>Your Home isn&apos;t composed yet</div>
                 <div className="os1-serif-micro" style={{ fontSize: 11, maxWidth: 360, color: 'var(--os1-text-faint, #6E6E6C)' }}>
-                  Jarvis composes Home from your overnight Operator run. Compose it now and it&apos;ll be ready every morning.
+                  Rue composes Home from your overnight Operator run. Compose it now and it&apos;ll be ready every morning.
                 </div>
                 <button onClick={handleRefresh} disabled={refreshing} className="font-pixel"
                   style={{ padding: '9px 16px', borderRadius: 10, fontSize: 11, border: '1px solid rgba(45,127,249,0.35)',

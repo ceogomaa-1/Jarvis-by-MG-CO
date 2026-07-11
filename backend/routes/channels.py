@@ -30,12 +30,12 @@ router = APIRouter()
 _CODE_RE = re.compile(r"^[A-Z0-9]{6,10}$")
 
 LINK_PROMPT = (
-    "👋 I'm Jarvis. To chat with me here, link your OS1 account: open jarvismgco.com/os1 → "
-    "Connections → Jarvis on Telegram, generate a link code, and send it to me. "
+    "👋 I'm Rue. To chat with me here, link your OS1 account: open jarvismgco.com/os1 → "
+    "Connections → Rue on Telegram, generate a link code, and send it to me. "
     "(Only OS1 subscribers can link.)"
 )
 HELP_TEXT = (
-    "You're linked to Jarvis OS1 ✅ Just message me normally — ask questions, send photos or "
+    "You're linked to Rue OS1 ✅ Just message me normally — ask questions, send photos or "
     "documents, and I'll help. For actions that change your data (and your CRM cockpit), use "
     "the web app at jarvismgco.com/os1."
 )
@@ -120,12 +120,12 @@ async def _handle_inbound(channel, channel_user_id, username, text, message,
             ok, res = await asyncio.to_thread(
                 store.redeem_link_code, code, channel, str(channel_user_id), username)
             if ok:
-                await send_fn(channel_user_id, "✅ Linked! You're connected to Jarvis OS1. "
+                await send_fn(channel_user_id, "✅ Linked! You're connected to Rue OS1. "
                                                "Just message me normally — text, photos, or files.")
             elif explicit:
                 # They deliberately followed a link / typed /start <code>, so tell them it failed.
                 await send_fn(channel_user_id, "That link code is invalid or expired. Generate a "
-                                               "fresh one in the web app (Connections → Jarvis on "
+                                               "fresh one in the web app (Connections → Rue on "
                                                "Telegram) and send it here.")
             else:
                 # A bare word that merely looked like a code — guide them to link instead.

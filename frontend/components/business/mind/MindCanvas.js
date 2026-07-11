@@ -506,7 +506,7 @@ export default function MindCanvas({ userId }) {
             fontFamily: 'var(--pixel)', fontSize: 12, letterSpacing: '0.15em',
             color: '#6e6e6e', lineHeight: 2.4, textTransform: 'uppercase',
           }}>
-            Your Mind is still forming.<br />Talk to Jarvis to begin.
+            Your Mind is still forming.<br />Talk to Rue to begin.
           </div>
         </div>
       )}

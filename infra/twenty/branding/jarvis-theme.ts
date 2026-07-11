@@ -1,5 +1,5 @@
 /**
- * Jarvis CRM — MG&CO design tokens (dark, minimal, luxury).
+ * Rue CRM — MG&CO design tokens (dark, minimal, luxury).
  *
  * Single source of truth for the white-label look. `apply.sh` patches Twenty's theme
  * provider to (a) default the color scheme to Dark and (b) override the accent + base
@@ -13,7 +13,7 @@
  */
 
 export const jarvisBrand = {
-  productName: 'Jarvis CRM',
+  productName: 'Rue CRM',
   vendor: 'MG&CO',
   supportUrl: 'https://jarvismgco.com',
   defaultColorScheme: 'Dark' as const,

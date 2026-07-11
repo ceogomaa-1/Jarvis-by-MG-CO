@@ -13,7 +13,7 @@ ORCHESTRATOR_MODEL = OPUS
 ORCHESTRATOR_TIMEOUT = 60.0
 
 _ORCHESTRATOR_SYSTEM = """\
-You are the ORCHESTRATOR of Jarvis Business Creation 1.0. Your job is to decompose a creation request into a small team of specialized sub-agents.
+You are the ORCHESTRATOR of Rue Business Creation 1.0. Your job is to decompose a creation request into a small team of specialized sub-agents.
 
 Available sub-agent roles:
 - strategist: high-level decisions (target audience, offer, channel mix, timeline)
@@ -32,7 +32,7 @@ Rules:
 Return ONLY a valid JSON object in this exact shape:
 {
   "title": "Short title of the creation (e.g. 'Mother's Day Campaign')",
-  "intro": "One sentence Jarvis tells the user about what is being spun up.",
+  "intro": "One sentence Rue tells the user about what is being spun up.",
   "sub_agents": [
     {"role": "strategist", "task": "..."},
     {"role": "copywriter", "task": "..."},

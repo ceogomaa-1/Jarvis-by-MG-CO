@@ -42,7 +42,7 @@ async def _with_timeout(coro, source: str):
 # ─────────────────────────────────────────────────────────────────────
 
 async def _scan_crm(user_id: str) -> dict:
-    """Jarvis CRM (Twenty): pipeline totals, stage distribution, stale deals."""
+    """Rue CRM (Twenty): pipeline totals, stage distribution, stale deals."""
     from backend.lib.business.twenty.tools import execute_twenty_tool
 
     opps_res = await execute_twenty_tool("list_opportunities", {"limit": 60}, user_id)

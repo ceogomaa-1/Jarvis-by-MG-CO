@@ -19,7 +19,7 @@ export default function OS1Footer() {
           <div className="relative" style={{ width: "40px", height: "40px" }}>
             <Image
               src="/jarvis-logo-mono.png"
-              alt="Jarvis OS1"
+              alt="Rue OS1"
               fill
               style={{ objectFit: "contain", opacity: 0.7 }}
             />
@@ -28,7 +28,7 @@ export default function OS1Footer() {
             className="font-arcade"
             style={{ fontSize: "14px", color: "rgba(243,234,217,0.6)", letterSpacing: "0.08em" }}
           >
-            JARVIS OS1
+            RUE OS1
           </span>
         </div>
 

@@ -142,7 +142,7 @@ def _build_personal_prompt_and_tools(
                     _can_do.append("Search the live web and read pages for current facts (news, scores, prices, weather, lookups)")
                 _can_do.append("Tools available this turn: " + ", ".join(_tool_names))
                 _cannot_do = [
-                    "Act on Business services like Stripe, a CRM, social publishing, or website deploys — that's Jarvis OS1 (Business mode), not Personal.",
+                    "Act on Business services like Stripe, a CRM, social publishing, or website deploys — that's Rue OS1 (Business mode), not Personal.",
                 ]
                 system_prompt += "\n\n" + render_capability_manifest(_can_do, [], _cannot_do)
             except Exception as _manifest_err:

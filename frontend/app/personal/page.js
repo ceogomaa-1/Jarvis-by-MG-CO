@@ -24,7 +24,7 @@ export default function PersonalPage() {
   return (
     <div style={{ background: '#0a0a0a', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ fontFamily: 'Georgia, serif', fontSize: '1.6rem', letterSpacing: '0.5em', paddingLeft: '0.5em', color: '#f3ead9' }}>
-        JARVIS
+        RUE
       </div>
     </div>
   )

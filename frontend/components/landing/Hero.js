@@ -92,7 +92,7 @@ export function Hero({ onBegin }) {
             letterSpacing: '0.5em',
             fontWeight: 400,
             textTransform: 'uppercase',
-          }}>JARVIS</span>
+          }}>RUE</span>
           <div style={{ width: 32, height: 1, background: 'rgba(243,234,217,0.3)' }} />
         </motion.div>
 
@@ -159,7 +159,7 @@ export function Hero({ onBegin }) {
               letterSpacing: '0.01em',
             }}
           >
-            Jarvis remembers. Anticipates. Acts.<br />
+            Rue remembers. Anticipates. Acts.<br />
             Across everything you do.
           </motion.p>
 

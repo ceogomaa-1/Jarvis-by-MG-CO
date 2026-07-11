@@ -102,7 +102,7 @@ def _sample_cross_cluster_pairs(memories: list[dict]) -> list[tuple[dict, dict]]
 
 
 _SYNAPSE_PROMPT = """\
-You are Jarvis, an AI business partner studying a list of memories about a small business owner. \
+You are Rue, an AI business partner studying a list of memories about a small business owner. \
 Below are pairs of memories from DIFFERENT areas of their business. Your job is to find pairs where \
 connecting them reveals a genuinely NON-OBVIOUS, ACTIONABLE insight the owner probably hasn't noticed.
 
@@ -232,7 +232,7 @@ async def generate_synapses(user_id: str, force: bool = False) -> dict:
                         "user_id": user_uuid,
                         "date": today,
                         "type": "opportunity",
-                        "title": "Jarvis found a hidden connection",
+                        "title": "Rue found a hidden connection",
                         "body": insight,
                         "action_prompt": f"Tell me more about this connection: {insight}",
                         "read": False,

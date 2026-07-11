@@ -151,7 +151,7 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
       loadSources()
     } catch (e) {
       console.error('Knowledge ingest failed', e)
-      setProgress(prev => [...prev, { label: 'connection', status: 'error', error: 'Could not reach Jarvis' }])
+      setProgress(prev => [...prev, { label: 'connection', status: 'error', error: 'Could not reach Rue' }])
     }
     setFeeding(false)
   }
@@ -250,7 +250,7 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
       setWishSubmitted(true)
     } catch (e) {
       console.error('Wish submit failed', e)
-      setWishError('Could not reach Jarvis — try again in a moment.')
+      setWishError('Could not reach Rue — try again in a moment.')
     }
     setWishSubmitting(false)
   }
@@ -292,7 +292,7 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
           fontFamily: 'var(--font-pixel), monospace',
           fontSize: 13, color: '#e8e8e8', marginBottom: 4, lineHeight: 1.5,
         }}>
-          Feed Jarvis what it should know
+          Feed Rue what it should know
         </div>
         <div className="os1-serif-micro" style={{ fontSize: 9, color: 'rgba(232,232,232,0.45)', marginBottom: 16 }}>
           stuff you're ready to paste and want me to know right away
@@ -301,8 +301,8 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
           {[
-            { key: 'feed', label: 'Feed Jarvis' },
-            { key: 'knows', label: 'What Jarvis Knows' },
+            { key: 'feed', label: 'Feed Rue' },
+            { key: 'knows', label: 'What Rue Knows' },
             { key: 'wish', label: 'Wish Box' },
           ].map(t => (
             <button
@@ -329,7 +329,7 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
               value={text}
               onChange={e => setText(e.target.value)}
               disabled={feeding}
-              placeholder="Paste anything — pricing, policies, a process doc, a URL to your menu... Jarvis will read it and remember what matters."
+              placeholder="Paste anything — pricing, policies, a process doc, a URL to your menu... Rue will read it and remember what matters."
               rows={8}
               style={{
                 width: '100%', boxSizing: 'border-box',
@@ -446,7 +446,7 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
                   transition: 'background 200ms ease',
                 }}
               >
-                {feeding ? 'Feeding Jarvis...' : 'Feed Jarvis'}
+                {feeding ? 'Feeding Rue...' : 'Feed Rue'}
               </button>
             </div>
           </div>
@@ -464,7 +464,7 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
                 <div style={{ padding: '32px 0', textAlign: 'center' }}>
                   <BookOpen size={24} color="rgba(232,232,232,0.25)" style={{ marginBottom: 10 }} />
                   <div className="os1-serif-micro" style={{ fontSize: 11, color: 'rgba(232,232,232,0.4)' }}>
-                    Nothing yet — paste something or drop a file in Feed Jarvis.
+                    Nothing yet — paste something or drop a file in Feed Rue.
                   </div>
                 </div>
               )}
@@ -573,7 +573,7 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
                   fontFamily: 'var(--font-pixel), monospace',
                   fontSize: 13, color: '#e8e8e8', marginBottom: 4, lineHeight: 1.5,
                 }}>
-                  What do you wish Jarvis could do better — or have — that doesn't exist yet?
+                  What do you wish Rue could do better — or have — that doesn't exist yet?
                 </div>
                 <div className="os1-serif-micro" style={{ fontSize: 9, color: 'rgba(232,232,232,0.45)', marginBottom: 16 }}>
                   every wish lands directly on the founder's desk.
@@ -582,7 +582,7 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
                   value={wishText}
                   onChange={e => setWishText(e.target.value)}
                   disabled={wishSubmitting}
-                  placeholder="Tell Jarvis what's missing, what's broken, or what you wish it could do..."
+                  placeholder="Tell Rue what's missing, what's broken, or what you wish it could do..."
                   rows={8}
                   style={{
                     width: '100%', boxSizing: 'border-box',
@@ -639,7 +639,7 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
                   fontFamily: 'var(--font-pixel), monospace',
                   fontSize: 13, color: '#e8e8e8', lineHeight: 1.6, maxWidth: 340,
                 }}>
-                  Thanks! Keep your eyes on Jarvis — your request will be seen soon!
+                  Thanks! Keep your eyes on Rue — your request will be seen soon!
                 </div>
                 <button
                   onClick={() => setWishSubmitted(false)}
@@ -714,7 +714,7 @@ export default function KnowledgeBaseModal({ open, onClose, userId, userEmail })
 
                 {(editingSkill.skill_type === 'behavior' || editingSkill.skill_type === 'both') && (
                   <>
-                    <label style={{ fontSize: 10, color: 'rgba(232,232,232,0.5)' }}>Operating instructions (how Jarvis should act)</label>
+                    <label style={{ fontSize: 10, color: 'rgba(232,232,232,0.5)' }}>Operating instructions (how Rue should act)</label>
                     <textarea
                       value={editingSkill.operating_instructions || ''}
                       readOnly={!editMode}

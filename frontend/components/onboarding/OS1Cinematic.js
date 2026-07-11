@@ -127,7 +127,7 @@ function GlitchOS1() {
 }
 
 function NameScene() {
-  const word = 'JARVIS'
+  const word = 'RUE'
   const [typed, setTyped] = useState(0)
   const [showOS1, setShowOS1] = useState(false)
 
@@ -336,7 +336,7 @@ function LockupScene({ skipSweep, onClick }) {
             style={{ position: 'absolute', bottom: '18%', left: 0, right: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}
           >
             <div className="font-pixel" style={{ fontSize: 'clamp(24px, 4vw, 32px)', color: '#e8e8e8', letterSpacing: '0.1em' }}>
-              JARVIS <span style={{ color: '#2d7ff9' }}>OS1</span>
+              RUE <span style={{ color: '#2d7ff9' }}>OS1</span>
             </div>
             <div className="font-pixel" style={{ fontSize: 14, color: '#a3a3a3' }}>Let&apos;s build yours.</div>
           </motion.div>

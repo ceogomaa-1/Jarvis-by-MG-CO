@@ -141,10 +141,10 @@ async def _run_for_user(user: dict) -> bool:
                 from backend.lib.business.notify import notify_owner
                 await notify_owner(
                     uid,
-                    subject="🚩 Jarvis flagged a red risk in your business",
+                    subject="🚩 Rue flagged a red risk in your business",
                     body_lines=[
                         evaluator_output.get("summary", "A critical risk flag was raised."),
-                        briefing.get("suggested_action", "") or "Open Jarvis for the full briefing and the suggested move.",
+                        briefing.get("suggested_action", "") or "Open Rue for the full briefing and the suggested move.",
                     ],
                     kind="risk_red_flag",
                     dedupe_key=f"risk_red_{uid}_{datetime.now(timezone.utc).strftime('%Y-%m-%d')}",

@@ -87,7 +87,7 @@ export function SectionWontWait() {
             color: '#c84b31',
             margin: '0 0 16px 0',
           }}>
-            Jarvis
+            Rue
           </p>
           <div style={{
             padding: '20px 24px',

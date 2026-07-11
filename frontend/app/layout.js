@@ -18,7 +18,7 @@ const inter = Inter({
   display: 'swap',
 })
 
-// Welcome (Jarvis Personal) body fonts — Fraunces (serif display), JetBrains Mono (labels),
+// Welcome (Rue Personal) body fonts — Fraunces (serif display), JetBrains Mono (labels),
 // Hanken Grotesk (sans). Scoped via CSS variables; used by components/landing/WelcomeBody.js.
 const fraunces = Fraunces({
   weight: ['400', '500'],
@@ -64,7 +64,7 @@ const fredoka = Fredoka({
 })
 
 export const metadata = {
-  title: 'Jarvis — Your Personal AI',
+  title: 'Rue — Your Personal AI',
   description: 'The first AI that actually gets to know you. Built by MG&CO Technologies.',
   icons: {
     icon: [
@@ -76,7 +76,7 @@ export const metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Jarvis',
+    title: 'Rue',
   },
 }
 

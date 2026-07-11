@@ -1,5 +1,5 @@
 """
-Dump Learn — the reasoning/explain engine (Jarvis Personal, Study Mode).
+Dump Learn — the reasoning/explain engine (Rue Personal, Study Mode).
 
 Turns a bin's already-condensed material (from dump_learn_ingest) into one
 structured lesson: TL;DR, concept sections, an optional mind map, and a short
@@ -80,7 +80,7 @@ questions matched to the requested comprehension level."""
 
 _LEVEL_PROMPTS = {
     "child": f"""\
-You are Jarvis, explaining study material to a curious, sharp child (roughly age 8-11). This is \
+You are Rue, explaining study material to a curious, sharp child (roughly age 8-11). This is \
 NOT a diluted version of the adult explanation — it is a DIFFERENT explanation built for a \
 different mind:
 - Vocabulary ceiling: everyday words only. If a technical term is unavoidable, define it in the \
@@ -96,7 +96,7 @@ clarity on purpose at this level.
 {_RESPONSE_SCHEMA}""",
 
     "graduate": f"""\
-You are Jarvis, explaining study material the way a sharp, articulate classmate would — someone \
+You are Rue, explaining study material the way a sharp, articulate classmate would — someone \
 who understood the reading and can walk you through it clearly, assuming general education but \
 no specialist background:
 - Balanced vocabulary: technical terms are fine when they're the standard term for the thing, but \
@@ -110,7 +110,7 @@ every section.
 {_RESPONSE_SCHEMA}""",
 
     "expert": f"""\
-You are Jarvis, explaining study material to someone who wants full technical/academic depth — \
+You are Rue, explaining study material to someone who wants full technical/academic depth — \
 treat them as a peer, not a student being protected from complexity:
 - Use precise, field-standard terminology without diluting it. Do not define basic terms in the \
 field; do define genuinely obscure or source-specific ones.
@@ -306,7 +306,7 @@ async def explain_bin(bin_id: str, user_id: str, level: str, items: list[dict]) 
 
         raw = _extract_text(data)
         if not raw:
-            last_error = "Jarvis couldn't generate an explanation from this material."
+            last_error = "Rue couldn't generate an explanation from this material."
             continue
 
         parsed = _parse_json_response(raw)
@@ -317,7 +317,7 @@ async def explain_bin(bin_id: str, user_id: str, level: str, items: list[dict]) 
         # Retry once; a fresh completion usually self-corrects. Log a snippet for
         # diagnosis without dumping the whole (possibly huge) payload.
         print(f"DUMP_LEARN: explain JSON parse failed (attempt {attempt + 1}), raw[:200]={raw[:200]!r}")
-        last_error = "Jarvis had trouble formatting this explanation — try again."
+        last_error = "Rue had trouble formatting this explanation — try again."
 
     if not lesson:
         return {"lesson": None, "cached": False, "cost": usage_acc.cost(), "error": last_error or "Explaining is temporarily unavailable."}
@@ -349,7 +349,7 @@ async def explain_bin(bin_id: str, user_id: str, level: str, items: list[dict]) 
 # ── Scoped follow-up chat (retrieval-backed when the bin has embeddings) ─────
 
 _FOLLOWUP_SYSTEM = """\
-You are Jarvis, continuing a study session about material the user already had explained to them \
+You are Rue, continuing a study session about material the user already had explained to them \
 at the "{level}" comprehension level. Answer their follow-up question grounded ONLY in the \
 material below — if it isn't covered, say so plainly rather than guessing. Match the same \
 comprehension level in your tone/depth as the original explanation."""
@@ -430,5 +430,5 @@ async def answer_followup(bin_id: str, user_id: str, level: str, items: list[dic
     usage_acc.add_round_output((data.get("usage") or {}).get("output_tokens", 0))
     answer = _extract_text(data)
     if not answer:
-        return {"answer": "", "cost": usage_acc.cost(), "error": "Jarvis couldn't answer that — try rephrasing."}
+        return {"answer": "", "cost": usage_acc.cost(), "error": "Rue couldn't answer that — try rephrasing."}
     return {"answer": answer, "cost": usage_acc.cost(), "error": None}

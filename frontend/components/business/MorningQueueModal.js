@@ -155,7 +155,7 @@ export default function MorningQueueModal({ open, onClose, userId, onAct }) {
           {isEmpty && (
             <div style={{ padding: '36px 0', textAlign: 'center' }}>
               <div className="os1-serif-micro" style={{ fontSize: 11, color: 'rgba(232,232,232,0.45)', lineHeight: 1.8 }}>
-                Jarvis works while you sleep.<br />
+                Rue works while you sleep.<br />
                 First queue lands tomorrow morning.
               </div>
             </div>

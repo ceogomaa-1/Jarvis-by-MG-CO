@@ -11,7 +11,7 @@ import { stashAuthNext, authRedirectBase } from "@/lib/authNext"
 const PLANS: PricingPlan[] = [
   {
     id: "pro",
-    name: "Jarvis OS1 Pro",
+    name: "Rue OS1 Pro",
     description: "Your AI operator, fully armed.",
     monthlyPrice: "$49",
     yearlyPrice: "$490",
@@ -20,10 +20,10 @@ const PLANS: PricingPlan[] = [
     action: "checkout",
     cta: "Start 7-day trial",
     features: [
-      { text: "Jarvis chat — personality + voice" },
-      { text: "Autonomous Jarvis sessions (capped)" },
+      { text: "Rue chat — personality + voice" },
+      { text: "Autonomous Rue sessions (capped)" },
       { text: "Baseline usage · rolling ~5h window" },
-      { text: "Train & feed Jarvis your knowledge" },
+      { text: "Train & feed Rue your knowledge" },
       { text: "9 industry bibles baked in" },
       { text: "MCP Creation 1.0 — connect any app" },
       { text: "“Show Me How” walkthroughs" },
@@ -33,7 +33,7 @@ const PLANS: PricingPlan[] = [
   },
   {
     id: "emperor",
-    name: "Jarvis OS1 Emperor",
+    name: "Rue OS1 Emperor",
     description: "Maximum power. White-labeled. Unlimited.",
     monthlyPrice: "$199",
     yearlyPrice: "$1,990",
@@ -47,7 +47,7 @@ const PLANS: PricingPlan[] = [
       { text: "5× usage capacity" },
       { text: "Unlimited Buffer social platforms" },
       { text: "Fully customizable, white-labeled CRM" },
-      { text: "Jarvis Leads — rule-based scraping + metered lookups" },
+      { text: "Rue Leads — rule-based scraping + metered lookups" },
       { text: "Fully customizable UI · moving-blocks view" },
       { text: "Brand customization" },
     ],
@@ -55,7 +55,7 @@ const PLANS: PricingPlan[] = [
   {
     id: "tailored",
     name: "Tailored",
-    description: "Jarvis built around your business.",
+    description: "Rue built around your business.",
     monthlyPrice: "Custom",
     yearlyPrice: "Custom",
     action: "contact",
@@ -154,7 +154,7 @@ export default function OS1Pricing() {
   return (
     <div id="pricing">
       <Pricing2
-        heading="Choose your Jarvis"
+        heading="Choose your Rue"
         description="One operator. Three altitudes. Cancel anytime — 7-day trial, card required."
         plans={PLANS}
         busyId={busyId}
@@ -169,7 +169,7 @@ export default function OS1Pricing() {
           className="text-zinc-400 underline-offset-4 transition-colors hover:text-zinc-100 hover:underline"
           style={{ fontFamily: "'Inter', sans-serif", fontSize: 15 }}
         >
-          Want Jarvis tailored to your business? →
+          Want Rue tailored to your business? →
         </button>
       </div>
     </div>

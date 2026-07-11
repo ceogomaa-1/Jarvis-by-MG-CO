@@ -2,7 +2,7 @@
 Regression tests for backend/memory.py — Phase 2 (JARVIS-BRAIN-MAP.md
 section B5): get_relevant_memories() must distinguish "no relevant memories
 found" ("") from "the Mem0 lookup itself failed" (MEMORY_LOOKUP_FAILED_NOTE),
-so the system prompt doesn't imply Jarvis has zero memories of the user when
+so the system prompt doesn't imply Rue has zero memories of the user when
 the lookup was actually rate-limited or errored.
 """
 import pytest

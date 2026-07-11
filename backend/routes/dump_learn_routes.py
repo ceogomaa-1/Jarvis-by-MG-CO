@@ -1,6 +1,6 @@
-"""Dump Learn — routes (Jarvis Personal, Study Mode).
+"""Dump Learn — routes (Rue Personal, Study Mode).
 
-A "bin" the user dumps raw material into; Jarvis parses it down to lean text
+A "bin" the user dumps raw material into; Rue parses it down to lean text
 (dump_learn_ingest), then explains it back at a chosen comprehension level
 (dump_learn_engine). Files are uploaded directly from the browser to the
 private `dump-learn-uploads` Storage bucket (same convention as

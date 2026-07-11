@@ -39,7 +39,7 @@ export default function OS1CTASection() {
           className="os1-fade-up os1-fade-up-delay-1 mb-12"
           style={{ fontFamily: "'Inter', sans-serif", fontSize: "17px", lineHeight: 1.7, color: "rgba(243,234,217,0.5)" }}
         >
-          Stop duct-taping 14 tools together. Stop paying for an assistant who needs an assistant. Jarvis OS1 remembers, anticipates, and acts — across everything you do.
+          Stop duct-taping 14 tools together. Stop paying for an assistant who needs an assistant. Rue OS1 remembers, anticipates, and acts — across everything you do.
         </p>
 
         <div className="os1-fade-up os1-fade-up-delay-2 flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -62,7 +62,7 @@ export default function OS1CTASection() {
           className="os1-fade-up os1-fade-up-delay-3 font-arcade mt-16"
           style={{ fontSize: "7px", letterSpacing: "0.3em", color: "rgba(243,234,217,0.15)" }}
         >
-          JARVIS OS1 BY MG&CO TECHNOLOGIES INC.
+          RUE OS1 BY MG&CO TECHNOLOGIES INC.
         </p>
       </div>
     </section>

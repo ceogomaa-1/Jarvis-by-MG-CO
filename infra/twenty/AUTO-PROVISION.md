@@ -1,6 +1,6 @@
 # Auto-provisioning per-user CRM workspaces (Option A)
 
-Goal: a brand-new Jarvis user finishes onboarding → the backend programmatically creates
+Goal: a brand-new Rue user finishes onboarding → the backend programmatically creates
 their **own isolated Twenty workspace** + an API key, stores it, and the CRM button lights up.
 
 This is **Option A** (proven feasible — the API supports the full flow
@@ -38,7 +38,7 @@ FRONTEND_BASE_URL=https://crm.jarvismgco.com
 
 > Security note: `IS_SIGN_UP_ENABLED=true` also permits public signup at the apex domain.
 > If you want to keep public signup closed, gate it at the proxy (allow `signUp` only from the
-> Jarvis backend IP) — ask and I'll write the Caddy matcher. The service accounts Jarvis
+> Rue backend IP) — ask and I'll write the Caddy matcher. The service accounts Rue
 > creates use random strong passwords on a `crm+<id>@jarvismgco.com` address; end users never
 > log in with them.
 
@@ -55,7 +55,7 @@ crm.jarvismgco.com     A   <your VPS IP>
 
 DNS is **Hostinger**, and Caddy is the stock apt build (no DNS plugins), so we use
 **on-demand TLS**: each subdomain's cert is issued on first request via HTTP-01/TLS-ALPN —
-no wildcard cert, no DNS-01, no API token. Caddy "asks" the Jarvis backend before issuing a
+no wildcard cert, no DNS-01, no API token. Caddy "asks" the Rue backend before issuing a
 cert, so certs are only minted for real provisioned workspaces (anti-abuse), and the apex
 (where new-workspace signup happens) is locked to the Render backend IPs.
 
@@ -72,7 +72,7 @@ subdomain, else 403).
 > creation is blocked at the **app layer** instead — see “Blocking public workspace creation”
 > below. The Caddyfile no longer locks the apex.
 
-## 4. Jarvis backend env (Render)
+## 4. Rue backend env (Render)
 
 ```
 TWENTY_PROVISION_BASE_URL=https://crm.jarvismgco.com   # apex used for signUp/auth calls
@@ -120,7 +120,7 @@ action needed.
 > Self-heal / retry: provisioning is now idempotent. The service password is **deterministic**
 > (HMAC of the user_id), so a retry that finds the service user `crm+<hex>@jarvismgco.com`
 > already created by a prior failed attempt **signs in** and continues instead of colliding.
-> Set **`TWENTY_SERVICE_SECRET`** (a long random string) in the Jarvis backend env and never
+> Set **`TWENTY_SERVICE_SECRET`** (a long random string) in the Rue backend env and never
 > change it — it's the HMAC key; rotating it makes previously-created service accounts
 > unrecoverable. (Falls back to `APP_SECRET`, then `SUPABASE_SERVICE_ROLE_KEY`, if unset.)
 >

@@ -48,7 +48,7 @@ export default function WorkflowPage() {
             fontFamily: 'Georgia, serif', fontSize: 16, letterSpacing: '0.3em',
             color: '#e8e8e8', fontWeight: 400,
           }}>
-            JARVIS
+            RUE
           </div>
           <div style={{
             fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase',

@@ -1,5 +1,5 @@
 """
-Fixed message window for Jarvis (Personal + Business).
+Fixed message window for Rue (Personal + Business).
 
 Each user gets DAILY_MESSAGE_LIMIT messages per FIXED WINDOW_MINUTES window.
 The window is anchored at the user's first message in the window. Once the user

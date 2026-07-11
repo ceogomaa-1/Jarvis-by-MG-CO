@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 
-// OS1 v2 — horizontal pixel rocker switch + "Autonomous Jarvis" label (per Figma).
+// OS1 v2 — horizontal pixel rocker switch + "Autonomous Rue" label (per Figma).
 // Batch 71 (Co-Founder Mode): now a controlled trigger — clicking it never flips
 // the flag directly; it opens the CoFounderLever modal, which owns the whole
 // engage/disengage moment. Parent (ChatCanvas) hydrates + owns `enabled`.
@@ -77,7 +77,7 @@ export default function AutonomousToggle({ isReady, enabled, onRequestToggle }) 
         userSelect: 'none',
         textAlign: 'left',
       }}>
-        Autonomous<br />Jarvis
+        Autonomous<br />Rue
       </div>
 
       {/* Not-ready tooltip */}
@@ -100,7 +100,7 @@ export default function AutonomousToggle({ isReady, enabled, onRequestToggle }) 
           }}
         >
           <div className="font-pixel" style={{ fontSize: 12, color: 'var(--os1-text)', marginBottom: 3 }}>
-            Jarvis needs to know you better first
+            Rue needs to know you better first
           </div>
           <div className="font-pixel" style={{ fontSize: 10, color: 'var(--os1-text-faint)' }}>
             Complete the readiness bar to unlock

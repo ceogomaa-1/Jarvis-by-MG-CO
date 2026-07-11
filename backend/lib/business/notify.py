@@ -1,5 +1,5 @@
 """
-Owner notifications for Jarvis OS1 Business (Batch 72).
+Owner notifications for Rue OS1 Business (Batch 72).
 
 The co-founder's discipline: reach out only when the owner ACTUALLY needs to
 know, and never more than JARVIS_NOTIFY_DAILY_CAP times a day (default 2).
@@ -22,7 +22,7 @@ import httpx
 SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
-RESEND_FROM = os.getenv("RESEND_FROM", "Jarvis OS1 <jarvis@mgcodashboard.com>")
+RESEND_FROM = os.getenv("RESEND_FROM", "Rue OS1 <jarvis@mgcodashboard.com>")
 DAILY_CAP = max(1, int(os.getenv("JARVIS_NOTIFY_DAILY_CAP", "2")))
 
 # In-process fallback cap tracking, used only when the batch72 table is missing.
@@ -140,20 +140,20 @@ def _build_html(subject: str, body_lines: list[str], cta_url: str | None) -> str
     cta = (
         f'<a href="{cta_url}" style="display:inline-block;margin-top:6px;padding:11px 22px;'
         'background:#2d7ff9;color:#ffffff;border-radius:10px;text-decoration:none;'
-        'font-size:13px;font-weight:600;">Open Jarvis →</a>'
+        'font-size:13px;font-weight:600;">Open Rue →</a>'
         if cta_url else ""
     )
     return f"""\
 <div style="background:#0f0f12;padding:36px 18px;font-family:-apple-system,Segoe UI,Roboto,sans-serif;">
   <div style="max-width:560px;margin:0 auto;background:#161619;border:1px solid #2a2a2e;border-radius:16px;padding:30px 32px;">
     <div style="font-size:10px;letter-spacing:0.18em;color:#2d7ff9;text-transform:uppercase;margin-bottom:14px;">
-      Jarvis OS1 — your co-founder
+      Rue OS1 — your co-founder
     </div>
     <div style="font-size:18px;color:#f0f0f0;font-weight:600;margin-bottom:16px;line-height:1.4;">{subject}</div>
     {rows}
     {cta}
     <div style="margin-top:26px;padding-top:16px;border-top:1px solid #2a2a2e;font-size:11px;color:#6e6e6e;line-height:1.6;">
-      MG&amp;CO Technologies. Jarvis only emails you when something genuinely needs you — max {DAILY_CAP} a day.
+      MG&amp;CO Technologies. Rue only emails you when something genuinely needs you — max {DAILY_CAP} a day.
     </div>
   </div>
 </div>"""

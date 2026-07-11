@@ -1,5 +1,5 @@
 """
-Jarvis CRM write layer (Twenty) — full CRUD across every core object, GUARDED.
+Rue CRM write layer (Twenty) — full CRUD across every core object, GUARDED.
 
 Mutations use Twenty's generated CRUD (create/update/delete{Object}) and are built
 DEFENSIVELY from the introspected schema — a field is only sent if the object actually

@@ -1,4 +1,4 @@
-"""Deprovision Jarvis CRM workspaces — free slots under Twenty Community's 5-workspace cap.
+"""Deprovision Rue CRM workspaces — free slots under Twenty Community's 5-workspace cap.
 
 Twenty Community caps an instance at 5 workspaces. When throwaway/test workspaces fill the
 slots, a real client can't be provisioned. This deletes the junk ones and frees slots.
@@ -116,7 +116,7 @@ async def run(*, keep: set[str], execute: bool) -> int:
 
 
 def main() -> int:
-    p = argparse.ArgumentParser(description="Deprovision Jarvis CRM workspaces (keep-list driven).")
+    p = argparse.ArgumentParser(description="Deprovision Rue CRM workspaces (keep-list driven).")
     p.add_argument("--keep", action="append", default=[],
                    help="user_id(s) to PRESERVE (user_<hex> or uuid; comma-separated and/or repeated).")
     p.add_argument("--repair", default=None,

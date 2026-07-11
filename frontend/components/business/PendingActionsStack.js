@@ -8,7 +8,7 @@ import { motion } from 'framer-motion'
 // Batch 71 — THE BOARDROOM.
 //
 // Initiatives from your co-founder. Each card is a contract: it shows the
-// WHY, the expected impact, and the exact steps Jarvis will run. Tap
+// WHY, the expected impact, and the exact steps Rue will run. Tap
 // Approve → the Executor agent runs it FOR REAL — and the receipts (what
 // actually got sent/posted/updated) land back on the card.
 // ─────────────────────────────────────────────────────────────────────
@@ -72,7 +72,7 @@ function Receipts({ result }) {
       background: 'rgba(34,197,94,0.05)', border: '1px solid rgba(34,197,94,0.18)',
     }}>
       <div style={{ ...PIXEL, fontSize: 9, letterSpacing: '0.1em', color: '#22c55e', marginBottom: 8 }}>
-        RECEIPTS — WHAT JARVIS ACTUALLY DID
+        RECEIPTS — WHAT RUE ACTUALLY DID
       </div>
       {lines.map((l, i) => (
         <div key={i} style={{ fontSize: 12, color: 'rgba(232,232,232,0.8)', lineHeight: 1.6 }}>
@@ -136,7 +136,7 @@ function QuestionCard({ q, onAnswer, onDismiss }) {
           value={answer}
           onChange={e => setAnswer(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') submit() }}
-          placeholder="Your answer — Jarvis remembers it forever"
+          placeholder="Your answer — Rue remembers it forever"
           style={{
             flex: 1, background: 'rgba(232,232,232,0.05)',
             border: '1px solid rgba(232,232,232,0.12)', borderRadius: 8,
@@ -201,7 +201,7 @@ function InitiativeCard({ action, onApprove, onMarkDone, onDecline, onExpand, ex
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
             <Chip>{typeLabel}</Chip>
             {isAuto
-              ? <Chip color="#2d7ff9" border="rgba(45,127,249,0.45)">⚡ Jarvis executes</Chip>
+              ? <Chip color="#2d7ff9" border="rgba(45,127,249,0.45)">⚡ Rue executes</Chip>
               : <Chip color="rgba(232,232,232,0.45)" border="rgba(232,232,232,0.2)">manual</Chip>}
             {isExternal && <Chip color="#f5a623" border="rgba(245,166,35,0.4)">external</Chip>}
             {executing && <Chip color="#2d7ff9" border="rgba(45,127,249,0.45)">executing…</Chip>}
@@ -236,7 +236,7 @@ function InitiativeCard({ action, onApprove, onMarkDone, onDecline, onExpand, ex
               background: 'rgba(45,127,249,0.05)', border: '1px solid rgba(45,127,249,0.18)',
             }}>
               <div style={{ ...PIXEL, fontSize: 9, letterSpacing: '0.1em', color: '#2d7ff9', marginBottom: 8 }}>
-                WHEN YOU APPROVE, JARVIS WILL:
+                WHEN YOU APPROVE, RUE WILL:
               </div>
               {plan.steps.map((s, i) => (
                 <div key={i} style={{ display: 'flex', gap: 8, fontSize: 12, color: 'rgba(232,232,232,0.75)', lineHeight: 1.7 }}>
@@ -273,7 +273,7 @@ function InitiativeCard({ action, onApprove, onMarkDone, onDecline, onExpand, ex
                 style={{ color: '#2d7ff9', fontSize: 13 }}
               >●</motion.span>
               <span style={{ ...PIXEL, fontSize: 11.5, color: 'rgba(232,232,232,0.75)' }}>
-                Jarvis is executing this right now…
+                Rue is executing this right now…
               </span>
             </div>
           )}
@@ -292,7 +292,7 @@ function InitiativeCard({ action, onApprove, onMarkDone, onDecline, onExpand, ex
               <input
                 value={reason}
                 onChange={e => setReason(e.target.value)}
-                placeholder="Why not? (optional — Jarvis learns from this)"
+                placeholder="Why not? (optional — Rue learns from this)"
                 autoFocus
                 style={{
                   flex: 1, background: 'rgba(232,232,232,0.05)',
@@ -335,7 +335,7 @@ function InitiativeCard({ action, onApprove, onMarkDone, onDecline, onExpand, ex
                     cursor: 'pointer', ...PIXEL, boxShadow: '0 0 18px rgba(45,127,249,0.35)',
                   }}
                 >
-                  ⚡ Approve — Jarvis executes
+                  ⚡ Approve — Rue executes
                 </button>
               ) : (
                 <button
@@ -511,7 +511,7 @@ export default function PendingActionsStack({ open, onClose, userId }) {
           Initiatives from your co-founder
         </div>
         <div style={{ fontSize: 11.5, color: 'rgba(232,232,232,0.5)', marginBottom: 16, lineHeight: 1.6 }}>
-          Every card shows exactly what Jarvis will do. Approve it — Jarvis executes it for real
+          Every card shows exactly what Rue will do. Approve it — Rue executes it for real
           and the receipts land right here.
         </div>
 
@@ -544,7 +544,7 @@ export default function PendingActionsStack({ open, onClose, userId }) {
                 ...PIXEL, fontSize: 9.5, letterSpacing: '0.12em',
                 color: '#a874ff', marginBottom: 8, textTransform: 'uppercase',
               }}>
-                🕵️ Jarvis needs to know — {questions.length} question{questions.length === 1 ? '' : 's'}
+                🕵️ Rue needs to know — {questions.length} question{questions.length === 1 ? '' : 's'}
               </div>
               {questions.map(q => (
                 <QuestionCard key={q.id} q={q} onAnswer={answerQuestion} onDismiss={dismissQuestion} />
@@ -558,7 +558,7 @@ export default function PendingActionsStack({ open, onClose, userId }) {
             <div style={{ textAlign: 'center', padding: '38px 0' }}>
               <div style={{ fontSize: 12, color: 'rgba(232,232,232,0.4)', lineHeight: 1.8 }}>
                 {tab === 'approvals'
-                  ? 'Nothing waiting on you. Jarvis scans nightly — new initiatives land here.'
+                  ? 'Nothing waiting on you. Rue scans nightly — new initiatives land here.'
                   : 'No executed initiatives yet. Approve one and watch the receipts appear.'}
               </div>
             </div>

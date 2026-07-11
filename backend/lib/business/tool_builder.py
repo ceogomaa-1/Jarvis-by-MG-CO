@@ -20,7 +20,7 @@ from backend.lib.business.twenty.client import TwentyClient
 _ALWAYS_ON_TOOLS: dict[str, dict] = {
     "dashboard__control": {
         "description": (
-            "Create, edit, restyle, move, delete, or restore blocks on the user's Jarvis Home "
+            "Create, edit, restyle, move, delete, or restore blocks on the user's Rue Home "
             "dashboard, and change its overall theme (colors/fonts). Use this WHENEVER the user asks "
             "to customize, redesign, add to, or change their Home / dashboard. Examples: 'create a "
             "block called My Expenses I can add items to' -> create_block block_type='list'; 'make a "
@@ -570,7 +570,7 @@ _TOOLS: dict[str, dict] = {
     },
     "google__send_email": {
         "description": (
-            "[Gmail] Send an email via Gmail, optionally with attachments. To attach a file (one Jarvis "
+            "[Gmail] Send an email via Gmail, optionally with attachments. To attach a file (one Rue "
             "generated or the user uploaded), pass its doc_id from the conversation context. NOTE: Gmail's "
             "consumer API has no read-receipt support — never promise the user a read receipt."
         ),
@@ -645,7 +645,7 @@ _TOOLS: dict[str, dict] = {
     "google__schedule_email": {
         "description": (
             "[Gmail] Schedule an email to be sent automatically at a future time. Gmail's API has no "
-            "native schedule-send, so Jarvis stores this and a background dispatcher (checked roughly "
+            "native schedule-send, so Rue stores this and a background dispatcher (checked roughly "
             "every minute) sends it through the user's connected Gmail account once send_at passes — "
             "marked 'sent' only on a real success from Gmail, 'failed' with the real error otherwise. "
             "Supports attachments via doc_id."
@@ -971,13 +971,13 @@ _TOOLS: dict[str, dict] = {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Jarvis-owned CRM (self-hosted Twenty). Env-gated: only offered when
+# Rue-owned CRM (self-hosted Twenty). Env-gated: only offered when
 # TWENTY_API_URL + TWENTY_API_KEY are set. Read-only over the imported data.
 # Dispatched specially in tool_executor (connector_type == "twenty").
 # ─────────────────────────────────────────────────────────────────────────────
 TWENTY_TOOLS: dict[str, dict] = {
     "twenty__list_people": {
-        "description": "[Owned CRM] List People (contacts) in Jarvis's own CRM (the imported GoHighLevel data lives here). Returns name + email. Use for 'who's in my CRM' style questions.",
+        "description": "[Owned CRM] List People (contacts) in Rue's own CRM (the imported GoHighLevel data lives here). Returns name + email. Use for 'who's in my CRM' style questions.",
         "input_schema": {
             "type": "object",
             "properties": {"limit": {"type": "integer", "description": "Max people to return (default 25)"}},
@@ -985,7 +985,7 @@ TWENTY_TOOLS: dict[str, dict] = {
         },
     },
     "twenty__search_people": {
-        "description": "[Owned CRM] Search People in Jarvis's own CRM by name or email substring. Returns matching name + email + id.",
+        "description": "[Owned CRM] Search People in Rue's own CRM by name or email substring. Returns matching name + email + id.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -996,7 +996,7 @@ TWENTY_TOOLS: dict[str, dict] = {
         },
     },
     "twenty__list_opportunities": {
-        "description": "[Owned CRM] List Opportunities (deals) in Jarvis's own CRM, optionally filtered to a pipeline stage by its GHL stage name. Returns deal names.",
+        "description": "[Owned CRM] List Opportunities (deals) in Rue's own CRM, optionally filtered to a pipeline stage by its GHL stage name. Returns deal names.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -1007,7 +1007,7 @@ TWENTY_TOOLS: dict[str, dict] = {
         },
     },
     "twenty__count_opportunities_in_stage": {
-        "description": "[Owned CRM] Count how many Opportunities are in a given pipeline stage in Jarvis's own CRM. Answers 'how many opps in <stage> in my CRM'. Pass the stage name as it was in GoHighLevel.",
+        "description": "[Owned CRM] Count how many Opportunities are in a given pipeline stage in Rue's own CRM. Answers 'how many opps in <stage> in my CRM'. Pass the stage name as it was in GoHighLevel.",
         "input_schema": {
             "type": "object",
             "properties": {"stage": {"type": "string", "description": "Pipeline stage name to count"}},
@@ -1015,7 +1015,7 @@ TWENTY_TOOLS: dict[str, dict] = {
         },
     },
     "twenty__person_notes_tasks": {
-        "description": "[Owned CRM] Look up one person in Jarvis's own CRM by name/email and return their notes and tasks.",
+        "description": "[Owned CRM] Look up one person in Rue's own CRM by name/email and return their notes and tasks.",
         "input_schema": {
             "type": "object",
             "properties": {"query": {"type": "string", "description": "Name or email of the person"}},
@@ -1023,7 +1023,7 @@ TWENTY_TOOLS: dict[str, dict] = {
         },
     },
     "twenty__list_companies": {
-        "description": "[Owned CRM] List Companies in Jarvis's own CRM. Returns name + id.",
+        "description": "[Owned CRM] List Companies in Rue's own CRM. Returns name + id.",
         "input_schema": {
             "type": "object",
             "properties": {"limit": {"type": "integer", "description": "Max companies (default 25)"}},
@@ -1242,7 +1242,7 @@ TWENTY_DESTRUCTIVE_TOOLS = frozenset({
 # so a mistaken mass-edit can't land silently. Added to chat.py WRITE_ACTIONS.
 TWENTY_BULK_TOOLS = frozenset({"twenty__bulk_update", "twenty__rehome_field"})
 
-# METADATA tools (structure-level) — let Jarvis reshape the CRM: custom fields,
+# METADATA tools (structure-level) — let Rue reshape the CRM: custom fields,
 # custom objects ("types"), and views/lists. Gated like other CRM tools; resolved
 # per-user. Structural deletes are confirm-gated via chat.py.
 TWENTY_METADATA_TOOLS: dict[str, dict] = {
@@ -1346,7 +1346,7 @@ async def build_tools_for_user(user_id: str) -> list[dict]:
             for name, defn in REAL_ESTATE_TOOLS.items()
         ]
 
-    # Jarvis CRM (self-hosted Twenty). Offered when the user has their OWN
+    # Rue CRM (self-hosted Twenty). Offered when the user has their OWN
     # provisioned workspace (Phase 2) OR the server has a shared instance via
     # TWENTY_API_URL + TWENTY_API_KEY (Phase 1 fallback).
     if await TwentyClient.configured_for_user(user_id):
@@ -1356,7 +1356,7 @@ async def build_tools_for_user(user_id: str) -> list[dict]:
         ]
 
     # mgcoleads — MG&CO's B2B lead engine. Additive + env-gated (LEADS_MAPS_API_KEY) AND
-    # tier-gated: Jarvis Leads is Emperor-only (real Google Places cash cost). Grandfathered
+    # tier-gated: Rue Leads is Emperor-only (real Google Places cash cost). Grandfathered
     # users map to Emperor, so existing users are unaffected. Non-Emperor users never even see
     # the tools, so the model can't call them.
     if leads_enabled():

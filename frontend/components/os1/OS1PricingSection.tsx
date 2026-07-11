@@ -100,7 +100,7 @@ export default function OS1PricingSection() {
           className="os1-fade-up os1-fade-up-delay-2 text-center max-w-lg mx-auto mb-12"
           style={{ fontFamily: "'Inter', sans-serif", fontSize: "16px", lineHeight: 1.7, color: "rgba(243,234,217,0.5)" }}
         >
-          Jarvis OS1 is rolling out to early adopters first. Drop your name and we'll reach out when it's your turn.
+          Rue OS1 is rolling out to early adopters first. Drop your name and we'll reach out when it's your turn.
         </p>
 
         {status === "sent" ? (

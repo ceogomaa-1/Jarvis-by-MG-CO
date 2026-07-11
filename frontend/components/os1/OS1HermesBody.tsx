@@ -7,7 +7,7 @@ import { jarvisUserId, getOS1Status, startCheckout } from "@/lib/os1"
 import { setJarvisMode } from "@/lib/userPreferences"
 import { stashAuthNext, authRedirectBase } from "@/lib/authNext"
 
-// Jarvis OS1 — redesigned Hermes / terminal / ASCII body, APPENDED below the existing
+// Rue OS1 — redesigned Hermes / terminal / ASCII body, APPENDED below the existing
 // (loved) hero + operator/connections/etc sections. RESTYLE ONLY: the three tier cards
 // stay wired to the real checkout engine (onSelect → goCheckout → startCheckout / Stripe,
 // not-logged-in → Google OAuth + os1_intent resume, already-entitled → /business/chat).
@@ -78,7 +78,7 @@ const PLANS: HermesPlan[] = [
     headFeature: "everything in Pro, plus",
     features: [
       { html: "5× the horsepower — it runs harder and longer for you" },
-      { html: "<b>Jarvis Leads</b> — it hunts, scores &amp; hands you ready-to-close clients" },
+      { html: "<b>Rue Leads</b> — it hunts, scores &amp; hands you ready-to-close clients" },
       { html: "A CRM that’s 100% your brand — fully white-labeled" },
       { html: "Unlimited social + your own custom command center" },
     ],
@@ -88,7 +88,7 @@ const PLANS: HermesPlan[] = [
     id: "tailored",
     tier: "[ tier 03 ]",
     name: "Tailored",
-    promise: "Jarvis, custom-built around how you operate.",
+    promise: "Rue, custom-built around how you operate.",
     monthly: "Let’s talk",
     yearly: "Let’s talk",
     perMonthly: "",
@@ -134,13 +134,13 @@ const FORKS_HTML = `<div class="wrap"><div class="kick">what only jarvis os1 doe
 <p class="subp">Tap a fork to watch it work &darr;</p>
 <div class="forks">
 <div class="ftabs">
-<button class="ftab on" data-k="leads">Jarvis Leads<small>finds &amp; scores clients</small></button>
-<button class="ftab" data-k="crm">Jarvis CRM<small>your white-label pipeline</small></button>
+<button class="ftab on" data-k="leads">Rue Leads<small>finds &amp; scores clients</small></button>
+<button class="ftab" data-k="crm">Rue CRM<small>your white-label pipeline</small></button>
 <button class="ftab" data-k="social">Social Autopilot<small>runs your feed</small></button>
 </div>
 
 <div class="fpanel on" data-k="leads">
-<div class="fbar"><span class="dotlive"></span>JARVIS LEADS<i>//</i> scanning Toronto &middot; <b>212</b> businesses found &middot; <b class="hot">14 A-tier ready to call</b></div>
+<div class="fbar"><span class="dotlive"></span>RUE LEADS<i>//</i> scanning Toronto &middot; <b>212</b> businesses found &middot; <b class="hot">14 A-tier ready to call</b></div>
 <div class="leadwrap">
 <div class="map">
 <span class="road h" style="top:24%"></span><span class="road h" style="top:58%"></span><span class="road h" style="top:84%"></span>
@@ -164,7 +164,7 @@ const FORKS_HTML = `<div class="wrap"><div class="kick">what only jarvis os1 doe
 </div>
 
 <div class="fpanel" data-k="crm">
-<div class="fbar"><span class="dotlive"></span>JARVIS CRM<i>//</i> <span class="wlchip">&#9698; YOURBRAND CRM</span> <b>100% white-label</b> &middot; pipeline live</div>
+<div class="fbar"><span class="dotlive"></span>RUE CRM<i>//</i> <span class="wlchip">&#9698; YOURBRAND CRM</span> <b>100% white-label</b> &middot; pipeline live</div>
 <div class="board">
 <div class="col"><div class="ch">New Lead<span>3</span></div>
 <div class="card"><h5>Pine Law Group</h5><div class="svc">Legal intake</div><div class="val">$4,200</div></div>
@@ -628,7 +628,7 @@ export default function OS1HermesBody() {
       <canvas className="bgfield" />
       <div className="os1h-content">
         <div className="statusbar">
-          <span>JARVIS<b>://</b>os1</span>
+          <span>RUE<b>://</b>os1</span>
           <span>choose your operator <span className="blink">▎</span></span>
         </div>
 
@@ -652,13 +652,13 @@ export default function OS1HermesBody() {
               <span className="cb tl" /><span className="cb tr" /><span className="cb bl" /><span className="cb br" />
               <div className="bandtext">
                 <p className="leadsans">An AI <b>operator</b> for your business — not a chatbot you re-explain yourself to every time. It <span className="ac">remembers how you work</span>, <span className="ac">does the work</span> across your tools, and <span className="ac">goes out and finds you customers</span>.</p>
-                <p className="subp">Most AI answers a question and forgets you. Jarvis runs your back office while you run your business. See the difference ↓</p>
+                <p className="subp">Most AI answers a question and forgets you. Rue runs your back office while you run your business. See the difference ↓</p>
               </div>
             </div>
             <div className="compare">
               <div className="tabs">
                 <button className="tab" data-k="other">A generic AI assistant</button>
-                <button className="tab on" data-k="jarvis">Jarvis OS1</button>
+                <button className="tab on" data-k="jarvis">Rue OS1</button>
               </div>
               <div className="stage">
                 <div className="q"><b>you ›</b> &quot;send my usual follow-up to the 3 leads from yesterday and book the dentist one in.&quot;</div>
@@ -735,7 +735,7 @@ export default function OS1HermesBody() {
 
         {/* signoff */}
         <div className="signoff">
-          <div className="lockup"><canvas className="alogo" /><span className="jl">JARVIS OS1</span></div>
+          <div className="lockup"><canvas className="alogo" /><span className="jl">RUE OS1</span></div>
           <div className="megabrand">MG<span className="amp">&amp;</span>CO<sup>™</sup></div>
           <div className="tech">Technologies Inc.</div>
           <div className="foot">mgcotechnologies.com <span>·</span> Based in Toronto, Canada <span>·</span> © 2026 MG&amp;CO Technologies Inc.</div>

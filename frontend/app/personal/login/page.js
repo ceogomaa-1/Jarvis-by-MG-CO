@@ -52,7 +52,7 @@ export default function PersonalLogin() {
           fontWeight: 400,
           userSelect: 'none',
         }}>
-          JARVIS
+          RUE
         </div>
         <div style={{
           fontFamily: 'system-ui, sans-serif',

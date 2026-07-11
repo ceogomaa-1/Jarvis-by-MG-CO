@@ -262,10 +262,10 @@ export default function BrandModal({ open, onClose, userId }) {
           fontFamily: 'var(--font-pixel), monospace',
           fontSize: 13, color: '#e8e8e8', marginBottom: 4, lineHeight: 1.5,
         }}>
-          Customize Jarvis for your business
+          Customize Rue for your business
         </div>
         <div style={{ fontSize: 12, color: 'rgba(232,232,232,0.5)', marginBottom: 20, lineHeight: 1.5 }}>
-          The North Star target gets injected into every Jarvis response — it primes every answer toward closing the gap.
+          The North Star target gets injected into every Rue response — it primes every answer toward closing the gap.
         </div>
 
         <div style={{ overflowY: 'auto', flex: 1, paddingRight: 4 }}>
@@ -365,7 +365,7 @@ export default function BrandModal({ open, onClose, userId }) {
                 borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 11,
                 color: 'rgba(232,232,232,0.65)', lineHeight: 1.5,
               }}>
-                Every Jarvis response — chat, sub-agents, and the Operator Agent — is primed with this target. Jarvis filters everything through "does this close the gap to {form.north_star_target_label || '$1M'}?"
+                Every Rue response — chat, sub-agents, and the Operator Agent — is primed with this target. Rue filters everything through "does this close the gap to {form.north_star_target_label || '$1M'}?"
               </div>
 
               {/* Operator Agent */}
@@ -386,7 +386,7 @@ export default function BrandModal({ open, onClose, userId }) {
                     Enable nightly runs
                   </div>
                   <div style={{ fontSize: 11, color: 'rgba(232,232,232,0.5)', marginTop: 2 }}>
-                    Jarvis works overnight — strategy, research, drafts. You approve in the morning.
+                    Rue works overnight — strategy, research, drafts. You approve in the morning.
                   </div>
                 </div>
                 <button

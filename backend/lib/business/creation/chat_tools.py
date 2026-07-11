@@ -1,5 +1,5 @@
 """
-Jarvis GO (Batch 70) — website creation + walkthroughs as chat-callable tools.
+Rue GO (Batch 70) — website creation + walkthroughs as chat-callable tools.
 
 Wraps the EXISTING, tested generators (does not reimplement them) so the brain
 can invoke them mid-conversation via the normal tool-calling loop, instead of
@@ -10,7 +10,7 @@ for the walkthrough generator — both are reused as-is.
 
 Deploy intentionally stays OUT of this module and on the legacy
 /business/create SSE path (the DIRECT_DEPLOY_RE shortcut in ChatCanvas.js,
-left active in Jarvis GO mode): that pipeline is multi-stage, takes real time,
+left active in Rue GO mode): that pipeline is multi-stage, takes real time,
 and already streams its own progress/polling UI. Folding it into a single
 tool-call/tool-result round-trip would be a UX regression, not an improvement.
 """

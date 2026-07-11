@@ -1,6 +1,6 @@
-# Jarvis CRM logo assets
+# Rue CRM logo assets
 
-Drop the final Jarvis CRM marks here; `apply.sh` copies them into the fork's frontend.
+Drop the final Rue CRM marks here; `apply.sh` copies them into the fork's frontend.
 
 Needed (light-on-dark, for the dark luxury theme):
 - `jarvis-crm-wordmark.svg` — full wordmark (login screen, loading splash)

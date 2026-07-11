@@ -1,7 +1,7 @@
-# Jarvis CRM — self-hosted, white-labeled Twenty
+# Rue CRM — self-hosted, white-labeled Twenty
 
 This is the owned CRM. We run a **white-labeled fork of [Twenty](https://twenty.com)**
-(AGPL-3.0 — commercial self-hosting approved) on our own VPS as **Jarvis CRM**, mirror a
+(AGPL-3.0 — commercial self-hosting approved) on our own VPS as **Rue CRM**, mirror a
 client's GoHighLevel structure + data into it, and give each client their own isolated
 workspace. GHL stays connected and read-only.
 
@@ -10,7 +10,7 @@ workspace. GHL stays connected and read-only.
 
 **Phase docs:**
 - [`FORK.md`](./FORK.md) — fork + rebase workflow (how we stay upgradeable).
-- [`branding/`](./branding/README.md) — the Jarvis CRM white-label overlay (dark luxury theme).
+- [`branding/`](./branding/README.md) — the Rue CRM white-label overlay (dark luxury theme).
 - [`AGPL-COMPLIANCE.md`](./AGPL-COMPLIANCE.md) — how we satisfy AGPL source-availability. **Read before go-live.**
 - Per-client workspaces: see [§7 below](#7-per-client-workspaces-phase-2).
 
@@ -50,7 +50,7 @@ docker compose logs -f server    # watch first-run migrations finish
 Open `SERVER_URL` in a browser → create your workspace (first account becomes admin).
 
 ### TLS (production)
-Put Caddy or nginx in front so the browser and the Jarvis backend talk HTTPS:
+Put Caddy or nginx in front so the browser and the Rue backend talk HTTPS:
 
 ```caddyfile
 # /etc/caddy/Caddyfile
@@ -65,7 +65,7 @@ After the workspace exists, set `IS_SIGN_UP_ENABLED=false` in `.env` and
 ## 4. Create the API key
 
 In Twenty: **Settings → API & Webhooks → Create Key**. Copy it immediately — it's
-shown once. Then set these in the **Jarvis backend environment** (Render/Railway, not
+shown once. Then set these in the **Rue backend environment** (Render/Railway, not
 this `.env`):
 
 ```
@@ -73,7 +73,7 @@ TWENTY_API_URL=https://crm.yourdomain.com    # base URL — code appends /graphq
 TWENTY_API_KEY=<the key>
 ```
 
-Verify Jarvis can see it:
+Verify Rue can see it:
 
 ```bash
 python backend/scripts/import_ghl_to_twenty.py --user-id <uuid> --dry-run
@@ -102,14 +102,14 @@ Restore: `gunzip -c twenty-YYYY-MM-DD.sql.gz | docker compose exec -T db psql -U
 
 ---
 
-## How Jarvis uses this
+## How Rue uses this
 
 | Env var | Meaning |
 |---|---|
 | `TWENTY_API_URL` | Base URL (e.g. `https://crm.yourdomain.com`). Code appends `/graphql/` (data) and `/metadata/` (schema). |
 | `TWENTY_API_KEY` | Bearer token from Settings → API & Webhooks. |
 
-When both are set, the Jarvis business agent gains `twenty__*` tools and the GHL→Twenty
+When both are set, the Rue business agent gains `twenty__*` tools and the GHL→Twenty
 importer (`backend/lib/business/twenty/`, run via `backend/scripts/import_ghl_to_twenty.py`)
 becomes available. This single shared instance remains a valid fallback; Phase 2 adds
 per-client workspaces on top (below).
@@ -119,20 +119,20 @@ per-client workspaces on top (below).
 ## 7. Per-client workspaces (Phase 2)
 
 Each client gets their **own data-isolated Twenty workspace**, reached at
-`<client>.crm.jarvismgco.com`. Jarvis resolves the right workspace per `user_id`.
+`<client>.crm.jarvismgco.com`. Rue resolves the right workspace per `user_id`.
 
 **One-time infra:**
 1. Wildcard DNS `*.crm.jarvismgco.com` → the VPS, and wildcard TLS (Caddy:
    `*.crm.jarvismgco.com { reverse_proxy localhost:3000 }` with a DNS-01 cert).
 2. `IS_MULTIWORKSPACE_ENABLED=true` (already in `docker-compose.yml` / `.env.example`).
 3. Run the branded image (`JARVIS_CRM_IMAGE`) — see [`FORK.md`](./FORK.md).
-4. Apply the Jarvis migration so the backend can store workspace keys:
+4. Apply the Rue migration so the backend can store workspace keys:
    `supabase/migrations/batch58_twenty_workspaces.sql` (table `crm_client_workspaces`).
 
 **Provision a new client (repeatable):**
-1. In Jarvis CRM, create the client's workspace + pick a subdomain (e.g. `acme`).
+1. In Rue CRM, create the client's workspace + pick a subdomain (e.g. `acme`).
 2. In that workspace: **Settings → API & Webhooks → Create Key** (copy once).
-3. Register it against the client's Jarvis `user_id`:
+3. Register it against the client's Rue `user_id`:
    ```bash
    python -m backend.scripts.provision_twenty_workspace \
      --user-id <uuid> \
@@ -140,7 +140,7 @@ Each client gets their **own data-isolated Twenty workspace**, reached at
      --api-key <workspace key> \
      --display-name "Acme Realty"
    ```
-   This verifies the key, applies Jarvis CRM defaults, and stores the mapping.
+   This verifies the key, applies Rue CRM defaults, and stores the mapping.
 4. Import their GHL data into *their* workspace:
    `python -m backend.scripts.import_ghl_to_twenty --user-id <uuid>`
    (the importer resolves the same per-user workspace automatically).
@@ -149,24 +149,24 @@ Each client gets their **own data-isolated Twenty workspace**, reached at
 can never resolve client B's records. Proven in
 `backend/tests/test_twenty_workspaces.py`.
 
-| Env var (Jarvis backend) | Meaning |
+| Env var (Rue backend) | Meaning |
 |---|---|
 | `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | Back the `crm_client_workspaces` registry. |
 | `TWENTY_API_URL` / `TWENTY_API_KEY` | Optional Phase-1 shared instance (used as fallback when a user has no workspace). |
 
 ---
 
-## 8. CRM cockpit — embedding in Jarvis (Phase 3)
+## 8. CRM cockpit — embedding in Rue (Phase 3)
 
-Jarvis shows the user's CRM inside the app: a **"CRM"** item in the Business menu opens a
-cockpit that embeds `<client>.crm.jarvismgco.com` in an iframe with the Jarvis chat docked
+Rue shows the user's CRM inside the app: a **"CRM"** item in the Business menu opens a
+cockpit that embeds `<client>.crm.jarvismgco.com` in an iframe with the Rue chat docked
 beside it. The chat can now **read AND write** the CRM (create/update contacts &
 opportunities, move stages, notes, tasks, tags). Deletes are hold-to-confirm. Writes go to
 Twenty only — GHL stays read-only. After a write, the embed auto-refreshes.
 
 **Two things must be configured for the embed (Mohamed):**
 
-1. **Allow framing from the Jarvis origin.** By default Twenty may send `X-Frame-Options` /
+1. **Allow framing from the Rue origin.** By default Twenty may send `X-Frame-Options` /
    a restrictive CSP `frame-ancestors`, which blocks the iframe. Configure the reverse proxy
    (Caddy/nginx) in front of Twenty to set:
    ```
@@ -176,13 +176,13 @@ Twenty only — GHL stays read-only. After a write, the embed auto-refreshes.
    fallback if framing stays blocked.
 
 2. **Avoid double login (SSO / session pass-through).** The CRM has its own session, separate
-   from Jarvis's Supabase auth. Options, easiest first:
+   from Rue's Supabase auth. Options, easiest first:
    - **Shared Google OAuth:** enable Google sign-in on Twenty with the same Google project, so
      a user already signed into Google is one click in. (Lowest effort.)
-   - **OIDC SSO:** point Twenty's SSO at the same IdP as Jarvis so the iframe session is
+   - **OIDC SSO:** point Twenty's SSO at the same IdP as Rue so the iframe session is
      established transparently. (Cleanest; needs Twenty SSO config.)
    - Document whichever is chosen here once decided. ⚠️ Flag — Mohamed to pick.
 
-The embed URL Jarvis uses is resolved server-side from the user's workspace
+The embed URL Rue uses is resolved server-side from the user's workspace
 (`GET /api/business/crm/workspace`) — the SAME per-user routing the agent writes through, so
-the cockpit always shows the exact tenant Jarvis is editing.
+the cockpit always shows the exact tenant Rue is editing.

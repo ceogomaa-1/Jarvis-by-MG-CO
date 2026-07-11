@@ -49,7 +49,7 @@ async def execute_tool(tool_name: str, tool_input: dict, user_id: str, progress_
             return json.dumps(result.data or {}, default=str)
         return json.dumps({"error": result.error or "Action failed with no error message"})
 
-    # Jarvis CRM (Twenty) — read + write. execute_twenty_tool resolves the user's
+    # Rue CRM (Twenty) — read + write. execute_twenty_tool resolves the user's
     # OWN workspace (Phase 2 for_user) before any read/write, so every operation is
     # scoped to that client's tenant. Writes go to Twenty only, never GHL.
     if connector_type == "twenty":
@@ -73,7 +73,7 @@ async def execute_tool(tool_name: str, tool_input: dict, user_id: str, progress_
             return json.dumps(result.data or {}, default=str)
         return json.dumps({"error": result.error or "Action failed with no error message"})
 
-    # Dashboard Studio (Batch 68) — Jarvis builds/edits the user's Home dashboard. Always-on,
+    # Dashboard Studio (Batch 68) — Rue builds/edits the user's Home dashboard. Always-on,
     # scoped to user_id internally. Only touches the user's own dashboard, so no confirm gate.
     if connector_type == "dashboard":
         try:
@@ -83,7 +83,7 @@ async def execute_tool(tool_name: str, tool_input: dict, user_id: str, progress_
             return json.dumps({"error": f"Tool execution error: {e}"})
         return json.dumps(result, default=str)
 
-    # Jarvis GO (Batch 70) — website creation + walkthroughs as chat-callable tools.
+    # Rue GO (Batch 70) — website creation + walkthroughs as chat-callable tools.
     # Always-on, scoped to user_id internally. Wraps the existing /business/create and
     # /business/show-me-how generators (no duplicate logic). Deploy is NOT here — it
     # stays on the legacy SSE path (see chat_tools.py module docstring for why).

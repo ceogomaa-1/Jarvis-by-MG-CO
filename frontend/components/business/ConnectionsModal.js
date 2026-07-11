@@ -475,7 +475,7 @@ function GhlAccountsPanel({ manifest, userId, accounts, onChanged }) {
         </div>
       )}
       <p style={{ fontSize: 10, color: 'rgba(232,232,232,0.35)', marginBottom: 10, lineHeight: 1.5 }}>
-        Connect up to 3 GoHighLevel accounts — Jarvis will scan all of them for stale leads by default,
+        Connect up to 3 GoHighLevel accounts — Rue will scan all of them for stale leads by default,
         or you can ask it to focus on one ("just check the Main Brokerage account").
       </p>
       {GHL_ACCOUNT_SLOTS.map(slot => (
@@ -834,7 +834,7 @@ export default function ConnectionsModal({ open, onClose, userId }) {
                 Connections
               </div>
               <p style={{ fontSize: 11, color: 'rgba(232,232,232,0.4)', margin: 0, lineHeight: 1.4 }}>
-                Wire Jarvis into your real systems. All credentials are encrypted at rest.
+                Wire Rue into your real systems. All credentials are encrypted at rest.
               </p>
             </div>
             <button

@@ -2,7 +2,7 @@
 
 Tells the frontend whether to show the "Leads" nav item (env-gated on the SAME flag the
 agent uses) and serves the scored-lead pipeline for the Leads cockpit panel. The read path
-reuses the same store/engine the chat tools use, so the panel and the docked Jarvis chat
+reuses the same store/engine the chat tools use, so the panel and the docked Rue chat
 always agree. Additive — does not touch the CRM cockpit endpoints.
 """
 from fastapi import APIRouter
@@ -59,7 +59,7 @@ async def leads_discover(payload: dict):
     user_id = payload.get("user_id") or ""
     if not config.leads_enabled():
         return {"ok": False, "error": "Lead engine is off (LEADS_MAPS_API_KEY not set).", "data": None}
-    # Tier gate: Jarvis Leads is Emperor-only (real Google Places cash cost). Grandfathered
+    # Tier gate: Rue Leads is Emperor-only (real Google Places cash cost). Grandfathered
     # users map to Emperor, so existing users are unaffected.
     if user_id:
         allowed, reason = entitlements.leads_allowed(user_id)
@@ -81,7 +81,7 @@ async def leads_discover(payload: dict):
 
 @router.post("/business/leads/push")
 async def leads_push(payload: dict):
-    """Bulk push selected leads into the Jarvis CRM (the cockpit's "push to CRM" button).
+    """Bulk push selected leads into the Rue CRM (the cockpit's "push to CRM" button).
 
     Mirrors the chat tool exactly: select by tier and/or explicit names. Idempotent — skips
     leads already pushed; companies de-dupe on name in the user's own workspace.

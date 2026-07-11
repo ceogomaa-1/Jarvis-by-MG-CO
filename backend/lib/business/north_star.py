@@ -1,8 +1,8 @@
 """
 $1M North Star context. Builds the per-user mission paragraph that gets
-injected into every Jarvis system prompt — chat, sub-agents, operator.
+injected into every Rue system prompt — chat, sub-agents, operator.
 
-The point: Jarvis cannot answer a question without filtering it through
+The point: Rue cannot answer a question without filtering it through
 "does this close the gap to the North Star target?"
 """
 from backend.lib.business.brand_config import get_brand_config
@@ -19,7 +19,7 @@ def _format_usd(n: float | int) -> str:
 
 async def north_star_context_for_user(user_id: str) -> str:
     """
-    Returns a short paragraph telling Jarvis what the user's $-target is,
+    Returns a short paragraph telling Rue what the user's $-target is,
     and how to operate. Always Hormozi-Tate-Gary-V owner energy.
 
     The paragraph is prepended to the system prompt as the FIRST instruction

@@ -1,5 +1,5 @@
 """
-Phase 3 — Jarvis CRM write tools: correctness, idempotency, guardrails, isolation.
+Phase 3 — Rue CRM write tools: correctness, idempotency, guardrails, isolation.
 
 Mocks the Twenty client + the Supabase-backed maps so no network is touched.
 Proves: writes build mutations from the introspected schema (no guessed fields),

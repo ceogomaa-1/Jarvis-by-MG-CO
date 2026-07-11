@@ -1,10 +1,10 @@
 """
-Relationship Playbook ("the Bible") — Jarvis Personal relationship & dating
+Relationship Playbook ("the Bible") — Rue Personal relationship & dating
 intelligence layer. Personal product only; never imported from business code.
 
 Detects when the current turn is about dating, a partner/ex/crush, texting
 someone the user is into, flirting, or a relationship conflict — and if so,
-returns a system-prompt injection that switches Jarvis into the bible's
+returns a system-prompt injection that switches Rue into the bible's
 voice (and ethics/calibration guardrails) for that reply.
 """
 

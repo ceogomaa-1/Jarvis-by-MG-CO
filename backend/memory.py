@@ -92,14 +92,14 @@ async def extract_emotional_context(
     prompt = (
         f'Analyze this conversation exchange for emotional signals.\n\n'
         f'User said: "{user_message}"\n'
-        f'Jarvis responded: "{assistant_response}"\n\n'
+        f'Rue responded: "{assistant_response}"\n\n'
         f'Extract ONLY if clearly present:\n'
         f'- emotion: what emotion the user showed (excited/stressed/tired/happy/frustrated/proud/worried/none)\n'
         f'- intensity: low/medium/high\n'
         f'- about: what topic triggered this emotion (one phrase)\n'
         f'- note: one sentence capturing the emotional moment\n\n'
         f'Return ONLY valid JSON like:\n'
-        f'{{"emotion": "excited", "intensity": "high", "about": "YC application", "note": "User was fired up about pitching Jarvis to YC"}}\n\n'
+        f'{{"emotion": "excited", "intensity": "high", "about": "YC application", "note": "User was fired up about pitching Rue to YC"}}\n\n'
         f'If no clear emotion, return: {{"emotion": "none"}}'
     )
 
@@ -122,12 +122,12 @@ async def extract_and_save_feedback_memory(
     feedback_was_requested: bool,
 ) -> None:
     """
-    Detect and store Jarvis-specific feedback memories.
+    Detect and store Rue-specific feedback memories.
 
     Two things it does:
     1. If feedback was requested this turn, saves a 'feedback_requested: <date>' memory
        so should_ask_for_feedback() won't ask again for 7 days.
-    2. If the user's message looks like feedback about Jarvis, runs a quick
+    2. If the user's message looks like feedback about Rue, runs a quick
        Claude call to extract it and saves it tagged with 'jarvis_feedback:'.
     """
     import json
@@ -147,7 +147,7 @@ async def extract_and_save_feedback_memory(
         except Exception as e:
             print(f"MEMORY: ERROR saving feedback_requested tag: {e}")
 
-    # Quick heuristic — only run extraction if user message is plausibly about Jarvis
+    # Quick heuristic — only run extraction if user message is plausibly about Rue
     jarvis_keywords = {
         "you", "jarvis", "helpful", "help", "like you", "love this", "prefer",
         "missing", "wish you", "better if", "honest", "actually", "feel like",
@@ -161,15 +161,15 @@ async def extract_and_save_feedback_memory(
     # Run a targeted extraction
     try:
         extraction_prompt = (
-            f"A user is talking to an AI named Jarvis. Look at this exchange and determine "
-            f"if the user is giving feedback ABOUT Jarvis itself — what they like, dislike, "
+            f"A user is talking to an AI named Rue. Look at this exchange and determine "
+            f"if the user is giving feedback ABOUT Rue itself — what they like, dislike, "
             f"or want changed.\n\n"
             f"User said: \"{user_message}\"\n"
-            f"Jarvis said: \"{assistant_response[:300]}\"\n\n"
-            f"If the user IS giving feedback about Jarvis, return a JSON array with one or more "
+            f"Rue said: \"{assistant_response[:300]}\"\n\n"
+            f"If the user IS giving feedback about Rue, return a JSON array with one or more "
             f"strings, each prefixed with 'jarvis_feedback:'. Example:\n"
-            f'["jarvis_feedback: User finds Jarvis too formal, wants more casual energy"]\n\n'
-            f"If there is NO feedback about Jarvis, return: []\n\n"
+            f'["jarvis_feedback: User finds Rue too formal, wants more casual energy"]\n\n'
+            f"If there is NO feedback about Rue, return: []\n\n"
             f"Return ONLY the JSON array. No explanation."
         )
         raw = await jarvis_think(

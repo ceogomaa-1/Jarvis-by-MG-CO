@@ -66,7 +66,7 @@ export default function ContactPage() {
             marginBottom: 40,
           }}
         >
-          ← Back to Jarvis OS1
+          ← Back to Rue OS1
         </button>
 
         <p
@@ -83,7 +83,7 @@ export default function ContactPage() {
             marginBottom: 18,
           }}
         >
-          Want Jarvis tailored<br />
+          Want Rue tailored<br />
           to <span style={{ color: "#c84b31" }}>your business?</span>
         </h1>
         <p
@@ -96,7 +96,7 @@ export default function ContactPage() {
             maxWidth: 520,
           }}
         >
-          Tell us what you're building. We'll design a Jarvis deployment around your workflows,
+          Tell us what you're building. We'll design a Rue deployment around your workflows,
           integrations, and team — and get back to you fast.
         </p>
 
@@ -140,7 +140,7 @@ export default function ContactPage() {
               </div>
             </div>
             <div>
-              <label style={labelStyle}>What do you need Jarvis to do?</label>
+              <label style={labelStyle}>What do you need Rue to do?</label>
               <textarea
                 style={{ ...inputStyle, resize: "none" } as React.CSSProperties}
                 rows={5}

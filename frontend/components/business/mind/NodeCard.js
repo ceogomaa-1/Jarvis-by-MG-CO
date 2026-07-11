@@ -266,7 +266,7 @@ export default function NodeCard({ node, userId, onClose, onForget }) {
                   memory_b_text: node._b?.memory || '',
                 })}
               >
-                Talk to Jarvis about this →
+                Talk to Rue about this →
               </button>
             )}
 
@@ -310,7 +310,7 @@ export default function NodeCard({ node, userId, onClose, onForget }) {
                     mind_category: node.mind_category,
                   })}
                 >
-                  Talk to Jarvis about this →
+                  Talk to Rue about this →
                 </button>
 
                 {confirmingForget ? (

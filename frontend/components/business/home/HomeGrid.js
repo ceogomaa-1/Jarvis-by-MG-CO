@@ -78,7 +78,7 @@ export default function HomeGrid({ layout, blocks, onAction, onHideBlock, onLayo
                   borderRadius: 14, border: '1px dashed var(--os1-border-soft, rgba(255,255,255,0.08))',
                   color: 'var(--os1-text-faint, #6E6E6C)',
                 }}>
-                  <span className="font-pixel" style={{ fontSize: 10 }}>Jarvis is composing this…</span>
+                  <span className="font-pixel" style={{ fontSize: 10 }}>Rue is composing this…</span>
                 </div>
               )}
             </div>

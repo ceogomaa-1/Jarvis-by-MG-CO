@@ -13,7 +13,7 @@ import {
 import { uploadChatAttachment, getAttachmentSignedUrl } from '../../lib/attachments'
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Study Mode — Jarvis Personal
+// Study Mode — Rue Personal
 //
 //   • Multi-chat (new chat + saved history) — its own study_chats store.
 //   • Captured notes saved to a SEPARATE study_notes store, categorized,
@@ -672,7 +672,7 @@ export default function StudyView({ name, onToggle, userId, backend }) {
           <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 480, background: '#232323', borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '20px 18px calc(20px + env(safe-area-inset-bottom))', animation: 'fadeUp 220ms ease both' }}>
             <div style={{ fontFamily: 'var(--font-display-round), var(--sans)', fontSize: 18, fontWeight: 600, color: CREAM, marginBottom: 6 }}>Capture a note</div>
             <div style={{ fontFamily: 'var(--sans)', fontSize: 13, color: 'rgba(243,234,217,0.55)', marginBottom: 16, lineHeight: 1.45 }}>
-              Snap your study material — Jarvis reads it, pulls out the text, and files it under the right subject. Forget about it; it’s saved.
+              Snap your study material — Rue reads it, pulls out the text, and files it under the right subject. Forget about it; it’s saved.
             </div>
             <button
               onClick={openTray}
@@ -845,7 +845,7 @@ function StudyInputBar({ input, setInput, onSubmit, onAttach, onCapture, onVoice
       </div>
       <textarea
         ref={textareaRef} value={input} onChange={handleChange} onKeyDown={handleKey}
-        placeholder="Ask Jarvis" rows={1}
+        placeholder="Ask Rue" rows={1}
         style={{
           flex: 1, minWidth: 0, background: 'transparent', border: 0, outline: 'none', resize: 'none',
           color: '#1A1A1A', fontFamily: 'var(--sans)', fontSize: 16, fontWeight: 400,

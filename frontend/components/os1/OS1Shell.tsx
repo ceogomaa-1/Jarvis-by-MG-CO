@@ -114,7 +114,7 @@ export default function OS1Shell({ children }: { children: React.ReactNode }) {
     <>
       <AuthBar email={email} onLogin={login} onLogout={logout} />
       {notice && <Notice text={notice} onClose={() => setNotice(null)} />}
-      {entering && <Splash text="Entering Jarvis OS1…" />}
+      {entering && <Splash text="Entering Rue OS1…" />}
       {/* Full OS1 landing — always rendered. */}
       <div style={entering ? { display: "none" } : undefined}>{children}</div>
     </>
@@ -197,7 +197,7 @@ function Splash({ text }: { text: string }) {
           color: "#f3ead9",
         }}
       >
-        JARVIS OS1
+        RUE OS1
       </div>
       {text && (
         <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "rgba(243,234,217,0.5)" }}>

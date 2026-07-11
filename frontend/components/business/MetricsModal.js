@@ -106,7 +106,7 @@ export default function MetricsModal({ open, onClose, userId }) {
           Update your current metrics
         </div>
         <div style={{ fontSize: 12, color: 'rgba(232,232,232,0.5)', marginBottom: 16, lineHeight: 1.5 }}>
-          Paste your current numbers in whatever way you track them. Jarvis evaluates these against your industry risk flags every morning at 6 AM.
+          Paste your current numbers in whatever way you track them. Rue evaluates these against your industry risk flags every morning at 6 AM.
           {savedAt && (
             <span style={{ display: 'block', marginTop: 6, color: 'rgba(232,232,232,0.4)' }}>
               Last updated: {formatTimestamp(savedAt)}

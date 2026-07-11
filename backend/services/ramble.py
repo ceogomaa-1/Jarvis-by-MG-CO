@@ -1,4 +1,4 @@
-"""Continuous-talk ("ramble") mode: Jarvis keeps generating + speaking without
+"""Continuous-talk ("ramble") mode: Rue keeps generating + speaking without
 waiting for another user turn, until barge-in cancels it or a safety limit
 hits. Text generation only lives here — TTS delivery reuses the existing
 stream_jarvis_voice()/synthesize-stream pipeline, called once per chunk by
@@ -48,7 +48,7 @@ _RAMBLE_INTENT_PATTERNS = [
 
 def detect_ramble_intent(text: str) -> bool:
     """Cheap, paraphrase-tolerant heuristic — no LLM call. True if the text
-    plausibly asks Jarvis to enter continuous-talk mode."""
+    plausibly asks Rue to enter continuous-talk mode."""
     if not text:
         return False
     return any(p.search(text) for p in _RAMBLE_INTENT_PATTERNS)

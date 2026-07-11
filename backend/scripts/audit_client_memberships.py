@@ -5,7 +5,7 @@ For each registered workspace it lists the workspace members and flags any works
 ONLY members are service identities (crm+...@ / the shared provisioner) — i.e. no real
 client member, which means that client gets "User does not have access" at their subdomain.
 
-Run from an environment that can reach Twenty + has the Jarvis Supabase service-role env.
+Run from an environment that can reach Twenty + has the Rue Supabase service-role env.
 
   python -m backend.scripts.audit_client_memberships
 

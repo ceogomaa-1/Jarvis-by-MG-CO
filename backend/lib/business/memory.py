@@ -1,5 +1,5 @@
 """
-Compounding memory extraction for Business Jarvis.
+Compounding memory extraction for Business Rue.
 
 After each chat exchange, Haiku extracts key facts/preferences from the conversation
 and stores them as discrete memories in business_user_memories.

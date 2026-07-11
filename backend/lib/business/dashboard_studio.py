@@ -1,5 +1,5 @@
 """
-Dashboard Studio (Batch 68) — Jarvis builds and edits the user's Home dashboard.
+Dashboard Studio (Batch 68) — Rue builds and edits the user's Home dashboard.
 
 Home is no longer a fixed template. Through one tool (dashboard__control) the chat brain
 creates/edits/restyles/deletes arbitrary blocks and changes the theme — conversationally,

@@ -4,7 +4,7 @@ import { Loader2, Send, Unplug, Copy, Check } from 'lucide-react'
 
 import { BACKEND } from '@/lib/backend'
 
-// Jarvis on Telegram / WhatsApp — link an external chat identity to this OS1 account so the
+// Rue on Telegram / WhatsApp — link an external chat identity to this OS1 account so the
 // user can DM the same OS1 brain. OS1-only (Personal is untouched). Gated to subscribers.
 export default function ChannelsPanel({ userId, email }) {
   const [loading, setLoading] = useState(true)
@@ -88,10 +88,10 @@ export default function ChannelsPanel({ userId, email }) {
             fontFamily: 'var(--font-pixel), monospace', fontSize: 11, letterSpacing: '0.1em',
             color: '#e8e8e8', textTransform: 'uppercase', marginBottom: 2,
           }}>
-            Jarvis on Telegram
+            Rue on Telegram
           </div>
           <p style={{ fontSize: 11, color: 'rgba(232,232,232,0.4)', margin: 0, lineHeight: 1.4 }}>
-            Chat the same OS1 Jarvis from Telegram — text & files. Actions that change your data
+            Chat the same OS1 Rue from Telegram — text & files. Actions that change your data
             stay in the web app.
           </p>
         </div>
@@ -116,7 +116,7 @@ export default function ChannelsPanel({ userId, email }) {
         ) : !state?.telegram_enabled ? (
           <Note>Telegram isn't configured on the server yet. Check back soon.</Note>
         ) : !state?.has_access ? (
-          <Note>Chatting Jarvis on Telegram is for OS1 subscribers. Subscribe to enable it.</Note>
+          <Note>Chatting Rue on Telegram is for OS1 subscribers. Subscribe to enable it.</Note>
         ) : telegramLink ? (
           <div style={{ paddingTop: 12 }}>
             <p style={{ fontSize: 11, color: 'rgba(232,232,232,0.6)', margin: '0 0 10px' }}>
@@ -147,7 +147,7 @@ export default function ChannelsPanel({ userId, email }) {
                 <ol style={{ fontSize: 11, color: 'rgba(232,232,232,0.55)', lineHeight: 1.7, margin: '0 0 12px', paddingLeft: 16 }}>
                   <li>Open the Telegram bot{state?.bot_username ? ` (@${state.bot_username})` : ''}.</li>
                   <li>Send it this code (or tap the button below).</li>
-                  <li>You're linked — start chatting Jarvis right there.</li>
+                  <li>You're linked — start chatting Rue right there.</li>
                 </ol>
                 {code.deep_link && (
                   <a href={code.deep_link} target="_blank" rel="noreferrer" style={{ ...btn('primary'), textDecoration: 'none' }}>

@@ -111,4 +111,4 @@ def test_notification_email_promises_the_cap():
     html = _build_html("Your co-founder prepared 4 moves", ["Line one.", "Line two."], "https://jarvismgco.com")
     assert f"max {DAILY_CAP} a day" in html
     assert "Line one." in html
-    assert "Open Jarvis" in html
+    assert "Open Rue" in html

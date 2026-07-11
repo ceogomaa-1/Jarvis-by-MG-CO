@@ -1,5 +1,5 @@
 """
-Supabase Connector for Jarvis OS1 — for USER projects, not Jarvis's own DB.
+Supabase Connector for Rue OS1 — for USER projects, not Rue's own DB.
 Auth: Access Token from supabase.com/dashboard/account/tokens.
 """
 import httpx
@@ -84,7 +84,7 @@ class SupabaseProjectConnector(BaseConnector):
                         {"name": k["name"], "api_key": k["api_key"][:20] + "..."}
                         for k in keys
                     ],
-                    "note": "Full keys visible in Supabase dashboard. Jarvis shows truncated versions for security.",
+                    "note": "Full keys visible in Supabase dashboard. Rue shows truncated versions for security.",
                 })
             return ConnectorResult(ok=False, error=f"Failed to get keys: {res.status_code}")
         except Exception as e:

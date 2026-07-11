@@ -1,7 +1,7 @@
 """
-Jarvis CRM structure-level control (Twenty METADATA API), GUARDED.
+Rue CRM structure-level control (Twenty METADATA API), GUARDED.
 
-Lets a user reshape their CRM by asking Jarvis: add/update/delete custom fields,
+Lets a user reshape their CRM by asking Rue: add/update/delete custom fields,
 create/delete custom objects ("types"), and build custom lists/views. All mutations
 hit the per-user workspace's /metadata endpoint (TwentyClient.for_user → query_meta),
 so structure changes are isolated to that tenant.

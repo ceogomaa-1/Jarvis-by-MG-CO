@@ -117,7 +117,7 @@ def select_model(message: str, *, has_attachments: bool = False) -> str:
 
 
 def select_personal_model(message: str) -> str:
-    """Model routing for Personal Jarvis (the companion).
+    """Model routing for Personal Rue (the companion).
 
     Deliberately conservative: only obvious greetings/acks drop to Haiku; real
     conversation stays on Sonnet (no CRM/bulk downgrade, no Opus upgrade) so the

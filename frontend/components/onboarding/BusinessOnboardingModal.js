@@ -104,7 +104,7 @@ export default function BusinessOnboardingModal({ onClose }) {
                 Tell us about your business
               </div>
               <div style={{ fontFamily: 'system-ui, sans-serif', fontSize: 13, color: 'rgba(243,234,217,0.45)', marginBottom: 32, lineHeight: 1.5 }}>
-                Jarvis personalizes every insight to your industry and role.
+                Rue personalizes every insight to your industry and role.
               </div>
 
               {/* Company name */}
@@ -184,7 +184,7 @@ export default function BusinessOnboardingModal({ onClose }) {
                 Connect your Google account
               </div>
               <div style={{ fontFamily: 'system-ui, sans-serif', fontSize: 13, color: 'rgba(243,234,217,0.45)', marginBottom: 32, lineHeight: 1.6 }}>
-                Jarvis uses Google for calendar scheduling and email actions — so you can act, not just read.
+                Rue uses Google for calendar scheduling and email actions — so you can act, not just read.
               </div>
 
               {/* Summary */}

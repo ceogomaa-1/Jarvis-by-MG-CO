@@ -1,10 +1,10 @@
 """
 Co-founder questions (Batch 72) — THE DETECTIVE's case file.
 
-Jarvis doesn't act half-blind: when the strategist spots a gap the scan can't
+Rue doesn't act half-blind: when the strategist spots a gap the scan can't
 fill, or the executor has to skip a step for missing info, the question lands
 here. The owner answers in the Boardroom; answers become standing facts the
-Analyst feeds into every future scan digest — so Jarvis literally gets
+Analyst feeds into every future scan digest — so Rue literally gets
 smarter about the business with every answer.
 
 Discipline: max 3 open strategist questions (don't interrogate, investigate),

@@ -1,8 +1,8 @@
 """
 Knowledge Base — paste text, drop URLs, or upload files (pdf, image,
-txt/md/csv, docx, zip) and have Jarvis extract durable facts straight into
+txt/md/csv, docx, zip) and have Rue extract durable facts straight into
 business_user_memories (category='knowledge_base'). Each ingestion is
-tracked as a row in business_knowledge_sources for the "What Jarvis knows"
+tracked as a row in business_knowledge_sources for the "What Rue knows"
 tab (source, date, fact count, delete-per-entry).
 
 Everything stored here flows through the same memory pool the chat system
@@ -47,8 +47,8 @@ def _write_headers() -> dict:
 
 
 _EXTRACTION_PROMPT = """\
-The business owner just fed Jarvis (their AI operator) a piece of source material to learn from. \
-Extract durable, useful facts Jarvis should remember — pricing, policies, procedures, contacts, \
+The business owner just fed Rue (their AI operator) a piece of source material to learn from. \
+Extract durable, useful facts Rue should remember — pricing, policies, procedures, contacts, \
 numbers, dates, product/service details, processes, anything operationally useful for running \
 the business.
 
@@ -62,11 +62,11 @@ return [].
 Return ONLY a valid JSON array, nothing else."""
 
 _IMAGE_EXTRACTION_PROMPT = """\
-The business owner just fed Jarvis (their AI operator) the attached image ("{label}") to learn \
+The business owner just fed Rue (their AI operator) the attached image ("{label}") to learn \
 from. It might be a screenshot of pricing, a menu, an invoice, a dashboard, a price list, a \
 flyer, a contract, a spreadsheet, etc.
 
-Extract durable, useful facts Jarvis should remember from what's shown — pricing, numbers, \
+Extract durable, useful facts Rue should remember from what's shown — pricing, numbers, \
 names, dates, policies, products/services, anything operationally useful for running the \
 business.
 
@@ -214,7 +214,7 @@ async def _update_fact_count(client: httpx.AsyncClient, source_id: str, fact_cou
 
 
 async def ingest_text(user_id: str, text: str, label: str = "Pasted text", source_type: str = "text") -> dict:
-    """Store a text blob LOSSLESSLY as a Jarvis skill (full content kept verbatim).
+    """Store a text blob LOSSLESSLY as a Rue skill (full content kept verbatim).
 
     This NEVER discards the user's input: the only failure is genuinely empty text.
     The old lossy fact-extraction path that discarded narrative/strategic docs is

@@ -92,7 +92,7 @@ export default function TimezoneStep({ onConfirm, userId }) {
         {/* Wordmark */}
         <div style={{ marginBottom: 48, textAlign: 'center' }}>
           <div style={{ fontFamily: 'Georgia, serif', fontSize: 22, letterSpacing: '0.4em', color: '#f3ead9', fontWeight: 400, marginBottom: 4 }}>
-            JARVIS
+            RUE
           </div>
           <div style={{ fontFamily: 'system-ui, sans-serif', fontSize: 10, letterSpacing: '0.3em', color: 'rgba(243,234,217,0.35)', textTransform: 'uppercase' }}>
             BY MG & CO
@@ -118,7 +118,7 @@ export default function TimezoneStep({ onConfirm, userId }) {
             lineHeight: 1.6,
             margin: 0,
           }}>
-            Jarvis needs your timezone to get time references right — reminders, calendar events, and anything time-related.
+            Rue needs your timezone to get time references right — reminders, calendar events, and anything time-related.
           </p>
           {detected && (
             <p style={{

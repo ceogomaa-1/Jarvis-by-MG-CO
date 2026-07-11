@@ -150,7 +150,7 @@ function buildIgnitionLines(answers) {
     return [
       { text: `no playbook on file — adaptive mode engaged for "${label}"`, status: null },
       { text: 'burying memories: name, business, mission', status: 'OK' },
-      { text: `JARVIS OS1 — calibrated for "${label}"`, status: null },
+      { text: `RUE OS1 — calibrated for "${label}"`, status: null },
     ]
   }
   const filename = BIBLE_FILES[industry] || `${industry.toLowerCase()}.md`
@@ -161,7 +161,7 @@ function buildIgnitionLines(answers) {
     { text: 'loading: risk flags', status: 'OK' },
     { text: 'loading: daily operations engine', status: 'OK' },
     { text: 'burying memories: name, business, mission', status: 'OK' },
-    { text: `JARVIS OS1 — calibrated for ${industry}`, status: null },
+    { text: `RUE OS1 — calibrated for ${industry}`, status: null },
   ]
 }
 

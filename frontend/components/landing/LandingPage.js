@@ -3,7 +3,7 @@ import { useRouter } from 'next/navigation'
 import { Hero } from './Hero'
 import { WelcomeBody } from './WelcomeBody'
 
-// /welcome — painterly hero (unchanged) on top, redesigned Jarvis Personal body below.
+// /welcome — painterly hero (unchanged) on top, redesigned Rue Personal body below.
 export function LandingPage() {
   const router = useRouter()
 

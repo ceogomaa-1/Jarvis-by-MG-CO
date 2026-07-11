@@ -111,7 +111,7 @@ export default function MindChatDock({ userId, onMemoryUsed, onMemoryBorn }) {
         <PromptInputBox
           onSend={(message) => handleSend(message)}
           isLoading={loading}
-          placeholder="Ask Jarvis about your Mind..."
+          placeholder="Ask Rue about your Mind..."
           enableVoice={false}
           enableUpload={false}
           showViewToggle={false}

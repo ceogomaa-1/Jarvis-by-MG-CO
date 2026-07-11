@@ -143,7 +143,7 @@ async def lifespan(app: FastAPI):
 # Global auth dependency (Batch 74). Observe-only until REQUIRE_AUTH is set; see
 # backend/lib/auth.py. A dependency (not middleware) so streaming stays untouched.
 app = FastAPI(
-    title="Jarvis by MG&CO",
+    title="Rue by MG&CO",
     version="0.1.0",
     lifespan=lifespan,
     dependencies=[Depends(auth_layer.auth_dependency)],
@@ -151,7 +151,7 @@ app = FastAPI(
 
 # Browser CORS allowlist. Non-browser callers (Stripe/channel webhooks, server-to-
 # server) ignore CORS entirely, so this only governs which web origins may READ
-# responses: the Jarvis frontend (jarvismgco.com + subdomains), Vercel preview
+# responses: the Rue frontend (jarvismgco.com + subdomains), Vercel preview
 # deploys, and local dev. Was "*" — narrowed so arbitrary sites can't call the API
 # from a browser. No production origin is affected.
 app.add_middleware(
@@ -233,7 +233,7 @@ async def print_routes():
 
 @app.get("/")
 async def root():
-    return {"status": "Jarvis is alive"}
+    return {"status": "Rue is alive"}
 
 
 @app.get("/health")

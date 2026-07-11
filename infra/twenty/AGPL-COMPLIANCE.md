@@ -1,6 +1,6 @@
-# Jarvis CRM — AGPL-3.0 compliance
+# Rue CRM — AGPL-3.0 compliance
 
-Jarvis CRM is a fork of [Twenty](https://github.com/twentyhq/twenty), licensed under the
+Rue CRM is a fork of [Twenty](https://github.com/twentyhq/twenty), licensed under the
 **GNU Affero General Public License v3.0 (AGPL-3.0)**. White-labeling and self-hosting are
 permitted. The obligation we must actively satisfy:
 
@@ -8,7 +8,7 @@ permitted. The obligation we must actively satisfy:
 > they must be offered access to the **Corresponding Source** — *including our modifications*
 > — under the same license.
 
-Running Jarvis CRM as a hosted CRM that clients log into = "interact over a network." So we
+Running Rue CRM as a hosted CRM that clients log into = "interact over a network." So we
 must publish our source. Below is how we satisfy it. **None of this is optional.**
 
 ---
@@ -41,7 +41,7 @@ the overlay note. Removing the source link entirely would breach AGPL.
 
 ### 3. License retention
 - Keep the upstream `LICENSE` (AGPL-3.0) in the fork — do not delete or relicense.
-- Our modifications inherit AGPL-3.0. We may trademark "Jarvis CRM" and our logos, but the
+- Our modifications inherit AGPL-3.0. We may trademark "Rue CRM" and our logos, but the
   code stays AGPL.
 
 ## What is NOT restricted
@@ -51,7 +51,7 @@ the overlay note. Removing the source link entirely would breach AGPL.
 
 ## Trademark note
 "Twenty" is the upstream project's name/mark; removing it from our UI is expected and fine.
-"Jarvis CRM" / "MG&CO" marks and logo art are ours and not covered by AGPL.
+"Rue CRM" / "MG&CO" marks and logo art are ours and not covered by AGPL.
 
 ---
 

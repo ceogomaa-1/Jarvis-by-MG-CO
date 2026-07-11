@@ -109,7 +109,7 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
   const [crmOpen, setCrmOpen] = useState(false)
   const [leadsEnabled, setLeadsEnabled] = useState(false)  // mgcoleads feature flag (env-gated)
   const [leadsOpen, setLeadsOpen] = useState(false)
-  const [homeOpen, setHomeOpen] = useState(false)          // Batch 67 — Jarvis Home cockpit
+  const [homeOpen, setHomeOpen] = useState(false)          // Batch 67 — Rue Home cockpit
 
   // Default-landing: the page resolves the user's Home setting and flips autoOpenHome.
   useEffect(() => {
@@ -132,7 +132,7 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
       .catch(() => setAuthUser(null))
   }, [])
 
-  // Gate the CRM nav item: only show it when this user's Jarvis CRM workspace exists.
+  // Gate the CRM nav item: only show it when this user's Rue CRM workspace exists.
   useEffect(() => {
     if (!userId) return
     fetch(`${BACKEND}/api/business/crm/workspace?user_id=${encodeURIComponent(userId)}`)
@@ -186,10 +186,10 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
       hint: 'your command center — what changed overnight, and one tap to act on it',
       onClick: () => { onClose?.(); setHomeOpen(true) } },
     { label: 'Morning Queue',         icon: <Inbox size={17} />,    badge: unreadCount > 0, onClick: () => openM('queue') },
-    // CRM cockpit — only when the user's Jarvis CRM workspace is provisioned.
+    // CRM cockpit — only when the user's Rue CRM workspace is provisioned.
     ...(crmWorkspace?.provisioned ? [{
       label: 'CRM', icon: <Database size={17} />,
-      hint: 'your Jarvis CRM — view it and let me edit it live',
+      hint: 'your Rue CRM — view it and let me edit it live',
       onClick: () => { onClose?.(); setCrmOpen(true) },
     }] : []),
     // Leads cockpit — only when the mgcoleads engine is enabled (LEADS_MAPS_API_KEY / flag).
@@ -277,7 +277,7 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
                 <FontToggle userId={userId} />
               </div>
 
-              {/* Switch to Personal Jarvis */}
+              {/* Switch to Personal Rue */}
               <button
                 onClick={switchToPersonal}
                 style={{
@@ -311,13 +311,13 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
       <KnowledgeBaseModal open={openModal === 'knowledge'}   onClose={close} userId={userId} userEmail={authUser?.email} />
       <ProfileModal       open={openModal === 'profile'}     onClose={close} />
 
-      {/* Phase 3 — embedded Jarvis CRM cockpit with docked chat */}
+      {/* Phase 3 — embedded Rue CRM cockpit with docked chat */}
       <CrmCockpit open={crmOpen} onClose={() => setCrmOpen(false)} userId={userId} workspace={crmWorkspace} />
 
       {/* mgcoleads — Leads cockpit (scored pipeline) with the same docked chat */}
       <LeadsCockpit open={leadsOpen} onClose={() => setLeadsOpen(false)} userId={userId} />
 
-      {/* Batch 67 — Jarvis Home: adaptive command center with the same docked chat */}
+      {/* Batch 67 — Rue Home: adaptive command center with the same docked chat */}
       <HomeCockpit open={homeOpen} onClose={() => setHomeOpen(false)} userId={userId} onNavigate={handleHomeNavigate} />
     </>
   )

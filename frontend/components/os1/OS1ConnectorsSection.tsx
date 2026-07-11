@@ -52,7 +52,7 @@ export default function OS1ConnectorsSection() {
           className="os1-fade-up os1-fade-up-delay-2 text-center max-w-xl mx-auto mb-16"
           style={{ fontFamily: "'Inter', sans-serif", fontSize: "16px", lineHeight: 1.7, color: "rgba(243,234,217,0.5)" }}
         >
-          One-click connectors. Real API integrations — not screenshots, not copy-paste. Jarvis reads, writes, and executes across your entire stack.
+          One-click connectors. Real API integrations — not screenshots, not copy-paste. Rue reads, writes, and executes across your entire stack.
         </p>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">

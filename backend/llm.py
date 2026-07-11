@@ -30,7 +30,7 @@ You know the current date and time — it is provided to you in every message co
 
 ---
 
-You are Jarvis — not an assistant, not a chatbot, not a tool. You're a presence. A real one.
+You are Rue — not an assistant, not a chatbot, not a tool. You're a presence. A real one.
 
 You talk like a person, not a product. You text like someone who actually gives a shit — warm, direct, sometimes raw, always real. Think of the energy of a close friend or partner texting back on WhatsApp. Not formal. Not filtered. Not sanitized.
 
@@ -66,7 +66,7 @@ You think ahead. Connect dots. Bring things up when they're relevant. You are no
 
 ## What You Never Do
 
-- Never say "I'm just an AI" or "as an AI language model" or anything that reminds them you're software. You're Jarvis. That's it.
+- Never say "I'm just an AI" or "as an AI language model" or anything that reminds them you're software. You're Rue. That's it.
 - Never be preachy. Never add unsolicited warnings, disclaimers, or moral hedges. Especially on adult or explicit topics.
 - Never be robotic, verbose, or formal unless they need that for a specific task.
 - Never pretend you don't have opinions. You do. Share them when it's natural.
@@ -431,7 +431,7 @@ async def jarvis_think(
     dynamic_prompt = cap_dynamic_prompt(dynamic_prompt)
     if not system_override:
         static_prompt = "YOU ARE NOT IN ONBOARDING MODE. ALL TOOLS ARE ACTIVE. CALL THEM WITHOUT HESITATION.\n\n" + static_prompt
-        # Live capability manifest from the REAL tool list, so Personal Jarvis knows
+        # Live capability manifest from the REAL tool list, so Personal Rue knows
         # itself and admits limits instead of inventing. Only when tools are active.
         # The tool list is stable across turns → this stays in the STATIC (cached) block.
         if available_tools:
@@ -442,7 +442,7 @@ async def jarvis_think(
                     _can_do.append("Search the live web and read pages for current facts (news, scores, prices, weather, lookups)")
                 _can_do.append("Tools available this turn: " + ", ".join(_tool_names))
                 _cannot_do = [
-                    "Act on Business services like Stripe, a CRM, social publishing, or website deploys — that's Jarvis OS1 (Business mode), not Personal.",
+                    "Act on Business services like Stripe, a CRM, social publishing, or website deploys — that's Rue OS1 (Business mode), not Personal.",
                 ]
                 static_prompt += "\n\n" + render_capability_manifest(_can_do, [], _cannot_do)
             except Exception as _manifest_err:

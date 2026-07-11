@@ -1,4 +1,4 @@
-# Jarvis CRM — white-labeled, multi-tenant fork of Twenty (https://twenty.com)
+# Rue CRM — white-labeled, multi-tenant fork of Twenty (https://twenty.com)
 #
 # Official stack: NestJS `server` + background `worker` + Postgres + Redis.
 # Deploy on any Ubuntu VPS. See README.md (and FORK.md / branding/) for full setup.
@@ -44,7 +44,7 @@ services:
       DEFAULT_SUBDOMAIN: ${DEFAULT_SUBDOMAIN:-app}
       # ── Rebranded transactional email (invites, resets) on our domain ──
       EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-crm@jarvismgco.com}
-      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-Jarvis CRM}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-Rue CRM}
       EMAIL_SYSTEM_ADDRESS: ${EMAIL_SYSTEM_ADDRESS:-crm@jarvismgco.com}
       EMAIL_DRIVER: ${EMAIL_DRIVER:-smtp}
       EMAIL_SMTP_HOST: ${EMAIL_SMTP_HOST:-}
@@ -79,7 +79,7 @@ services:
       IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS: ${IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS:-true}
       # Worker sends the transactional emails — needs the same mail config.
       EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-crm@jarvismgco.com}
-      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-Jarvis CRM}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-Rue CRM}
       EMAIL_SYSTEM_ADDRESS: ${EMAIL_SYSTEM_ADDRESS:-crm@jarvismgco.com}
       EMAIL_DRIVER: ${EMAIL_DRIVER:-smtp}
       EMAIL_SMTP_HOST: ${EMAIL_SMTP_HOST:-}

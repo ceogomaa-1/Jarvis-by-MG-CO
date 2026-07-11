@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""One-time Stripe setup for the Jarvis OS1 paywall (CAD).
+"""One-time Stripe setup for the Rue OS1 paywall (CAD).
 
-Creates two products (Jarvis OS1 Pro, Jarvis OS1 Emperor) and four recurring CAD prices:
+Creates two products (Rue OS1 Pro, Rue OS1 Emperor) and four recurring CAD prices:
   Pro     — $49/mo   and  $490/yr  (2 months free)
   Emperor — $199/mo  and  $1,990/yr (2 months free)
 
@@ -23,11 +23,11 @@ BASE = "https://api.stripe.com/v1"
 CURRENCY = "cad"
 
 PLANS = [
-    {"key": "PRO", "name": "Jarvis OS1 Pro",
-     "desc": "Jarvis chat, autonomous sessions, 9 industry bibles, MCP Creation 1.0, basic CRM.",
+    {"key": "PRO", "name": "Rue OS1 Pro",
+     "desc": "Rue chat, autonomous sessions, 9 industry bibles, MCP Creation 1.0, basic CRM.",
      "monthly": 4900, "yearly": 49000},
-    {"key": "EMPEROR", "name": "Jarvis OS1 Emperor",
-     "desc": "Everything in Pro + 5x usage, unlimited Buffer, white-label CRM, Jarvis Leads, custom UI.",
+    {"key": "EMPEROR", "name": "Rue OS1 Emperor",
+     "desc": "Everything in Pro + 5x usage, unlimited Buffer, white-label CRM, Rue Leads, custom UI.",
      "monthly": 19900, "yearly": 199000},
 ]
 

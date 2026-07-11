@@ -6,11 +6,11 @@ import ChatCanvas from './ChatCanvas'
 
 import { BACKEND } from '@/lib/backend'
 
-// Phase 3 — the Jarvis CRM cockpit: the user's own white-labeled CRM embedded,
+// Phase 3 — the Rue CRM cockpit: the user's own white-labeled CRM embedded,
 // with the existing Business chat docked as a collapsible side panel. The docked
 // chat is the SAME ChatCanvas component (not a fork); because the backend resolves
 // the CRM workspace by user_id (Phase 2 for_user), the chat is automatically scoped
-// to the workspace on screen. After a Jarvis CRM write the chat fires onCrmChanged
+// to the workspace on screen. After a Rue CRM write the chat fires onCrmChanged
 // and we reload the embed so the change shows ("feels live").
 export default function CrmCockpit({ open, onClose, userId, workspace }) {
   const [chatOpen, setChatOpen] = useState(true)
@@ -55,7 +55,7 @@ export default function CrmCockpit({ open, onClose, userId, workspace }) {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span className="font-pixel" style={{ fontSize: 14, color: 'var(--os1-text, #F5F5F4)' }}>
-              {workspace?.display_name || 'Jarvis CRM'}
+              {workspace?.display_name || 'Rue CRM'}
             </span>
             {workspace?.shared && (
               <span className="os1-serif-micro" style={{ fontSize: 9, color: 'var(--os1-text-faint, #6E6E6C)' }}>
@@ -85,7 +85,7 @@ export default function CrmCockpit({ open, onClose, userId, workspace }) {
               <iframe
                 ref={iframeRef}
                 src={embedUrl}
-                title="Jarvis CRM"
+                title="Rue CRM"
                 style={{ width: '100%', height: '100%', border: 'none' }}
                 allow="clipboard-read; clipboard-write"
               />
@@ -97,7 +97,7 @@ export default function CrmCockpit({ open, onClose, userId, workspace }) {
                 <div>
                   <div className="font-pixel" style={{ fontSize: 14, marginBottom: 8 }}>CRM not provisioned yet</div>
                   <div className="os1-serif-micro" style={{ fontSize: 11 }}>
-                    Your Jarvis CRM workspace hasn't been set up. Ask your admin to provision it.
+                    Your Rue CRM workspace hasn't been set up. Ask your admin to provision it.
                   </div>
                 </div>
               </div>

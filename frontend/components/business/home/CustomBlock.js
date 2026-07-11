@@ -6,7 +6,7 @@ import { BACKEND } from '@/lib/backend'
 
 // Batch 68 — a user-created dashboard block. Five types, all on REAL data:
 //   list (add/remove items + total) · note · metric · chart (bar/line/pie) · news (live web).
-// Jarvis creates/edits these via the dashboard__control tool; list blocks are also editable
+// Rue creates/edits these via the dashboard__control tool; list blocks are also editable
 // directly here (add/remove) so the dashboard is interactive without chat.
 
 function fmtAmount(n, unit) {
@@ -107,7 +107,7 @@ function ListBody({ block, userId, onChanged }) {
       <div className="os1-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '8px 12px' }}>
         {items.length === 0 && (
           <div className="os1-serif-micro" style={{ fontSize: 10, color: 'var(--os1-text-faint, #6E6E6C)', padding: '6px 0' }}>
-            Empty — add your first item below, or ask Jarvis to fill it.
+            Empty — add your first item below, or ask Rue to fill it.
           </div>
         )}
         {items.map((it) => editingId === it.id ? (
@@ -177,7 +177,7 @@ function NoteBody({ block }) {
       {text ? (
         <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.55, color: 'var(--os1-text-dim, #C8C8C6)', whiteSpace: 'pre-wrap' }}>{text}</p>
       ) : (
-        <span className="os1-serif-micro" style={{ fontSize: 10, color: 'var(--os1-text-faint, #6E6E6C)' }}>Empty note — tell Jarvis what to write here.</span>
+        <span className="os1-serif-micro" style={{ fontSize: 10, color: 'var(--os1-text-faint, #6E6E6C)' }}>Empty note — tell Rue what to write here.</span>
       )}
     </div>
   )
@@ -214,7 +214,7 @@ function ChartBody({ block }) {
   const accent = 'var(--home-accent, #5b9bff)'
   const palette = ['#5b9bff', '#7fb069', '#e0a35b', '#c77dff', '#5bd6c0', '#e0666c']
   if (series.length === 0) {
-    return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--os1-text-faint, #6E6E6C)', fontSize: 11 }} className="os1-serif-micro">No data yet — give Jarvis the numbers.</div>
+    return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--os1-text-faint, #6E6E6C)', fontSize: 11 }} className="os1-serif-micro">No data yet — give Rue the numbers.</div>
   }
   const W = 300, H = 150, pad = 22
   const max = Math.max(...series.map(p => Number(p.value)), 1)
@@ -280,7 +280,7 @@ function NewsBody({ block }) {
       {d.summary ? (
         <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: 'var(--os1-text-dim, #C8C8C6)', whiteSpace: 'pre-wrap' }}>{d.summary}</p>
       ) : (
-        <span className="os1-serif-micro" style={{ fontSize: 10, color: 'var(--os1-text-faint, #6E6E6C)' }}>Ask Jarvis to pull the latest on this topic.</span>
+        <span className="os1-serif-micro" style={{ fontSize: 10, color: 'var(--os1-text-faint, #6E6E6C)' }}>Ask Rue to pull the latest on this topic.</span>
       )}
     </div>
   )

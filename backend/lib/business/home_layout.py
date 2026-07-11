@@ -1,5 +1,5 @@
 """
-Jarvis Home layout model + natural-language layout commands (Batch 67, Phases 1–2).
+Rue Home layout model + natural-language layout commands (Batch 67, Phases 1–2).
 
 The layout JSON is the source of truth for what the grid shows and where:
 

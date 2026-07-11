@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Jarvis CRM branding overlay — the ONLY script that edits the Twenty source tree.
+# Rue CRM branding overlay — the ONLY script that edits the Twenty source tree.
 #
-# Lives in the fork at jarvis-branding/apply.sh (a copy is tracked here in the Jarvis
+# Lives in the fork at jarvis-branding/apply.sh (a copy is tracked here in the Rue
 # repo for review). Idempotent: safe to re-run after every upstream rebase.
 #
 # Run from the fork root:  ./jarvis-branding/apply.sh
@@ -16,13 +16,13 @@ OVERLAY="${ROOT}/jarvis-branding"
 FRONT="${ROOT}/packages/twenty-front"
 EMAILS="${ROOT}/packages/twenty-emails"
 
-echo "→ Jarvis CRM branding overlay"
+echo "→ Rue CRM branding overlay"
 
 # 1. Assets: logo + favicon -----------------------------------------------------
 cp -f "${OVERLAY}/logo/"*       "${FRONT}/public/images/logos/" 2>/dev/null || true
 cp -f "${OVERLAY}/favicon/"*    "${FRONT}/public/"             2>/dev/null || true
 
-# 2. Theme tokens: drop in the Jarvis theme + default the color scheme to Dark -----
+# 2. Theme tokens: drop in the Rue theme + default the color scheme to Dark -----
 cp -f "${OVERLAY}/jarvis-theme.ts" "${FRONT}/src/modules/ui/theme/jarvis-theme.ts"
 #   (apply.sh also flips the default color scheme — see strings.map note)
 
@@ -39,7 +39,7 @@ if [[ -f "${OVERLAY}/strings.map" ]]; then
 fi
 
 # 4. Tab title ------------------------------------------------------------------
-sed -i 's|<title>.*</title>|<title>Jarvis CRM</title>|' "${FRONT}/index.html" || true
+sed -i 's|<title>.*</title>|<title>Rue CRM</title>|' "${FRONT}/index.html" || true
 
 # 5. External links (docs/support/marketing) → ours or removed ------------------
 if [[ -f "${OVERLAY}/links.map" ]]; then

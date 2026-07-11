@@ -208,7 +208,7 @@ export class JarvisVoice {
 
     this._vad = null
     this._handsFreeActive = false
-    this._lastSpeakStart = 0   // timestamp when Jarvis last started speaking
+    this._lastSpeakStart = 0   // timestamp when Rue last started speaking
     this._rambleAbort = null  // AbortController for an active ramble SSE stream, if any
 
     this._audioPlayer = new StreamingAudioPlayer()
@@ -227,7 +227,7 @@ export class JarvisVoice {
   async startHandsFree(sendCb) {
     this._handsFreeActive = true
     try {
-      // Get mic with echo cancellation — lets browser subtract Jarvis's
+      // Get mic with echo cancellation — lets browser subtract Rue's
       // speaker output from the mic signal in real time (like Google Meet)
       const micStream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -259,14 +259,14 @@ export class JarvisVoice {
 
         onSpeechStart: () => {
           if (!this._handsFreeActive) return
-          // If Jarvis just started speaking, ignore VAD for 500ms — it might
+          // If Rue just started speaking, ignore VAD for 500ms — it might
           // be speaker bleed that the browser AEC hasn't cancelled yet
           if (Date.now() - this._lastSpeakStart < 500) {
-            console.log('VAD: ignoring speech-start (Jarvis just started, possible echo)')
+            console.log('VAD: ignoring speech-start (Rue just started, possible echo)')
             return
           }
-          // Real user speech detected — interrupt Jarvis
-          console.log('VAD: user speaking, interrupting Jarvis')
+          // Real user speech detected — interrupt Rue
+          console.log('VAD: user speaking, interrupting Rue')
           this._audioPlayer.stop()
           this.stopRamble()
           this.onSpeakingEnd?.()

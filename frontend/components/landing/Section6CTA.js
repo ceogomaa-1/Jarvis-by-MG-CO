@@ -43,7 +43,7 @@ export function Section6CTA() {
           margin: '0 0 56px 0',
         }}
       >
-        You don't sign up for Jarvis.<br />
+        You don't sign up for Rue.<br />
         You meet it.
       </motion.h2>
 

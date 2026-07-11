@@ -28,7 +28,7 @@ PAGE_TIMEOUT_MS = 7_000        # Playwright per-page goto timeout (light wait)
 ROBOTS_TIMEOUT_S = 3.0         # cap on a single robots.txt read
 OVERALL_BUDGET_S = 35.0        # hard ceiling on the whole research-fetch step
 MIN_STATIC_CHARS = 300         # below this, a page is "thin" → try JS fallback
-USER_AGENT = "Mozilla/5.0 (compatible; JarvisOS1Bot/1.0)"
+USER_AGENT = "Mozilla/5.0 (compatible; RueOS1Bot/1.0)"
 
 
 def allowed_by_robots(url: str) -> bool:

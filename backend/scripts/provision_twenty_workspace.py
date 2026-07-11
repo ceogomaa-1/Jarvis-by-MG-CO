@@ -1,14 +1,14 @@
 """
-Provision a per-client Jarvis CRM workspace (Phase 2 multi-tenant).
+Provision a per-client Rue CRM workspace (Phase 2 multi-tenant).
 
-Registers a client's own data-isolated Twenty workspace against their Jarvis user_id
-so Jarvis resolves the right workspace per client (crm_client_workspaces).
+Registers a client's own data-isolated Twenty workspace against their Rue user_id
+so Rue resolves the right workspace per client (crm_client_workspaces).
 
 Recommended flow per client:
   1. In Twenty (multi-workspace enabled), create the client's workspace and pick a
      subdomain, e.g. acme → https://acme.crm.jarvismgco.com
   2. In that workspace: Settings → API & Webhooks → Create Key. Copy it once.
-  3. Register it against the client's Jarvis user_id:
+  3. Register it against the client's Rue user_id:
 
        python -m backend.scripts.provision_twenty_workspace \
          --user-id <uuid> \
@@ -25,7 +25,7 @@ Recommended flow per client:
 Verify what's registered:
   python -m backend.scripts.provision_twenty_workspace --list
 
-Requires (Jarvis env): SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.
+Requires (Rue env): SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.
 """
 import argparse
 import asyncio
@@ -56,7 +56,7 @@ async def _register(args: argparse.Namespace) -> int:
 
 
 async def _auto(args: argparse.Namespace) -> int:
-    res = await provision.auto_provision_workspace(args.user_id, args.display_name or "Jarvis CRM")
+    res = await provision.auto_provision_workspace(args.user_id, args.display_name or "Rue CRM")
     if not res.ok:
         print(f"ERROR: {res.error}")
         return 1
@@ -92,16 +92,16 @@ async def _list() -> int:
 
 
 def main() -> int:
-    p = argparse.ArgumentParser(description="Provision/register a per-client Jarvis CRM workspace.")
+    p = argparse.ArgumentParser(description="Provision/register a per-client Rue CRM workspace.")
     p.add_argument("--list", action="store_true", help="List registered client workspaces and exit.")
     p.add_argument("--init-provisioner", action="store_true", help="One-time: create the shared provisioner account (TWENTY_PROVISIONER_EMAIL) so it can be promoted to server admin.")
     p.add_argument("--auto", action="store_true", help="Auto-provision a NEW isolated workspace for --user-id (Option A; needs multi-workspace enabled).")
-    p.add_argument("--user-id", help="Jarvis user_id (uuid or user_<hex>) to register the workspace for.")
+    p.add_argument("--user-id", help="Rue user_id (uuid or user_<hex>) to register the workspace for.")
     p.add_argument("--base-url", help="Workspace API base URL, e.g. https://acme.crm.jarvismgco.com")
     p.add_argument("--api-key", help="Workspace-scoped API key (Settings → API & Webhooks).")
     p.add_argument("--subdomain", default=None, help="Workspace subdomain (inferred if omitted).")
     p.add_argument("--display-name", default=None, help="Client-facing workspace name, e.g. 'Acme Realty'.")
-    p.add_argument("--no-branding", action="store_true", help="Skip pushing Jarvis CRM workspace defaults.")
+    p.add_argument("--no-branding", action="store_true", help="Skip pushing Rue CRM workspace defaults.")
     args = p.parse_args()
 
     if args.list:

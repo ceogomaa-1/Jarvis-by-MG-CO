@@ -1,5 +1,5 @@
 """
-Site Generator for Jarvis OS1 — Batch 1.
+Site Generator for Rue OS1 — Batch 1.
 
 Produces a complete, build-clean Next.js 16 (App Router) project from a
 user prompt or approved standalone design. Sonnet handles the mechanical
@@ -307,9 +307,9 @@ and specific", not merely "valid React".
 
 IDENTITY AND ARTIFACT BOUNDARY (NON-NEGOTIABLE):
 - Build for the target business in the PRIMARY BUILD BRIEF, never for the account owner, MG&CO,
-  Jarvis, or the chat application.
+  Rue, or the chat application.
 - Never reproduce the instruction, conversation, chat bubbles, preview controls, or builder UI.
-- Never include Jarvis/MG&CO attribution in client-facing content.
+- Never include Rue/MG&CO attribution in client-facing content.
 - Preserve facts from supplied current-site research, but do not invent awards, ratings, client
   logos, metrics, testimonials, prices, addresses, hours, or claims.
 

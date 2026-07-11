@@ -1,4 +1,4 @@
-"""General-purpose URL scraper for the Jarvis OS1 business chat agent.
+"""General-purpose URL scraper for the Rue OS1 business chat agent.
 
 Entry point: scrape(url, max_pages=1) -> {url, title, text, links, source_type, error}
 

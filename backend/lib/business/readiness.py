@@ -1,5 +1,5 @@
 """
-User readiness score — how well Jarvis knows the user (0–100).
+User readiness score — how well Rue knows the user (0–100).
 At 100 points, autonomous mode unlocks.
 """
 import os
@@ -23,9 +23,9 @@ def _headers() -> dict:
 
 def _get_next_milestone(checkpoints: dict) -> str:
     if not checkpoints.get("name_known"):
-        return "Tell Jarvis your name"
+        return "Tell Rue your name"
     if not checkpoints.get("business_known"):
-        return "Tell Jarvis about your business and industry"
+        return "Tell Rue about your business and industry"
     if not checkpoints.get("business_name"):
         return "Share your business name"
     if not checkpoints.get("first_connector"):
@@ -33,9 +33,9 @@ def _get_next_milestone(checkpoints: dict) -> str:
     if not checkpoints.get("north_star_set"):
         return "Set your North Star revenue target in Brand settings"
     if not checkpoints.get("revenue_context"):
-        return "Discuss your revenue goals with Jarvis"
+        return "Discuss your revenue goals with Rue"
     if not checkpoints.get("five_memories"):
-        return "Keep chatting — Jarvis is still learning about you"
+        return "Keep chatting — Rue is still learning about you"
     if not checkpoints.get("power_connected"):
         return "Connect 1 more tool to unlock full power"
     if not checkpoints.get("deep_knowledge"):
@@ -45,7 +45,7 @@ def _get_next_milestone(checkpoints: dict) -> str:
 
 async def calculate_readiness(user_id: str) -> dict:
     """
-    Calculate how well Jarvis knows the user (0–100).
+    Calculate how well Rue knows the user (0–100).
     Reads memories, connectors, brand config, and conversation count.
     """
     empty = {
@@ -54,7 +54,7 @@ async def calculate_readiness(user_id: str) -> dict:
         "memory_count": 0,
         "connector_count": 0,
         "is_ready": False,
-        "next_milestone": "Tell Jarvis your name",
+        "next_milestone": "Tell Rue your name",
     }
     if not user_id or not SUPABASE_URL or not SUPABASE_KEY:
         return empty

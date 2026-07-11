@@ -40,7 +40,7 @@ Return exact, non-overlapping replacement operations:
 - Order operations so an earlier replacement never modifies a later operation's `old` text.
 - Use at most 12 operations.
 
-Never add Jarvis, MG&CO, AI, generator, builder, "powered by", chat UI, prompts, explanations,
+Never add Rue, MG&CO, AI, generator, builder, "powered by", chat UI, prompts, explanations,
 markdown fences, TODOs, placeholders, invented claims, or fake business facts to the website.
 """
 

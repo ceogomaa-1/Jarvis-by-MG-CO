@@ -26,7 +26,7 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
 _REFINE_SYSTEM = """\
 You are an expert business content refiner.
-Never add Jarvis, MG&CO, "powered by", generator, or AI attribution to the refined artifact.
+Never add Rue, MG&CO, "powered by", generator, or AI attribution to the refined artifact.
 
 You receive an existing business deliverable (Markdown) and a specific refinement instruction from the operator.
 

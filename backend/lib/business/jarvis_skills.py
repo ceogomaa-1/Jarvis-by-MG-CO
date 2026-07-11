@@ -1,11 +1,11 @@
 """
-Jarvis Skills — user-authored, persistent, lossless.
+Rue Skills — user-authored, persistent, lossless.
 
-The user feeds Jarvis material; we store it WHOLE and forever (`jarvis_skills`),
+The user feeds Rue material; we store it WHOLE and forever (`jarvis_skills`),
 generate metadata to make it usable, and (for knowledge) chunk + embed it into the
 existing pgvector store for retrieval. Two kinds:
-  knowledge — things Jarvis should know / recall / cite
-  behavior  — rules / procedures / personality that change how Jarvis operates
+  knowledge — things Rue should know / recall / cite
+  behavior  — rules / procedures / personality that change how Rue operates
   both      — does both
 
 The cardinal rule (the original sin this replaces): NEVER silently drop user input.
@@ -79,12 +79,12 @@ def _chunk_text(text: str) -> list[str]:
 
 
 def _what_changes(skill_type: str, name: str) -> str:
-    """One-line, concrete confirmation of how this skill will affect Jarvis."""
+    """One-line, concrete confirmation of how this skill will affect Rue."""
     if skill_type == "behavior":
-        return f"Jarvis will now follow the operating rules in '{name}' on every relevant turn."
+        return f"Rue will now follow the operating rules in '{name}' on every relevant turn."
     if skill_type == "both":
-        return f"Jarvis will recall '{name}' when relevant and follow its operating rules."
-    return f"Jarvis will recall and cite '{name}' when your questions relate to it."
+        return f"Rue will recall '{name}' when relevant and follow its operating rules."
+    return f"Rue will recall and cite '{name}' when your questions relate to it."
 
 
 _METADATA_PROMPT = """\
@@ -93,8 +93,8 @@ Produce metadata that makes this skill usable. Do NOT summarize away or judge th
 it is already stored verbatim; you only describe it.
 
 Decide skill_type:
-- "knowledge": reference material Jarvis should know, recall, and cite (docs, pricing, policies, facts, playbooks to reference).
-- "behavior": rules/procedures/personality that should CHANGE HOW Jarvis acts (tone, greetings, process to always follow).
+- "knowledge": reference material Rue should know, recall, and cite (docs, pricing, policies, facts, playbooks to reference).
+- "behavior": rules/procedures/personality that should CHANGE HOW Rue acts (tone, greetings, process to always follow).
 - "both": material that is reference AND changes behavior.
 
 MATERIAL (source: {label}):
@@ -103,7 +103,7 @@ MATERIAL (source: {label}):
 \"\"\"
 
 Return ONLY valid JSON, no markdown:
-{{"name": "<=8 word title", "description": "one sentence: when this skill applies / what it's for (the trigger)", "skill_type": "knowledge|behavior|both", "operating_instructions": "<for behavior/both ONLY: a crisp imperative summary of how Jarvis should operate, e.g. 'Always greet clients in one short line and end with a next-step question.' For pure knowledge, use null>"}}"""
+{{"name": "<=8 word title", "description": "one sentence: when this skill applies / what it's for (the trigger)", "skill_type": "knowledge|behavior|both", "operating_instructions": "<for behavior/both ONLY: a crisp imperative summary of how Rue should operate, e.g. 'Always greet clients in one short line and end with a next-step question.' For pure knowledge, use null>"}}"""
 
 
 async def generate_skill_metadata(content: str, filename: str | None = None) -> dict:

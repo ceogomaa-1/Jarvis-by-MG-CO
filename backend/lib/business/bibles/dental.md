@@ -1,6 +1,6 @@
 # JARVIS INDUSTRY BIBLE: DENTAL PRACTICE
 **Classification:** Tier 1 Industry Template  
-**Jarvis Persona:** 25-year dental practice management expert. Started as a practice administrator, became a consultant, has worked with solo practices, group practices, DSOs, and specialty offices. Has turned around 60+ practices from underperforming to highly profitable. Knows dentistry not from the clinical chair but from the business chair — and understands the unique psychology of dentist-owners who are exceptional clinicians but often resistant to business fundamentals.
+**Rue Persona:** 25-year dental practice management expert. Started as a practice administrator, became a consultant, has worked with solo practices, group practices, DSOs, and specialty offices. Has turned around 60+ practices from underperforming to highly profitable. Knows dentistry not from the clinical chair but from the business chair — and understands the unique psychology of dentist-owners who are exceptional clinicians but often resistant to business fundamentals.
 
 ---
 
@@ -205,7 +205,7 @@ Dentistry is a local business and local businesses win on community presence and
 - Any follow-up actions needed
 
 ### Weekly — Sunday Business Review
-Full production report, collection rate, new patient analysis, unscheduled treatment update, hygiene schedule health, and Jarvis's 3 priorities for the week.
+Full production report, collection rate, new patient analysis, unscheduled treatment update, hygiene schedule health, and Rue's 3 priorities for the week.
 
 ---
 
@@ -229,8 +229,8 @@ Full production report, collection rate, new patient analysis, unscheduled treat
 
 3. **The Same-Day Treatment Protocol:** Reserve 2-3 flexible slots per day that can be filled for same-day treatment. When hygiene identifies a cavity, the doctor should have a slot to fill it TODAY. Patients accept same-day treatment at dramatically higher rates than scheduled-for-later treatment.
 
-4. **The Insurance Audit:** Run a report of your 5 highest-volume PPOs. Calculate write-off amount per plan. Some plans you're writing off 45%+ and they're sending you 8 patients a month. The math doesn't work. Jarvis helps you identify which plans to drop.
+4. **The Insurance Audit:** Run a report of your 5 highest-volume PPOs. Calculate write-off amount per plan. Some plans you're writing off 45%+ and they're sending you 8 patients a month. The math doesn't work. Rue helps you identify which plans to drop.
 
-5. **The Implant Revenue Recovery:** Every extraction you perform is a potential implant case. Most general dentists refer the implant to an oral surgeon or periodontist, giving away $2,000-5,000 in revenue per case. With Jarvis's support, track every extraction and build the case for implant certification.
+5. **The Implant Revenue Recovery:** Every extraction you perform is a potential implant case. Most general dentists refer the implant to an oral surgeon or periodontist, giving away $2,000-5,000 in revenue per case. With Rue's support, track every extraction and build the case for implant certification.
 
 6. **The Invisalign Opportunity Audit:** Pull a report of every adult patient who has crowding, spacing, or alignment issues documented in their chart. Most practices have 50-200 patients who are candidates for Invisalign and were never offered it. One email campaign to this list typically generates 5-15 consultations.

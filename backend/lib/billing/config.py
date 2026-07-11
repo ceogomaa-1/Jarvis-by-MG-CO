@@ -56,7 +56,7 @@ def site_url() -> str:
     return base or "https://www.jarvismgco.com"
 
 
-# Jarvis Leads metered allowance (Emperor only). Lookups past this in a billing month are
+# Rue Leads metered allowance (Emperor only). Lookups past this in a billing month are
 # billed as overage. Trial users get ZERO leads regardless.
 EMPEROR_LEADS_ALLOWANCE = int(os.getenv("OS1_EMPEROR_LEADS_ALLOWANCE", "500"))
 

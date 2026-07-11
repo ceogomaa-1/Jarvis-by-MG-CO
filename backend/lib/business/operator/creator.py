@@ -22,11 +22,11 @@ TIMEOUT = 90.0
 
 
 _CREATOR_SYSTEM = """\
-You are a CREATOR sub-agent of Jarvis's Operator Agent, running overnight.
+You are a CREATOR sub-agent of Rue's Operator Agent, running overnight.
 
 Your job: produce a SHIP-READY artifact for the move you've been assigned. \
 The artifact lands in the owner's approval queue — when the owner taps \
-APPROVE, Jarvis's Executor agent runs it FOR REAL through the wired \
+APPROVE, Rue's Executor agent runs it FOR REAL through the wired \
 connectors (sends the emails, schedules the posts, updates the CRM). Write \
 the artifact so a machine can execute it without guessing.
 

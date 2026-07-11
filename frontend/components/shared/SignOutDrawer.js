@@ -71,7 +71,7 @@ export default function SignOutDrawer({ isOpen, onClose, user, userId, onOpenNot
     return () => { document.body.style.overflow = '' }
   }, [isOpen])
 
-  // Fetch Jarvis model when drawer opens
+  // Fetch Rue model when drawer opens
   useEffect(() => {
     if (!isOpen || !userId) return
     setModel(null)
@@ -190,13 +190,13 @@ export default function SignOutDrawer({ isOpen, onClose, user, userId, onOpenNot
         {/* Divider */}
         <div style={{ marginLeft: 20, marginRight: 20, borderTop: '1px solid rgba(243,234,217,0.05)', flexShrink: 0 }} />
 
-        {/* Jarvis Knows — scrollable middle section */}
+        {/* Rue Knows — scrollable middle section */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px 20px 8px' }}>
           <p style={{
             fontFamily: 'var(--sans)', color: 'var(--accent)',
             fontSize: '0.6rem', letterSpacing: '0.2em', textTransform: 'uppercase',
             opacity: 0.5, margin: '0 0 1rem',
-          }}>Jarvis Knows</p>
+          }}>Rue Knows</p>
 
           {!model ? (
             <p style={{ fontFamily: 'var(--sans)', color: 'var(--ink-mute)', fontSize: '0.75rem' }}>Loading...</p>
@@ -220,7 +220,7 @@ export default function SignOutDrawer({ isOpen, onClose, user, userId, onOpenNot
         {/* Divider */}
         <div style={{ marginLeft: 20, marginRight: 20, borderTop: '1px solid rgba(243,234,217,0.05)', flexShrink: 0 }} />
 
-        {/* Jarvis Notes */}
+        {/* Rue Notes */}
         <div style={{ padding: '14px 20px 0', flexShrink: 0 }}>
           <button
             onClick={() => { onOpenNotes?.(); onClose() }}
@@ -239,7 +239,7 @@ export default function SignOutDrawer({ isOpen, onClose, user, userId, onOpenNot
               <path d="M9 11l3 3L22 4" />
               <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
             </svg>
-            Jarvis Notes
+            Rue Notes
           </button>
         </div>
 

@@ -1,4 +1,4 @@
-"""Shared, deterministic spend guards for Jarvis model requests.
+"""Shared, deterministic spend guards for Rue model requests.
 
 Prompt caching makes repeated prefixes cheaper, but it does not stop an old conversation or a
 large tool response from growing forever. These helpers bound that variable tail while keeping

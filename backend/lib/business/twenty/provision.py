@@ -1,21 +1,21 @@
 """
-Per-client Jarvis CRM workspace provisioning (Phase 2).
+Per-client Rue CRM workspace provisioning (Phase 2).
 
 A new client gets their OWN data-isolated Twenty workspace. The repeatable path:
 
-    create workspace  →  apply Jarvis CRM branding/defaults  →  generate that
-    workspace's API key  →  store it against the client (user_id) so Jarvis talks
+    create workspace  →  apply Rue CRM branding/defaults  →  generate that
+    workspace's API key  →  store it against the client (user_id) so Rue talks
     to the right workspace per client.
 
-This module owns the parts Jarvis can do over the API: verify a workspace API key,
-read the workspace identity (id + subdomain), push workspace-level Jarvis CRM
+This module owns the parts Rue can do over the API: verify a workspace API key,
+read the workspace identity (id + subdomain), push workspace-level Rue CRM
 defaults (display name), and register the workspace against a user_id.
 
 Two provisioning modes (see backend/scripts/provision_twenty_workspace.py):
 
   • register  (reliable, recommended): the workspace + API key are created in the
     Twenty admin UI (Settings → API & Webhooks), then this registers the key against
-    a Jarvis user. Works on every Twenty version.
+    a Rue user. Works on every Twenty version.
 
   • auto (best-effort): attempt programmatic workspace creation via Twenty's GraphQL.
     The exact sign-up/createWorkspace + token mutations are version-sensitive, so this
@@ -74,7 +74,7 @@ async def read_workspace_identity(client: TwentyClient) -> dict:
 
 
 async def apply_branding_defaults(client: TwentyClient, display_name: str) -> bool:
-    """Push workspace-level Jarvis CRM defaults (display name).
+    """Push workspace-level Rue CRM defaults (display name).
 
     Visual branding (app name, logo, favicon, theme) is global — baked into the
     white-labeled image (see infra/twenty/branding/), so it applies to every
@@ -92,7 +92,7 @@ async def apply_branding_defaults(client: TwentyClient, display_name: str) -> bo
         }
         """,
         {"data": {"displayName": display_name}},
-        action="Apply Jarvis CRM workspace defaults",
+        action="Apply Rue CRM workspace defaults",
     )
     return res.ok
 
@@ -112,7 +112,7 @@ async def register_workspace(
       1. Build a client from the given base_url + api_key and ping it (proves the key
          is valid and the workspace is reachable).
       2. Read the workspace identity (id/subdomain) for our records.
-      3. Optionally push Jarvis CRM display-name defaults.
+      3. Optionally push Rue CRM display-name defaults.
       4. Persist the mapping in crm_client_workspaces (keyed by user_id).
     """
     if not user_id:
@@ -331,7 +331,7 @@ async def _run_signup_flow(user_id: str, display_name: str) -> ConnectorResult:
         # 4. activate + name the workspace (best-effort)
         await _auth_call(http,
             "mutation A($d:ActivateWorkspaceInput!){ activateWorkspace(data:$d){ id } }",
-            {"d": {"displayName": display_name or "Jarvis CRM"}}, token=access, origin=base_url)
+            {"d": {"displayName": display_name or "Rue CRM"}}, token=access, origin=base_url)
 
         # 5. pick a role for the key — this Twenty build requires roleId on createApiKey.
         d, e = await _auth_call(http,
@@ -350,7 +350,7 @@ async def _run_signup_flow(user_id: str, display_name: str) -> ConnectorResult:
         # 6. create an API key record (scoped to the admin role)
         d, e = await _auth_call(http,
             "mutation K($i:CreateApiKeyInput!){ createApiKey(input:$i){ id } }",
-            {"i": {"name": "Jarvis Backend", "expiresAt": _FAR_FUTURE, "roleId": role_id}}, token=access, origin=base_url)
+            {"i": {"name": "Rue Backend", "expiresAt": _FAR_FUTURE, "roleId": role_id}}, token=access, origin=base_url)
         if e:
             return ConnectorResult(ok=False, error=f"createApiKey: {e}")
         api_key_id = ((d or {}).get("createApiKey") or {}).get("id")
@@ -515,7 +515,7 @@ async def create_provisioner_account() -> ConnectorResult:
     })
 
 
-async def auto_provision_workspace(user_id: str, display_name: str = "Jarvis CRM",
+async def auto_provision_workspace(user_id: str, display_name: str = "Rue CRM",
                                    client_email: str | None = None) -> ConnectorResult:
     """Idempotently create a brand-new user's isolated workspace (Option A) and store it.
 

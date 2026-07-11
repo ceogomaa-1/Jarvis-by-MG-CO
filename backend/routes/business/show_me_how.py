@@ -75,7 +75,7 @@ async def proxy_image(url: str = Query(...)):
         async with httpx.AsyncClient() as client:
             resp = await client.get(
                 url,
-                headers={"User-Agent": "Mozilla/5.0 (compatible; Jarvis/1.0)"},
+                headers={"User-Agent": "Mozilla/5.0 (compatible; Rue/1.0)"},
                 timeout=10.0,
                 follow_redirects=True,
             )

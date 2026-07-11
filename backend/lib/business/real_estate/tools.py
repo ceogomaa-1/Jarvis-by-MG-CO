@@ -38,7 +38,7 @@ REAL_ESTATE_TOOLS: dict[str, dict] = {
         },
     },
     "realestate__ghl_add_note": {
-        "description": "[Real Estate / GoHighLevel] Add a note to a CRM contact — log actions Jarvis took (follow-ups sent, showings booked) back into GoHighLevel. If the user has more than one GoHighLevel account connected, pass account_label to specify which one (defaults to 'default' / their first account) — use the account_label the contact came from in a stale-lead scan.",
+        "description": "[Real Estate / GoHighLevel] Add a note to a CRM contact — log actions Rue took (follow-ups sent, showings booked) back into GoHighLevel. If the user has more than one GoHighLevel account connected, pass account_label to specify which one (defaults to 'default' / their first account) — use the account_label the contact came from in a stale-lead scan.",
         "input_schema": {
             "type": "object",
             "properties": {

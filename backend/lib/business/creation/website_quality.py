@@ -1,4 +1,4 @@
-"""Shared identity and quality gates for Jarvis website artifacts.
+"""Shared identity and quality gates for Rue website artifacts.
 
 The creation pipeline must never treat a chat transcript, a raw prompt, or a
 generic emergency template as a finished client website.  These checks run
@@ -33,10 +33,14 @@ _SCRIPT_STYLE_RE = re.compile(
 _JARVIS_UI_MARKERS = (
     "ask jarvis",
     "jarvis knows you",
+    "ask rue",
+    "rue knows you",
     "/business/chat",
     "live preview",
     "autonomous jarvis",
+    "autonomous rue",
     "jarvis os1",
+    "rue os1",
     "creation 1.0",
 )
 _FORBIDDEN_BUILDER_BRANDING = (
@@ -182,7 +186,7 @@ def validate_standalone_html(
 
     marker = next((item for item in _JARVIS_UI_MARKERS if item in text), None)
     if marker:
-        errors.append(f"contains Jarvis/chat UI content ({marker})")
+        errors.append(f"contains Rue/chat UI content ({marker})")
 
     client_name = (context.get("client_name") or extract_client_name(user_message)).strip()
     owner_company = (context.get("company_name") or "").strip()
@@ -247,7 +251,7 @@ def validate_site_payload(
     page_text = _normalise_text(page)
     marker = next((item for item in _JARVIS_UI_MARKERS if item in page_text), None)
     if marker:
-        errors.append(f"app/page.tsx contains Jarvis/chat UI content ({marker})")
+        errors.append(f"app/page.tsx contains Rue/chat UI content ({marker})")
 
     client_name = (context.get("client_name") or extract_client_name(user_message)).strip()
     owner_company = (context.get("company_name") or "").strip()

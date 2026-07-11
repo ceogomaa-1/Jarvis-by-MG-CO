@@ -1,5 +1,5 @@
 """
-Single intent-classification call for Jarvis OS1 (Business) chat input.
+Single intent-classification call for Rue OS1 (Business) chat input.
 
 Replaces the old frontend cascade of independent regex detectors
 (agentEditDetector / showMeHowDetector / creationDetector / isDeployConfirmation)
@@ -10,8 +10,8 @@ Returns one of three flows for the frontend to dispatch on:
 - "chat": regular chat/tool-calling turn (covers agent edits, questions,
   confirmations unrelated to a build/deploy offer, ambiguous messages).
 - "show_me_how": user wants a step-by-step walkthrough they'll do themselves.
-- "create": user wants Jarvis to build/generate/deploy something new, or is
-  confirming a build/deploy Jarvis just offered.
+- "create": user wants Rue to build/generate/deploy something new, or is
+  confirming a build/deploy Rue just offered.
 """
 import json
 import os

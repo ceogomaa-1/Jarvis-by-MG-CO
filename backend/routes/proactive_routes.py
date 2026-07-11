@@ -57,7 +57,7 @@ async def _next_unread_message(user_id: str) -> dict | None:
     """Return the oldest unread `proactive_messages` row for this user, marking
     it read so it's delivered exactly once.
 
-    Jarvis only ever writes to `proactive_messages` for two reasons:
+    Rue only ever writes to `proactive_messages` for two reasons:
     - a fired reminder (type=note_reminder — the notes cron dispatcher's
       "inapp" channel)
     - the once-daily check-in (type=morning_briefing)

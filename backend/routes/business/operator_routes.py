@@ -4,7 +4,7 @@ Operator Agent API (Batch 71: Co-Founder Mode).
   GET   /business/operator/pending              → pending initiatives for user
   POST  /business/operator/trigger              → manually trigger a run (returns run_id immediately)
   GET   /business/operator/status/stream        → SSE stream of run lifecycle events
-  POST  /business/operator/actions/{id}/approve → APPROVE: Jarvis executes the initiative for real
+  POST  /business/operator/actions/{id}/approve → APPROVE: Rue executes the initiative for real
   GET   /business/operator/actions/{id}         → one initiative (poll while executing)
   GET   /business/operator/activity             → recently executed initiatives (the receipts)
   PATCH /business/operator/actions/{id}         → update action status (ship/discard/edit + decline reason)
@@ -79,7 +79,7 @@ async def get_pending_actions(user_id: str = "", limit: int = 20):
 
 @router.get("/business/operator/activity")
 async def get_activity(user_id: str = "", limit: int = 12):
-    """The receipts: initiatives Jarvis actually executed (or failed), newest first."""
+    """The receipts: initiatives Rue actually executed (or failed), newest first."""
     if not user_id:
         return {"actions": []}
     try:
@@ -110,7 +110,7 @@ async def get_activity(user_id: str = "", limit: int = 12):
 
 @router.get("/business/operator/actions/{action_id}")
 async def get_action(action_id: str, user_id: str = ""):
-    """Poll one initiative — the frontend watches this while Jarvis executes."""
+    """Poll one initiative — the frontend watches this while Rue executes."""
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.get(
@@ -140,7 +140,7 @@ class ApproveRequest(BaseModel):
 
 @router.post("/business/operator/actions/{action_id}/approve")
 async def approve_and_execute(action_id: str, request: ApproveRequest, background_tasks: BackgroundTasks):
-    """The moment that matters: the owner approved — Jarvis executes for real.
+    """The moment that matters: the owner approved — Rue executes for real.
 
     Returns immediately; the Executor agent runs in the background. The
     frontend polls GET /business/operator/actions/{id} for the receipts.

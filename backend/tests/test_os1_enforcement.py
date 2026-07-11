@@ -5,7 +5,7 @@ Pins the four enforcement points the brief asked for:
   2. Trial is gated by a hard API-COST ceiling (not a message count); a single oversized
      turn can't breach it because output + input are bounded.
   3. Buffer is capped at 2 distinct platforms for Pro; the 3rd is blocked; Emperor unlimited.
-  4. Jarvis Leads stays Emperor-only.
+  4. Rue Leads stays Emperor-only.
 
 Entitlements are pure functions over a `sub` dict plus a few store reads, so we monkeypatch
 the store reads and never touch Supabase.

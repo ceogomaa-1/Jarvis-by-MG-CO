@@ -1,12 +1,12 @@
 """
-Batch 50.1 — Resend email channel for Jarvis Notes reminders, branded as Jarvis OS1.
+Batch 50.1 — Resend email channel for Rue Notes reminders, branded as Rue OS1.
 
 Configure via env vars:
   RESEND_API_KEY  (required — from Resend dashboard)
-  RESEND_FROM     (default: "Jarvis OS1 <jarvis@mgcodashboard.com>" — must be on a
+  RESEND_FROM     (default: "Rue OS1 <jarvis@mgcodashboard.com>" — must be on a
                    verified Resend sending domain; display name is what the user sees)
   APP_URL         (default: "https://jarvis-by-mg-co.vercel.app" — used for the
-                   "Open Jarvis" CTA and the hosted logo image)
+                   "Open Rue" CTA and the hosted logo image)
 
 If RESEND_API_KEY isn't set, send_reminder_email() is a no-op that returns False.
 send_reminder_email() returns True only on a confirmed 2xx response from Resend.
@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 import httpx
 
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
-RESEND_FROM = os.getenv("RESEND_FROM", "Jarvis OS1 <jarvis@mgcodashboard.com>")
+RESEND_FROM = os.getenv("RESEND_FROM", "Rue OS1 <jarvis@mgcodashboard.com>")
 APP_URL = os.getenv("APP_URL", "https://jarvis-by-mg-co.vercel.app")
 LOGO_URL = f"{APP_URL}/logo-os1-mono.png"
 
@@ -100,7 +100,7 @@ def _build_html(note_text: str, meta_parts: list[str]) -> str:
           <table role="presentation" width="100%" style="max-width:480px;background-color:{_BG};border:1px solid rgba(243,234,217,0.08);border-radius:16px;overflow:hidden;">
             <tr>
               <td align="center" style="padding:32px 32px 16px;background-color:#000000;">
-                <img src="{LOGO_URL}" alt="Jarvis OS1" width="220" style="display:block;margin:0 auto;border:0;" />
+                <img src="{LOGO_URL}" alt="Rue OS1" width="220" style="display:block;margin:0 auto;border:0;" />
               </td>
             </tr>
             <tr>
@@ -122,7 +122,7 @@ def _build_html(note_text: str, meta_parts: list[str]) -> str:
             {meta_row}
             <tr>
               <td align="center" style="padding:28px 32px 32px;">
-                <a href="{APP_URL}" style="display:inline-block;background-color:{_ACCENT};color:#1a0e08;text-decoration:none;font-family:{_SANS};font-size:12px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;padding:14px 36px;border-radius:8px;">Open Jarvis</a>
+                <a href="{APP_URL}" style="display:inline-block;background-color:{_ACCENT};color:#1a0e08;text-decoration:none;font-family:{_SANS};font-size:12px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;padding:14px 36px;border-radius:8px;">Open Rue</a>
               </td>
             </tr>
             <tr>
@@ -132,7 +132,7 @@ def _build_html(note_text: str, meta_parts: list[str]) -> str:
             </tr>
             <tr>
               <td align="center" style="padding:20px 32px 28px;">
-                <div style="font-family:{_SANS};color:rgba(243,234,217,0.35);font-size:10px;letter-spacing:0.03em;line-height:1.7;">MG&amp;CO Technologies &middot; You're receiving this because you set a reminder in Jarvis OS1.</div>
+                <div style="font-family:{_SANS};color:rgba(243,234,217,0.35);font-size:10px;letter-spacing:0.03em;line-height:1.7;">MG&amp;CO Technologies &middot; You're receiving this because you set a reminder in Rue OS1.</div>
               </td>
             </tr>
           </table>
@@ -154,10 +154,10 @@ def _build_text(note_text: str, meta_parts: list[str]) -> str:
         lines.append(" / ".join(meta_parts))
     lines += [
         "",
-        f"Open Jarvis: {APP_URL}",
+        f"Open Rue: {APP_URL}",
         "",
         "--",
-        "MG&CO Technologies. You're receiving this because you set a reminder in Jarvis OS1.",
+        "MG&CO Technologies. You're receiving this because you set a reminder in Rue OS1.",
     ]
     return "\n".join(lines)
 
@@ -169,7 +169,7 @@ async def send_reminder_email(
     created_at: str | None = None,
     tz_name: str = "UTC",
 ) -> bool:
-    """Send a branded Jarvis OS1 reminder email via Resend.
+    """Send a branded Rue OS1 reminder email via Resend.
 
     Returns True only on a confirmed 2xx response from Resend — callers use this
     to decide whether the "email" channel can be marked in `channels_sent`.
@@ -180,7 +180,7 @@ async def send_reminder_email(
     meta_parts = [p for p in (_relative_time(created_at), _due_label(remind_at, tz_name)) if p]
 
     short_note = note_text if len(note_text) <= 60 else note_text[:57] + "..."
-    subject = f"⏰ Reminder from Jarvis OS1 — {short_note}"
+    subject = f"⏰ Reminder from Rue OS1 — {short_note}"
 
     html = _build_html(note_text, meta_parts)
     text = _build_text(note_text, meta_parts)

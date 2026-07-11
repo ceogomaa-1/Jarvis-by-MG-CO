@@ -1,5 +1,5 @@
 """
-Phase 2 multi-tenant isolation: each user_id resolves ONLY its own Jarvis CRM
+Phase 2 multi-tenant isolation: each user_id resolves ONLY its own Rue CRM
 workspace, never another client's, and never the shared instance when it has its own.
 
 The isolation boundary is the resolved (base_url, api_key) pair: a workspace API key

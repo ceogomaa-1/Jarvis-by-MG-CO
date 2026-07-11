@@ -1,5 +1,5 @@
 """
-Jarvis Home API (Batch 67).
+Rue Home API (Batch 67).
 
   GET   /business/home                  → cached blocks + layout + settings (FAST read, no LLM)
   POST  /business/home/refresh          → recompute blocks in the background (async)

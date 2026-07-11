@@ -1,5 +1,5 @@
 """
-Import a client's GoHighLevel CRM into the Jarvis-owned Twenty instance.
+Import a client's GoHighLevel CRM into the Rue-owned Twenty instance.
 
 Runs the full Phase-1 pipeline in order:
   Step 2  introspect Twenty's live schema (logs the real objects + fields)
@@ -15,7 +15,7 @@ Usage:
     python -m backend.scripts.import_ghl_to_twenty --user-id <uuid> --dry-run
     python -m backend.scripts.import_ghl_to_twenty --user-id <uuid> --max-records 50   # quick smoke test
 
-Requires (in the Jarvis env): TWENTY_API_URL, TWENTY_API_KEY, SUPABASE_URL,
+Requires (in the Rue env): TWENTY_API_URL, TWENTY_API_KEY, SUPABASE_URL,
 SUPABASE_SERVICE_ROLE_KEY, and the user must have a GoHighLevel connection.
 """
 import argparse
@@ -34,7 +34,7 @@ async def _run(user_id: str, account_label: str, dry_run: bool, max_records: int
     # not the shared instance. Falls back to env (Phase 1) if they have no workspace.
     client = await TwentyClient.for_user(user_id)
     if not client:
-        print("ERROR: No Jarvis CRM workspace for this user and no shared instance configured.")
+        print("ERROR: No Rue CRM workspace for this user and no shared instance configured.")
         print("       Register one first:  python -m backend.scripts.provision_twenty_workspace --user-id "
               f"{user_id} --base-url <url> --api-key <key>")
         print("       (or set TWENTY_API_URL + TWENTY_API_KEY for the single shared instance).")
@@ -90,8 +90,8 @@ async def _run(user_id: str, account_label: str, dry_run: bool, max_records: int
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Import GoHighLevel into the Jarvis-owned Twenty CRM.")
-    ap.add_argument("--user-id", help="Jarvis user id whose GHL connection to import")
+    ap = argparse.ArgumentParser(description="Import GoHighLevel into the Rue-owned Twenty CRM.")
+    ap.add_argument("--user-id", help="Rue user id whose GHL connection to import")
     ap.add_argument("--account-label", default="default", help="Which connected GHL account (default: default)")
     ap.add_argument("--dry-run", action="store_true", help="Plan only — no writes to Twenty")
     ap.add_argument("--max-records", type=int, default=None, help="Cap records per type (smoke test)")

@@ -55,7 +55,7 @@ export function Section4Connected() {
           lineHeight: 1.6,
         }}
       >
-        Your calendar. Your inbox. Your files. Your conversations. Jarvis pulls from the context you already live in — so you stop explaining yourself.
+        Your calendar. Your inbox. Your files. Your conversations. Rue pulls from the context you already live in — so you stop explaining yourself.
       </motion.p>
 
       <div style={{

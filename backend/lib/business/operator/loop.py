@@ -402,13 +402,13 @@ async def run_operator_for_user(
                 )
                 body_lines = [
                     packager_output.get("morning_message", "")
-                    or f"Jarvis prepared {actions_saved} initiatives overnight.",
+                    or f"Rue prepared {actions_saved} initiatives overnight.",
                     f"{actions_saved} initiative(s) are waiting in the Boardroom"
                     + (f" — {auto_count} execute the moment you approve." if auto_count else "."),
                 ]
                 if questions_saved:
                     body_lines.append(
-                        f"Jarvis also has {questions_saved} question(s) for you — "
+                        f"Rue also has {questions_saved} question(s) for you — "
                         "answering them sharpens the next plan."
                     )
                 await notify_owner(

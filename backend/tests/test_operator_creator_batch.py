@@ -44,7 +44,7 @@ async def test_run_creator_batches_moves_and_preserves_move_order(monkeypatch):
         },
         researcher_output={"research": {}},
         industry="dental",
-        business_name="Jarvis Dental",
+        business_name="Rue Dental",
         north_star_label="$1M ARR",
         connector_summary="No connectors",
         max_parallel=6,

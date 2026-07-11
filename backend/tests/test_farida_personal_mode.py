@@ -1,5 +1,5 @@
 """
-Tests for Farida mode — Jarvis Personal product.
+Tests for Farida mode — Rue Personal product.
 Covers isolation, ID-format robustness, section parsing, and resilience.
 
 All imports come from backend.farida_personal_loader, which has zero

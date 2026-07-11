@@ -52,7 +52,7 @@ export default function OS1OperatorSection() {
             color: "rgba(243,234,217,0.55)",
           }}
         >
-          Creation 1.0 is the engine at the heart of Jarvis OS1. It doesn't wait for instructions — it spawns specialized AI agents, assigns them sub-tasks, supervises their execution, and synthesizes results. One prompt triggers an entire autonomous workforce.
+          Creation 1.0 is the engine at the heart of Rue OS1. It doesn't wait for instructions — it spawns specialized AI agents, assigns them sub-tasks, supervises their execution, and synthesizes results. One prompt triggers an entire autonomous workforce.
         </p>
 
         <div className="os1-fade-up os1-fade-up-delay-3 max-w-3xl mx-auto">
@@ -72,7 +72,7 @@ export default function OS1OperatorSection() {
             {
               num: "01",
               title: "SPAWN",
-              desc: "Jarvis creates purpose-built sub-agents for each task. Research, scheduling, outreach, analysis — each gets its own specialist.",
+              desc: "Rue creates purpose-built sub-agents for each task. Research, scheduling, outreach, analysis — each gets its own specialist.",
             },
             {
               num: "02",
@@ -82,7 +82,7 @@ export default function OS1OperatorSection() {
             {
               num: "03",
               title: "SYNTHESIZE",
-              desc: "Results from all agents converge. Jarvis compiles, verifies, and delivers a single coherent output — while you sleep.",
+              desc: "Results from all agents converge. Rue compiles, verifies, and delivers a single coherent output — while you sleep.",
             },
           ].map((item, i) => (
             <div

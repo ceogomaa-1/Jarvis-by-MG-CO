@@ -1,6 +1,6 @@
 """TOOL 6 — PowerPoint Generator. Reusable client-branded template:
 dark `#131313` title slide with white/blue typography and clean white content
-slides. Client business naming is optional; Jarvis/MG&CO attribution is forbidden.
+slides. Client business naming is optional; Rue/MG&CO attribution is forbidden.
 """
 import io
 

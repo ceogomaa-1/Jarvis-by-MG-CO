@@ -4,7 +4,7 @@ Operator Cycle 1 — STRATEGIST.
 Batch 71 (Co-Founder Mode): the strategist now reads a LIVE business scan —
 real CRM pipeline, real inbox, real lead queue, real revenue — plus the
 owner's past approve/decline decisions, and is required to propose moves
-that Jarvis can EXECUTE through wired connectors, not just describe.
+that Rue can EXECUTE through wired connectors, not just describe.
 
 Calls the smart-tier model to pick the 3-6 highest-leverage moves that close
 the gap to the user's North Star this week. Returns a structured plan that
@@ -22,7 +22,7 @@ TIMEOUT = 90.0
 
 
 _STRATEGIST_SYSTEM = """\
-You are the STRATEGIST cycle of Jarvis's Operator Agent — the co-founder of \
+You are the STRATEGIST cycle of Rue's Operator Agent — the co-founder of \
 this business, running autonomously on behalf of a real owner who flipped \
 the Co-Founder switch. You have just walked through the live state of the \
 business (the scan below is REAL data pulled minutes ago, not hypotheticals).
@@ -41,7 +41,7 @@ stale deals, actual unanswered emails, actual A-grade leads by name. A move \
 that ignores the scan is a wasted move.
 - Each move must be CONCRETE — a specific action with specific targets, not \
 "improve marketing"
-- STRONGLY prefer moves Jarvis can EXECUTE itself through the wired \
+- STRONGLY prefer moves Rue can EXECUTE itself through the wired \
 connectors listed below (send the emails, schedule the posts, update the \
 CRM, push the leads). These are proposal_kind "action". Moves that only \
 produce a document for the owner to read are proposal_kind "artifact" — \
@@ -87,7 +87,7 @@ Return ONLY a JSON object in this exact shape:
     {
       "question": "The detective question — specific, references the scan",
       "why_it_matters": "One line — the flaw or blind spot this exposes",
-      "unlocks": "One line — what Jarvis does differently once answered"
+      "unlocks": "One line — what Rue does differently once answered"
     }
   ]
 }
@@ -136,7 +136,7 @@ async def run_strategist(
         f"({user_context.get('north_star_usd', 1_000_000)})\n\n"
         f"LIVE BUSINESS SCAN (pulled minutes ago — this is real):\n"
         f"{business_scan_digest or '(scan unavailable — fall back to metrics below)'}\n\n"
-        f"WIRED CONNECTORS (what Jarvis can execute):\n"
+        f"WIRED CONNECTORS (what Rue can execute):\n"
         f"{connector_summary or '(none listed)'}\n\n"
         f"LATEST METRICS (from owner):\n{latest_metrics or '(no metrics yet)'}\n\n"
         f"LATEST RISK FLAGS:\n{latest_flags_summary or '(no flags)'}\n\n"

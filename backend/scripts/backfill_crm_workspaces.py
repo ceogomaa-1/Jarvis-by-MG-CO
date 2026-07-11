@@ -1,4 +1,4 @@
-"""One-time backfill: provision a Jarvis CRM workspace for every existing business user.
+"""One-time backfill: provision a Rue CRM workspace for every existing business user.
 
 New signups get a workspace automatically via the onboarding hook
 (`/business/onboard/complete` → `auto_provision_workspace`). Users who onboarded BEFORE
@@ -18,7 +18,7 @@ Usage (from the Render shell):
     python -m backend.scripts.backfill_crm_workspaces --limit 5        # cap how many to attempt
     python -m backend.scripts.backfill_crm_workspaces --user-id user_<hex>   # just one
 
-Requires (Jarvis env): SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL) + SUPABASE_SERVICE_ROLE_KEY,
+Requires (Rue env): SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL) + SUPABASE_SERVICE_ROLE_KEY,
 plus the same TWENTY_PROVISION_BASE_URL/TWENTY_SERVICE_* the onboarding flow uses.
 """
 import argparse
@@ -73,7 +73,7 @@ async def _provision_one(user_id: str, display_name: str, retries: int) -> tuple
     """Provision one user with retry on transient errors. Returns (outcome, detail)."""
     last_error = ""
     for attempt in range(1, retries + 2):
-        res = await provision.auto_provision_workspace(user_id, display_name or "Jarvis CRM")
+        res = await provision.auto_provision_workspace(user_id, display_name or "Rue CRM")
         if res.ok:
             if res.data.get("already_provisioned"):
                 return "skipped", "already had a workspace"
@@ -98,7 +98,7 @@ async def run_backfill(*, user_id: str | None, dry_run: bool, limit: int | None,
 
     summary = {"provisioned": 0, "skipped": already, "failed": 0, "failures": []}
     for i, u in enumerate(candidates, 1):
-        uid, name = u["user_id"], u.get("company_name") or "Jarvis CRM"
+        uid, name = u["user_id"], u.get("company_name") or "Rue CRM"
         label = f"[{i}/{len(candidates)}] {uid} ({name})"
         if dry_run:
             print(f"WOULD PROVISION {label}")

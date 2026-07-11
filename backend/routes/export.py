@@ -222,7 +222,7 @@ def _extract_title(content: str, provided: str) -> str:
             title = re.sub(r"^#+\s*", "", line)
             title = re.sub(r"\*+", "", title)
             return title[:120]
-    return "Jarvis Export"
+    return "Rue Export"
 
 
 # ─── Route ───────────────────────────────────────────────────────────────────
@@ -249,7 +249,7 @@ async def export_pdf(request: ExportRequest):
         topMargin=inch,
         bottomMargin=inch,
         title=title,
-        author="Jarvis by MG&CO",
+        author="Rue by MG&CO",
     )
 
     story = []

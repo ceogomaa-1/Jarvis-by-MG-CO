@@ -10,7 +10,7 @@ import os
 import httpx
 
 CONTACT_TO = os.getenv("CONTACT_TO", "info@mgcotechnologies.com")
-CONTACT_FROM = os.getenv("CONTACT_FROM", "Jarvis OS1 <onboarding@resend.dev>")
+CONTACT_FROM = os.getenv("CONTACT_FROM", "Rue OS1 <onboarding@resend.dev>")
 
 
 async def send_contact(*, name: str, email: str, company: str = "", message: str = "",

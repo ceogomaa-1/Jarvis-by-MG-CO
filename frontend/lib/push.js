@@ -1,4 +1,4 @@
-// Batch 50.1 — Web Push subscription helper for Jarvis Notes reminders.
+// Batch 50.1 — Web Push subscription helper for Rue Notes reminders.
 // Registers frontend/public/sw.js, subscribes via PushManager using the
 // VAPID public key, and persists the subscription to the backend
 // (public.push_subscriptions, upserted on user_id+endpoint).

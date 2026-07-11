@@ -314,7 +314,7 @@ export default function NotesPanel({ userId, onClose }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
             <p style={{ fontFamily: 'var(--sans)', color: 'var(--accent)', fontSize: '0.65rem', letterSpacing: '0.2em', textTransform: 'uppercase', margin: 0 }}>
-              Jarvis Notes
+              Rue Notes
             </p>
             {streak > 0 && (
               <span style={{

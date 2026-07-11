@@ -73,7 +73,7 @@ export default function ReadinessBar({ userId, apiUrl, onReadinessUpdate, refres
             marginBottom: 8,
             letterSpacing: '0.03em',
           }}>
-            {is_ready ? 'Jarvis Knows You' : 'Jarvis Knows About Me...'}
+            {is_ready ? 'Rue Knows You' : 'Rue Knows About Me...'}
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>

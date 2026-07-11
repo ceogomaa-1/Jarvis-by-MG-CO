@@ -1,5 +1,5 @@
 """
-Ping the Anthropic API with every model constant used in Jarvis OS1.
+Ping the Anthropic API with every model constant used in Rue OS1.
 Exits 0 if all pass, 1 if any fail.
 
 Usage:

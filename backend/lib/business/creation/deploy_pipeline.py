@@ -1,5 +1,5 @@
 """
-Deterministic deploy pipeline for Jarvis OS1 — Batch 1.
+Deterministic deploy pipeline for Rue OS1 — Batch 1.
 
 Replaces the LLM-driven deployment_phase.py for website builds.
 Called directly from create.py after site_generator produces the file set.

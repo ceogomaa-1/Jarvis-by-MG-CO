@@ -3,7 +3,7 @@ import { GripVertical, X, ArrowRight, Sparkles, Plug } from 'lucide-react'
 
 // One living Home block: it EXPLAINS what changed (ai_summary + evidence) and offers a
 // real one-tap action. Most actions inject a precise instruction into the docked chat,
-// which runs the full confirm-gated tool pipeline — so Jarvis acts, it doesn't hand homework.
+// which runs the full confirm-gated tool pipeline — so Rue acts, it doesn't hand homework.
 // The header doubles as the react-grid-layout drag handle (.home-drag-handle).
 
 const STATUS_TINT = {

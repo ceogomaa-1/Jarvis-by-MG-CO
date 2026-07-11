@@ -1,4 +1,4 @@
-# Jarvis CRM favicon assets
+# Rue CRM favicon assets
 
 Drop the favicon set here; `apply.sh` and `Dockerfile.jarvis` copy them into the build:
 - `favicon.ico`
@@ -6,4 +6,4 @@ Drop the favicon set here; `apply.sh` and `Dockerfile.jarvis` copy them into the
 - `apple-touch-icon.png` (180×180)
 
 Placeholders until Mohamed supplies final art. Replace before go-live so the browser tab
-shows the Jarvis mark, not Twenty's.
+shows the Rue mark, not Twenty's.

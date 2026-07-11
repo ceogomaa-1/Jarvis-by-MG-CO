@@ -11,7 +11,7 @@ Scope is intentionally limited to the "core deal terms" on visual pages 1-2
 (27 fields) plus chattels/fixtures/rental items/HST on page 2 (4 fields,
 some spanning multiple printed lines). Pages 3-6 (fixed legal boilerplate,
 signature/witness/date blocks, Confirmation of Cooperation) are not covered —
-Jarvis does not pre-fill signature lines.
+Rue does not pre-fill signature lines.
 """
 
 PAGE_WIDTH = 612

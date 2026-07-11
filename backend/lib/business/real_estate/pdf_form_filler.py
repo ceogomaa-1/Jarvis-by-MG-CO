@@ -17,7 +17,7 @@ _FILL_SYSTEM = (
 )
 _FLAT_SYSTEM = (
     "You analyze a flat (non-fillable) PDF and tell a real estate agent what values "
-    "Jarvis would put where, based on their profile and the conversation."
+    "Rue would put where, based on their profile and the conversation."
 )
 
 
@@ -114,7 +114,7 @@ PDF TEXT (truncated):
 {text[:4000]}
 
 Return JSON only:
-{{"would_fill": [{{"field": "...", "value": "..."}}], "summary": "1-2 sentences telling the user this PDF can't be auto-filled and what Jarvis would put where"}}"""
+{{"would_fill": [{{"field": "...", "value": "..."}}], "summary": "1-2 sentences telling the user this PDF can't be auto-filled and what Rue would put where"}}"""
 
     parsed: dict = {}
     try:

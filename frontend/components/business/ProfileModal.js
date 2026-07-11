@@ -72,7 +72,7 @@ export default function ProfileModal({ open, onClose }) {
           fontFamily: 'var(--font-pixel), monospace',
           fontSize: 13, color: '#e8e8e8', marginBottom: 22, lineHeight: 1.5,
         }}>
-          Signed in to Jarvis
+          Signed in to Rue
         </div>
 
         {loading ? (

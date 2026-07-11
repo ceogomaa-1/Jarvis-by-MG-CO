@@ -1,5 +1,5 @@
 """
-Background bulk-enrichment of Jarvis CRM (Twenty) companies.
+Background bulk-enrichment of Rue CRM (Twenty) companies.
 
 THE PROBLEM
   "Get phone numbers for all 42 companies in my CRM" is a per-record bulk op: one Maps

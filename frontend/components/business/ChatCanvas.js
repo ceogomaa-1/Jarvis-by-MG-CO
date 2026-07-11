@@ -96,7 +96,7 @@ function UserBubble({ content, attachments }) {
   )
 }
 
-// Morph loader shown while Jarvis is laying down a response (before the first
+// Morph loader shown while Rue is laying down a response (before the first
 // token arrives). `.dark` forces the loader squares to render in light (white)
 // so they're visible on the dark OS1 chat surface.
 function ThinkingDots() {
@@ -231,7 +231,7 @@ export default function ChatCanvas({
   onConversationsUpdated,
   onMemoryCountUpdate,
   injectPrompt,
-  onCrmChanged,   // Phase 3: fired after a successful Jarvis CRM write so the cockpit can refresh
+  onCrmChanged,   // Phase 3: fired after a successful Rue CRM write so the cockpit can refresh
   onLeadsChanged, // mgcoleads: fired after a find/push so the Leads cockpit panel can refresh
   onHomeChanged,  // Batch 67: fired after a Home layout command so the Home cockpit can refresh
   surface = null, // Batch 67: 'home' tags the docked Home chat so layout commands route correctly
@@ -256,7 +256,7 @@ export default function ChatCanvas({
   const [usage, setUsage] = useState(null)
   const [isThinking, setIsThinking] = useState(false)
   const [nodeContext, setNodeContext] = useState(null)
-  // Jarvis GO (Batch 70): opt-in toggle that skips intent pre-classification and sends
+  // Rue GO (Batch 70): opt-in toggle that skips intent pre-classification and sends
   // every message straight to the brain (website__create / walkthrough__generate /
   // dashboard__control become brain-invoked tools instead of being pre-routed to a
   // separate endpoint). Off by default; sticky per-browser via localStorage.
@@ -339,7 +339,7 @@ export default function ChatCanvas({
     }
   }, [])
 
-  // Check sessionStorage for a node-context handoff from The Mind ("Talk to Jarvis about this ->")
+  // Check sessionStorage for a node-context handoff from The Mind ("Talk to Rue about this ->")
   useEffect(() => {
     let raw
     try {
@@ -638,7 +638,7 @@ export default function ChatCanvas({
       })
       const result = await res.json()
       const toolResult = result.tool_result || {}
-      // Confirmed Jarvis CRM write (e.g. delete) — refresh the embedded CRM.
+      // Confirmed Rue CRM write (e.g. delete) — refresh the embedded CRM.
       if (result.crm_changed) onCrmChanged?.()
       // Confirmed leads action — refresh the Leads cockpit panel.
       if (result.leads_changed) onLeadsChanged?.()
@@ -706,7 +706,7 @@ export default function ChatCanvas({
       setMessages(prev => [...prev, {
         id: msgIdRef.current,
         role: 'assistant',
-        content: `You've reached your daily limit of ${usage.limit} messages. Come back in ${usage.resets_in} — Jarvis will be here.`,
+        content: `You've reached your daily limit of ${usage.limit} messages. Come back in ${usage.resets_in} — Rue will be here.`,
         streaming: false, chunks: [],
       }])
       return
@@ -731,7 +731,7 @@ export default function ChatCanvas({
     // to text-only messages; attachments mean "look at this and respond".
     const hasAttachments = attachments.length > 0
 
-    // "Active build context": if Jarvis just created/edited an ElevenLabs agent,
+    // "Active build context": if Rue just created/edited an ElevenLabs agent,
     // pass its id to the intent classifier so "adjust the greeting" routes to
     // chat (update_agent) rather than a walkthrough or a brand-new creation.
     const activeAgentId = !hasAttachments ? findActiveAgentId(messages) : null
@@ -750,7 +750,7 @@ export default function ChatCanvas({
     // Deploy commands are explicit authorization and must never fall into conversational chat.
     // The create endpoint owns the safe "latest saved artifact → Vercel" execution path.
     //
-    // Jarvis GO (Batch 70): skip the classify-intent pre-routing call entirely — every
+    // Rue GO (Batch 70): skip the classify-intent pre-routing call entirely — every
     // message (other than an explicit deploy command, which stays on the existing tested
     // deploy pipeline) goes straight to the brain via /business/chat/stream, which can now
     // call website__create / walkthrough__generate / dashboard__control as tools instead of
@@ -1113,7 +1113,7 @@ export default function ChatCanvas({
               } else if (chunk.type === 'tool_progress') {
                 setToolProgress(chunk.value)
               } else if (chunk.type === 'crm_changed') {
-                // A Jarvis CRM write landed — tell the cockpit to refresh the embed.
+                // A Rue CRM write landed — tell the cockpit to refresh the embed.
                 onCrmChanged?.()
               } else if (chunk.type === 'leads_changed') {
                 // A find/push landed — tell the Leads cockpit to refresh its panel.
@@ -1122,7 +1122,7 @@ export default function ChatCanvas({
                 // A Home layout command applied — tell the Home cockpit to refresh.
                 onHomeChanged?.()
               } else if (chunk.type === 'creation_artifact') {
-                // Jarvis GO (Batch 70): website__create / walkthrough__generate ran as a
+                // Rue GO (Batch 70): website__create / walkthrough__generate ran as a
                 // brain-invoked tool inside this same stream — build the exact same
                 // role:'creation' / role:'walkthrough' card the classic /business/create
                 // and /business/show-me-how endpoints would have produced.
@@ -1216,7 +1216,7 @@ export default function ChatCanvas({
       transition={{ duration: 0.4, ease: 'easeOut' }}
       style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
     >
-      {/* Top center — "Jarvis Knows About Me..." progress */}
+      {/* Top center — "Rue Knows About Me..." progress */}
       <ReadinessBar
         userId={userId}
         apiUrl={BACKEND}
@@ -1351,7 +1351,7 @@ export default function ChatCanvas({
           )}
         </AnimatePresence>
 
-        {/* Mini Jarvis globe — persistent during conversation */}
+        {/* Mini Rue globe — persistent during conversation */}
         {hasMessages && (
           <div style={{
             position: 'absolute', top: 10, left: 0, right: 0, zIndex: 3,
@@ -1380,7 +1380,7 @@ export default function ChatCanvas({
       {/* Input area */}
       <div style={{ padding: `8px ${hPad}px 26px`, flexShrink: 0 }}>
         <div style={{ maxWidth: 740, margin: '0 auto', position: 'relative' }}>
-          {/* Mind node-context chip — set via "Talk to Jarvis about this ->" */}
+          {/* Mind node-context chip — set via "Talk to Rue about this ->" */}
           {nodeContext && (
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
               <div style={{
@@ -1422,7 +1422,7 @@ export default function ChatCanvas({
           <PromptInputBox
             onSend={(message, files) => sendMessage(message, files)}
             isLoading={loading}
-            placeholder="Ask Jarvis..."
+            placeholder="Ask Rue..."
             enableVoice={false}
             enableUpload={true}
             showViewToggle={true}
@@ -1430,7 +1430,7 @@ export default function ChatCanvas({
             goMode={goMode}
             onGoModeChange={handleGoModeChange}
           />
-          {/* Autonomous Jarvis lever — floats to the right of the input. Hidden when
+          {/* Autonomous Rue lever — floats to the right of the input. Hidden when
               docked (compact): it sits outside the panel and would be clipped. */}
           {!compact && (
             <div className="os1-autonomous-dock" style={{ position: 'absolute', left: 'calc(100% + 30px)', bottom: 14 }}>

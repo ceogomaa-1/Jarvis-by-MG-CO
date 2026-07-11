@@ -1,5 +1,5 @@
 """
-Regression test for JARVIS-BRAIN-MAP.md Phase 4 (shared Jarvis Core operating
+Regression test for JARVIS-BRAIN-MAP.md Phase 4 (shared Rue Core operating
 contract): JARVIS_CORE_CONTRACT must be present in both Personal's and
 Business's system prompts, so the ambiguity/clarification and honest-outcome
 rules apply identically across both products.

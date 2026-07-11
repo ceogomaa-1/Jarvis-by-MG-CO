@@ -1,5 +1,5 @@
 // Batch 56 — "What's New" announcements client.
-// Shared by Jarvis Personal (app/page.js) and Jarvis OS1 (business ChatCanvas).
+// Shared by Rue Personal (app/page.js) and Rue OS1 (business ChatCanvas).
 
 import { BACKEND } from '@/lib/backend'
 

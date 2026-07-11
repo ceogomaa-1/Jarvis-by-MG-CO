@@ -1,5 +1,5 @@
 """
-Jarvis GO (Batch 70) — website__create / walkthrough__generate chat tools.
+Rue GO (Batch 70) — website__create / walkthrough__generate chat tools.
 
 These wrap the existing /business/create and /business/show-me-how generators,
 so the tests mock the same module-level functions test_creation_modes.py mocks

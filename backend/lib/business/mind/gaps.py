@@ -1,6 +1,6 @@
 """
 Dark Matter: derive the Mind's "knowledge gaps" — hollow, dashed-outline
-nodes representing things Jarvis doesn't know yet but should. Each gap
+nodes representing things Rue doesn't know yet but should. Each gap
 carries a `prompt` that becomes the node_context sent to chat when the user
 clicks "Give it to me ->".
 """

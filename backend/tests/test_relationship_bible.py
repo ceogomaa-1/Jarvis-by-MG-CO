@@ -1,5 +1,5 @@
 """
-Tests for the Relationship Playbook ("the Bible") — Jarvis Personal only.
+Tests for the Relationship Playbook ("the Bible") — Rue Personal only.
 
 Covers bible loading, the system-prompt injection wrapper, and the
 relationship-context detector (keyword/regex fast path + Haiku fallback).

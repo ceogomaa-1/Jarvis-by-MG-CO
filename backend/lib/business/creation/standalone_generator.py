@@ -1,5 +1,5 @@
 """
-Standalone page generator for Jarvis OS1 — the DEFAULT "make me a landing page" path.
+Standalone page generator for Rue OS1 — the DEFAULT "make me a landing page" path.
 
 Produces ONE self-contained, animated, downloadable HTML file. No GitHub/Vercel required;
 no build step. It is ALLOWED (and expected) to use CDN scripts, real fonts, Tailwind CDN,
@@ -60,10 +60,10 @@ You are building ONE self-contained .html file. You ARE allowed scripts, CDNs, a
 
 IDENTITY AND ARTIFACT BOUNDARY (NON-NEGOTIABLE):
 - The PRIMARY BUILD BRIEF names the target business. Build for that business, not for the account
-  owner, MG&CO, Jarvis, or the chat application.
-- Never reproduce the user's instruction, conversation, prompt, chat bubbles, Jarvis controls,
+  owner, MG&CO, Rue, or the chat application.
+- Never reproduce the user's instruction, conversation, prompt, chat bubbles, Rue controls,
   "Live Preview" UI, or any app chrome inside the website.
-- Never put "Built with Jarvis", "Jarvis OS1", or MG&CO attribution in client-facing copy.
+- Never put "Built with Rue", "Rue OS1", or MG&CO attribution in client-facing copy.
 - If current-site research is supplied, preserve its verified facts (offerings, location, hours,
   contact details) while completely rethinking the presentation. Never invent awards, ratings,
   customer counts, prices, addresses, or testimonials.

@@ -1,5 +1,5 @@
 """
-Jarvis Skills Phase 1 — lossless ingest guarantees.
+Rue Skills Phase 1 — lossless ingest guarantees.
 
 The whole point of this system is that user input is NEVER silently dropped and the
 LLM only adds metadata (it can't gate saving). These tests pin the pure logic that

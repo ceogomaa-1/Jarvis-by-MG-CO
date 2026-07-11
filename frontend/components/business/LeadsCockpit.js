@@ -568,7 +568,7 @@ export default function LeadsCockpit({ open, onClose, userId }) {
                 <div style={{ textAlign: 'center', marginTop: 60, color: 'var(--os1-text-dim, #A8A8A6)' }}>
                   <div className="font-pixel" style={{ fontSize: 13, marginBottom: 8 }}>No leads yet</div>
                   <div className="os1-serif-micro" style={{ fontSize: 11, lineHeight: 1.5 }}>
-                    Use Client Discovery above, or ask Jarvis →<br />
+                    Use Client Discovery above, or ask Rue →<br />
                     <span style={{ color: 'var(--os1-text, #F5F5F4)' }}>“find leads: salons in Toronto”</span>
                   </div>
                 </div>

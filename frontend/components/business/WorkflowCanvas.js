@@ -160,7 +160,7 @@ function CreationTaskModal({ onClose, onSubmit }) {
           Create Task
         </div>
         <p style={{ fontSize: 12, color: 'rgba(232,232,232,0.42)', lineHeight: 1.65, marginBottom: 16 }}>
-          Describe what you want Jarvis to create. The Creation 1.0 team (Strategist, Copywriter, Designer, Researcher, Analyst, Reporter) will work on it.
+          Describe what you want Rue to create. The Creation 1.0 team (Strategist, Copywriter, Designer, Researcher, Analyst, Reporter) will work on it.
         </p>
         <textarea
           value={taskDescription}

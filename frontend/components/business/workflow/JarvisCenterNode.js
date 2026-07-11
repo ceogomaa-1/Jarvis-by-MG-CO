@@ -78,7 +78,7 @@ export default function JarvisCenterNode() {
             src="/logo-os1-mono.png"
             width={110}
             height={110}
-            alt="Jarvis OS1"
+            alt="Rue OS1"
             priority
             style={{ objectFit: 'contain' }}
           />
@@ -88,7 +88,7 @@ export default function JarvisCenterNode() {
             fontFamily: 'var(--font-pixel), monospace',
             fontSize: 16, color: '#e8e8e8',
           }}>
-            Jarvis
+            Rue
           </span>
           <span style={{
             fontFamily: 'var(--font-pixel), monospace',

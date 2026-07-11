@@ -1,5 +1,5 @@
 """
-Batch 50.1 — Jarvis Notes reminder dispatcher.
+Batch 50.1 — Rue Notes reminder dispatcher.
 
 Runs every minute via APScheduler (backend/main.py) and on-demand via
 POST /api/notes/_dispatch (backend/routes/notes_routes.py), which an external
@@ -185,7 +185,7 @@ async def _send_push(user_id: str, note: dict) -> bool:
                     "keys": {"p256dh": sub["p256dh"], "auth": sub["auth"]},
                 },
                 data=json.dumps({
-                    "title": "Jarvis OS1",
+                    "title": "Rue OS1",
                     "body": f"Reminder: {note['note']}",
                     "url": APP_URL,
                 }),

@@ -456,7 +456,7 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
   const {
     onSend = () => {},
     isLoading = false,
-    placeholder = 'Ask Jarvis...',
+    placeholder = 'Ask Rue...',
     className,
     enableVoice = false,
     enableUpload = true,
@@ -640,8 +640,8 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
           <PromptInputTextarea
             placeholder={
               showSearch ? 'Search the web…'
-              : showOperator ? 'Tell Jarvis what to build for you…'
-              : showShowMe ? 'Ask Jarvis to walk you through…'
+              : showOperator ? 'Tell Rue what to build for you…'
+              : showShowMe ? 'Ask Rue to walk you through…'
               : placeholder
             }
             className="text-base"
@@ -713,7 +713,7 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
             )}
 
             {/* Operator mode — terminal icon */}
-            <PromptInputAction tooltip="Operator — Jarvis builds it for you">
+            <PromptInputAction tooltip="Operator — Rue builds it for you">
               <button
                 type="button"
                 onClick={() => handleToggleChange('operator')}
@@ -765,12 +765,12 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
             </div>
           )}
 
-          {/* Jarvis | Jarvis GO pill — opt-in mode that skips intent pre-routing and
+          {/* Rue | Rue GO pill — opt-in mode that skips intent pre-routing and
               sends every message straight to the brain (tool-driven, no classifier). */}
           {showGoToggle && !isRecording && (
             <div
               className="flex items-center rounded-full bg-[#2e2e2e] p-[3px]"
-              title={goMode ? 'Jarvis GO — everything goes straight to the brain' : 'Classic Jarvis — fast-routes obvious requests'}
+              title={goMode ? 'Rue GO — everything goes straight to the brain' : 'Classic Rue — fast-routes obvious requests'}
             >
               <button
                 type="button"
@@ -780,7 +780,7 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
                   !goMode ? 'bg-[#4a4a4a] text-[#e8e8e8]' : 'text-[#9a9a9a] hover:text-[#e8e8e8]'
                 )}
               >
-                Jarvis
+                Rue
               </button>
               <span className="mx-1.5 h-4 w-px bg-[#4a4a4a]" />
               <button
@@ -791,7 +791,7 @@ export const PromptInputBox = React.forwardRef<HTMLDivElement, PromptInputBoxPro
                   goMode ? 'bg-[#2d7ff9] text-white' : 'text-[#9a9a9a] hover:text-[#e8e8e8]'
                 )}
               >
-                Jarvis GO
+                Rue GO
               </button>
             </div>
           )}

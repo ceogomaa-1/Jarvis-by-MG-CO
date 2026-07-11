@@ -41,7 +41,7 @@ export function Section2Difference() {
       </p>
 
       <TextScramble
-        text="JARVIS OS1"
+        text="RUE OS1"
         className="text-center"
         onClick={() => router.push('/os1')}
       />

@@ -1,7 +1,7 @@
 """
 Batch 56 — "What's New" feature announcements.
 
-A single shared system surfaced in both Jarvis Personal and Jarvis OS1:
+A single shared system surfaced in both Rue Personal and Rue OS1:
 
   USER endpoints (any signed-in user, keyed by user_id in the path):
     GET  /api/announcements/{user_id}        -> published announcements + unread_count

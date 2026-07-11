@@ -1,7 +1,7 @@
 """
 Shared grounding / anti-hallucination contract.
 
-Injected into every Jarvis system prompt — Personal (backend/llm.py),
+Injected into every Rue system prompt — Personal (backend/llm.py),
 Business chat/creation (backend/lib/business/system_prompt_builder.py),
 and Business sub-agents (backend/lib/business/creation/sub_agents.py) —
 so "don't invent facts" is one canonical rule instead of a per-flow patch.
@@ -15,7 +15,7 @@ GROUNDING_CONTRACT = """\
 - Never backfill specifics — names, numbers, dates, addresses, founding years, prices, stats — that weren't actually retrieved. A labeled placeholder beats a confident-sounding guess."""
 
 
-# Injected into every Jarvis turn (Personal + Business) alongside the capability
+# Injected into every Rue turn (Personal + Business) alongside the capability
 # manifest below. Where GROUNDING_CONTRACT governs FACTS, this governs your own
 # ABILITIES: what you can do, admitting what you can't, and never faking an action.
 CAPABILITY_CONTRACT = """\
@@ -36,7 +36,7 @@ def render_capability_manifest(
     """Render the per-turn capability manifest block injected into the system prompt.
 
     Built from the user's REAL available tools + live connections (not a hardcoded
-    brag list), so Jarvis knows itself: what it can do now, what's connected, and
+    brag list), so Rue knows itself: what it can do now, what's connected, and
     the obvious gaps it should admit instead of faking.
     """
     lines = [

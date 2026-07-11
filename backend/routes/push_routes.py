@@ -1,5 +1,5 @@
 """
-Batch 50.1 — Web Push subscription management for Jarvis Notes reminders.
+Batch 50.1 — Web Push subscription management for Rue Notes reminders.
 
 Persists browser PushManager subscriptions into the existing
 `public.push_subscriptions` table (user_id, endpoint, p256dh, auth),

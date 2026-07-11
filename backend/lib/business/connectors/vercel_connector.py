@@ -1,5 +1,5 @@
 """
-Vercel Connector for Jarvis OS1.
+Vercel Connector for Rue OS1.
 Auth: API Token from vercel.com/account/tokens.
 """
 import base64

@@ -71,13 +71,13 @@ Today: {today}
 {calendar_context}
 {notes_context}
 
-Write it as Jarvis would speak — direct, warm, no fluff.
+Write it as Rue would speak — direct, warm, no fluff.
 2-3 sentences max. Mention what's on their calendar if anything.
 If there are open notes/reminders, especially ones due today, weave in at most one naturally.
 Reference something personal if relevant.
 End with one sharp question or observation about their day.""",
         conversation_history=[],
-        system_override="You are Jarvis. Write a morning briefing exactly as you would speak it — natural, direct, personal. No greetings like 'Good morning!'. Just start talking.",
+        system_override="You are Rue. Write a morning briefing exactly as you would speak it — natural, direct, personal. No greetings like 'Good morning!'. Just start talking.",
         user_id=user_id,
     )
     return briefing

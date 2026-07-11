@@ -1,5 +1,5 @@
 """
-Step 6 — twenty__* agent tools: let Jarvis read/operate the owned CRM.
+Step 6 — twenty__* agent tools: let Rue read/operate the owned CRM.
 
 Dispatched specially in tool_executor (connector_type == "twenty"), built from env
 (not a per-user connector). Read-only over the imported data:
@@ -72,7 +72,7 @@ async def execute_twenty_tool(action_name: str, inp: dict, user_id: str) -> Conn
     # only ever read/write its own workspace's records.
     client = await TwentyClient.for_user(user_id)
     if not client:
-        return ConnectorResult(ok=False, error="Jarvis CRM is not configured for this account.")
+        return ConnectorResult(ok=False, error="Rue CRM is not configured for this account.")
 
     # ── METADATA actions (structure-level) — operate on the /metadata API and don't
     # need the core-object schema, so dispatch before the core introspect (which would

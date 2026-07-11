@@ -1,4 +1,4 @@
-// Batch 50.1 — Jarvis OS1 service worker: Web Push for Notes reminders.
+// Batch 50.1 — Rue OS1 service worker: Web Push for Notes reminders.
 
 self.addEventListener('install', (event) => {
   self.skipWaiting()
@@ -18,7 +18,7 @@ self.addEventListener('push', (event) => {
     }
   }
 
-  const title = data.title || 'Jarvis OS1'
+  const title = data.title || 'Rue OS1'
   const options = {
     body: data.body || '',
     icon: '/logo-os1-mono.png',

@@ -1,4 +1,4 @@
-"""Study Mode storage (Jarvis Personal).
+"""Study Mode storage (Rue Personal).
 
 Fully separate from personal_notes / normal chat history:
   • study_notes — captured notes, categorized, shown in the Study drawer.
@@ -191,7 +191,7 @@ class StudyChatUpdate(BaseModel):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 _CAPTURE_PROMPT = (
-    "You are Jarvis Study Capture. A student just snapped one or more photos of study "
+    "You are Rue Study Capture. A student just snapped one or more photos of study "
     "material (worksheet, textbook pages, whiteboard, handwritten notes, slides, etc.). "
     "When multiple images are given, treat them as consecutive PAGES of the SAME material "
     "and combine them into ONE coherent note in reading order.\n\n"

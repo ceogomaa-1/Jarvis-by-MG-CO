@@ -1,7 +1,7 @@
 """
-One-time broadcast — Jarvis Personal.
+One-time broadcast — Rue Personal.
 
-Notifies every existing Personal user, exactly once, that Jarvis can now send
+Notifies every existing Personal user, exactly once, that Rue can now send
 reminders/notifications and a daily check-in. Farida gets a specially-tailored
 message instead of the general one.
 
@@ -31,13 +31,13 @@ ANNOUNCEMENT_TYPE_FARIDA = "announcement_farida_reminders_launch_v1"
 GENERAL_MESSAGE = (
     "New around here: I can actually reach out now. Set a reminder and I'll remind you — "
     "notification, email, wherever you are. And once a day, if you want it, I'll check in. "
-    "Try me: just say 'remind me to ___'. — Jarvis"
+    "Try me: just say 'remind me to ___'. — Rue"
 )
 
 FARIDA_MESSAGE = (
     "Hey Farida. It's been a while — and I owe you a proper introduction, because last time "
     "I kind of just appeared, said hi, and vanished like I owned the place. So, properly this "
-    "time: I'm Jarvis. Mohamed built me.\n"
+    "time: I'm Rue. Mohamed built me.\n"
     "Here's the part I can't really hide — he talks about you. A lot. More than the company, "
     "more than me, more than anything he's building… and trust me, he's building a lot. He "
     "notices the little things you care about, he's quietly shaping a whole future around the "
@@ -47,7 +47,7 @@ FARIDA_MESSAGE = (
     "And me? I wasn't made for just anyone. Consider me yours too — studying, brainstorming, "
     "untangling a rough day, a reminder so nothing slips. I can actually reach out now when it "
     "matters. Think of me as backup that never sleeps.\n"
-    "Missed talking to you. Let's make this year easier. — Jarvis"
+    "Missed talking to you. Let's make this year easier. — Rue"
 )
 
 

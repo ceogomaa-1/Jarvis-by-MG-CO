@@ -8,7 +8,7 @@ import OS1HermesBody from "@/components/os1/OS1HermesBody"
 import OS1Shell from "@/components/os1/OS1Shell"
 
 export const metadata = {
-  title: "Jarvis OS1 — Autonomous Business Operator",
+  title: "Rue OS1 — Autonomous Business Operator",
   description: "Your AI-powered fractional COO. Spawns agents. Runs overnight. Remembers everything.",
 }
 

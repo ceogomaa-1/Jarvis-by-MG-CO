@@ -2,7 +2,7 @@
 Knowledge Base routes.
 
   POST   /business/knowledge/ingest   — multipart: user_id, text?, files[]?  (SSE progress stream)
-  GET    /business/knowledge          — list sources for "What Jarvis knows"
+  GET    /business/knowledge          — list sources for "What Rue knows"
   DELETE /business/knowledge/{id}     — delete a source (cascades to its memories)
 """
 import json
@@ -18,7 +18,7 @@ router = APIRouter()
 
 
 def _skill_as_source(s: dict) -> dict:
-    """Map a jarvis_skills row into the shape the 'What Jarvis knows' list expects,
+    """Map a jarvis_skills row into the shape the 'What Rue knows' list expects,
     while carrying the richer skill fields for the upgraded UI."""
     return {
         "id": s.get("id"),
@@ -113,7 +113,7 @@ async def ingest_knowledge(
 @router.get("/business/knowledge")
 async def list_knowledge(user_id: str = ""):
     """Skills (new, lossless) first, then any legacy knowledge sources — so nothing the
-    user previously fed Jarvis disappears from the 'What Jarvis knows' list."""
+    user previously fed Rue disappears from the 'What Rue knows' list."""
     if not user_id:
         raise HTTPException(status_code=400, detail="user_id required")
     skills = [_skill_as_source(s) for s in await jarvis_skills.list_skills(user_id)]

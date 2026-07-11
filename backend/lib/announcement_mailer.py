@@ -2,7 +2,7 @@
 Batch 56 — branded "What's New" announcement email, sent on publish.
 
 Reuses the Resend channel + dark-luxury template from personal_mailer (same
-verified mgcodashboard.com domain, display name "Jarvis OS1", hosted logo). One
+verified mgcodashboard.com domain, display name "Rue OS1", hosted logo). One
 email per published announcement; the per-row idempotency guard lives in the
 caller (announcement_email_log), not here.
 
@@ -110,12 +110,12 @@ def _build_html(
           <table role="presentation" width="100%" style="max-width:480px;background-color:{_BG};border:1px solid rgba(243,234,217,0.08);border-radius:16px;overflow:hidden;">
             <tr>
               <td align="center" style="padding:32px 32px 16px;background-color:#000000;">
-                <img src="{LOGO_URL}" alt="Jarvis OS1" width="220" style="display:block;margin:0 auto;border:0;" />
+                <img src="{LOGO_URL}" alt="Rue OS1" width="220" style="display:block;margin:0 auto;border:0;" />
               </td>
             </tr>
             <tr>
               <td align="center" style="padding:10px 32px 24px;background-color:#000000;">
-                <div style="font-family:{_SANS};color:rgba(243,234,217,0.45);font-size:11px;letter-spacing:0.2em;text-transform:uppercase;">What's new in Jarvis</div>
+                <div style="font-family:{_SANS};color:rgba(243,234,217,0.45);font-size:11px;letter-spacing:0.2em;text-transform:uppercase;">What's new in Rue</div>
               </td>
             </tr>
             <tr>
@@ -147,7 +147,7 @@ def _build_html(
             </tr>
             <tr>
               <td align="center" style="padding:20px 32px 28px;">
-                <div style="font-family:{_SANS};color:rgba(243,234,217,0.35);font-size:10px;letter-spacing:0.03em;line-height:1.7;">MG&amp;CO Technologies &middot; You're receiving this because you use Jarvis OS1.</div>
+                <div style="font-family:{_SANS};color:rgba(243,234,217,0.35);font-size:10px;letter-spacing:0.03em;line-height:1.7;">MG&amp;CO Technologies &middot; You're receiving this because you use Rue OS1.</div>
               </td>
             </tr>
           </table>
@@ -169,7 +169,7 @@ def _build_text(title: str, body: str, cta_url: str | None) -> str:
         f"See what's new: {cta_url or APP_URL}",
         "",
         "--",
-        "MG&CO Technologies. You're receiving this because you use Jarvis OS1.",
+        "MG&CO Technologies. You're receiving this because you use Rue OS1.",
     ]
     return "\n".join(lines)
 
@@ -190,7 +190,7 @@ async def send_announcement_email(
     if not is_configured() or not to_email:
         return False
 
-    subject = f"✨ New in Jarvis — {title}"
+    subject = f"✨ New in Rue — {title}"
     html_body = _build_html(title, body, tag, media_url, cta_label, cta_url)
     text_body = _build_text(title, body, cta_url)
 

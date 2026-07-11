@@ -1,5 +1,5 @@
 """
-Pure-function loader for backend/farida.md (Jarvis Personal).
+Pure-function loader for backend/farida.md (Rue Personal).
 Zero external dependencies — importable in tests without the anthropic/supabase stack.
 """
 

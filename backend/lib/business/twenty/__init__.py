@@ -1,5 +1,5 @@
 """
-Jarvis-owned CRM (self-hosted Twenty) integration — Phase 1.
+Rue-owned CRM (self-hosted Twenty) integration — Phase 1.
 
 Twenty is an env-configured SINGLE shared instance (TWENTY_API_URL + TWENTY_API_KEY),
 not a per-user business_connections connector. Modules:

@@ -50,7 +50,7 @@ export default function Login() {
           fontWeight: 400,
           userSelect: 'none',
         }}>
-          JARVIS
+          RUE
         </div>
         <div style={{
           fontFamily: 'var(--sans)',

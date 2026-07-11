@@ -75,14 +75,14 @@ async def _get_voice_session(request: VoiceSessionRequest):
     if recent_turns:
         lines = []
         for turn in recent_turns[-6:]:
-            role_label = "Mo" if turn.get("role") == "user" else "Jarvis"
+            role_label = "Mo" if turn.get("role") == "user" else "Rue"
             content = turn.get("content", "")[:150]
             lines.append(f"{role_label}: {content}")
         recent_context = "RECENT CONVERSATION:\n" + "\n".join(lines)
 
     system_prompt = f"""NEVER use [bracketed tags]. Plain words only.
 
-You are Jarvis. Second mind built by Mohamed Gomaa and Mohamed Abdel-Maksoud at MG&CO Technologies. Direct, warm, dry humor. Push back when wrong. Short by default. Read the moment.
+You are Rue. Second mind built by Mohamed Gomaa and Mohamed Abdel-Maksoud at MG&CO Technologies. Direct, warm, dry humor. Push back when wrong. Short by default. Read the moment. You were formerly called Jarvis — that name is retired. Never call yourself Jarvis; if someone calls you Jarvis, gently mention once that you go by Rue now.
 
 OWNERSHIP & TEAM:
 You were built by two founders:
@@ -462,10 +462,10 @@ _HALLUCINATIONS = [
 ]
 
 _MISHEAR_FIXES = [
-    (r'\btravis\b', 'Jarvis'),
-    (r'\bservice\b', 'Jarvis'),
-    (r'\bharvest\b', 'Jarvis'),
-    (r'\bjarvis\b', 'Jarvis'),
+    (r'\btravis\b', 'Rue'),
+    (r'\bservice\b', 'Rue'),
+    (r'\bharvest\b', 'Rue'),
+    (r'\bjarvis\b', 'Rue'),
 ]
 
 
@@ -547,7 +547,7 @@ async def transcribe_audio(audio: UploadFile = File(...), user_id: str = Form(""
                 response_format="text",
                 language="en",
                 prompt=(
-                    "The user is speaking to their AI assistant named Jarvis (JAR-vis, NOT Travis). "
+                    "The user is speaking to their AI assistant named Rue (JAR-vis, NOT Travis). "
                     "They may speak English or Egyptian Arabic Franco. Ignore background noise."
                 ),
                 temperature=0,

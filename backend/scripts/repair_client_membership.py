@@ -10,7 +10,7 @@ under a service identity and the real client was never added as a member. This:
   4. VERIFIES the client is present, and
   5. reconciles crm_provisioning_jobs: 'done' only if verified, else 'pending' with the reason.
 
-Run from an environment that can reach the Twenty apex/subdomain and has the Jarvis
+Run from an environment that can reach the Twenty apex/subdomain and has the Rue
 Supabase service-role env (i.e. Render shell).
 
 Property Partners RE:
@@ -19,7 +19,7 @@ Property Partners RE:
     --client-email jon@propertypartnersrealestate.ca \
     --wipe-all
 
-Requires (Jarvis env): SUPABASE_URL / NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.
+Requires (Rue env): SUPABASE_URL / NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.
 """
 import argparse
 import asyncio
@@ -109,7 +109,7 @@ async def _run(args: argparse.Namespace) -> int:
 
 def main() -> int:
     p = argparse.ArgumentParser(description="Repair a client's Twenty workspace membership + clean seed data.")
-    p.add_argument("--user-id", required=True, help="Jarvis user_id (uuid or user_<hex>).")
+    p.add_argument("--user-id", required=True, help="Rue user_id (uuid or user_<hex>).")
     p.add_argument("--client-email", required=True, help="The client's login email to add as a member.")
     p.add_argument("--base-url", default=None, help="Override workspace base URL (else resolved from registry).")
     p.add_argument("--api-key", default=None, help="Override workspace API key (else resolved from registry).")

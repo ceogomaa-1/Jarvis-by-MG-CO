@@ -1,4 +1,4 @@
-# Jarvis CRM — branded build of our Twenty fork.
+# Rue CRM — branded build of our Twenty fork.
 #
 # Build from the FORK root (where jarvis-branding/ lives), after pinning to the
 # upstream release tag (see ../FORK.md):
@@ -35,6 +35,6 @@ FROM twentycrm/twenty:${TWENTY_VERSION}
 COPY --from=upstream /app/packages/twenty-front/build /app/packages/twenty-front/build
 # Branded favicon/static (belt-and-suspenders over the rebuild).
 COPY infra/twenty/branding/favicon/ /app/packages/twenty-front/build/
-LABEL org.opencontainers.image.title="Jarvis CRM" \
+LABEL org.opencontainers.image.title="Rue CRM" \
       org.opencontainers.image.vendor="MG&CO" \
       org.opencontainers.image.source="https://github.com/MG-CO/jarvis-crm"

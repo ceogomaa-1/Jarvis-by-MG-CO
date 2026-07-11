@@ -1,5 +1,5 @@
 """
-GitHub Connector for Jarvis OS1.
+GitHub Connector for Rue OS1.
 Auth: Personal Access Token (PAT) with repo scope.
 """
 import asyncio
@@ -13,7 +13,7 @@ GITHUB_API = "https://api.github.com"
 class GitHubConnector(BaseConnector):
     CONNECTOR_TYPE = "github"
     DISPLAY_NAME = "GitHub"
-    DESCRIPTION = "Create repos, push code, and manage your GitHub projects from Jarvis."
+    DESCRIPTION = "Create repos, push code, and manage your GitHub projects from Rue."
     DOCS_URL = "https://github.com/settings/tokens"
     REQUIRED_FIELDS = {
         "api_key": {

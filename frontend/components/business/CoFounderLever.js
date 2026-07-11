@@ -5,7 +5,7 @@ import { AnimatePresence, motion, useMotionValue, useTransform } from 'framer-mo
 // ─────────────────────────────────────────────────────────────────────
 // Batch 71 — CO-FOUNDER MODE: the lever.
 //
-// The moment a user lifts this lever, Jarvis stops being a chat assistant
+// The moment a user lifts this lever, Rue stops being a chat assistant
 // and starts operating the business: it immediately runs a full scan →
 // strategy → creation cycle and lands executable initiatives on their desk.
 // This modal owns that whole moment: disclaimer → lever → live takeover
@@ -22,7 +22,7 @@ const STEPS = [
   { id: 'strategist', label: "Choosing this week's moves",    sub: 'highest leverage, grounded in your real numbers' },
   { id: 'researcher', label: 'Backing them with live data',   sub: 'web research on every move' },
   { id: 'creator',    label: 'Doing the work',                sub: 'drafts, campaigns, sequences — execution-ready' },
-  { id: 'packager',   label: 'Preparing your approvals',      sub: 'each card = exactly what Jarvis will do' },
+  { id: 'packager',   label: 'Preparing your approvals',      sub: 'each card = exactly what Rue will do' },
 ]
 
 const STAGE_TO_STEP = {
@@ -169,7 +169,7 @@ export default function CoFounderLever({
       }
     } catch (e) {
       console.error('engage failed', e)
-      setErrorNote('Could not reach Jarvis. Check your connection and try again.')
+      setErrorNote('Could not reach Rue. Check your connection and try again.')
       setPhase('lever')
     }
   }
@@ -200,7 +200,7 @@ export default function CoFounderLever({
             setErrorNote(
               d.status === 'budget_capped'
                 ? "Today's operator budget is spent — the full run fires tonight at 2AM."
-                : 'The first run hit a snag. Co-Founder Mode is still ON — Jarvis retries tonight at 2AM.'
+                : 'The first run hit a snag. Co-Founder Mode is still ON — Rue retries tonight at 2AM.'
             )
             setPhase('error')
           }
@@ -210,7 +210,7 @@ export default function CoFounderLever({
     es.onerror = () => {
       // Stream dropped — the run continues server-side. Say so, don't fake it.
       es.close(); esRef.current = null
-      setErrorNote('Lost the live feed, but Jarvis is still working. Your initiatives land in the Boardroom shortly.')
+      setErrorNote('Lost the live feed, but Rue is still working. Your initiatives land in the Boardroom shortly.')
       setPhase('error')
     }
   }
@@ -259,10 +259,10 @@ export default function CoFounderLever({
                   CO-FOUNDER MODE
                 </div>
                 <div style={{ ...PIXEL, fontSize: 19, color: '#e8e8e8', lineHeight: 1.35, marginBottom: 14 }}>
-                  Hand Jarvis the keys.
+                  Hand Rue the keys.
                 </div>
                 <div style={{ fontSize: 12.5, color: 'rgba(232,232,232,0.62)', lineHeight: 1.75, marginBottom: 14 }}>
-                  From this moment, Jarvis handles every aspect of your business like a
+                  From this moment, Rue handles every aspect of your business like a
                   co-founder — it scans everything, finds the moves, reaches out, posts,
                   creates, and takes action on your behalf.
                 </div>
@@ -272,11 +272,11 @@ export default function CoFounderLever({
                   color: 'rgba(232,232,232,0.55)',
                 }}>
                   Nothing touches the outside world without your green light.
-                  You approve — Jarvis executes.
+                  You approve — Rue executes.
                 </div>
                 {!isReady && (
                   <div style={{ ...PIXEL, fontSize: 10, color: '#f5a623', marginTop: 14 }}>
-                    Jarvis needs to know you better first — complete the readiness bar to unlock.
+                    Rue needs to know you better first — complete the readiness bar to unlock.
                   </div>
                 )}
               </div>
@@ -291,7 +291,7 @@ export default function CoFounderLever({
                 CO-FOUNDER MODE — ENGAGED
               </div>
               <div style={{ ...PIXEL, fontSize: 17, color: '#e8e8e8', marginBottom: 20, lineHeight: 1.4 }}>
-                Jarvis is walking through your business right now.
+                Rue is walking through your business right now.
               </div>
               {STEPS.map((s, i) => {
                 const state = i < activeStep ? 'done' : i === activeStep ? 'active' : 'waiting'
@@ -344,7 +344,7 @@ export default function CoFounderLever({
                   : 'First initiatives are landing now.'}
               </div>
               <div style={{ fontSize: 12, color: 'rgba(232,232,232,0.55)', lineHeight: 1.7, marginBottom: 22 }}>
-                Real moves on your real data — each one shows exactly what Jarvis
+                Real moves on your real data — each one shows exactly what Rue
                 will do the second you approve it.
               </div>
               <button
@@ -389,7 +389,7 @@ export default function CoFounderLever({
                 CO-FOUNDER MODE — ACTIVE
               </div>
               <div style={{ ...PIXEL, fontSize: 17, color: '#e8e8e8', lineHeight: 1.4, marginBottom: 8 }}>
-                Jarvis is operating your business.
+                Rue is operating your business.
               </div>
               <div style={{ fontSize: 12, color: 'rgba(232,232,232,0.55)', lineHeight: 1.7, marginBottom: 22 }}>
                 It scans nightly, prepares the moves, and executes the ones you approve.

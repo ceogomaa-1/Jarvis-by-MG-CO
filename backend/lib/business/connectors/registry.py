@@ -287,7 +287,7 @@ _CONNECTOR_LABELS: dict[str, str] = {
 async def available_connectors_summary(user_id: str) -> str:
     """
     Returns a human-readable list of connected tools with their available actions.
-    Injected into the system prompt so Jarvis knows what it can execute.
+    Injected into the system prompt so Rue knows what it can execute.
     """
     user_id = _user_id_to_uuid(user_id)
     rows = await list_user_connections(user_id)

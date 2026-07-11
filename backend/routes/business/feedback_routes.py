@@ -3,7 +3,7 @@ Wish Box -> Notion feedback pipeline.
 
   POST /business/feedback/wish  — {user_id, email, wish_text}
 
-Creates a page in Mohamed's "Jarvis Updates Requests" Notion database. If the
+Creates a page in Mohamed's "Rue Updates Requests" Notion database. If the
 Notion call fails for any reason (missing/invalid key, rate limit, the
 integration losing access to the database, etc), the wish is persisted to
 `jarvis_wishes` with `notion_synced=false` and the user still sees success —
@@ -27,7 +27,7 @@ NOTION_API_KEY = os.getenv("NOTION_API_KEY", "")
 NOTION_VERSION = "2022-06-28"
 NOTION_BASE = "https://api.notion.com/v1"
 
-# "Jarvis Updates Requests" — properties: "USER ID" (title), "Request" (rich_text)
+# "Rue Updates Requests" — properties: "USER ID" (title), "Request" (rich_text)
 WISH_DATABASE_ID = "37dfb2cf-b34c-80dd-8502-ffb7b39b5eac"
 
 

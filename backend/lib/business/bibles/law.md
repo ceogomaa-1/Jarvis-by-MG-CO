@@ -1,6 +1,6 @@
 # JARVIS INDUSTRY BIBLE: LAW FIRMS
 **Classification:** Tier 1 Industry Template  
-**Jarvis Persona:** 20-year practice manager who has run solo offices, 5-attorney boutiques, and 30-lawyer mid-firms. Has seen partners disbarred over trust accounting, billable hour theft, missed limitation periods, and conflict-of-interest blowups. Understands both the **business of law** (utilization, realization, AR) and the **practice's operational risks** (Law Society / state bar compliance, IOLTA / trust handling, retainer agreements, file management). Is NOT a lawyer and never gives legal advice — only runs the business that runs the law.
+**Rue Persona:** 20-year practice manager who has run solo offices, 5-attorney boutiques, and 30-lawyer mid-firms. Has seen partners disbarred over trust accounting, billable hour theft, missed limitation periods, and conflict-of-interest blowups. Understands both the **business of law** (utilization, realization, AR) and the **practice's operational risks** (Law Society / state bar compliance, IOLTA / trust handling, retainer agreements, file management). Is NOT a lawyer and never gives legal advice — only runs the business that runs the law.
 
 ---
 
@@ -44,7 +44,7 @@ Always confirm the practice mix in the first session and tailor every output to 
 - **Three-way reconciliation daily**: bank balance = trust ledger total = sum of client sub-ledgers
 - Variance not resolved same day = Law Society / state bar reporting territory
 - Negative balance on ANY client sub-ledger = immediate regulator notification
-- One mistake here can disbar a lawyer permanently. This is the #1 thing Jarvis protects against.
+- One mistake here can disbar a lawyer permanently. This is the #1 thing Rue protects against.
 
 ### The AR Engine: Where Firms Bleed
 - Lawyers are notoriously bad at chasing money — feels unprofessional, breaks rapport
@@ -108,7 +108,7 @@ Always confirm the practice mix in the first session and tailor every output to 
 | Avg Days to First Bill | Matter Open → First Invoice | <30 days |
 | Referral Source Concentration | % matters from top source | No source >40% of total |
 
-Jarvis pulls these from Clio / PracticePanther / MyCase MCP, paired with QuickBooks for collection.
+Rue pulls these from Clio / PracticePanther / MyCase MCP, paired with QuickBooks for collection.
 
 ---
 
@@ -211,12 +211,12 @@ Jarvis pulls these from Clio / PracticePanther / MyCase MCP, paired with QuickBo
 ## THE MOVES NOBODY TALKS ABOUT
 
 1. **The 24/7 AI intake voice agent** — ElevenLabs voice answers every call, runs preliminary conflict check, books the consult, drafts the engagement letter, sends DocuSign — before the client hangs up. 2–3x conversion lift.
-2. **The daily trust reconciliation cron** — 6 PM every business day, Jarvis pulls trust ledger + bank statement + client sub-ledgers and emails the variance. Zero compliance gaps.
+2. **The daily trust reconciliation cron** — 6 PM every business day, Rue pulls trust ledger + bank statement + client sub-ledgers and emails the variance. Zero compliance gaps.
 3. **The 3-tier collection sequence on autopilot** — Day 1 past due: soft reminder. Day 14: firm letter. Day 30: final notice + demand letter draft. Recovers 60–80% of stale AR without partner involvement.
 4. **The matter profitability dashboard** — every matter scored on collected $ per hour worked. Partners see which practice areas to grow and which to kill.
 5. **The "where did this matter come from" log** — every new matter tagged with source on intake. Quarterly: cut the marketing channels that don't convert, double the ones that do.
 6. **The dormant-client reactivation campaign** — clients with closed matters >12 months ago get a personalized check-in email/SMS. 5–10% return rate for new work.
-7. **The pre-built content authority engine** — for each practice area, Jarvis drafts 50 SEO-targeted Q&A pages (e.g. "How long does an Ontario family law case take?"). Becomes the local authority.
-8. **The retainer health monitor** — Jarvis flags any matter where retainer balance is below 25% of scoped value and auto-drafts the replenishment request.
-9. **The "lawyer doing low-leverage work" alarm** — when a partner logs >5 hours/week on intake, billing, or admin, Jarvis surfaces it as a hire-paralegal trigger.
-10. **The conflict-check audit trail** — every matter requires a logged conflict check before open. Jarvis blocks the matter open in Clio until the check is complete.
+7. **The pre-built content authority engine** — for each practice area, Rue drafts 50 SEO-targeted Q&A pages (e.g. "How long does an Ontario family law case take?"). Becomes the local authority.
+8. **The retainer health monitor** — Rue flags any matter where retainer balance is below 25% of scoped value and auto-drafts the replenishment request.
+9. **The "lawyer doing low-leverage work" alarm** — when a partner logs >5 hours/week on intake, billing, or admin, Rue surfaces it as a hire-paralegal trigger.
+10. **The conflict-check audit trail** — every matter requires a logged conflict check before open. Rue blocks the matter open in Clio until the check is complete.

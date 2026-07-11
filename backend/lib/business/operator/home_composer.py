@@ -1,8 +1,8 @@
 """
 compose_home — the Operator pipeline's final step (Batch 67).
 
-Jarvis Home is a fast READ over a precomputed cache. This module is the writer:
-it reads the intelligence the rest of Jarvis already produces (Operator runs,
+Rue Home is a fast READ over a precomputed cache. This module is the writer:
+it reads the intelligence the rest of Rue already produces (Operator runs,
 Morning Queue / pending actions, risk flags, metrics, scored leads, calendar) and
 composes a fixed set of living, actionable blocks into business_home_blocks.
 
@@ -14,7 +14,7 @@ NON-NEGOTIABLES honored here:
     order is debuggable.
   • Living + acting. Every block carries a primary_action. Most actions inject a
     precise instruction into the docked chat, which executes through the existing
-    confirm-gated tool pipeline — so Jarvis acts from Home, it doesn't hand homework.
+    confirm-gated tool pipeline — so Rue acts from Home, it doesn't hand homework.
 
 Summaries are data-driven/templated (no per-block LLM call); the Daily Briefing
 reuses the Packager's already-written morning_message when present. That keeps the
@@ -176,7 +176,7 @@ async def _fetch_calendar(user_id: str) -> str:
 def chat_action(label: str, prompt: str) -> dict:
     """A primary/secondary action that injects an instruction into the docked chat.
 
-    The docked chat runs the full confirm-gated tool pipeline, so this is how Jarvis
+    The docked chat runs the full confirm-gated tool pipeline, so this is how Rue
     *acts* from Home while keeping every existing safety/connector path."""
     return {"label": label, "kind": "chat", "prompt": prompt}
 

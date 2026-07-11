@@ -2,8 +2,8 @@
 
 The money loop. run_search fetches local businesses for a query, scores/tiers them, and
 persists them (deduped, cached). list_leads serves conversational follow-ups ("only A-tier").
-push_to_crm turns selected leads into real Companies in the Jarvis CRM (Twenty) via the
-existing guarded write tools — scrape → score → pitch → track, all inside Jarvis.
+push_to_crm turns selected leads into real Companies in the Rue CRM (Twenty) via the
+existing guarded write tools — scrape → score → pitch → track, all inside Rue.
 """
 from urllib.parse import urlparse
 
@@ -143,7 +143,7 @@ async def list_leads(user_id: str, tier: str | None = None, limit: int = 50,
 
 async def push_to_crm(user_id: str, *, tier: str | None = None, names: list[str] | None = None,
                       limit: int = 25) -> ConnectorResult:
-    """Push selected scored leads into the Jarvis CRM as Companies (with the gap/pitch as a note).
+    """Push selected scored leads into the Rue CRM as Companies (with the gap/pitch as a note).
 
     Selection: by tier (e.g. all A-tier), or by explicit names, or both. Already-pushed leads
     are skipped. Reuses the guarded Twenty write tools, so creates are idempotent on company name
@@ -153,7 +153,7 @@ async def push_to_crm(user_id: str, *, tier: str | None = None, names: list[str]
         return ConnectorResult(ok=False, error="Lead engine is off (LEADS_MAPS_API_KEY not set).")
     from backend.lib.business.twenty.client import TwentyClient
     if not await TwentyClient.configured_for_user(user_id):
-        return ConnectorResult(ok=False, error="No Jarvis CRM workspace is provisioned for you yet — can't push leads.")
+        return ConnectorResult(ok=False, error="No Rue CRM workspace is provisioned for you yet — can't push leads.")
     from backend.lib.business.twenty.tools import execute_twenty_tool
 
     rows = await store.list_leads(user_id, tier=tier, limit=max(limit, 50))

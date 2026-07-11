@@ -65,14 +65,14 @@ async def complete_onboarding(body: OnboardCompleteRequest):
         "role": "owner",
     }
 
-    # Auto-provision the user's OWN Jarvis CRM workspace (Option A), in the background.
+    # Auto-provision the user's OWN Rue CRM workspace (Option A), in the background.
     # Best-effort + idempotent: never blocks onboarding, never surfaces an error to the
     # user; the CRM button appears the moment provisioning finishes (gate shows "pending"
     # meanwhile). Needs the Twenty instance configured per infra/twenty/AUTO-PROVISION.md.
     try:
         # Pass the client's login email so the provisioner adds them as a workspace member
         # and verifies access — a workspace the client can't log into is never marked done.
-        asyncio.create_task(provision.auto_provision_workspace(body.user_id, body.company_name or "Jarvis CRM", client_email=body.email))
+        asyncio.create_task(provision.auto_provision_workspace(body.user_id, body.company_name or "Rue CRM", client_email=body.email))
     except Exception as e:
         print(f"onboard: could not start CRM provisioning: {e}")
 

@@ -1,9 +1,9 @@
 """
-Per-client Jarvis CRM workspace registry (Phase 2 multi-tenant).
+Per-client Rue CRM workspace registry (Phase 2 multi-tenant).
 
 Phase 1 talked to ONE shared Twenty instance from env. Phase 2 gives each client
 their own data-isolated workspace (Twenty native multi-workspace, subdomain-routed)
-and stores that workspace's base URL + API key here, keyed by Jarvis user_id, so the
+and stores that workspace's base URL + API key here, keyed by Rue user_id, so the
 backend can resolve the correct tenant per user.
 
 Backed by Supabase (PostgREST) with the service-role key — identical access pattern
@@ -29,7 +29,7 @@ def _hex_id(user_id: str) -> str:
 
 
 def valid_user_id(user_id: str) -> bool:
-    """True iff user_id is a well-formed Jarvis id (user_<32 hex> or a 32-hex uuid).
+    """True iff user_id is a well-formed Rue id (user_<32 hex> or a 32-hex uuid).
 
     A malformed id (e.g. a hand-typed hex with a transposed/extra digit) must be caught
     BEFORE the provisioning flow runs — otherwise the signUp flow creates a Twenty

@@ -3,7 +3,7 @@
 Tables (see supabase/migrations/batch63_os1_paywall.sql):
   os1_subscriptions      — one row per user; source of truth for access + tier
   os1_trial_fingerprints — one-trial-per-identity anti-abuse signals
-  os1_leads_usage        — metered Jarvis Leads lookups (Emperor overage)
+  os1_leads_usage        — metered Rue Leads lookups (Emperor overage)
 """
 import os
 from datetime import datetime, timezone
@@ -20,7 +20,7 @@ def _client():
 
 
 def canonical_user_id(uid: str) -> str:
-    """Jarvis's canonical internal id: 'user_' + uuid-without-dashes.
+    """Rue's canonical internal id: 'user_' + uuid-without-dashes.
 
     os1_subscriptions (and conversations / user_models / CRM) are keyed this way. Callers
     sometimes pass the raw Supabase auth UUID (with dashes) — normalize it here so the access
@@ -130,7 +130,7 @@ def add_trial_cost(user_id: str, usd: float) -> float:
 
 # ── Buffer platform usage (Pro 2-platform cap) ──────────────────────────────────────────
 def get_buffer_platforms(user_id: str) -> set:
-    """Distinct Buffer platforms (services) this user has already posted to through Jarvis."""
+    """Distinct Buffer platforms (services) this user has already posted to through Rue."""
     user_id = canonical_user_id(user_id)
     sb = _client()
     res = sb.table("os1_buffer_platforms").select("service").eq("user_id", user_id).execute()

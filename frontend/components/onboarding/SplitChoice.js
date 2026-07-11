@@ -163,7 +163,7 @@ function ChoiceCard({ mode, onPersonalClick, onBusinessClick }) {
 
   const accent = isPersonal ? '#ff9072' : '#f59e0b'
   const badge = isPersonal ? 'PERSONAL' : 'FOR BUSINESS'
-  const title = 'JARVIS'
+  const title = 'RUE'
   const subtitle = isPersonal
     ? 'Your personal AI. Always present.'
     : 'Your business operator. Smarter than a 25-year veteran.'
@@ -340,7 +340,7 @@ export default function SplitChoice() {
             marginBottom: 56,
           }}
         >
-          JARVIS
+          RUE
         </motion.div>
 
         {/* Cards */}

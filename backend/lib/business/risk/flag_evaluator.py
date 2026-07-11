@@ -15,7 +15,7 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 EVALUATOR_TIMEOUT = 45.0
 
 _EVALUATOR_SYSTEM = """\
-You are a risk evaluation engine for Jarvis Business. Your job is to evaluate \
+You are a risk evaluation engine for Rue Business. Your job is to evaluate \
 a business operator's current metrics against their industry's risk flags and \
 return a structured assessment.
 

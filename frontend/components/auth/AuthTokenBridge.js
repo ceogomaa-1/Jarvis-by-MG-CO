@@ -3,7 +3,7 @@ import { useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { BACKEND } from '@/lib/backend'
 
-// Batch 74 (Phase B): attach the Supabase access token to every call to the Jarvis
+// Batch 74 (Phase B): attach the Supabase access token to every call to the Rue
 // backend, so the backend can verify the caller instead of trusting a client-supplied
 // user_id. Zero behavior change today — the backend only OBSERVES the token until
 // enforcement is switched on later. Implemented as a single scoped fetch wrapper so

@@ -91,7 +91,7 @@ export default function BusinessOnboardingPage() {
   if (!phase) {
     return (
       <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#131313' }}>
-        <TetrisLoader size="md" speed="normal" showLoadingText={true} loadingText="Starting Jarvis..." />
+        <TetrisLoader size="md" speed="normal" showLoadingText={true} loadingText="Starting Rue..." />
       </div>
     )
   }

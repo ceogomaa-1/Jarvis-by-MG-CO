@@ -1,11 +1,11 @@
-# Jarvis CRM — branding overlay
+# Rue CRM — branding overlay
 
-Everything that turns Twenty into **Jarvis CRM** lives here, in ONE folder, so upstream
+Everything that turns Twenty into **Rue CRM** lives here, in ONE folder, so upstream
 rebases stay clean (see [`../FORK.md`](../FORK.md)). Nothing branding-related should be
 edited directly in core components — if you find yourself doing that, add the asset here
 and point the apply script at it instead.
 
-Product name: **Jarvis CRM** · Design language: **MG&CO — dark, minimal, luxury**
+Product name: **Rue CRM** · Design language: **MG&CO — dark, minimal, luxury**
 (Notion/Spotify-inspired). Dark theme is the default.
 
 ---
@@ -14,7 +14,7 @@ Product name: **Jarvis CRM** · Design language: **MG&CO — dark, minimal, luxu
 
 | Brand element | Upstream location (verify against the pinned tag) | Overlay source |
 |---|---|---|
-| App / product name ("Twenty" → "Jarvis CRM") | strings in `packages/twenty-front/src` and `packages/twenty-emails` | `strings.map` (apply.sh sed-replaces) |
+| App / product name ("Twenty" → "Rue CRM") | strings in `packages/twenty-front/src` and `packages/twenty-emails` | `strings.map` (apply.sh sed-replaces) |
 | Browser tab title | `packages/twenty-front/index.html` `<title>` | `index.title.html` |
 | Favicon | `packages/twenty-front/public/favicon*.png/.ico` | `favicon/` |
 | Logo (app + login) | `packages/twenty-front/src/...` logo SVG/components + `public/images/logos` | `logo/` |
@@ -38,18 +38,18 @@ Product name: **Jarvis CRM** · Design language: **MG&CO — dark, minimal, luxu
   URL, email sender) for the bits that *are* env-driven.
 - `Dockerfile.jarvis` — builds the branded image from the fork (runs `apply.sh` first).
 - `strings.map`, `links.map` — `old<TAB>new` replacement tables `apply.sh` applies.
-- `logo/`, `favicon/` — drop the Jarvis CRM marks here (PNG/SVG/ICO). **Placeholders until
+- `logo/`, `favicon/` — drop the Rue CRM marks here (PNG/SVG/ICO). **Placeholders until
   Mohamed supplies final art** — see "Assets needed" below.
 - `apply.sh` — the only thing that touches the source tree. Idempotent; safe to re-run.
 
 `apply.sh`, `strings.map`, `links.map`, `logo/`, `favicon/` live in the **fork** under
 `jarvis-branding/` (this folder documents them and holds the canonical theme + Dockerfile
-that the repo tracks). Keeping the doc + theme + Dockerfile here means Jarvis-side review
+that the repo tracks). Keeping the doc + theme + Dockerfile here means Rue-side review
 of the brand without cloning the fork.
 
 ## Assets needed from Mohamed (flagged)
 
-- [ ] Final **Jarvis CRM logo** (light-on-dark): full wordmark SVG + square app mark SVG.
+- [ ] Final **Rue CRM logo** (light-on-dark): full wordmark SVG + square app mark SVG.
 - [ ] **Favicon** set (32px, 180px apple-touch, .ico).
 - [ ] Confirm accent color (`jarvis-theme.ts` ships a default MG&CO gold/amber on near-black;
       change one token to restyle).
@@ -59,8 +59,8 @@ of the brand without cloning the fork.
 
 1. `grep -ri "twenty" packages/twenty-front/build packages/twenty-emails/dist` returns
    nothing user-visible (ignore license headers / package internals).
-2. Tab title = "Jarvis CRM"; favicon is ours.
-3. Login page + loading screen show the Jarvis mark, no Twenty logo.
+2. Tab title = "Rue CRM"; favicon is ours.
+3. Login page + loading screen show the Rue mark, no Twenty logo.
 4. Color scheme defaults to Dark with the MG&CO accent.
-5. Send a test invite → email reads "Jarvis CRM", from our domain.
+5. Send a test invite → email reads "Rue CRM", from our domain.
 6. Footer/menu external links point to ours (or are removed) — no links to twenty.com.

@@ -257,7 +257,7 @@ STUDY_MODE_INSTRUCTION = (
     "- If the user sends a PHOTO (a textbook page, handwritten notes, a problem, a diagram): read it carefully, "
     "transcribe or interpret what matters, then teach from it.\n"
     "- Use Markdown (headers, bold, lists, simple tables) so the material is easy to read.\n"
-    "- Keep the warm, real Jarvis voice — a sharp study partner, never a dry textbook."
+    "- Keep the warm, real Rue voice — a sharp study partner, never a dry textbook."
 )
 
 
@@ -321,7 +321,7 @@ async def chat(request: ChatRequest):
             limit_msg = (
                 f"You've hit your limit for now — {usage_info['limit']} messages per {usage_info.get('window_label', '4 hours')}. "
                 f"Your next slot opens in {usage_info['resets_in']}. "
-                f"Jarvis will be here."
+                f"Rue will be here."
             )
             return JSONResponse({"response": limit_msg, "user_id": request.user_id, "usage": usage_info})
 
@@ -463,7 +463,7 @@ async def chat_stream(request: ChatRequest):
             limit_msg = (
                 f"You've hit your limit for now — {usage_info['limit']} messages per {usage_info.get('window_label', '4 hours')}. "
                 f"Your next slot opens in {usage_info['resets_in']}. "
-                f"Jarvis will be here."
+                f"Rue will be here."
             )
             async def _limit_stream():
                 for char in limit_msg:

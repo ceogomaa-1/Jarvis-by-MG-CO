@@ -49,7 +49,7 @@ export default function JarvisAvatar({ size = 80, isStreaming = false }) {
           src="/jarvis-logo-mono.png"
           width={size}
           height={size}
-          alt="Jarvis"
+          alt="Rue"
           className="os1-logo-pixel"
           style={{ objectFit: 'contain', opacity: 0.62 }}
           priority

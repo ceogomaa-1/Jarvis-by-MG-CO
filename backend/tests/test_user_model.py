@@ -1,7 +1,7 @@
 """
 Regression tests for backend/user_model.py — Phase 2 (JARVIS-BRAIN-MAP.md
 section B4): get_user_model() must distinguish "genuinely new user" from
-"Supabase lookup failed", so summarize_user_for_prompt() doesn't tell Jarvis
+"Supabase lookup failed", so summarize_user_for_prompt() doesn't tell Rue
 a returning user is brand new during a transient outage, and
 update_user_model() doesn't overwrite a real profile with a fresh one.
 """

@@ -105,7 +105,7 @@ async def run_channel_turn(user_id: str, text: str, attachments: list = None,
             if tc.get("exceeded"):
                 return {"ok": False, "kind": "trial_limit", "reply": (
                     "Your free trial limit is reached — pick a plan at jarvismgco.com/os1 to "
-                    "keep going. You've seen what Jarvis can do; upgrade to unlock the full "
+                    "keep going. You've seen what Rue can do; upgrade to unlock the full "
                     "experience with no cap."
                 )}
         except Exception:

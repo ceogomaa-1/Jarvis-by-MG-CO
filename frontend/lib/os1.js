@@ -1,7 +1,7 @@
 // OS1 paywall client helpers — talk to the backend billing API (same host as userPreferences).
 import { BACKEND } from '@/lib/backend'
 
-// App user_id form used everywhere in Jarvis: 'user_' + hex(auth uuid).
+// App user_id form used everywhere in Rue: 'user_' + hex(auth uuid).
 export function jarvisUserId(authUserId) {
   return 'user_' + String(authUserId || '').replace(/-/g, '')
 }

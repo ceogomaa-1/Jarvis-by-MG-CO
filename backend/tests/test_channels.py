@@ -1,6 +1,6 @@
 """Tests for the OS1 messaging-channel layer (batch 65).
 
-Covers the gating that matters: unlinked users are prompted to link (never get free Jarvis),
+Covers the gating that matters: unlinked users are prompted to link (never get free Rue),
 link codes redeem, an inactive subscriber is told to reactivate, a linked subscriber's message
 runs an OS1 turn, and channel turns are metered/short-circuited exactly like the web app
 (tier usage limit + trial cost ceiling). Store + network are monkeypatched — no Supabase, no
@@ -39,7 +39,7 @@ def test_extract_code():
     assert ch._extract_code("hello there how are you") == ""
 
 
-# ── unlinked DMs never get free Jarvis ───────────────────────────────────────────────────
+# ── unlinked DMs never get free Rue ───────────────────────────────────────────────────
 def test_unlinked_is_prompted_to_link(monkeypatch):
     monkeypatch.setattr(ch.store, "get_link", lambda *a, **k: None)
     cap = _Capture()
@@ -72,7 +72,7 @@ def test_unlinked_bare_wordlike_code_falls_through_to_prompt(monkeypatch):
     monkeypatch.setattr(ch.store, "redeem_link_code", lambda *a, **k: (False, "not found"))
     cap = _Capture()
     # A random 6-10 letter word that isn't a real code shouldn't be accused — guide to link.
-    _run(ch._handle_inbound("telegram", 111, "joe", "Jarvis", {}, cap.send, cap.extract))
+    _run(ch._handle_inbound("telegram", 111, "joe", "Rue", {}, cap.send, cap.extract))
     assert "jarvismgco.com/os1" in cap.sent[0][1]
 
 

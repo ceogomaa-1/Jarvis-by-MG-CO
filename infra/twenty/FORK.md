@@ -1,7 +1,7 @@
-# Jarvis CRM — fork & rebase workflow
+# Rue CRM — fork & rebase workflow
 
-Jarvis CRM is a **white-labeled fork of [Twenty](https://twenty.com)** (AGPL-3.0).
-We run our own build so the product reads as *Jarvis CRM*, not Twenty. The hard rule
+Rue CRM is a **white-labeled fork of [Twenty](https://twenty.com)** (AGPL-3.0).
+We run our own build so the product reads as *Rue CRM*, not Twenty. The hard rule
 that keeps us sane: **all branding lives in one overlay folder** (`jarvis-branding/`) so
 upstream releases rebase cleanly and we never diverge into a maintenance trap.
 

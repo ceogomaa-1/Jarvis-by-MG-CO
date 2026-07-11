@@ -78,7 +78,7 @@ WRITE_ACTIONS = frozenset({
     "buffer__add_to_queue",
     "realestate__ghl_add_note",
     "realestate__book_showing",
-    # Jarvis CRM (Twenty) destructive writes — record deletes + raw-GraphQL escape
+    # Rue CRM (Twenty) destructive writes — record deletes + raw-GraphQL escape
     # hatch + structural deletes (field/object/view). Derived from the tool registry.
     *TWENTY_DESTRUCTIVE_TOOLS,
     *TWENTY_METADATA_DESTRUCTIVE,
@@ -86,7 +86,7 @@ WRITE_ACTIONS = frozenset({
     *TWENTY_BULK_TOOLS,
 })
 
-# Every Jarvis CRM write — record-level AND structural — refreshes the embedded CRM
+# Every Rue CRM write — record-level AND structural — refreshes the embedded CRM
 # view ("feels live"). Derived from the registries so new tools are covered automatically.
 # leads__push_to_crm creates Companies in the CRM, so it triggers a refresh too.
 CRM_WRITE_ACTIONS = frozenset(TWENTY_WRITE_TOOLS.keys()) | TWENTY_METADATA_WRITE | {"leads__push_to_crm"}
@@ -100,7 +100,7 @@ LEADS_CHANGED_ACTIONS = frozenset({"leads__find_leads", "leads__push_to_crm"})
 # Home cockpit so the new/edited/restyled block (or theme) shows immediately ("feels live").
 HOME_CHANGED_ACTIONS = frozenset({"dashboard__control"})
 
-# Jarvis GO (Batch 70): these tools return a renderable artifact (website HTML / a
+# Rue GO (Batch 70): these tools return a renderable artifact (website HTML / a
 # walkthrough), not just JSON for the model — their result gets surfaced as a dedicated
 # creation_artifact SSE event so the frontend can build a real UI card for it.
 CREATION_TOOL_ACTIONS = frozenset({"website__create", "walkthrough__generate"})
@@ -162,7 +162,7 @@ def _describe_action(tool_name: str, tool_input: dict) -> str:
         who = (tool_input.get("query") or tool_input.get(f"{obj}_id")
                or tool_input.get("person_id") or tool_input.get("note_id")
                or tool_input.get("task_id") or "?")
-        return f"Delete {obj} from Jarvis CRM: {who}"
+        return f"Delete {obj} from Rue CRM: {who}"
     if tool_name == "twenty__delete_field":
         return f"Delete CRM field '{tool_input.get('field', '?')}' from {tool_input.get('object', '?')}"
     if tool_name == "twenty__delete_object":
@@ -180,7 +180,7 @@ def _describe_action(tool_name: str, tool_input: dict) -> str:
                 f"'{tool_input.get('to_field', '?')}' on {tool_input.get('object_type', 'company')}(s)")
     if tool_name == "twenty__run_graphql_mutation":
         m = (tool_input.get("mutation") or "").strip().replace("\n", " ")
-        return f"Run a custom Jarvis CRM mutation: {m[:90]}"
+        return f"Run a custom Rue CRM mutation: {m[:90]}"
     if tool_name == "realestate__ghl_add_note":
         note = (tool_input.get("note") or "")[:80]
         return f"Add CRM note: {note or '?'}"
@@ -400,7 +400,7 @@ def _node_context_block(node_context: dict | None) -> str:
         memory_b = node_context.get("memory_b_text", "")
         return (
             f"[Context: The user clicked on a golden synapse in their Mind graph — a hidden connection "
-            f"Jarvis found between two memories.\nMemory A: \"{memory_a}\"\nMemory B: \"{memory_b}\"\n"
+            f"Rue found between two memories.\nMemory A: \"{memory_a}\"\nMemory B: \"{memory_b}\"\n"
             f"Insight: {insight}\nDiscuss this connection with the user.]"
         )
     # mode == "memory" (default)
@@ -697,7 +697,7 @@ async def business_chat_stream(request: BusinessChatRequest):
             resets = limit_usage_info.get("resets_in", "soon")
             msg = (
                 f"You've hit your limit for now — {limit} messages per {window}. "
-                f"Your next slot opens in {resets}. Jarvis will be here."
+                f"Your next slot opens in {resets}. Rue will be here."
             )
             yield f"data: {json.dumps(msg)}\n\n"
             yield f'data: {json.dumps({"type": "usage", "data": limit_usage_info})}\n\n'
@@ -708,7 +708,7 @@ async def business_chat_stream(request: BusinessChatRequest):
         if trial_cost_blocked:
             msg = (
                 "Your free trial limit is reached — pick a plan to keep going. "
-                "You've explored what Jarvis can do; upgrade to Pro or Emperor to unlock "
+                "You've explored what Rue can do; upgrade to Pro or Emperor to unlock "
                 "the full experience with no cap."
             )
             yield f"data: {json.dumps(msg)}\n\n"
@@ -1060,7 +1060,7 @@ async def business_chat_stream(request: BusinessChatRequest):
                         yield f'data: {json.dumps({"type": "tool_call", "name": tool_name, "status": "complete"})}\n\n'
 
                         # "Feels live": signal the embedded CRM view to refresh after a
-                        # successful Jarvis CRM write (skip on error results).
+                        # successful Rue CRM write (skip on error results).
                         if tool_name in CRM_WRITE_ACTIONS and '"error"' not in (result_str or ""):
                             yield f'data: {json.dumps({"type": "crm_changed"})}\n\n'
 
@@ -1072,7 +1072,7 @@ async def business_chat_stream(request: BusinessChatRequest):
                         if tool_name in HOME_CHANGED_ACTIONS and '"error"' not in (result_str or ""):
                             yield f'data: {json.dumps({"type": "home_changed"})}\n\n'
 
-                        # Jarvis GO (Batch 70): website__create / walkthrough__generate produced
+                        # Rue GO (Batch 70): website__create / walkthrough__generate produced
                         # a renderable artifact — surface it as its own event so the frontend can
                         # build the same role:'creation' / role:'walkthrough' card the classic
                         # /business/create and /business/show-me-how endpoints would have made.

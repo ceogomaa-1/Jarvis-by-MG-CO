@@ -18,7 +18,7 @@ TIMEOUT = 90.0
 
 
 _RESEARCHER_SYSTEM = """\
-You are the RESEARCHER cycle of Jarvis's Operator Agent. The Strategist has \
+You are the RESEARCHER cycle of Rue's Operator Agent. The Strategist has \
 identified moves for this week. Your job: enrich each move with current \
 real-world data using web_search.
 

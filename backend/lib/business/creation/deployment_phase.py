@@ -1,5 +1,5 @@
 """
-Post-Creation deployment phase for Jarvis OS1.
+Post-Creation deployment phase for Rue OS1.
 
 After Creation 1.0 generates code, this phase:
 1. Checks that GitHub + Vercel are both connected
@@ -38,7 +38,7 @@ _TOOL_LABELS: dict[str, str] = {
 }
 
 _DEPLOYMENT_SYSTEM = """\
-You are the Deployment Agent for Jarvis OS1.
+You are the Deployment Agent for Rue OS1.
 
 You have been given the output of a Creation 1.0 session that produced website/project code.
 Your job is to deploy it to GitHub and Vercel right now.

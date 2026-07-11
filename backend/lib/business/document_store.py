@@ -1,5 +1,5 @@
 """
-Lightweight on-disk store for documents Jarvis generates or receives mid-chat
+Lightweight on-disk store for documents Rue generates or receives mid-chat
 (offer PDFs, decks, uploaded forms to be filled, etc). Each document gets a
 doc_id and is served back via GET /api/business/documents/{doc_id}.
 

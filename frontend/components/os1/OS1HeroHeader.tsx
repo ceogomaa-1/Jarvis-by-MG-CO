@@ -38,7 +38,7 @@ export default function OS1HeroHeader() {
         >
           <Image
             src="/jarvis-logo-mono.png"
-            alt="Jarvis OS1 Logo"
+            alt="Rue OS1 Logo"
             fill
             style={{ objectFit: "contain" }}
             priority
@@ -57,7 +57,7 @@ export default function OS1HeroHeader() {
             margin: 0,
           }}
         >
-          JARVIS OS1
+          RUE OS1
         </h1>
 
         <p

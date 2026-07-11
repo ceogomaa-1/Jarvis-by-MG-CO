@@ -24,7 +24,7 @@ export default function ModeToggle({ userId, currentMode }) {
     router.push('/')
   }
 
-  const label = currentMode === 'personal' ? 'Jarvis for Business →' : 'Personal Jarvis'
+  const label = currentMode === 'personal' ? 'Rue for Business →' : 'Personal Rue'
 
   return (
     <button

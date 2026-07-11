@@ -27,7 +27,7 @@ const OPENING_MESSAGE = {
   id: 0,
   role: 'assistant',
   content:
-    "I'm Jarvis. Before I'm actually useful to you, I need to know you — not through a form, through a conversation. What's the one thing taking up the most space in your head right now?",
+    "I'm Rue. Before I'm actually useful to you, I need to know you — not through a form, through a conversation. What's the one thing taking up the most space in your head right now?",
 }
 
 // ─── Orb helpers ──────────────────────────────────────────────────────────────
@@ -315,7 +315,7 @@ function Wordmark() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, userSelect: 'none' }}>
       <div className="wordmark-main" style={{ fontFamily: 'var(--display)', fontSize: 22, letterSpacing: '0.55em', paddingLeft: '0.55em', color: 'var(--ink)', fontWeight: 400 }}>
-        JARVIS
+        RUE
       </div>
       <div className="wordmark-sub" style={{ fontFamily: 'var(--sans)', fontSize: 9, letterSpacing: '0.4em', paddingLeft: '0.4em', color: 'var(--ink-mute)', textTransform: 'uppercase', fontWeight: 400 }}>
         by MG &amp; Co
@@ -469,7 +469,7 @@ function KnowledgePanel({ userId, onClose }) {
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
           <p style={{ fontFamily: 'var(--sans)', color: 'var(--accent)', fontSize: '0.65rem', letterSpacing: '0.2em', textTransform: 'uppercase', margin: 0 }}>
-            Jarvis Knows
+            Rue Knows
           </p>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--ink-mute)', cursor: 'pointer', fontSize: '1.1rem', lineHeight: 1 }}>
             ×
@@ -635,7 +635,7 @@ function Message({ msg, isLatest, onRetry }) {
           color: 'var(--ink-soft)', fontFamily: 'var(--sans)',
           fontSize: '0.75rem', letterSpacing: '0.1em',
         }}>
-          Jarvis is creating...
+          Rue is creating...
         </div>
       )
     }
@@ -643,7 +643,7 @@ function Message({ msg, isLatest, onRetry }) {
       <div style={{ margin: '16px 0', width: '100%' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <span style={{ fontFamily: 'var(--sans)', fontSize: '0.6rem', letterSpacing: '0.15em', textTransform: 'uppercase', color: 'var(--accent)' }}>
-            Jarvis created
+            Rue created
           </span>
           <button
             onClick={() => {
@@ -651,7 +651,7 @@ function Message({ msg, isLatest, onRetry }) {
               const url = URL.createObjectURL(blob)
               const a = document.createElement('a')
               a.href = url
-              a.download = `${(titleContent || 'jarvis-creation').slice(0, 30)}.html`
+              a.download = `${(titleContent || 'rue-creation').slice(0, 30)}.html`
               a.click()
               URL.revokeObjectURL(url)
             }}
@@ -964,7 +964,7 @@ function InputBar({ orbState, input, setInput, onSend, onStop, onMicClick, voice
   const micColor = voiceMode || voiceConnecting ? '#1a0e08' : 'var(--ink-soft)'
   const micShadow = voiceMode ? '0 0 24px rgba(255,144,114,0.6)' : 'none'
 
-  let placeholder = 'Say something to Jarvis'
+  let placeholder = 'Say something to Rue'
   if (voiceMode) placeholder = isListening ? 'Listening...' : 'Voice active — tap mic to stop'
 
   return (
@@ -1194,7 +1194,7 @@ function IntroSplash({ onDone }) {
   return (
     <div className="intro-screen fixed inset-0 flex flex-col items-center justify-center z-50" style={{ backgroundColor: 'var(--bg)' }}>
       <div style={{ fontFamily: 'var(--display)', fontSize: '3rem', fontWeight: 400, letterSpacing: '0.55em', paddingLeft: '0.55em', color: 'var(--ink)', margin: 0 }}>
-        JARVIS
+        RUE
       </div>
       <div style={{ fontFamily: 'var(--sans)', fontSize: '0.65rem', letterSpacing: '0.4em', paddingLeft: '0.4em', color: 'var(--ink-mute)', textTransform: 'uppercase', marginTop: '0.5rem' }}>
         by MG &amp; Co
@@ -1532,7 +1532,7 @@ export default function Home() {
       .catch(() => setGoogleConnected(false))
   }, [userId])
 
-  // Silently capture browser timezone on auth so Jarvis uses user's local time
+  // Silently capture browser timezone on auth so Rue uses user's local time
   useEffect(() => {
     if (!userId) return
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -1553,7 +1553,7 @@ export default function Home() {
       .catch(() => setTimezoneConfirmed(true))
   }, [userId])
 
-  // Deep-link straight into Jarvis Notes via #notes or #notes=<id>
+  // Deep-link straight into Rue Notes via #notes or #notes=<id>
   useEffect(() => {
     if (!userId || typeof window === 'undefined') return
     if (window.location.hash.startsWith('#notes')) setShowNotesPanel(true)
@@ -1680,7 +1680,7 @@ export default function Home() {
           playSound('proactive')
           setMessages(prev => [...prev, { id: msgIdRef.current, role: 'assistant', content: data.message, proactive: true }])
           setProactiveHint(data.message)
-          if (!document.hasFocus()) document.title = 'Jarvis has something for you'
+          if (!document.hasFocus()) document.title = 'Rue has something for you'
         }
       } catch {}
     }
@@ -1689,7 +1689,7 @@ export default function Home() {
   }, [userId, onboardingComplete])
 
   useEffect(() => {
-    const onFocus = () => { document.title = 'Jarvis — Your Personal AI' }
+    const onFocus = () => { document.title = 'Rue — Your Personal AI' }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
   }, [])
@@ -1759,7 +1759,7 @@ export default function Home() {
     return (
       <div style={{ background: 'var(--bg)', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ fontFamily: 'var(--display)', fontSize: '1.6rem', letterSpacing: '0.5em', paddingLeft: '0.5em', color: 'var(--ink)' }}>
-          JARVIS
+          RUE
         </div>
       </div>
     )
@@ -1962,7 +1962,7 @@ export default function Home() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = 'jarvis-export.pdf'
+      a.download = 'rue-export.pdf'
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
@@ -2012,7 +2012,7 @@ export default function Home() {
 
     // Client-side usage guard
     if (usage && !usage.is_admin && usage.remaining <= 0) {
-      const limitMsg = `You've reached your daily limit of ${usage.limit} messages. Resets in ${usage.resets_in}. Jarvis will be here when you're back.`
+      const limitMsg = `You've reached your daily limit of ${usage.limit} messages. Resets in ${usage.resets_in}. Rue will be here when you're back.`
       msgIdRef.current += 1
       setMessages(prev => [...prev, { id: msgIdRef.current, role: 'assistant', content: limitMsg }])
       return
@@ -2531,7 +2531,7 @@ export default function Home() {
               {userId && (
                 <button
                   onClick={() => setShowPanel(true)}
-                  title="What Jarvis knows"
+                  title="What Rue knows"
                   style={{
                     background: 'none', border: '1px solid var(--line)', borderRadius: '6px',
                     color: 'var(--accent)', fontSize: '0.8rem', padding: '0.35rem 0.55rem',

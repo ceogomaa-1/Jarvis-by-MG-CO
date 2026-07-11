@@ -1,5 +1,5 @@
 """
-Morning Queue — Jarvis's daily proactive digest.
+Morning Queue — Rue's daily proactive digest.
 
 Once a day (Render Cron -> POST /business/morning-queue/generate-all, or a
 manual POST /business/morning-queue/generate-one for testing), every "active"
@@ -62,7 +62,7 @@ def _today():
 
 
 _GENERATION_PROMPT = """\
-You are Jarvis, an AI business operator preparing the Morning Queue for {company_name} \
+You are Rue, an AI business operator preparing the Morning Queue for {company_name} \
 ({industry_label}). The Morning Queue is a short list of things waiting for the owner \
 when they open the app this morning — drafts ready to send, warnings about things \
 slipping, and opportunities worth chasing.
@@ -71,14 +71,14 @@ CONTEXT JARVIS KNOWS ABOUT THIS BUSINESS:
 {context_block}
 
 Generate 3-6 Morning Queue items. Each item has:
-- "type": one of "suggestion" (a recommended action), "draft" (something Jarvis can \
+- "type": one of "suggestion" (a recommended action), "draft" (something Rue can \
 pre-write for review — email, post, message), "warning" (something needs attention — \
 stale lead, slipping metric, missed follow-up), or "opportunity" (a revenue/growth \
 opening spotted in the data)
 - "title": punchy, 6 words max
 - "body": 1-3 sentences, specific — reference real names/numbers/dates from the context \
 above whenever you can. No generic filler.
-- "action_prompt": a first-person message the owner could send Jarvis to act on this \
+- "action_prompt": a first-person message the owner could send Rue to act on this \
 right now (e.g. "Draft a follow-up email to Sarah about the Maple St listing")
 
 If there's little to go on (no connected tools, few memories), still produce at least 2 \
@@ -220,7 +220,7 @@ async def _gather_context(user_id: str) -> dict:
 
     sections = []
     if memories:
-        sections.append("Recent memories Jarvis has about this user/business:\n" + "\n".join(f"- {m}" for m in memories))
+        sections.append("Recent memories Rue has about this user/business:\n" + "\n".join(f"- {m}" for m in memories))
     if daily_ops:
         sections.append(daily_ops)
     if north_star:
@@ -238,7 +238,7 @@ async def _gather_context(user_id: str) -> dict:
     if len(context_block) > _MAX_CONTEXT_CHARS:
         context_block = context_block[:_MAX_CONTEXT_CHARS]
     if not context_block:
-        context_block = "No memories or connected tools yet — Jarvis is just getting started with this business."
+        context_block = "No memories or connected tools yet — Rue is just getting started with this business."
 
     return {
         "company_name": company_name,
@@ -569,7 +569,7 @@ async def queue_digest_for_prompt(user_id: str) -> str:
     lines = "\n".join(f"- [{r['type']}] {r['title']} — {r['body']}" for r in rows)
     return (
         "## Today's Morning Queue\n"
-        "Jarvis already prepared these items for the user this morning. If they reference "
+        "Rue already prepared these items for the user this morning. If they reference "
         "\"the queue\", \"what you flagged\", \"this morning's items\" or similar, these are what they mean:\n\n"
         f"{lines}"
     )

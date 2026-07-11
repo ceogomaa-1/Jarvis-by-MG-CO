@@ -122,7 +122,7 @@ def leads_allowed(user_id: str) -> tuple:
     sub = store.ensure_subscription(user_id)
     caps = capabilities(sub)
     if not caps.get("leads"):
-        return False, "Jarvis Leads is an Emperor-tier feature."
+        return False, "Rue Leads is an Emperor-tier feature."
     used = store.get_leads_usage(user_id)
     over = used >= config.EMPEROR_LEADS_ALLOWANCE
     return True, ("overage" if over else "ok")

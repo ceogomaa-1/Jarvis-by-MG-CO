@@ -1,5 +1,5 @@
 """
-Per-request API cost accounting for Jarvis Business chat.
+Per-request API cost accounting for Rue Business chat.
 
 Anthropic bills four token buckets per request:
   - input_tokens               — uncached prompt tokens, full input price
