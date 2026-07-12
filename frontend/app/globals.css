@@ -187,8 +187,80 @@ html, body {
 .biz-chat-scroll::-webkit-scrollbar-thumb:hover { background: rgba(243,234,217,0.15); }
 .biz-chat-scroll { scrollbar-width: thin; scrollbar-color: rgba(243,234,217,0.08) transparent; }
 
+/* ─── Rue personal chat workspace ───────────────────────────────────────── */
+.rue-chat-shell { position: relative; z-index: 2; display: flex; height: 100dvh; overflow: hidden; background: var(--bg); }
+.rue-sidebar { width: 272px; flex: 0 0 272px; display: flex; flex-direction: column; gap: 12px; padding: 18px 14px 14px; background: #100d0b; border-right: 1px solid var(--line); transition: width 220ms ease, flex-basis 220ms ease; }
+.rue-sidebar.is-collapsed { width: 76px; flex-basis: 76px; }
+.rue-sidebar-top { min-height: 42px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 4px; }
+.rue-sidebar-brand { overflow: hidden; transition: opacity 150ms ease; }
+.rue-sidebar.is-collapsed .rue-sidebar-brand { width: 0; opacity: 0; }
+.rue-icon-button { width: 38px; height: 38px; flex: 0 0 38px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid transparent; border-radius: 10px; background: transparent; color: var(--ink-soft); cursor: pointer; transition: background 160ms ease, color 160ms ease, border-color 160ms ease; }
+.rue-icon-button svg { width: 19px; height: 19px; }
+.rue-icon-button:hover, .rue-icon-button:focus-visible { color: var(--ink); background: rgba(243,234,217,.055); border-color: var(--line); outline: none; }
+.rue-icon-button.is-active { color: #100d0b; background: var(--accent); }
+.rue-new-chat { min-height: 44px; display: flex; align-items: center; gap: 11px; padding: 0 13px; border: 1px solid rgba(255,144,114,.24); border-radius: 12px; background: rgba(255,144,114,.08); color: var(--ink); font: 500 14px var(--sans); cursor: pointer; white-space: nowrap; overflow: hidden; }
+.rue-new-chat svg, .rue-nav-item svg { width: 18px; height: 18px; flex: 0 0 18px; }
+.rue-sidebar-nav { display: flex; flex-direction: column; gap: 4px; }
+.rue-nav-item { min-height: 42px; display: flex; align-items: center; gap: 12px; padding: 0 13px; border: 0; border-radius: 10px; background: transparent; color: var(--ink-soft); font: 400 14px var(--sans); cursor: pointer; white-space: nowrap; overflow: hidden; text-align: left; }
+.rue-nav-item:hover, .rue-nav-item.is-active { background: rgba(243,234,217,.055); color: var(--ink); }
+.rue-nav-item.is-active { box-shadow: inset 2px 0 var(--accent); }
+.rue-sidebar.is-collapsed .rue-new-chat span, .rue-sidebar.is-collapsed .rue-nav-item span, .rue-sidebar.is-collapsed .rue-account-copy, .rue-sidebar.is-collapsed .rue-account-button > svg, .rue-sidebar.is-collapsed .rue-sidebar-utility { display: none; }
+.rue-sidebar.is-collapsed .rue-new-chat, .rue-sidebar.is-collapsed .rue-nav-item { justify-content: center; padding: 0; }
+.rue-sidebar-spacer { flex: 1; }
+.rue-sidebar-utility { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 4px; }
+.rue-account-button { min-height: 54px; display: flex; align-items: center; gap: 10px; padding: 8px; border: 1px solid var(--line); border-radius: 13px; background: rgba(243,234,217,.025); color: var(--ink); cursor: pointer; overflow: hidden; }
+.rue-account-button img, .rue-avatar-fallback { width: 34px; height: 34px; flex: 0 0 34px; border-radius: 50%; border: 1px solid var(--line); object-fit: cover; }
+.rue-avatar-fallback { display: flex; align-items: center; justify-content: center; background: rgba(255,144,114,.1); color: var(--accent); font: 600 11px var(--sans); }
+.rue-account-copy { min-width: 0; flex: 1; display: flex; flex-direction: column; align-items: flex-start; }
+.rue-account-copy strong { width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; font: 500 13px var(--sans); }
+.rue-account-copy small { color: var(--ink-mute); font: 400 11px var(--sans); }
+.rue-account-button > svg { width: 16px; height: 16px; color: var(--ink-mute); }
+.rue-chat-main { min-width: 0; flex: 1; display: flex; flex-direction: column; background: #0a0908; }
+.rue-chat-header { height: 64px; flex: 0 0 64px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 24px; border-bottom: 1px solid var(--line); background: rgba(10,9,8,.88); backdrop-filter: blur(14px); }
+.rue-header-left, .rue-header-actions { display: flex; align-items: center; gap: 8px; }
+.rue-header-left > div { display: flex; align-items: center; gap: 12px; }
+.rue-chat-header h2 { margin: 0; color: var(--ink); font: 500 15px var(--sans); }
+.rue-chat-header .rue-header-left > div > div { padding: 4px 9px !important; font-size: 9px !important; letter-spacing: .08em !important; text-transform: none !important; }
+.rue-conversation { min-height: 0; flex: 1; display: flex; }
+.rue-message-column { max-width: 800px; min-height: 100%; margin: 0 auto; padding-top: 16px; }
+.rue-input-dock { flex: 0 0 auto; background: linear-gradient(to top, var(--bg) 76%, rgba(10,9,8,0)); }
+.rue-composer > div:last-child { max-width: 800px !important; border-radius: 18px !important; background: #15110e !important; box-shadow: 0 12px 34px rgba(0,0,0,.28); }
+.rue-composer textarea { font-family: var(--sans) !important; font-size: 16px !important; line-height: 24px !important; }
+.rue-empty-state { min-height: calc(100vh - 210px); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 32px 16px; text-align: center; }
+.rue-empty-orb { height: 116px; display: flex; align-items: center; justify-content: center; animation: softFloat 6s ease-in-out infinite; }
+.rue-eyebrow { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--accent); font: 500 11px var(--sans); }
+.rue-eyebrow svg { width: 14px; height: 14px; }
+.rue-empty-state h1 { margin: 0; max-width: 620px; color: var(--ink); font: 400 clamp(30px,4vw,46px)/1.12 var(--serif); text-wrap: balance; }
+.rue-empty-subtitle { margin: 0 0 10px; color: var(--ink-soft); font: 400 15px/1.55 var(--sans); }
+.rue-suggestions { width: 100%; max-width: 700px; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px; }
+.rue-suggestions button { min-height: 74px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 13px 15px; border: 1px solid var(--line); border-radius: 13px; background: rgba(243,234,217,.025); color: var(--ink); cursor: pointer; text-align: left; }
+.rue-suggestions button:hover { background: rgba(243,234,217,.055); border-color: rgba(255,144,114,.2); }
+.rue-suggestions strong { font: 500 13px var(--sans); }
+.rue-suggestions span { color: var(--ink-mute); font: 400 12px/1.4 var(--sans); }
+.rue-voice-panel { position: absolute; inset: 64px 0 110px 272px; z-index: 8; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; background: rgba(10,9,8,.94); backdrop-filter: blur(16px); }
+.sidebar-collapsed .rue-voice-panel { left: 76px; }
+.rue-voice-panel strong { font: 400 24px var(--serif); }
+.rue-voice-panel span { color: var(--ink-soft); font: 400 13px var(--sans); }
+.rue-voice-error { margin: 0; color: #ff9072; text-align: center; font: 400 12px var(--sans); }
+.rue-proactive-wrap > div { top: 76px !important; right: 28px !important; }
+
 /* ─── Mobile message typography + overflow guard ──────────────────────────── */
 @media (max-width: 767px) {
+  .rue-chat-header { height: 58px; flex-basis: 58px; padding: 0 12px; }
+  .rue-chat-header .rue-header-left > div > div { display: none !important; }
+  .rue-message-column { width: 100%; padding: 6px 16px 0; }
+  .rue-conversation > div > div:first-child { padding: 8px 0 20px !important; mask-image: none !important; -webkit-mask-image: none !important; }
+  .rue-empty-state { min-height: calc(100dvh - 190px); padding: 20px 0; }
+  .rue-empty-orb { height: 92px; transform: scale(.8); }
+  .rue-empty-state h1 { font-size: 32px; }
+  .rue-empty-subtitle { max-width: 310px; font-size: 14px; }
+  .rue-suggestions { grid-template-columns: 1fr; }
+  .rue-suggestions button:nth-child(n+4) { display: none; }
+  .rue-composer { padding: 8px 12px max(14px, env(safe-area-inset-bottom)) !important; }
+  .rue-composer > div:last-child { padding: 10px 12px !important; gap: 8px !important; border-radius: 16px !important; }
+  .rue-composer > div:last-child > button { width: 34px !important; height: 34px !important; }
+  .rue-voice-panel { inset: 58px 0 98px; }
+  .rue-proactive-wrap > div { top: 68px !important; right: 12px !important; left: 12px !important; max-width: none !important; }
   .mobile-chat-messages .prose {
     font-size: 15px !important;
     line-height: 1.7 !important;

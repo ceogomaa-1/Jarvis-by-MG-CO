@@ -19,6 +19,7 @@ import { LandingPage } from '../components/landing/LandingPage'
 import UsageCounter from '../components/business/UsageCounter'
 import { AttachmentsRow } from '../components/shared/AttachmentDisplay'
 import { uploadChatAttachment } from '../lib/attachments'
+import { Menu, MessageCircle, NotebookPen, GraduationCap, Brain, Mic, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Settings, LogOut, Plus, Sparkles } from 'lucide-react'
 
 import { BACKEND } from '@/lib/backend'
 const DEV_MODE = true
@@ -319,6 +320,72 @@ function Wordmark() {
       </div>
       <div className="wordmark-sub" style={{ fontFamily: 'var(--sans)', fontSize: 9, letterSpacing: '0.4em', paddingLeft: '0.4em', color: 'var(--ink-mute)', textTransform: 'uppercase', fontWeight: 400 }}>
         by MG &amp; Co
+      </div>
+    </div>
+  )
+}
+
+function PersonalSidebar({ collapsed, onToggle, onNotes, onStudy, onKnowledge, onAccount, user, userId }) {
+  const navItems = [
+    { label: 'Chat', icon: MessageCircle, active: true },
+    { label: 'Notes', icon: NotebookPen, onClick: onNotes },
+    { label: 'Study', icon: GraduationCap, onClick: onStudy },
+    { label: 'Rue Knows', icon: Brain, onClick: onKnowledge },
+  ]
+  const displayName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email || 'Your account'
+  const initials = displayName.split(/\s+/).map(part => part[0]).join('').slice(0, 2).toUpperCase()
+
+  return (
+    <aside className={`rue-sidebar ${collapsed ? 'is-collapsed' : ''}`} aria-label="Personal chat navigation">
+      <div className="rue-sidebar-top">
+        <div className="rue-sidebar-brand"><Wordmark /></div>
+        <button className="rue-icon-button rue-collapse-button" onClick={onToggle} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
+          {collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
+        </button>
+      </div>
+      <button className="rue-new-chat" type="button" onClick={() => document.querySelector('.rue-composer textarea')?.focus()} title="Start from the composer">
+        <Plus /> <span>New thought</span>
+      </button>
+      <nav className="rue-sidebar-nav">
+        {navItems.map(({ label, icon: Icon, active, onClick }) => (
+          <button key={label} type="button" className={`rue-nav-item ${active ? 'is-active' : ''}`} onClick={onClick} title={collapsed ? label : undefined}>
+            <Icon /> <span>{label}</span>
+          </button>
+        ))}
+      </nav>
+      <div className="rue-sidebar-spacer" />
+      <div className="rue-sidebar-utility">
+        {userId && <WhatsNewBell userId={userId} variant="personal" />}
+        {userId && <ModeToggle userId={userId} currentMode="personal" />}
+      </div>
+      <button className="rue-account-button" type="button" onClick={onAccount}>
+        {user?.user_metadata?.avatar_url ? (
+          <img src={user.user_metadata.avatar_url} alt="" referrerPolicy="no-referrer" />
+        ) : <span className="rue-avatar-fallback">{initials}</span>}
+        <span className="rue-account-copy"><strong>{displayName}</strong><small>Personal</small></span>
+        <Settings />
+      </button>
+    </aside>
+  )
+}
+
+function ChatEmptyState({ name, onSuggestion }) {
+  const suggestions = [
+    ['Plan my day', 'Help me decide what deserves my attention today.'],
+    ['Capture a note', 'Help me turn this thought into a useful note.'],
+    ['Study something', 'Teach me something I have been curious about.'],
+    ['Remember with me', 'What do you already know about what matters to me?'],
+  ]
+  return (
+    <div className="rue-empty-state">
+      <div className="rue-empty-orb"><Orb state="idle" orbStyle="aurora" accent="#ff9072" size={132} /></div>
+      <p className="rue-eyebrow"><Sparkles /> Memory is present</p>
+      <h1>{name ? `Good to see you, ${name}.` : 'What’s on your mind?'}</h1>
+      <p className="rue-empty-subtitle">Talk it through, make a plan, or pick up where your thoughts left off.</p>
+      <div className="rue-suggestions">
+        {suggestions.map(([title, prompt]) => (
+          <button key={title} type="button" onClick={() => onSuggestion(prompt)}><strong>{title}</strong><span>{prompt}</span></button>
+        ))}
       </div>
     </div>
   )
@@ -828,7 +895,7 @@ function Toast({ message, onTap, onClose, duration = 6000 }) {
   )
 }
 
-function Conversation({ messages, loading, onRetry }) {
+function Conversation({ messages, loading, onRetry, emptyState }) {
   const scrollRef = useRef(null)
   const stickRef = useRef(true)
   const [showJump, setShowJump] = useState(false)
@@ -871,7 +938,8 @@ function Conversation({ messages, loading, onRetry }) {
         maskImage: 'linear-gradient(to bottom, transparent 0, #000 60px, #000 100%)',
         WebkitMaskImage: 'linear-gradient(to bottom, transparent 0, #000 60px, #000 100%)',
       }}>
-        <div style={{ maxWidth: 720, margin: '0 auto' }}>
+        <div className="rue-message-column">
+          {messages.length === 0 && !loading && emptyState}
           {messages.map((m, i) => (
             <div key={m.id ?? i} className="msg-enter">
               <Message msg={m} isLatest={i === messages.length - 1 && !loading} onRetry={onRetry} />
@@ -926,6 +994,7 @@ function InputBar({ orbState, input, setInput, onSend, onStop, onMicClick, voice
 
   const handleKey = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
+      if (e.nativeEvent.isComposing || e.keyCode === 229) return
       e.preventDefault()
       triggerSend()
     }
@@ -964,11 +1033,11 @@ function InputBar({ orbState, input, setInput, onSend, onStop, onMicClick, voice
   const micColor = voiceMode || voiceConnecting ? '#1a0e08' : 'var(--ink-soft)'
   const micShadow = voiceMode ? '0 0 24px rgba(255,144,114,0.6)' : 'none'
 
-  let placeholder = 'Say something to Rue'
+  let placeholder = 'Message Rue…'
   if (voiceMode) placeholder = isListening ? 'Listening...' : 'Voice active — tap mic to stop'
 
   return (
-    <div style={{ padding: mobile ? '12px 16px 20px' : '20px 40px 32px', display: 'flex', justifyContent: 'center', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+    <div className="rue-composer" style={{ padding: mobile ? '12px 16px 20px' : '12px 32px 24px', display: 'flex', justifyContent: 'center', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
       {usage && (
         <div style={{ width: '100%', maxWidth: 720, display: 'flex', justifyContent: 'flex-end' }}>
           <UsageCounter usage={usage} />
@@ -1183,7 +1252,7 @@ function InputBar({ orbState, input, setInput, onSend, onStop, onMicClick, voice
   )
 }
 
-// ─── Intro splash ─────────────────────────────────────────────────────────────
+// ─── Intro splash ──────────���──────────────────────────────────────────────────
 
 function IntroSplash({ onDone }) {
   useEffect(() => {
@@ -1388,6 +1457,7 @@ export default function Home() {
   const [toast, setToast] = useState(null)
   const [isMobile, setIsMobile] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [usage, setUsage] = useState(null)
   const [studyMode, setStudyMode] = useState(false)
   const mobileScrollRef = useRef(null)
@@ -2326,155 +2396,53 @@ export default function Home() {
           if (droppedFiles.length) handleFileSelect(droppedFiles)
         }}
       >
-      {isMobile ? (
+      <div className={`rue-chat-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+        {!isMobile && (
+          <PersonalSidebar
+            collapsed={sidebarCollapsed}
+            onToggle={() => setSidebarCollapsed(value => !value)}
+            onNotes={() => setShowNotesPanel(true)}
+            onStudy={toggleStudyMode}
+            onKnowledge={() => setShowPanel(true)}
+            onAccount={() => setDrawerOpen(true)}
+            user={user}
+            userId={userId}
+          />
+        )}
 
-        /* ── MOBILE LAYOUT ─────────────────────────────────────────────── */
-        <div style={{ position: 'relative', height: '100dvh', zIndex: 2, overflowX: 'hidden', background: '#000' }}>
-
-          {/* Orb — fixed behind scrolling content; two divs to avoid transform/animation conflict */}
-          <div
-            style={{
-              position: 'fixed', left: 'calc(50% - 100px)', top: '22vh',
-              width: 200, height: 200,
-              zIndex: 1, opacity: 0.45, pointerEvents: 'none',
-            }}
-          >
-            <div
-              style={{ animation: 'softFloat 6s ease-in-out infinite', width: '100%', height: '100%', borderRadius: '50%' }}
-              className={jarvisSpeaking ? 'orb-speaking' : voiceMode ? 'orb-listening' : ''}
-            >
-              <Orb state={orbState} orbStyle="aurora" accent="#ff9072" size={200} />
+        <main className="rue-chat-main">
+          <header className="rue-chat-header">
+            <div className="rue-header-left">
+              {isMobile && <button className="rue-icon-button" onClick={() => setDrawerOpen(true)} aria-label="Open menu"><Menu /></button>}
+              <div><h2>Rue now</h2><StatusPill state={orbState} /></div>
             </div>
-          </div>
+            <div className="rue-header-actions">
+              <button className={`rue-icon-button ${voiceMode ? 'is-active' : ''}`} onClick={toggleVoiceMode} aria-label={voiceMode ? 'Stop voice mode' : 'Start voice mode'}><Mic /></button>
+              <button className="rue-icon-button" onClick={() => setDrawerOpen(true)} aria-label="More options"><MoreHorizontal /></button>
+            </div>
+          </header>
 
-          {/* Header — fixed at top, z:20 */}
-          <div style={{
-            position: 'fixed', top: 0, left: 0, right: 0, zIndex: 20,
-            height: 56, display: 'flex', alignItems: 'center',
-            justifyContent: 'space-between', padding: '0 20px',
-            background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(12px)',
-          }}>
-            <button
-              onClick={() => setDrawerOpen(true)}
-              aria-label="menu"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, display: 'flex', flexDirection: 'column', gap: 4.5, alignItems: 'center' }}
-            >
-              <span style={{ display: 'block', width: 18, height: 1.5, background: 'var(--ink-soft)', borderRadius: 1 }} />
-              <span style={{ display: 'block', width: 18, height: 1.5, background: 'var(--ink-soft)', borderRadius: 1 }} />
-              <span style={{ display: 'block', width: 18, height: 1.5, background: 'var(--ink-soft)', borderRadius: 1 }} />
-            </button>
-            <Wordmark />
-            <StudyToggle studyMode={false} onToggle={toggleStudyMode} />
-          </div>
+          {proactiveHint && <div className="rue-proactive-wrap"><ProactiveBanner hint={proactiveHint} onAct={() => setProactiveHint(null)} onDismiss={() => setProactiveHint(null)} /></div>}
 
-          {/* Scrollable content — scrolls over the fixed orb, z:10 */}
-          <div
-            ref={mobileScrollRef}
-            onScroll={handleMobileScroll}
-            style={{
-              position: 'absolute', inset: 0,
-              overflowY: 'auto', overflowX: 'hidden',
-              paddingTop: 56, paddingBottom: 110,
-              zIndex: 10,
-            }}
-          >
-            {/* Proactive banner */}
-            {proactiveHint && (
-              <div style={{
-                margin: '12px 16px 0',
-                padding: '14px 16px 14px 18px',
-                background: 'rgba(90,0,0,0.2)',
-                border: '1px solid rgba(239,68,68,0.35)',
-                borderRadius: 16, animation: 'fadeUp 500ms ease both',
-                backdropFilter: 'blur(8px)', fontFamily: 'var(--sans)',
-              }}>
-                <div style={{ fontSize: 9, letterSpacing: '0.25em', textTransform: 'uppercase', color: '#f87171', marginBottom: 8, fontWeight: 500 }}>
-                  Proactive · just now
-                </div>
-                <div style={{ fontSize: 14, color: 'rgba(243,234,217,0.9)', lineHeight: 1.5, fontWeight: 300, marginBottom: 12, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
-                  {proactiveHint}
-                </div>
-                <div style={{ display: 'flex', gap: 14 }}>
-                  <button onClick={() => setProactiveHint(null)} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: 'var(--sans)', fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#f87171', fontWeight: 500 }}>Handle it</button>
-                  <button onClick={() => setProactiveHint(null)} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: 'var(--sans)', fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--ink-mute)', fontWeight: 500 }}>Dismiss</button>
-                </div>
-              </div>
-            )}
-
-            {/* Idle state — caption + memory text float below the orb */}
-            {messages.length === 0 && !loading && (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 'calc(22vh + 240px)', gap: 12, paddingLeft: 24, paddingRight: 24, paddingBottom: 32 }}>
-                {!voiceMode && (
-                  <div style={{ fontFamily: 'var(--serif)', fontStyle: 'italic', fontSize: 14, color: 'var(--ink-soft)', fontWeight: 300, textAlign: 'center', lineHeight: 1.45, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
-                    {captionFor(orbState)}
-                  </div>
-                )}
-                {voiceMode && (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', animation: 'inkPulse 1.4s ease-in-out infinite', display: 'inline-block' }} />
-                    <span style={{ fontFamily: 'var(--sans)', fontSize: 10, color: 'var(--accent)', letterSpacing: '0.2em', textTransform: 'uppercase' }}>{jarvisSpeaking ? 'Speaking' : 'Listening'}</span>
-                  </span>
-                )}
-                <div style={{ fontFamily: 'var(--sans)', fontSize: 10, letterSpacing: '0.25em', textTransform: 'uppercase', color: 'var(--ink-mute)' }}>
-                  memory · present
-                </div>
-                {voiceError && (
-                  <div style={{ fontFamily: 'var(--sans)', fontSize: 9, color: '#ef4444', textAlign: 'center', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
-                    {voiceError}
-                  </div>
-                )}
-                {onboardingComplete === false && (
-                  <div className="onboarding-pulse" style={{ fontFamily: 'var(--sans)', fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--accent)', opacity: 0.6 }}>
-                    Getting to know you…
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Conversation messages — start below the orb area */}
-            {(messages.length > 0 || loading) && (
-              <div
-                className="mobile-chat-messages"
-                style={{
-                  paddingTop: 'calc(22vh + 240px)',
-                  paddingLeft: 20, paddingRight: 20, paddingBottom: 16,
-                  wordBreak: 'break-word', overflowWrap: 'anywhere',
-                }}
-              >
-                {messages.map((m, i) => (
-                  <div key={m.id ?? i} className="msg-enter">
-                    <Message msg={m} isLatest={i === messages.length - 1 && !loading} onRetry={handleRetry} />
-                  </div>
-                ))}
-                {loading && <ThinkingIndicator />}
-              </div>
-            )}
-          </div>
-
-          {/* Jump to latest — floats above the fixed input bar, z:21 */}
-          {showMobileJump && (
-            <button
-              onClick={scrollMobileToBottom}
-              style={{
-                position: 'fixed', bottom: 110, left: '50%', transform: 'translateX(-50%)', zIndex: 21,
-                display: 'flex', alignItems: 'center', gap: 6,
-                background: 'rgba(20,16,12,0.85)', border: '1px solid rgba(255,255,255,0.12)',
-                borderRadius: 999, padding: '8px 16px', cursor: 'pointer',
-                color: 'var(--ink-soft)', fontFamily: 'var(--sans)', fontSize: 11,
-                letterSpacing: '0.1em', textTransform: 'uppercase',
-                backdropFilter: 'blur(8px)', boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
-                animation: 'fadeUp 300ms ease both',
-              }}
-            >
-              ↓ Jump to latest
-            </button>
+          {voiceMode && (
+            <section className="rue-voice-panel" aria-live="polite">
+              <div className={jarvisSpeaking ? 'orb-speaking' : 'orb-listening'}><Orb state={orbState} orbStyle="aurora" accent="#ff9072" size={180} /></div>
+              <strong>{jarvisSpeaking ? 'Rue is speaking' : voiceConnecting ? 'Connecting…' : 'Rue is listening'}</strong>
+              <span>Tap the microphone again to return to typing.</span>
+            </section>
           )}
 
-          {/* Input bar — fixed at bottom with gradient, z:20 */}
-          <div style={{
-            position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 20,
-            background: 'linear-gradient(to top, #000000 55%, rgba(0,0,0,0.9) 80%, transparent 100%)',
-          }}>
+          <section className="rue-conversation" aria-label="Conversation with Rue">
+            <Conversation
+              messages={messages}
+              loading={loading}
+              onRetry={handleRetry}
+              emptyState={<ChatEmptyState name={studyName} onSuggestion={(text) => { setInput(text); requestAnimationFrame(() => document.querySelector('.rue-composer textarea')?.focus()) }} />}
+            />
+          </section>
+
+          <div className="rue-input-dock">
+            {voiceError && <p className="rue-voice-error">{voiceError}</p>}
             <InputBar
               orbState={orbState}
               input={input}
@@ -2494,174 +2462,11 @@ export default function Home() {
               pastedImage={pastedImage}
               onPastedImageChange={setPastedImage}
               usage={usage}
-              mobile
+              mobile={isMobile}
             />
           </div>
-        </div>
-
-      ) : (
-
-        /* ── DESKTOP LAYOUT (unchanged) ────────────────────────────────── */
-        <div style={{
-          position: 'relative', height: '100vh', zIndex: 2,
-          display: 'grid',
-          gridTemplateColumns: '420px 1fr',
-          gridTemplateRows: '64px 1fr auto',
-          gridTemplateAreas: `
-            "topL topR"
-            "orb  conv"
-            "orb  input"
-          `,
-        }}>
-          {/* top-left: wordmark */}
-          <div style={{ gridArea: 'topL', padding: '20px 40px', display: 'flex', alignItems: 'center' }}>
-            <Wordmark />
-          </div>
-
-          {/* top-right: status + chips */}
-          <div style={{ gridArea: 'topR', padding: '20px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <StatusPill state={orbState} />
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
-              <StudyToggle studyMode={false} onToggle={toggleStudyMode} />
-              {userId && <WhatsNewBell userId={userId} variant="personal" />}
-              <PermissionChip icon="◉" label="Screen"   granted />
-              <PermissionChip icon="⌖" label="Cursor"   granted />
-              <PermissionChip icon="✦" label="Calendar" granted />
-              <PermissionChip icon="◍" label="Audio"    granted />
-              {userId && (
-                <button
-                  onClick={() => setShowPanel(true)}
-                  title="What Rue knows"
-                  style={{
-                    background: 'none', border: '1px solid var(--line)', borderRadius: '6px',
-                    color: 'var(--accent)', fontSize: '0.8rem', padding: '0.35rem 0.55rem',
-                    cursor: 'pointer', opacity: 0.6, letterSpacing: '0.05em',
-                    transition: 'opacity 0.2s', fontFamily: 'var(--sans)',
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                  onMouseLeave={e => e.currentTarget.style.opacity = '0.6'}
-                >◉</button>
-              )}
-
-
-              {/* Mode toggle */}
-              {userId && (
-                <ModeToggle userId={userId} currentMode="personal" />
-              )}
-
-              {/* Avatar + sign out */}
-              {user && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 4 }}>
-                  {user.user_metadata?.avatar_url && (
-                    <img
-                      src={user.user_metadata.avatar_url}
-                      alt="avatar"
-                      referrerPolicy="no-referrer"
-                      style={{ width: 24, height: 24, borderRadius: '50%', opacity: 0.8, border: '1px solid var(--line)' }}
-                    />
-                  )}
-                  <button
-                    onClick={async () => {
-                      await supabase.auth.signOut()
-                      router.replace('/welcome')
-                    }}
-                    style={{
-                      background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-                      fontFamily: 'var(--sans)', fontSize: '0.65rem', letterSpacing: '0.1em',
-                      color: 'var(--ink-mute)', textTransform: 'uppercase', opacity: 0.55,
-                      transition: 'opacity 0.2s',
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                    onMouseLeave={e => e.currentTarget.style.opacity = '0.55'}
-                  >
-                    Sign out
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* left: orb panel */}
-          <div style={{
-            gridArea: 'orb', position: 'relative',
-            display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center',
-            gap: 28, padding: '0 20px 40px',
-          }}>
-            <div
-              style={{ animation: 'softFloat 6s ease-in-out infinite', borderRadius: '50%' }}
-              className={jarvisSpeaking ? 'orb-speaking' : voiceMode ? 'orb-listening' : ''}
-            >
-              <Orb state={orbState} orbStyle="aurora" accent="#ff9072" size={340} />
-            </div>
-            <div style={{
-              fontFamily: 'var(--serif)', fontStyle: 'italic', fontSize: 17,
-              color: 'var(--ink-soft)', fontWeight: 300, textAlign: 'center',
-              maxWidth: 320, lineHeight: 1.45, minHeight: 48,
-            }}>
-              {voiceMode ? '' : captionFor(orbState)}
-            </div>
-            <div style={{ fontFamily: 'var(--sans)', fontSize: 9, letterSpacing: '0.38em', textTransform: 'uppercase', color: 'var(--ink-mute)' }}>
-              {voiceMode ? (
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{
-                    width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)',
-                    animation: 'inkPulse 1.4s ease-in-out infinite', display: 'inline-block',
-                  }} />
-                  <span style={{ color: 'var(--accent)', letterSpacing: '0.2em' }}>
-                    {jarvisSpeaking ? 'Speaking' : 'Listening'}
-                  </span>
-                </span>
-              ) : 'memory · present'}
-            </div>
-            {voiceError && (
-              <div style={{ fontFamily: 'var(--sans)', fontSize: 9, color: '#ef4444', textAlign: 'center', maxWidth: 280, letterSpacing: '0.05em' }}>
-                {voiceError}
-              </div>
-            )}
-            {onboardingComplete === false && !voiceMode && (
-              <div className="onboarding-pulse" style={{ fontFamily: 'var(--sans)', fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--accent)', opacity: 0.6 }}>
-                Getting to know you…
-              </div>
-            )}
-            <ProactiveBanner
-              hint={proactiveHint}
-              onAct={() => setProactiveHint(null)}
-              onDismiss={() => setProactiveHint(null)}
-            />
-          </div>
-
-          {/* right: conversation */}
-          <div style={{ gridArea: 'conv', display: 'flex', flexDirection: 'column', minHeight: 0, borderLeft: '1px solid var(--line)' }}>
-            <Conversation messages={messages} loading={loading} onRetry={handleRetry} />
-          </div>
-
-          {/* input */}
-          <div style={{ gridArea: 'input', borderLeft: '1px solid var(--line)', borderTop: '1px solid var(--line)' }}>
-            <InputBar
-              orbState={orbState}
-              input={input}
-              setInput={setInput}
-              onSend={sendMessage}
-              onStop={stopGeneration}
-              onMicClick={toggleVoiceMode}
-              voiceMode={voiceMode}
-              voiceConnecting={voiceConnecting}
-              loading={loading || isStreaming}
-              disabled={!userId}
-              fileInputRef={fileInputRef}
-              uploadingFile={uploadingFile}
-              onFileSelect={handleFileSelect}
-              pendingFiles={pendingFiles}
-              onRemoveFile={(id) => setPendingFiles(prev => prev.filter(f => f.id !== id))}
-              pastedImage={pastedImage}
-              onPastedImageChange={setPastedImage}
-              usage={usage}
-            />
-          </div>
-        </div>
-
-      )}
+        </main>
+      </div>
       </div>
     </>
   )

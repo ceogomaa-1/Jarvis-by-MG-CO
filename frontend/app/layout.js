@@ -86,7 +86,7 @@ export const viewport = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={`${instrumentSerif.variable} ${inter.variable} ${pressStart.variable} ${pixelify.variable} ${fredoka.variable} ${fraunces.variable} ${jetbrainsMono.variable} ${hankenGrotesk.variable}`}>
+    <html lang="en" className={`bg-background ${instrumentSerif.variable} ${inter.variable} ${pressStart.variable} ${pixelify.variable} ${fredoka.variable} ${fraunces.variable} ${jetbrainsMono.variable} ${hankenGrotesk.variable}`}>
       <body style={{ backgroundColor: '#0a0908', margin: 0, padding: 0, height: '100vh' }}>
         {children}
         <AuthTokenBridge />
