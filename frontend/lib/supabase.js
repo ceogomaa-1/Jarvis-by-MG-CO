@@ -14,11 +14,14 @@ function authCookieOptions() {
   return undefined
 }
 
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+// Keep public routes and the preview renderable when auth is intentionally not
+// configured. Auth-dependent screens already treat a null client as signed out.
 export const supabase =
-  typeof window !== 'undefined'
-    ? createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-        { cookieOptions: authCookieOptions() }
-      )
+  typeof window !== 'undefined' && supabaseUrl && supabaseAnonKey
+    ? createBrowserClient(supabaseUrl, supabaseAnonKey, {
+        cookieOptions: authCookieOptions(),
+      })
     : null

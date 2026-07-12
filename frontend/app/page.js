@@ -1815,6 +1815,10 @@ export default function Home() {
       return
     }
     const t = setTimeout(async () => {
+      if (!supabase) {
+        router.replace('/welcome')
+        return
+      }
       try {
         const { data: { session } } = await supabase.auth.getSession()
         if (!session?.user) router.replace('/welcome')
