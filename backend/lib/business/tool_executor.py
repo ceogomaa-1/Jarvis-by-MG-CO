@@ -103,6 +103,18 @@ async def execute_tool(tool_name: str, tool_input: dict, user_id: str, progress_
             return json.dumps({"error": f"Tool execution error: {e}"})
         return json.dumps(result, default=str)
 
+    # PDF export — always-on, renders structured content to a downloadable PDF via
+    # the shared document store (same pattern as CSV/PPTX/real-estate documents).
+    if connector_type == "pdf":
+        try:
+            from backend.lib.business.pdf_tool import run_pdf_create
+            result: ConnectorResult = await run_pdf_create(tool_input, user_id)
+        except Exception as e:
+            return json.dumps({"error": f"Tool execution error: {e}"})
+        if result.ok:
+            return json.dumps(result.data or {}, default=str)
+        return json.dumps({"error": result.error or "Action failed with no error message"})
+
     # Web tools are always-on — no connector/credentials needed.
     if connector_type == "web":
         try:

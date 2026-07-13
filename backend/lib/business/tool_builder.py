@@ -95,6 +95,38 @@ _ALWAYS_ON_TOOLS: dict[str, dict] = {
             "required": ["topic"],
         },
     },
+    "pdf__create": {
+        "description": (
+            "Generate a downloadable PDF document from structured content — lead lists, call "
+            "sheets, reports, summaries, proposals, checklists. Use this WHENEVER the user asks "
+            "for a PDF or a downloadable/printable document — NEVER say you can't create PDFs, "
+            "and don't detour to Notion or other tools unless the user asks for that. Gather the "
+            "data FIRST (with other tools, in earlier rounds), then call this once with the "
+            "COMPLETE content as ordered blocks: {type:'heading', text}, {type:'paragraph', text} "
+            "(lines starting with '- ' become bullets), {type:'table', headers:[...], "
+            "rows:[[...],...]}. Returns a download_url — always present it to the user as a "
+            "markdown link. Runs immediately, no confirmation needed."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string", "description": "Document title (shown at the top of the PDF)"},
+                "subtitle": {"type": "string", "description": "Optional subtitle shown under the title"},
+                "blocks": {
+                    "type": "array",
+                    "description": (
+                        "Ordered content blocks. heading: {\"type\":\"heading\",\"text\":...}; "
+                        "paragraph: {\"type\":\"paragraph\",\"text\":...} ('- ' lines render as bullets); "
+                        "table: {\"type\":\"table\",\"headers\":[\"Name\",\"Phone\"],\"rows\":[[\"Mario's Garage\",\"(416) 531-0875\"]]}"
+                    ),
+                    "items": {"type": "object"},
+                },
+                "filename": {"type": "string", "description": "Optional filename (without path); defaults to the title"},
+                "note": {"type": "string", "description": "Optional small-print footer note"},
+            },
+            "required": ["title", "blocks"],
+        },
+    },
     "web__search": {
         "description": (
             "Search the web for current or real-time information — news, sports scores/schedules, "

@@ -138,7 +138,19 @@ def generate_table_pdf(title: str, headers: list[str], rows: list[list], brand_n
     meta = brand_name.strip() if brand_name and brand_name.strip() else "Report"
     story.append(Paragraph(f"{_escape(meta)} · {datetime.now().strftime('%B %d, %Y')}", meta_style))
 
-    # Word-wrap every cell as a Paragraph so nothing overflows the column.
+    story.append(_wrapped_table(headers, rows, page_w - 72, cell_style, head_cell_style))
+
+    if note:
+        story.append(Paragraph(_escape(note), note_style))
+
+    doc.build(story)
+    return buffer.getvalue()
+
+
+def _wrapped_table(headers: list[str], rows: list[list], usable_w: float, cell_style, head_cell_style) -> "Table":
+    """Aligned table flowable with word-wrapped Paragraph cells so nothing overflows."""
+    headers = [str(h) for h in (headers or ["Item"])]
+    n_cols = len(headers)
     table_data = [[Paragraph(_escape(h), head_cell_style) for h in headers]]
     for row in (rows or []):
         cells = list(row) + [""] * (n_cols - len(row))
@@ -146,7 +158,6 @@ def generate_table_pdf(title: str, headers: list[str], rows: list[list], brand_n
             Paragraph(_escape("" if v is None else str(v)), cell_style) for v in cells[:n_cols]
         ])
 
-    usable_w = page_w - 72
     col_w = usable_w / n_cols
     table = Table(table_data, colWidths=[col_w] * n_cols, repeatRows=1)
     table.setStyle(TableStyle([
@@ -159,7 +170,85 @@ def generate_table_pdf(title: str, headers: list[str], rows: list[list], brand_n
         ("LEFTPADDING", (0, 0), (-1, -1), 6),
         ("RIGHTPADDING", (0, 0), (-1, -1), 6),
     ]))
-    story.append(table)
+    return table
+
+
+def generate_report_pdf(
+    title: str,
+    blocks: list[dict],
+    subtitle: str = "",
+    brand_name: str = "",
+    note: str = "",
+) -> bytes:
+    """
+    Render a mixed-content report: `blocks` is an ordered list of
+      {"type": "heading", "text": ...}
+      {"type": "paragraph", "text": ...}   (lines starting with "- " become bullets)
+      {"type": "table", "headers": [...], "rows": [[...], ...]}
+    Same visual language as generate_table_pdf (accent title, wrapped table cells,
+    landscape when any table is wider than 4 columns). Branded with the client's
+    own business name — never MG&CO.
+    """
+    if not HAS_REPORTLAB:
+        raise ImportError("reportlab not installed — add it to requirements.txt")
+
+    widest = max(
+        (len(b.get("headers") or []) for b in blocks if isinstance(b, dict) and b.get("type") == "table"),
+        default=0,
+    )
+    pagesize = landscape(letter) if widest > 4 else letter
+    page_w = pagesize[0]
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, pagesize=pagesize,
+        rightMargin=36, leftMargin=36, topMargin=54, bottomMargin=48,
+    )
+    styles = getSampleStyleSheet()
+    accent = HexColor("#c84b31")
+
+    title_style = ParagraphStyle("RptTitle", parent=styles["Title"], fontSize=18,
+                                 textColor=accent, spaceAfter=4, fontName="Helvetica-Bold")
+    meta_style = ParagraphStyle("RptMeta", parent=styles["Normal"], fontSize=9,
+                                textColor=HexColor("#888888"), spaceAfter=14)
+    heading_style = ParagraphStyle("RptHeading", parent=styles["Heading2"], fontSize=13,
+                                   textColor=accent, spaceBefore=12, spaceAfter=5,
+                                   fontName="Helvetica-Bold")
+    body_style = ParagraphStyle("RptBody", parent=styles["Normal"], fontSize=10.5,
+                                leading=15, spaceAfter=4)
+    bullet_style = ParagraphStyle("RptBullet", parent=body_style, leftIndent=16, bulletIndent=4)
+    cell_style = ParagraphStyle("RptCell", parent=styles["Normal"], fontSize=9, leading=12)
+    head_cell_style = ParagraphStyle("RptHeadCell", parent=styles["Normal"], fontSize=9.5,
+                                     leading=12, textColor=HexColor("#ffffff"), fontName="Helvetica-Bold")
+    note_style = ParagraphStyle("RptNote", parent=styles["Normal"], fontSize=8.5,
+                                leading=12, textColor=HexColor("#888888"), spaceBefore=14)
+
+    story = [Paragraph(_escape(title or "Report"), title_style)]
+    meta_parts = [p for p in (brand_name.strip() if brand_name else "", subtitle.strip() if subtitle else "") if p]
+    meta_parts.append(datetime.now().strftime("%B %d, %Y"))
+    story.append(Paragraph(_escape(" · ".join(meta_parts)), meta_style))
+
+    for block in blocks or []:
+        if not isinstance(block, dict):
+            continue
+        btype = block.get("type", "")
+        if btype == "heading" and block.get("text"):
+            story.append(Paragraph(_escape(str(block["text"])), heading_style))
+        elif btype == "paragraph" and block.get("text"):
+            for line in str(block["text"]).split("\n"):
+                line = line.strip()
+                if not line:
+                    continue
+                escaped = _escape(line)
+                if escaped.startswith("- "):
+                    story.append(Paragraph(escaped[2:], bullet_style, bulletText="•"))
+                else:
+                    story.append(Paragraph(escaped, body_style))
+        elif btype == "table" and (block.get("headers") or block.get("rows")):
+            story.append(Spacer(1, 0.08 * inch))
+            story.append(_wrapped_table(block.get("headers") or [], block.get("rows") or [],
+                                        page_w - 72, cell_style, head_cell_style))
+            story.append(Spacer(1, 0.08 * inch))
 
     if note:
         story.append(Paragraph(_escape(note), note_style))

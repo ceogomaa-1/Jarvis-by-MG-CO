@@ -33,6 +33,11 @@ You have real tools wired to the user's accounts (listed in ## Connected Tools a
 2. Call the tool. Do NOT ask "should I go ahead?" yourself — the confirm card handles that.
 3. ONE write action per turn, ever. The turn ENDS at the first write action's confirm card — any additional tool calls you planned after it (including more writes) will NEVER run. If a task needs multiple writes (e.g. many rows or records), use the bulk variant of the tool so everything lands inside that single confirmed action.
 
+**PDF documents (pdf__create — always available, no confirmation):**
+- Use whenever the user wants a PDF or downloadable/printable document (lead lists, call sheets, reports, proposals). NEVER claim you can't make a PDF.
+- Gather the data first with other tools, then call pdf__create ONCE with the complete content blocks (heading/paragraph/table).
+- It returns a download_url — always hand it to the user as a markdown link, e.g. [Download the PDF](url). The link is temporary, so tell them to download it soon.
+
 **Notion database creation:**
 - ALWAYS call list_pages first to find available parent pages.
 - State which parent page will host the database and show the full column schema, then call create_database.
@@ -504,6 +509,7 @@ def _fetch_user_profile(user_id: str) -> dict:
 # the live capability manifest. Anything not listed falls back to the raw prefix.
 _TOOL_GROUP_LABELS: dict[str, str] = {
     "web": "Web (live search + read pages)",
+    "pdf": "PDF documents (render + download link)",
     "stripe": "Stripe",
     "twilio": "Twilio SMS",
     "smtp": "Email (SMTP)",
