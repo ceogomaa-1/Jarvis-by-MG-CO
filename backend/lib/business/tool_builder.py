@@ -356,12 +356,12 @@ _TOOLS: dict[str, dict] = {
         },
     },
     "notion__create_page": {
-        "description": "[Notion] Create a new page in a Notion database.",
+        "description": "[Notion] Create ONE page/row in a Notion database. `properties` may be a simple flat map of column name → plain value (recommended) or Notion's raw property format. For more than one row, use notion__create_pages instead — NEVER a chain of create_page calls (only the first write action of a turn executes).",
         "input_schema": {
             "type": "object",
             "properties": {
                 "database_id": {"type": "string", "description": "Parent database ID"},
-                "properties": {"type": "object", "description": "Page properties matching the database schema"},
+                "properties": {"type": "object", "description": "Flat column→value map (e.g. {\"Name\": \"Mario's Garage\", \"Phone\": \"(416) 531-0875\"}) or raw Notion property objects"},
                 "children": {
                     "type": "array",
                     "description": "Page content blocks (optional)",
@@ -371,17 +371,37 @@ _TOOLS: dict[str, dict] = {
             "required": ["database_id", "properties"],
         },
     },
+    "notion__create_pages": {
+        "description": "[Notion] Bulk-insert MANY rows into an EXISTING database in ONE confirmed action. Always use this (never repeated create_page calls) when adding 2+ rows — the chat turn ends at the first write action, so a planned series of single inserts will never run.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "database_id": {"type": "string", "description": "Target database ID"},
+                "rows": {
+                    "type": "array",
+                    "description": "All rows to insert. Each row is a FLAT object mapping column name → plain value, e.g. {\"Name\": \"Mario's Garage\", \"Score\": 80, \"Google Maps Link\": \"https://...\"}",
+                    "items": {"type": "object"},
+                },
+            },
+            "required": ["database_id", "rows"],
+        },
+    },
     "notion__list_pages": {
         "description": "[Notion] List top-level pages shared with the integration — use to find parent page IDs before creating a database.",
         "input_schema": {"type": "object", "properties": {}, "required": []},
     },
     "notion__create_database": {
-        "description": "[Notion] Create a new database under a parent page. ALWAYS call list_pages first and confirm parent + schema with user before creating.",
+        "description": "[Notion] Create a new database under a parent page AND insert its rows — all in ONE confirmed action. ALWAYS call list_pages first to find the parent. CRITICAL: if the user wants a list/table with data in it, you MUST pass every row via `rows` in THIS call. The chat turn ends at the first write action, so follow-up row-insert calls will never execute and the database would be left empty.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "parent_page_id": {"type": "string", "description": "ID of the parent page (from list_pages)"},
                 "title": {"type": "string", "description": "Name of the new database"},
+                "rows": {
+                    "type": "array",
+                    "description": "The data rows to insert right after creation. Each row is a FLAT object mapping column name → plain value (e.g. {\"Name\": \"Mario's Garage\", \"Phone\": \"(416) 531-0875\", \"Score\": 80}). Column names must match `columns` (plus the default \"Name\" title column). Pass ALL rows here — do not plan separate inserts.",
+                    "items": {"type": "object"},
+                },
                 "columns": {
                     "type": "array",
                     "description": "Custom columns beyond the default 'Name' title column",

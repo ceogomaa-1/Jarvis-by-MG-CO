@@ -65,6 +65,7 @@ WRITE_ACTIONS = frozenset({
     "twilio__send_sms",
     "smtp__send_email",
     "notion__create_page",
+    "notion__create_pages",
     "notion__create_database",
     "elevenlabs__create_agent",
     "elevenlabs__update_agent",
@@ -119,10 +120,16 @@ def _describe_action(tool_name: str, tool_input: dict) -> str:
         return f"Delete event: {tool_input.get('event_id', '?')}"
     if "send_sms" in tool_name:
         return f"Send SMS to {tool_input.get('to', '?')}"
+    if tool_name == "notion__create_pages":
+        return f"Add {len(tool_input.get('rows') or [])} rows to Notion database"
     if "create_page" in tool_name:
         return "Create Notion page"
     if "create_database" in tool_name:
-        return f"Create Notion database: {tool_input.get('title', '?')}"
+        rows = tool_input.get("rows") or []
+        title = tool_input.get("title", "?")
+        if rows:
+            return f"Create Notion database: {title} ({len(rows)} rows)"
+        return f"Create Notion database: {title}"
     if "create_agent" in tool_name:
         return f"Create agent: {tool_input.get('name', '?')}"
     if "update_agent" in tool_name:
@@ -1194,6 +1201,8 @@ async def confirm_action(request: ConfirmActionRequest):
 def _make_fallback_confirmation(tool_name: str, result_data: dict) -> str:
     if "error" in result_data:
         return f"Action failed: {result_data['error']}"
+    if tool_name.startswith("notion__"):
+        return _notion_confirmation(result_data)
     if tool_name.startswith("stripe__create"):
         mode = result_data.get("mode", "")
         mode_note = f" ({mode} mode)" if mode else ""
@@ -1219,3 +1228,32 @@ def _make_fallback_confirmation(tool_name: str, result_data: dict) -> str:
     if "event_id" in result_data:
         return f"Event created. Link: {result_data.get('link', 'N/A')}"
     return "Done."
+
+
+def _notion_confirmation(result_data: dict) -> str:
+    """Honest Notion write confirmation — reports actual row counts and the link,
+    never a bare 'Created successfully.' over an empty database."""
+    status = result_data.get("status", "")
+    title = result_data.get("title")
+    if status == "created":
+        msg = f'Created Notion database "{title}"' if title else "Created Notion database"
+    elif status == "rows_added":
+        msg = "Updated Notion database"
+    elif "page_id" in result_data:
+        msg = "Added page to Notion"
+    else:
+        msg = "Notion action completed"
+    if "rows_created" in result_data:
+        failed = result_data.get("rows_failed") or 0
+        msg += f" — {result_data['rows_created']} rows inserted"
+        if failed:
+            first_err = (result_data.get("failures") or [{}])[0].get("error", "")
+            msg += f", {failed} FAILED" + (f" ({first_err})" if first_err else "")
+        if result_data.get("rows_skipped_over_cap"):
+            msg += f", {result_data['rows_skipped_over_cap']} skipped (over the 100-row cap)"
+    url = result_data.get("url")
+    if url:
+        msg += f". Link: {url}"
+    if not msg.endswith("."):
+        msg += "."
+    return msg

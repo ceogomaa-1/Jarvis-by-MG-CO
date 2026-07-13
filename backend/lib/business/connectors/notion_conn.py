@@ -3,12 +3,17 @@ Notion connector. Uses an Internal Integration Token (simple API key approach �
 no OAuth callback needed). Users create the token at notion.so/my-integrations
 and share their pages/databases with it.
 """
+import asyncio
+
 import httpx
 
 from backend.lib.business.connectors.base import BaseConnector, ConnectorResult
 
 NOTION_VERSION = "2022-06-28"
 BASE = "https://api.notion.com/v1"
+
+# Hard ceiling on bulk row inserts per call — protects both us and Notion's rate limit.
+ROW_INSERT_CAP = 100
 
 
 class NotionConnector(BaseConnector):
@@ -94,20 +99,153 @@ class NotionConnector(BaseConnector):
             return ConnectorResult(ok=False, error=f"Query database failed: {e}")
 
     async def create_page(self, database_id: str, properties: dict, children: list | None = None) -> ConnectorResult:
-        body = {
-            "parent": {"database_id": database_id},
-            "properties": properties,
-        }
-        if children:
-            body["children"] = children
         try:
             async with httpx.AsyncClient() as client:
+                # Flat column→value maps are accepted too — convert them against the
+                # live database schema so the model doesn't have to hand-build
+                # Notion's raw property JSON (a frequent source of silent 400s).
+                if properties and not all(isinstance(v, dict) for v in properties.values()):
+                    schema_types = await self._fetch_schema_types(client, database_id)
+                    properties, skipped = self._row_to_properties(schema_types, properties)
+                    if not properties:
+                        return ConnectorResult(ok=False, error=(
+                            f"No columns matched the database schema (skipped: {', '.join(skipped)}). "
+                            f"Database columns are: {', '.join(schema_types)}"
+                        ))
+                body = {
+                    "parent": {"database_id": database_id},
+                    "properties": properties,
+                }
+                if children:
+                    body["children"] = children
                 resp = await client.post(f"{BASE}/pages", headers=self._headers(), json=body, timeout=15.0)
             resp.raise_for_status()
             data = resp.json()
             return ConnectorResult(ok=True, data={"page_id": data["id"], "url": data.get("url")})
         except Exception as e:
             return ConnectorResult(ok=False, error=f"Create page failed: {e}")
+
+    async def create_pages_bulk(self, database_id: str, rows: list) -> ConnectorResult:
+        """Insert many rows into an existing database in one call. Each row is a flat
+        {column name: value} map converted against the live database schema."""
+        if not database_id:
+            return ConnectorResult(ok=False, error="`database_id` is required")
+        if not rows or not isinstance(rows, list):
+            return ConnectorResult(ok=False, error="`rows` must be a non-empty list of column→value objects")
+        try:
+            async with httpx.AsyncClient() as client:
+                db_resp = await client.get(f"{BASE}/databases/{database_id}", headers=self._headers(), timeout=10.0)
+                db_resp.raise_for_status()
+                db = db_resp.json()
+                schema_types = {name: prop.get("type", "rich_text") for name, prop in db.get("properties", {}).items()}
+                accounting = await self._insert_rows(client, database_id, schema_types, rows)
+            data = {"database_id": database_id, "url": db.get("url", ""), "status": "rows_added", **accounting}
+            if accounting["rows_created"] == 0:
+                return ConnectorResult(ok=False, error=(
+                    f"0 of {len(rows)} rows were inserted. First error: "
+                    f"{(accounting.get('failures') or [{}])[0].get('error', 'unknown')}"
+                ))
+            return ConnectorResult(ok=True, data=data)
+        except Exception as e:
+            return ConnectorResult(ok=False, error=f"Bulk insert failed: {e}")
+
+    async def _fetch_schema_types(self, client: httpx.AsyncClient, database_id: str) -> dict:
+        resp = await client.get(f"{BASE}/databases/{database_id}", headers=self._headers(), timeout=10.0)
+        resp.raise_for_status()
+        return {name: prop.get("type", "rich_text") for name, prop in resp.json().get("properties", {}).items()}
+
+    async def _insert_rows(self, client: httpx.AsyncClient, database_id: str, schema_types: dict, rows: list) -> dict:
+        """Sequentially insert flat rows, returning honest accounting — never claim
+        success for rows that didn't land."""
+        created = 0
+        failures: list[dict] = []
+        for i, row in enumerate(rows[:ROW_INSERT_CAP]):
+            if not isinstance(row, dict) or not row:
+                failures.append({"row": i + 1, "error": "row is not a column→value object"})
+                continue
+            props, skipped = self._row_to_properties(schema_types, row)
+            if not props:
+                failures.append({"row": i + 1, "error": f"no columns matched the schema (got: {', '.join(list(row)[:6])})"})
+                continue
+            try:
+                resp = await client.post(
+                    f"{BASE}/pages",
+                    headers=self._headers(),
+                    json={"parent": {"database_id": database_id}, "properties": props},
+                    timeout=15.0,
+                )
+                if resp.status_code >= 400:
+                    try:
+                        detail = resp.json().get("message", "")
+                    except Exception:
+                        detail = ""
+                    failures.append({"row": i + 1, "error": (detail or f"HTTP {resp.status_code}")[:200]})
+                else:
+                    created += 1
+            except Exception as e:
+                failures.append({"row": i + 1, "error": str(e)[:200]})
+            await asyncio.sleep(0.12)  # stay under Notion's ~3 req/s rate limit
+        result: dict = {"rows_created": created, "rows_failed": len(failures)}
+        if len(rows) > ROW_INSERT_CAP:
+            result["rows_skipped_over_cap"] = len(rows) - ROW_INSERT_CAP
+        if failures:
+            result["failures"] = failures[:5]
+        return result
+
+    def _row_to_properties(self, schema_types: dict, row: dict) -> tuple[dict, list[str]]:
+        """Convert a flat {column: value} row into Notion property payloads.
+        Column matching is case-insensitive. Returns (properties, skipped_columns)."""
+        lower_map = {name.lower(): name for name in schema_types}
+        props: dict = {}
+        skipped: list[str] = []
+        for key, value in (row or {}).items():
+            col = key if key in schema_types else lower_map.get(str(key).strip().lower())
+            if not col:
+                skipped.append(str(key))
+                continue
+            payload = self._prop_payload(schema_types[col], value)
+            if payload is None:
+                skipped.append(str(key))
+                continue
+            props[col] = payload
+        return props, skipped
+
+    @staticmethod
+    def _prop_payload(prop_type: str, value) -> dict | None:
+        """One flat value → the Notion property payload for its column type.
+        Returns None for empty values or types we can't safely write (formula etc.)."""
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return None
+        if prop_type == "title":
+            return {"title": [{"type": "text", "text": {"content": str(value)[:2000]}}]}
+        if prop_type == "rich_text":
+            return {"rich_text": [{"type": "text", "text": {"content": str(value)[:2000]}}]}
+        if prop_type == "number":
+            try:
+                num = float(str(value).replace(",", "").replace("$", "").replace("%", "").strip())
+            except (TypeError, ValueError):
+                return None
+            return {"number": num}
+        if prop_type == "select":
+            return {"select": {"name": str(value)[:100]}}
+        if prop_type == "multi_select":
+            items = value if isinstance(value, list) else [v.strip() for v in str(value).split(",")]
+            return {"multi_select": [{"name": str(v)[:100]} for v in items if v]}
+        if prop_type == "status":
+            return {"status": {"name": str(value)[:100]}}
+        if prop_type == "date":
+            return {"date": {"start": str(value)}}
+        if prop_type == "checkbox":
+            if isinstance(value, str):
+                return {"checkbox": value.strip().lower() in ("true", "yes", "1", "checked", "done")}
+            return {"checkbox": bool(value)}
+        if prop_type == "url":
+            return {"url": str(value)}
+        if prop_type == "email":
+            return {"email": str(value)}
+        if prop_type == "phone_number":
+            return {"phone_number": str(value)}
+        return None
 
     async def list_pages(self) -> ConnectorResult:
         """List top-level pages shared with the integration — useful for finding parent IDs."""
@@ -133,8 +271,12 @@ class NotionConnector(BaseConnector):
         parent_page_id: str,
         title: str,
         columns: list | None = None,
+        rows: list | None = None,
     ) -> ConnectorResult:
-        """Create a new database under a parent page with optional custom column schema."""
+        """Create a new database under a parent page with optional custom column schema,
+        then insert `rows` (flat column→value maps) in the same call. Row insertion
+        happens here because the chat loop ends at the confirm card — a separate
+        row-insert round would never run."""
         if not parent_page_id:
             return ConnectorResult(ok=False, error="`parent_page_id` is required — use list_pages to find available parent pages")
         if not title:
@@ -171,14 +313,18 @@ class NotionConnector(BaseConnector):
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.post(f"{BASE}/databases", headers=self._headers(), json=body, timeout=20.0)
-            resp.raise_for_status()
-            result = resp.json()
-            return ConnectorResult(ok=True, data={
-                "database_id": result["id"],
-                "title": title,
-                "url": result.get("url", ""),
-                "status": "created",
-            })
+                resp.raise_for_status()
+                result = resp.json()
+                data = {
+                    "database_id": result["id"],
+                    "title": title,
+                    "url": result.get("url", ""),
+                    "status": "created",
+                }
+                if rows:
+                    schema_types = {name: next(iter(payload)) for name, payload in properties.items()}
+                    data.update(await self._insert_rows(client, result["id"], schema_types, rows))
+            return ConnectorResult(ok=True, data=data)
         except Exception as e:
             return ConnectorResult(ok=False, error=f"Create database failed: {e}")
 
