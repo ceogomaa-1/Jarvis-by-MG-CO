@@ -380,6 +380,14 @@ async def summarize_user_for_prompt(user_id: str) -> str:
                 style_str += (", " if style_str else "") + f"prefers {pref} responses"
             lines.append(f"COMMUNICATION STYLE:\n{style_str}")
 
+        fb_lessons = model.get("response_feedback", {}).get("lessons", [])
+        if fb_lessons:
+            lines.append(
+                "LEARNED FROM THEIR FEEDBACK (this user rated your past replies 👍/👎 — these are "
+                "their personal preferences for how YOU should respond; apply them):\n"
+                + "\n".join(f"- {l}" for l in fb_lessons[:10])
+            )
+
         thinking = model.get("thinking_patterns", {})
         decision_style = thinking.get("decision_making_style", "")
         motivation = thinking.get("motivation_pattern", "")

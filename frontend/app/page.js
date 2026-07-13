@@ -13,7 +13,7 @@ import StudyView, { StudyToggle } from '../components/shared/StudyView'
 import SignOutDrawer from '../components/shared/SignOutDrawer'
 import NotesPanel from '../components/shared/NotesPanel'
 import TimezoneStep from '../components/onboarding/TimezoneStep'
-import { JarvisVoice } from '../lib/jarvisVoice'
+import { JarvisVoice, speakMessageAloud, stopMessagePlayback } from '../lib/jarvisVoice'
 import { playSound, preloadSounds } from '../lib/soundPlayer'
 import { LandingPage } from '../components/landing/LandingPage'
 import UsageCounter from '../components/business/UsageCounter'
@@ -620,7 +620,175 @@ function BlinkCaret() {
   )
 }
 
-function Message({ msg, isLatest, onRetry }) {
+// ─── Message actions — copy / play aloud / rate, under every Rue reply ────────
+// The 👍/👎 train THIS user's Rue only: feedback goes to /api/feedback/message,
+// gets distilled into per-user lessons inside their user model, and shapes every
+// future reply for their account alone.
+
+function ActionIconButton({ label, onClick, active, children }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        width: 30, height: 30, padding: 0,
+        background: 'none', border: 'none', borderRadius: 8, cursor: 'pointer',
+        color: active ? 'var(--accent)' : 'rgba(243,234,217,0.35)',
+        transition: 'color 200ms ease',
+      }}
+      onMouseEnter={e => { if (!active) e.currentTarget.style.color = 'rgba(243,234,217,0.75)' }}
+      onMouseLeave={e => { if (!active) e.currentTarget.style.color = 'rgba(243,234,217,0.35)' }}
+    >
+      {children}
+    </button>
+  )
+}
+
+const _icon = { width: 15, height: 15, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }
+const IconCopy = () => (
+  <svg {..._icon}><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+)
+const IconCheck = () => <svg {..._icon}><path d="M20 6 9 17l-5-5" /></svg>
+const IconPlay = () => <svg {..._icon}><polygon points="6 3 20 12 6 21 6 3" fill="currentColor" stroke="none" /></svg>
+const IconStop = () => <svg {..._icon}><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none" /></svg>
+const IconThumbUp = ({ filled }) => (
+  <svg {..._icon} fill={filled ? 'currentColor' : 'none'}>
+    <path d="M7 10v12" /><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z" />
+  </svg>
+)
+const IconThumbDown = ({ filled }) => (
+  <svg {..._icon} fill={filled ? 'currentColor' : 'none'}>
+    <path d="M17 14V2" /><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z" />
+  </svg>
+)
+
+function MessageActions({ text, userId, prevUserText }) {
+  const [copied, setCopied] = useState(false)
+  const [playing, setPlaying] = useState(false)
+  const [rating, setRating] = useState(null)     // 'up' | 'down' once submitted
+  const [showWhy, setShowWhy] = useState(false)
+  const [why, setWhy] = useState('')
+  const [whySent, setWhySent] = useState(false)
+  const playingRef = useRef(false)
+
+  useEffect(() => () => { if (playingRef.current) stopMessagePlayback() }, [])
+
+  function onCopy() {
+    try {
+      navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1600)
+    } catch (_) {}
+  }
+
+  function onPlay() {
+    if (playing) {
+      stopMessagePlayback()
+      return // onEnd fires synchronously from stopMessagePlayback and clears state
+    }
+    setPlaying(true)
+    playingRef.current = true
+    const p = speakMessageAloud(text, {
+      userId,
+      onEnd: () => { playingRef.current = false; setPlaying(false) },
+    })
+    if (!p) { playingRef.current = false; setPlaying(false) }
+  }
+
+  function submitFeedback(r, comment = '') {
+    fetch(`${BACKEND}/api/feedback/message`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: userId, rating: r, message_text: text,
+        user_prompt: prevUserText || '', comment,
+      }),
+    }).catch(() => {})
+  }
+
+  function onRate(r) {
+    if (rating === r) return
+    setRating(r)
+    setWhySent(false)
+    submitFeedback(r)
+    setShowWhy(r === 'down')
+  }
+
+  function sendWhy() {
+    const note = why.trim()
+    if (note) submitFeedback('down', note)
+    setWhySent(!!note)
+    setShowWhy(false)
+    setWhy('')
+  }
+
+  const note =
+    rating === 'up' ? 'Noted — more like this.' :
+    rating === 'down' && whySent ? 'Got it — Rue will learn.' :
+    null
+
+  return (
+    <div style={{ marginTop: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <ActionIconButton label={copied ? 'Copied' : 'Copy message'} onClick={onCopy} active={copied}>
+          {copied ? <IconCheck /> : <IconCopy />}
+        </ActionIconButton>
+        <ActionIconButton label={playing ? 'Stop reading' : 'Read aloud'} onClick={onPlay} active={playing}>
+          {playing ? <IconStop /> : <IconPlay />}
+        </ActionIconButton>
+        <ActionIconButton label="Good response" onClick={() => onRate('up')} active={rating === 'up'}>
+          <IconThumbUp filled={rating === 'up'} />
+        </ActionIconButton>
+        <ActionIconButton label="Bad response" onClick={() => onRate('down')} active={rating === 'down'}>
+          <IconThumbDown filled={rating === 'down'} />
+        </ActionIconButton>
+        {note && (
+          <span style={{ fontFamily: 'var(--sans)', fontSize: 10, letterSpacing: '0.08em', color: 'rgba(243,234,217,0.4)', marginLeft: 6 }}>
+            {note}
+          </span>
+        )}
+      </div>
+      {showWhy && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, maxWidth: 380 }}>
+          <input
+            value={why}
+            onChange={e => setWhy(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') sendWhy() }}
+            placeholder="Tell Rue what was off (optional)"
+            autoFocus
+            style={{
+              flex: 1, background: 'rgba(243,234,217,0.04)', border: '1px solid var(--line)',
+              borderRadius: 10, padding: '8px 12px', color: 'var(--ink)', outline: 'none',
+              fontFamily: 'var(--sans)', fontSize: 13,
+            }}
+          />
+          <button
+            onClick={sendWhy}
+            style={{
+              background: 'none', border: '1px solid var(--line)', borderRadius: 10,
+              padding: '8px 14px', color: 'var(--ink-soft)', cursor: 'pointer',
+              fontFamily: 'var(--sans)', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase',
+            }}
+          >
+            {why.trim() ? 'Send' : 'Skip'}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function prevUserTextFor(messages, i) {
+  for (let j = i - 1; j >= 0; j--) {
+    const m = messages[j]
+    if (m.role === 'user' && typeof m.content === 'string') return m.content
+  }
+  return ''
+}
+
+function Message({ msg, isLatest, onRetry, userId, prevUserText }) {
   // Artifact role — must be checked first; content is {html, title} object
   if (msg.role === 'artifact') {
     const htmlContent = typeof msg.content === 'object' ? msg.content?.html : null
@@ -756,6 +924,9 @@ function Message({ msg, isLatest, onRetry }) {
       {msg.sources && msg.sources.length > 0 && !msg.streaming && (
         <SourceCards sources={msg.sources} />
       )}
+      {!msg.streaming && textContent && textContent.trim() && (
+        <MessageActions text={textContent} userId={userId} prevUserText={prevUserText} />
+      )}
     </div>
   )
 }
@@ -828,7 +999,7 @@ function Toast({ message, onTap, onClose, duration = 6000 }) {
   )
 }
 
-function Conversation({ messages, loading, onRetry }) {
+function Conversation({ messages, loading, onRetry, userId }) {
   const scrollRef = useRef(null)
   const stickRef = useRef(true)
   const [showJump, setShowJump] = useState(false)
@@ -874,7 +1045,7 @@ function Conversation({ messages, loading, onRetry }) {
         <div style={{ maxWidth: 720, margin: '0 auto' }}>
           {messages.map((m, i) => (
             <div key={m.id ?? i} className="msg-enter">
-              <Message msg={m} isLatest={i === messages.length - 1 && !loading} onRetry={onRetry} />
+              <Message msg={m} isLatest={i === messages.length - 1 && !loading} onRetry={onRetry} userId={userId} prevUserText={prevUserTextFor(messages, i)} />
             </div>
           ))}
           {loading && <ThinkingIndicator />}
@@ -2443,7 +2614,7 @@ export default function Home() {
               >
                 {messages.map((m, i) => (
                   <div key={m.id ?? i} className="msg-enter">
-                    <Message msg={m} isLatest={i === messages.length - 1 && !loading} onRetry={handleRetry} />
+                    <Message msg={m} isLatest={i === messages.length - 1 && !loading} onRetry={handleRetry} userId={userId} prevUserText={prevUserTextFor(messages, i)} />
                   </div>
                 ))}
                 {loading && <ThinkingIndicator />}
@@ -2633,7 +2804,7 @@ export default function Home() {
 
           {/* right: conversation */}
           <div style={{ gridArea: 'conv', display: 'flex', flexDirection: 'column', minHeight: 0, borderLeft: '1px solid var(--line)' }}>
-            <Conversation messages={messages} loading={loading} onRetry={handleRetry} />
+            <Conversation messages={messages} loading={loading} onRetry={handleRetry} userId={userId} />
           </div>
 
           {/* input */}

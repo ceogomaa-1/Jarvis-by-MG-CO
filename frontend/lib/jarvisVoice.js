@@ -433,3 +433,55 @@ export class JarvisVoice {
     return new Blob([buf], { type: 'audio/wav' })
   }
 }
+
+// ── One-off message playback — the "play" button under a Rue reply ───────────
+// Reuses the same /voice/synthesize-stream PCM pipeline as voice mode, but as a
+// standalone singleton player: starting a new message stops the previous one.
+
+let _messagePlayer = null
+
+function stripForSpeech(text) {
+  // Markdown reads terribly out loud — strip it down to plain prose.
+  return (text || '')
+    .replace(/```[\s\S]*?```/g, ' (code block) ')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')            // images
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')         // links -> text
+    .replace(/^#{1,6}\s+/gm, '')                     // headings
+    .replace(/(\*\*|__|\*|_|~~)/g, '')               // emphasis
+    .replace(/^\s*[-*+]\s+/gm, '')                   // list bullets
+    .replace(/^\s*>\s?/gm, '')                       // blockquotes
+    .replace(/\|/g, ' ')                             // tables
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
+export function speakMessageAloud(text, { userId = '', onStart, onEnd } = {}) {
+  stopMessagePlayback()
+  const speech = stripForSpeech(text)
+  if (!speech) { onEnd?.(); return null }
+
+  const player = new StreamingAudioPlayer()
+  _messagePlayer = player
+  let ended = false
+  const fireEnd = () => {
+    if (ended) return
+    ended = true
+    if (_messagePlayer === player) _messagePlayer = null
+    onEnd?.()
+  }
+  player.onStart = () => { if (_messagePlayer === player) onStart?.() }
+  player.onEnd = fireEnd
+  player._fireEnd = fireEnd
+  player.enqueue(`${BACKEND}/api/voice/synthesize-stream`, { text: speech, user_id: userId })
+  return player
+}
+
+export function stopMessagePlayback() {
+  if (_messagePlayer) {
+    const p = _messagePlayer
+    _messagePlayer = null
+    p.stop()
+    p._fireEnd?.()
+  }
+}

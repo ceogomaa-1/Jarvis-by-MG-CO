@@ -31,6 +31,7 @@ from backend.routes.notes_routes import router as notes_router
 from backend.routes.study_routes import router as study_router
 from backend.routes.dump_learn_routes import router as dump_learn_router
 from backend.routes.push_routes import router as push_router
+from backend.routes.feedback_routes import router as feedback_router
 from backend.routes.voice_routes import router as voice_router
 from backend.routes.history_routes import router as history_router
 from backend.routes.google_auth_routes import router as google_auth_router
@@ -191,6 +192,7 @@ app.include_router(notes_router, prefix="/api")
 app.include_router(study_router, prefix="/api")
 app.include_router(dump_learn_router, prefix="/api")
 app.include_router(push_router, prefix="/api")
+app.include_router(feedback_router, prefix="/api")
 app.include_router(voice_router, prefix="/api")
 app.include_router(history_router, prefix="/api")
 app.include_router(google_auth_router, prefix="/api")
