@@ -4,6 +4,7 @@ import asyncio
 import pytest
 
 from backend.lib.business.runtime import handlers, worker
+from backend.lib.business.execution_ledger import _redact, classify_tool_effect, stable_tool_call_key
 
 
 def test_unknown_workflow_kind_is_never_retried():
@@ -126,3 +127,26 @@ def test_governor_denial_cancels_without_running_handler(monkeypatch):
     }))
     assert result["status"] == "cancelled"
     assert calls == [("wf-denied", "monthly_capacity_exhausted")]
+
+
+def test_tool_execution_keys_are_stable_and_input_sensitive():
+    first = stable_tool_call_key(1, 0, "google__send_email", {"to": "a@b.co", "subject": "Hi"})
+    reordered = stable_tool_call_key(1, 0, "google__send_email", {"subject": "Hi", "to": "a@b.co"})
+    changed = stable_tool_call_key(1, 0, "google__send_email", {"to": "c@d.co", "subject": "Hi"})
+    assert first == reordered
+    assert first != changed
+
+
+def test_tool_effect_classification_blocks_blind_external_replays():
+    assert classify_tool_effect("google__search_emails") == "read"
+    assert classify_tool_effect("google__send_email") == "external_write"
+    assert classify_tool_effect("stripe__create_price") == "financial"
+    assert classify_tool_effect("twenty__update_contact") == "internal_write"
+
+
+def test_tool_ledger_redacts_credentials_but_keeps_business_inputs():
+    assert _redact({"to": "a@b.co", "api_key": "secret", "nested": {"access_token": "x"}}) == {
+        "to": "a@b.co",
+        "api_key": "[REDACTED]",
+        "nested": {"access_token": "[REDACTED]"},
+    }

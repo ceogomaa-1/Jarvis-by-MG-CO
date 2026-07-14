@@ -198,6 +198,8 @@ async def execute_initiative(
     action_id: str,
     user_id: str,
     max_budget_usd: float | None = None,
+    workflow_id: str | None = None,
+    business_id: str | None = None,
 ) -> dict:
     """Execute one approved initiative end-to-end; idempotent after success."""
     action = await _fetch_action(action_id)
@@ -235,14 +237,18 @@ async def execute_initiative(
 
     tools = await build_tools_for_user(user_id)
     usage = UsageAccumulator(SONNET)
-    budget_limit = min(EXEC_BUDGET_USD, max(float(max_budget_usd), 0)) if max_budget_usd is not None else EXEC_BUDGET_USD
+    budget_limit = (
+        min(EXEC_BUDGET_USD, max(float(max_budget_usd), 0))
+        if max_budget_usd is not None
+        else EXEC_BUDGET_USD
+    )
     receipts: list[dict] = []
     messages: list[dict] = [{"role": "user", "content": _initiative_prompt(action)}]
     final_text = ""
     error: str | None = None
 
     try:
-        for _round in range(MAX_ROUNDS):
+        for round_index in range(MAX_ROUNDS):
             if usage.cost()["total_usd"] >= budget_limit:
                 error = f"Execution budget (${budget_limit:.2f}) reached before completion"
                 break
@@ -283,21 +289,65 @@ async def execute_initiative(
 
             messages.append({"role": "assistant", "content": content})
             results_content = []
-            for block in tool_blocks:
+            abort_for_ambiguity = False
+            for call_index, block in enumerate(tool_blocks):
                 tool_name = block.get("name", "")
                 tool_input = block.get("input", {}) or {}
-                try:
-                    result_str = await execute_tool(tool_name, tool_input, user_id)
-                except Exception as e:
-                    result_str = json.dumps({"error": f"tool crashed: {e}"})
+                ledger_record = None
+                ledger_mode = "legacy"
+                if workflow_id and business_id:
+                    try:
+                        from backend.lib.business.execution_ledger import prepare_tool_execution
+
+                        prepared = await prepare_tool_execution(
+                            business_id=business_id,
+                            workflow_id=workflow_id,
+                            legacy_action_id=action_id,
+                            round_index=round_index,
+                            call_index=call_index,
+                            tool_name=tool_name,
+                            tool_input=tool_input,
+                        )
+                        ledger_mode = prepared["mode"]
+                        ledger_record = prepared.get("record")
+                    except Exception as ledger_error:
+                        # Rolling-release fallback until Batch 80 is applied.
+                        print(f"EXECUTOR: durable tool ledger unavailable: {ledger_error}")
+                if ledger_mode == "replay":
+                    result_str = prepared["result_text"]
+                elif ledger_mode == "ambiguous":
+                    result_str = json.dumps({
+                        "error": "A previous external action may already have completed; automatic replay was blocked for review."
+                    })
+                    error = "Ambiguous prior tool side effect requires owner review"
+                    abort_for_ambiguity = True
+                else:
+                    try:
+                        result_str = await execute_tool(tool_name, tool_input, user_id)
+                    except Exception as e:
+                        result_str = json.dumps({"error": f"tool crashed: {e}"})
                 ok, note = _summarize_tool_result(result_str)
+                if ledger_record and ledger_mode == "execute":
+                    try:
+                        from backend.lib.business.execution_ledger import finish_tool_execution
+
+                        await finish_tool_execution(
+                            ledger_record["id"], result_str, ok=ok, error=None if ok else note
+                        )
+                    except Exception as ledger_error:
+                        error = f"Tool ran but its durable receipt failed: {ledger_error}"
+                        abort_for_ambiguity = True
                 receipts.append({"tool": tool_name, "ok": ok, "note": note})
                 results_content.append({
                     "type": "tool_result",
                     "tool_use_id": block.get("id", ""),
                     "content": result_str[:_TOOL_RESULT_CAP],
                 })
+                if abort_for_ambiguity:
+                    break
             messages.append({"role": "user", "content": results_content})
+            if abort_for_ambiguity:
+                break
         else:
             error = f"Hit round cap ({MAX_ROUNDS}) before the model reported completion"
     except Exception as e:

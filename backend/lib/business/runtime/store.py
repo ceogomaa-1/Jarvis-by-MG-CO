@@ -361,9 +361,37 @@ async def get_workflow(user_id: str, workflow_id: str) -> dict | None:
             params={"select": "*", "id": f"eq.{workflow_id}", "business_id": f"eq.{business['id']}", "limit": "1"},
             timeout=TIMEOUT,
         )
-    if response.status_code != 200:
-        raise RuntimeUnavailable(f"Workflow lookup failed: {response.text[:180]}")
-    return response.json()[0] if response.json() else None
+        if response.status_code != 200:
+            raise RuntimeUnavailable(f"Workflow lookup failed: {response.text[:180]}")
+        if not response.json():
+            return None
+        workflow = response.json()[0]
+        steps = await client.get(
+            f"{SUPABASE_URL}/rest/v1/os1_workflow_steps",
+            headers=_headers(),
+            params={"select": "*", "workflow_id": f"eq.{workflow_id}", "order": "position.asc"},
+            timeout=TIMEOUT,
+        )
+        events = await client.get(
+            f"{SUPABASE_URL}/rest/v1/os1_workflow_events",
+            headers=_headers(),
+            params={"select": "*", "workflow_id": f"eq.{workflow_id}", "order": "created_at.asc"},
+            timeout=TIMEOUT,
+        )
+        receipts = await client.get(
+            f"{SUPABASE_URL}/rest/v1/os1_tool_executions",
+            headers=_headers(),
+            params={
+                "select": "id,tool_call_key,tool_name,effect_class,status,attempts,result_text,error,started_at,completed_at",
+                "workflow_id": f"eq.{workflow_id}",
+                "order": "created_at.asc",
+            },
+            timeout=TIMEOUT,
+        )
+    workflow["steps"] = steps.json() if steps.status_code == 200 else []
+    workflow["events"] = events.json() if events.status_code == 200 else []
+    workflow["tool_executions"] = receipts.json() if receipts.status_code == 200 else []
+    return workflow
 
 
 async def list_workflows(user_id: str, limit: int = 30) -> list[dict]:

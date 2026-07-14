@@ -51,6 +51,8 @@ async def run_workflow_handler(workflow: dict) -> dict:
             action_id,
             user_id,
             max_budget_usd=(workflow.get("autonomy_decision") or {}).get("max_workflow_cost_usd"),
+            workflow_id=workflow.get("id"),
+            business_id=workflow.get("business_id"),
         )
         if not result.get("ok"):
             message = result.get("error") or (result.get("result") or {}).get("error") or "Initiative execution failed"
