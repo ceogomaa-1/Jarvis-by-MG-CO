@@ -29,6 +29,13 @@ from backend.lib.business.operator.researcher import run_researcher
 from backend.lib.business.operator.creator import creator_batch_enabled, run_creator
 from backend.lib.business.operator.packager import run_packager
 from backend.lib.business.operator.home_composer import compose_home
+from backend.lib.business.goal_engine import (
+    format_goal_snapshot,
+    get_active_goal_snapshot,
+    persist_operator_diagnosis,
+    sync_operator_initiatives,
+)
+from backend.lib.business.identity import user_id_to_uuid
 
 SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
@@ -50,7 +57,7 @@ async def _create_run_row(user_id: str) -> str | None:
             resp = await client.post(
                 f"{SUPABASE_URL}/rest/v1/business_operator_runs",
                 headers={**_headers(), "Prefer": "return=representation"},
-                json={"user_id": user_id, "status": "running"},
+                json={"user_id": user_id_to_uuid(user_id), "status": "running"},
                 timeout=10.0,
             )
         if resp.status_code in (200, 201):
@@ -78,7 +85,7 @@ async def _patch_run_row(run_id: str, fields: dict) -> None:
 
 def _card_row(user_id: str, run_id: str, c: dict, *, legacy: bool) -> dict:
     row = {
-        "user_id": user_id,
+        "user_id": user_id_to_uuid(user_id),
         "operator_run_id": run_id,
         "action_type": c.get("action_type", "report"),
         "title": c.get("title", "Untitled"),
@@ -91,6 +98,7 @@ def _card_row(user_id: str, run_id: str, c: dict, *, legacy: bool) -> dict:
             # Mirror the plan into metadata too so pre-migration rows keep it.
             "execution_plan": c.get("execution_plan") or {},
             "expected_impact": c.get("expected_impact", ""),
+            "success_criteria": c.get("success_criteria") or [],
         },
         "connector_type": c.get("connector_type") or None,
         "priority": c.get("priority", 50),
@@ -132,13 +140,17 @@ async def _fetch_user_context(user_id: str) -> dict:
     if not SUPABASE_URL or not SUPABASE_KEY:
         return {}
     out = {"industry": "", "metrics_text": "", "flags_summary": "", "company_name": ""}
+    try:
+        db_user_id = user_id_to_uuid(user_id)
+    except ValueError:
+        return out
     read_h = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
     try:
         async with httpx.AsyncClient() as client:
             bu = await client.get(
                 f"{SUPABASE_URL}/rest/v1/business_users",
                 headers=read_h,
-                params={"select": "industry,company_name", "user_id": f"eq.{user_id}", "limit": "1"},
+                params={"select": "industry,company_name", "user_id": f"eq.{db_user_id}", "limit": "1"},
                 timeout=10.0,
             )
             if bu.status_code == 200 and bu.json():
@@ -149,7 +161,7 @@ async def _fetch_user_context(user_id: str) -> dict:
             m = await client.get(
                 f"{SUPABASE_URL}/rest/v1/business_user_metrics",
                 headers=read_h,
-                params={"select": "metrics_text", "user_id": f"eq.{user_id}", "limit": "1"},
+                params={"select": "metrics_text", "user_id": f"eq.{db_user_id}", "limit": "1"},
                 timeout=10.0,
             )
             if m.status_code == 200 and m.json():
@@ -160,7 +172,7 @@ async def _fetch_user_context(user_id: str) -> dict:
                 headers=read_h,
                 params={
                     "select": "flag_summary,flag_severity",
-                    "user_id": f"eq.{user_id}",
+                    "user_id": f"eq.{db_user_id}",
                     "order": "created_at.desc",
                     "limit": "1",
                 },
@@ -204,9 +216,19 @@ async def run_operator_for_user(
     user_ctx = await _fetch_user_context(user_id)
     connector_summary = await available_connectors_summary(user_id)
 
+    # Batch 76: a structured goal is now the Operator's control plane. This is
+    # deliberately fail-soft during rollout: if the migration is not applied or
+    # the owner has not configured a goal, the legacy North Star still works.
+    goal_snapshot = None
+    try:
+        goal_snapshot = await get_active_goal_snapshot(user_id)
+    except Exception as e:
+        print(f"OPERATOR: structured goal unavailable for {user_id}: {e}")
+
     business_name = brand.get("display_name") or user_ctx.get("company_name") or "the business"
-    north_star_label = brand.get("north_star_target_label") or "$1M ARR"
-    north_star_usd = brand.get("north_star_target_usd") or 1_000_000
+    structured_goal = (goal_snapshot or {}).get("goal") or {}
+    north_star_label = structured_goal.get("objective") or brand.get("north_star_target_label") or "$1M ARR"
+    north_star_usd = structured_goal.get("target_value") or brand.get("north_star_target_usd") or 1_000_000
     industry = user_ctx.get("industry", "")
 
     base_user_ctx = {
@@ -214,6 +236,7 @@ async def run_operator_for_user(
         "industry": industry,
         "north_star_label": north_star_label,
         "north_star_usd": north_star_usd,
+        "goal_context": format_goal_snapshot(goal_snapshot),
     }
 
     cycles_completed = 0
@@ -282,6 +305,16 @@ async def run_operator_for_user(
                 "completed_at": "now()",
             })
             return {"status": "failed", "cycles_completed": 1}
+
+        diagnosis_refs = {}
+        try:
+            diagnosis_refs = await persist_operator_diagnosis(
+                user_id,
+                goal_snapshot,
+                strategist_plan.get("goal_diagnosis") or {},
+            )
+        except Exception as e:
+            print(f"OPERATOR: diagnosis persistence failed for {user_id}: {e}")
 
         # ─── CYCLE 2: RESEARCHER ──────────────────────────────────
         if budget.can_afford(SONNET, input_tokens_est=2000, max_output_tokens=3000):
@@ -374,6 +407,16 @@ async def run_operator_for_user(
         cards = packager_output.get("cards", [])
         actions_saved = await _save_pending_actions(user_id, run_id, cards)
 
+        # Dual-write approval cards into the durable initiative lifecycle. The
+        # legacy Boardroom remains the execution UI until its migration is done.
+        initiatives_synced = 0
+        try:
+            initiatives_synced = await sync_operator_initiatives(
+                user_id, run_id, goal_snapshot, diagnosis_refs=diagnosis_refs
+            )
+        except Exception as e:
+            print(f"OPERATOR: initiative control-plane sync failed for {user_id}: {e}")
+
         await _patch_run_row(run_id, {
             "cycles_completed": 4,
             "packager_output": packager_output,
@@ -429,6 +472,7 @@ async def run_operator_for_user(
             "status": "complete",
             "cycles_completed": 4,
             "actions_queued": actions_saved,
+            "initiatives_synced": initiatives_synced,
             "questions_raised": questions_saved,
             "total_cost_usd": round(budget.spent_usd, 4),
             "morning_message": packager_output.get("morning_message", ""),

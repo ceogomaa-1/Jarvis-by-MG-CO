@@ -65,6 +65,7 @@ from backend.routes.business.email_routes import router as business_email_router
 from backend.routes.business.crm_routes import router as business_crm_router
 from backend.routes.business.leads_routes import router as business_leads_router
 from backend.routes.business.home_routes import router as business_home_router
+from backend.routes.business.goals_routes import router as business_goals_router
 from backend.cron.home_adaptive_cron import run_home_adaptive_nightly
 from backend.routes.os1_billing import router as os1_billing_router
 from backend.routes.channels import router as channels_router
@@ -221,6 +222,7 @@ app.include_router(business_email_router, prefix="/api")
 app.include_router(business_crm_router, prefix="/api")
 app.include_router(business_leads_router, prefix="/api")
 app.include_router(business_home_router, prefix="/api")
+app.include_router(business_goals_router, prefix="/api")
 app.include_router(os1_billing_router, prefix="/api")
 app.include_router(channels_router, prefix="/api")
 app.include_router(announcements_router, prefix="/api")

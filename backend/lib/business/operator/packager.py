@@ -54,6 +54,10 @@ do, in order, with real targets from the artifact ("Send the drafted email \
 to sarah@acme.co", "Schedule 3 LinkedIn posts for Tue/Thu/Sat 9am")
     - tools: the tool names the Executor will call (e.g. \
 ["google__send_email"]). Empty array when mode is "manual".
+- success_criteria: 1-3 machine-readable outcomes that determine whether the
+initiative WORKED after execution. Each item has metric_key, operator
+(one of >=, <=, =), target, and window_days. Measure an outcome, not activity:
+"qualified_replies >= 4 in 7 days" is valid; "emails_sent >= 30" is not.
 
 Return ONLY JSON:
 {
@@ -69,6 +73,7 @@ Return ONLY JSON:
       "priority": 25,
       "connector_type": "google",
       "execution_plan": {"mode": "auto", "steps": ["..."], "tools": ["google__send_email"]},
+      "success_criteria": [{"metric_key": "qualified_replies", "operator": ">=", "target": 4, "window_days": 7}],
       "artifact_markdown": "(pass through the creator's artifact verbatim)"
     }
   ]
@@ -163,6 +168,14 @@ async def run_packager(
             card.setdefault("title", "Untitled action")
             card.setdefault("description", "")
             card.setdefault("expected_impact", "")
+            criteria = card.get("success_criteria") or []
+            card["success_criteria"] = [
+                item for item in criteria
+                if isinstance(item, dict)
+                and item.get("metric_key")
+                and item.get("operator") in (">=", "<=", "=")
+                and item.get("target") is not None
+            ][:3]
             plan = card.get("execution_plan") or {}
             plan.setdefault("mode", "manual")
             plan.setdefault("steps", [])

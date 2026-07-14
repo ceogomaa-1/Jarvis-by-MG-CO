@@ -21,6 +21,7 @@ from pydantic import BaseModel
 
 from backend.lib.business.operator.executor_agent import execute_initiative
 from backend.lib.business.operator.loop import run_operator_for_user, create_operator_run_row
+from backend.lib.business.identity import user_id_to_uuid
 
 router = APIRouter()
 
@@ -38,6 +39,13 @@ _CYCLE_TO_STAGE = {
 
 def _headers() -> dict:
     return {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
+
+
+def _db_user_id(user_id: str) -> str:
+    try:
+        return user_id_to_uuid(user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid user_id") from exc
 
 
 def _normalize_action(row: dict) -> dict:
@@ -63,7 +71,7 @@ async def get_pending_actions(user_id: str = "", limit: int = 20):
                 params={
                     # select * so this works before AND after the batch71 migration
                     "select": "*",
-                    "user_id": f"eq.{user_id}",
+                    "user_id": f"eq.{_db_user_id(user_id)}",
                     "status": "in.(pending,executing)",
                     "order": "priority.asc,created_at.desc",
                     "limit": str(min(limit, 50)),
@@ -89,7 +97,7 @@ async def get_activity(user_id: str = "", limit: int = 12):
                 headers=_headers(),
                 params={
                     "select": "*",
-                    "user_id": f"eq.{user_id}",
+                    "user_id": f"eq.{_db_user_id(user_id)}",
                     "status": "in.(executed,execution_failed,shipped)",
                     "order": "created_at.desc",
                     "limit": str(min(limit, 30)),
@@ -121,7 +129,7 @@ async def get_action(action_id: str, user_id: str = ""):
             )
         if resp.status_code == 200 and resp.json():
             row = resp.json()[0]
-            if user_id and str(row.get("user_id")) != str(user_id):
+            if user_id and str(row.get("user_id")) != _db_user_id(user_id):
                 raise HTTPException(status_code=403, detail="Not your initiative")
             row = _normalize_action(row)
             if not row.get("execution_result") and row.get("shipped_result"):
@@ -163,7 +171,7 @@ async def approve_and_execute(action_id: str, request: ApproveRequest, backgroun
     if not rows:
         raise HTTPException(status_code=404, detail="Initiative not found")
     row = rows[0]
-    if str(row.get("user_id")) != str(request.user_id):
+    if str(row.get("user_id")) != _db_user_id(request.user_id):
         raise HTTPException(status_code=403, detail="Not your initiative")
     if row.get("status") not in ("pending", "edited", "execution_failed"):
         raise HTTPException(status_code=409, detail=f"Initiative is already {row.get('status')}")
@@ -183,7 +191,7 @@ async def get_run_history(user_id: str = "", limit: int = 5):
                 headers=_headers(),
                 params={
                     "select": "id,status,cycles_completed,total_cost_usd,started_at,completed_at,error",
-                    "user_id": f"eq.{user_id}",
+                    "user_id": f"eq.{_db_user_id(user_id)}",
                     "order": "started_at.desc",
                     "limit": str(min(limit, 10)),
                 },
@@ -238,6 +246,7 @@ async def stream_run_status(run_id: str, user_id: str = ""):
                         params={
                             "select": "id,status,cycles_completed",
                             "id": f"eq.{run_id}",
+                            **({"user_id": f"eq.{_db_user_id(user_id)}"} if user_id else {}),
                             "limit": "1",
                         },
                         timeout=5.0,
@@ -277,6 +286,7 @@ async def stream_run_status(run_id: str, user_id: str = ""):
 
 class UpdateActionRequest(BaseModel):
     status: str  # 'shipped' | 'discarded' | 'edited'
+    user_id: str | None = None
     artifact_markdown: str | None = None
     decline_reason: str | None = None  # captured on discard — the strategist learns from it
 
@@ -286,6 +296,23 @@ async def update_action(action_id: str, request: UpdateActionRequest):
     valid_statuses = {"shipped", "discarded", "edited"}
     if request.status not in valid_statuses:
         raise HTTPException(status_code=400, detail=f"status must be one of {valid_statuses}")
+
+    if request.user_id:
+        try:
+            async with httpx.AsyncClient() as client:
+                owner_response = await client.get(
+                    f"{SUPABASE_URL}/rest/v1/business_pending_actions",
+                    headers=_headers(),
+                    params={"select": "user_id", "id": f"eq.{action_id}", "limit": "1"},
+                    timeout=10.0,
+                )
+            owners = owner_response.json() if owner_response.status_code == 200 else []
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail="Could not verify initiative ownership") from exc
+        if not owners:
+            raise HTTPException(status_code=404, detail="Initiative not found")
+        if str(owners[0].get("user_id")) != _db_user_id(request.user_id):
+            raise HTTPException(status_code=403, detail="Not your initiative")
 
     payload: dict = {"status": request.status}
     if request.status == "shipped":
@@ -313,6 +340,20 @@ async def update_action(action_id: str, request: UpdateActionRequest):
                     timeout=10.0,
                 )
         if resp.status_code in (200, 204):
+            try:
+                from backend.lib.business.goal_engine import transition_legacy_initiative
+                mapped = {
+                    "shipped": "completed",
+                    "discarded": "cancelled",
+                    "edited": "needs_approval",
+                }[request.status]
+                await transition_legacy_initiative(
+                    action_id,
+                    mapped,
+                    reason=request.decline_reason or f"Owner marked legacy action {request.status}.",
+                )
+            except Exception as e:
+                print(f"OPERATOR_ROUTES: control-plane action transition failed: {e}")
             return {"ok": True}
         return {"ok": False, "error": f"Supabase {resp.status_code}"}
     except Exception as e:

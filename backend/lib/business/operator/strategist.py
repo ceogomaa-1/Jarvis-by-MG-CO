@@ -70,6 +70,20 @@ cycle; they are never an excuse for weak moves now.
 Return ONLY a JSON object in this exact shape:
 {
   "weekly_thesis": "One sentence — what story this week tells.",
+  "goal_diagnosis": {
+    "active_bottleneck": {
+      "title": "The single constraint currently limiting progress",
+      "evidence": "Specific facts from the live scan proving this is the constraint",
+      "severity": 80,
+      "confidence": 0.8
+    },
+    "hypothesis": {
+      "statement": "If we do X, then metric Y should change because Z",
+      "rationale": "Why this intervention should relieve the bottleneck",
+      "confidence": 0.7,
+      "expected_effect": {"metric_key": "qualified_calls", "direction": "increase", "amount": 5, "window_days": 14}
+    }
+  },
   "moves": [
     {
       "id": "m1",
@@ -122,7 +136,7 @@ async def run_strategist(
     """
     Run the Strategist cycle. Returns the parsed plan or an error dict.
 
-    user_context: {display_name, industry, north_star_label, north_star_usd}
+    user_context: {display_name, industry, north_star_label, north_star_usd, goal_context}
     industry_briefing: Bible relevant section (kept empty for v1 — operator is self-contained)
     latest_metrics: user's metrics blob from business_user_metrics
     latest_flags_summary: latest risk flag summary
@@ -134,6 +148,8 @@ async def run_strategist(
         f"INDUSTRY: {user_context.get('industry','general')}\n"
         f"NORTH STAR: {user_context.get('north_star_label','$1M ARR')} "
         f"({user_context.get('north_star_usd', 1_000_000)})\n\n"
+        f"STRUCTURED GOAL STATE (authoritative — use this for pace, gap, and constraints):\n"
+        f"{user_context.get('goal_context') or '(not configured; use the legacy North Star)'}\n\n"
         f"LIVE BUSINESS SCAN (pulled minutes ago — this is real):\n"
         f"{business_scan_digest or '(scan unavailable — fall back to metrics below)'}\n\n"
         f"WIRED CONNECTORS (what Rue can execute):\n"
@@ -169,6 +185,10 @@ async def run_strategist(
         plan = json.loads(_strip_fences(raw))
 
         plan.setdefault("weekly_thesis", "")
+        diagnosis = plan.get("goal_diagnosis") or {}
+        diagnosis.setdefault("active_bottleneck", {})
+        diagnosis.setdefault("hypothesis", {})
+        plan["goal_diagnosis"] = diagnosis
         plan.setdefault("moves", [])
         plan["moves"] = sorted(
             plan["moves"], key=lambda m: m.get("leverage_score", 0), reverse=True

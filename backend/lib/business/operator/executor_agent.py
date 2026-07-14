@@ -26,6 +26,7 @@ from backend.lib.business.cost import UsageAccumulator
 from backend.lib.business.model_router import SONNET
 from backend.lib.business.tool_builder import build_tools_for_user
 from backend.lib.business.tool_executor import execute_tool
+from backend.lib.business.identity import user_id_to_uuid
 
 SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
@@ -199,7 +200,11 @@ async def execute_initiative(action_id: str, user_id: str) -> dict:
     action = await _fetch_action(action_id)
     if not action:
         return {"ok": False, "error": "Initiative not found"}
-    if str(action.get("user_id")) != str(user_id):
+    try:
+        db_user_id = user_id_to_uuid(user_id)
+    except ValueError:
+        return {"ok": False, "error": "Invalid user identity"}
+    if str(action.get("user_id")) != db_user_id:
         return {"ok": False, "error": "Initiative does not belong to this user"}
     if action.get("status") not in ("pending", "edited", "execution_failed"):
         return {"ok": False, "error": f"Initiative is {action.get('status')}, not approvable"}
@@ -209,6 +214,15 @@ async def execute_initiative(action_id: str, user_id: str) -> dict:
     # Mark executing (no legacy fallback — pre-migration the status just stays
     # 'pending' while the work runs, which is harmless).
     await _patch_action(action_id, {"status": "executing"}, legacy_fields={})
+    try:
+        from backend.lib.business.goal_engine import transition_legacy_initiative
+        await transition_legacy_initiative(
+            action_id,
+            "executing",
+            reason="Owner approved the legacy Boardroom action.",
+        )
+    except Exception as e:
+        print(f"EXECUTOR: control-plane executing transition failed: {e}")
 
     tools = await build_tools_for_user(user_id)
     usage = UsageAccumulator(SONNET)
@@ -337,6 +351,17 @@ async def execute_initiative(action_id: str, user_id: str) -> dict:
             f"✅ Executed: {action.get('title','initiative')} — {summary.splitlines()[1] if len(summary.splitlines()) > 1 else summary[:200]}",
             "initiative_executed",
         )
+        try:
+            from backend.lib.business.goal_engine import transition_legacy_initiative
+            await transition_legacy_initiative(
+                action_id,
+                "measuring",
+                reason="Approved execution completed; waiting for business outcome measurement.",
+                evidence=execution_result,
+                cost_usd=float(cost["total_usd"] or 0),
+            )
+        except Exception as e:
+            print(f"EXECUTOR: control-plane measuring transition failed: {e}")
     else:
         await _patch_action(
             action_id,
@@ -348,5 +373,16 @@ async def execute_initiative(action_id: str, user_id: str) -> dict:
             f"⚠️ Couldn't execute: {action.get('title','initiative')} — {(error or summary)[:220]}",
             "initiative_failed",
         )
+        try:
+            from backend.lib.business.goal_engine import transition_legacy_initiative
+            await transition_legacy_initiative(
+                action_id,
+                "failed",
+                reason=error or "Executor could not complete the approved plan.",
+                evidence=execution_result,
+                cost_usd=float(cost["total_usd"] or 0),
+            )
+        except Exception as e:
+            print(f"EXECUTOR: control-plane failure transition failed: {e}")
 
     return {"ok": success, "result": execution_result}

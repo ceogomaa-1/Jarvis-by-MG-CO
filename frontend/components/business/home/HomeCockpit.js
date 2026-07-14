@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { X, MessageSquare, RefreshCw, Home as HomeIcon, Sparkles, Undo2 } from 'lucide-react'
 import ChatCanvas from '../ChatCanvas'
 import HomeGrid from './HomeGrid'
+import GoalCommandCenter from './GoalCommandCenter'
 
 import { BACKEND } from '@/lib/backend'
 
@@ -155,6 +156,11 @@ export default function HomeCockpit({ open, onClose, userId, onNavigate }) {
       setInjectPrompt({ text: action.prompt || action.label, autoSend: true, ts: Date.now() })
     }
   }, [layout, logUsage, onNavigate])
+
+  const askRueFromGoal = useCallback((prompt) => {
+    setChatOpen(true)
+    setInjectPrompt({ text: prompt, autoSend: true, ts: Date.now() })
+  }, [])
 
   // ── layout persistence ──────────────────────────────────────────────────
   const persistLayout = useCallback(async (newLayout) => {
@@ -355,6 +361,7 @@ export default function HomeCockpit({ open, onClose, userId, onNavigate }) {
         {/* Body: grid + docked chat */}
         <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
           <div className="os1-scroll" style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '16px 16px 40px' }}>
+            {!loading && <GoalCommandCenter userId={userId} onAskRue={askRueFromGoal} />}
             {loading ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60%', color: 'var(--os1-text-faint, #6E6E6C)' }}>
                 <span className="font-pixel" style={{ fontSize: 12 }}>Loading your Home…</span>

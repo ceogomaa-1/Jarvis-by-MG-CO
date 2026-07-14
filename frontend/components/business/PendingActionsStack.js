@@ -474,7 +474,7 @@ export default function PendingActionsStack({ open, onClose, userId }) {
       await fetch(`${BACKEND}/api/business/operator/actions/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'shipped' }),
+        body: JSON.stringify({ status: 'shipped', user_id: userId }),
       })
       setActions(prev => prev.filter(a => a.id !== id))
       loadActivity()
@@ -486,7 +486,7 @@ export default function PendingActionsStack({ open, onClose, userId }) {
       await fetch(`${BACKEND}/api/business/operator/actions/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'discarded', decline_reason: reason || undefined }),
+        body: JSON.stringify({ status: 'discarded', user_id: userId, decline_reason: reason || undefined }),
       })
       setActions(prev => prev.filter(a => a.id !== id))
     } catch (e) { console.error('Decline failed', e) }
