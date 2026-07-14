@@ -17,7 +17,7 @@ from backend.llm import jarvis_think
 from backend.memory import get_relevant_memories, save_interaction
 from backend.user_model import get_user_model, summarize_user_for_prompt, update_user_model, get_onboarding_prompt, is_onboarding_complete
 from backend.agent import ANTHROPIC_TOOLS as AVAILABLE_TOOLS
-from backend.conversation import get_conversation_history, save_conversation_turn
+from backend.conversation import get_conversation_history, get_minutes_since_last_turn, save_conversation_turn
 from backend.utils.user_context import format_user_time_context
 from backend.lib.sessions import format_session_context
 from backend.routes.documents import search_user_documents
@@ -309,6 +309,26 @@ async def _get_context(user_id: str, message: str):
     )
 
 
+def _format_message_gap(minutes: int | None) -> str:
+    """Human line telling the model how long ago the previous message was."""
+    if minutes is None:
+        return ""
+    if minutes < 2:
+        gap = "moments ago"
+    elif minutes < 60:
+        gap = f"{minutes} minutes ago"
+    elif minutes < 1440:
+        h, m = divmod(minutes, 60)
+        gap = f"{h}h {m}m ago"
+    else:
+        d = minutes // 1440
+        gap = f"{d} day{'s' if d != 1 else ''} ago"
+    return (
+        f"The previous message in this conversation was sent {gap}. "
+        f"Ground any 'just now' / 'a second ago' / 'earlier' phrasing in that gap."
+    )
+
+
 # ─── Regular endpoint ─────────────────────────────────────────────────────────
 
 @router.post("/chat", response_model=None)
@@ -328,15 +348,19 @@ async def chat(request: ChatRequest):
     # Gather context + history snapshot BEFORE saving user message to avoid duplication
     (
         (memory_context, user_model_context, skills_summary),
-        time_ctx, session_ctx, doc_ctx, history,
+        time_ctx, session_ctx, doc_ctx, history, last_gap_min,
     ) = await asyncio.gather(
         _get_context(request.user_id, request.message),
         format_user_time_context(request.user_id),
         format_session_context(request.user_id),
         search_user_documents(request.user_id, request.message),
         get_conversation_history(request.user_id, limit=20),
+        get_minutes_since_last_turn(request.user_id),
     )
     live_context = f"{time_ctx}\n{session_ctx}"
+    _gap_line = _format_message_gap(last_gap_min)
+    if _gap_line:
+        live_context += f"\n{_gap_line}"
     if doc_ctx:
         memory_context += f"\n\n--- RELEVANT DOCUMENT CONTENT ---\n{doc_ctx}\n--- END ---"
     if skills_summary:
@@ -476,15 +500,19 @@ async def chat_stream(request: ChatRequest):
     # Gather context + history snapshot BEFORE saving user message
     (
         (memory_context, user_model_context, skills_summary),
-        time_ctx, session_ctx, doc_ctx, history,
+        time_ctx, session_ctx, doc_ctx, history, last_gap_min,
     ) = await asyncio.gather(
         _get_context(request.user_id, request.message),
         format_user_time_context(request.user_id),
         format_session_context(request.user_id),
         search_user_documents(request.user_id, request.message),
         get_conversation_history(request.user_id, limit=20),
+        get_minutes_since_last_turn(request.user_id),
     )
     live_context = f"{time_ctx}\n{session_ctx}"
+    _gap_line = _format_message_gap(last_gap_min)
+    if _gap_line:
+        live_context += f"\n{_gap_line}"
     if doc_ctx:
         memory_context += f"\n\n--- RELEVANT DOCUMENT CONTENT ---\n{doc_ctx}\n--- END ---"
     if skills_summary:

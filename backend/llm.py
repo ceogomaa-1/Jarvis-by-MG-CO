@@ -201,8 +201,14 @@ async def get_current_moment_block(user_id: str) -> str:
         tz = ZoneInfo(tz_name)
     except Exception as e:
         print(f"TIME_INJECT_FALLBACK: {e}")
-        tz = ZoneInfo("UTC")
-        tz_name = "UTC"
+        # Fall back to the product's home timezone, not UTC — a mislabeled UTC
+        # "local time" in the prompt is worse than a wrong-city local time.
+        try:
+            tz = ZoneInfo("America/Toronto")
+            tz_name = "America/Toronto"
+        except Exception:
+            tz = ZoneInfo("UTC")
+            tz_name = "UTC"
 
     now = datetime.now(tz)
     weekday   = now.strftime("%A")           # Monday
@@ -225,15 +231,22 @@ async def get_current_moment_block(user_id: str) -> str:
     return (
         f"CURRENT MOMENT (always trust this, never guess):\n"
         f"- It is {weekday}, {date_full}\n"
-        f"- Local time: {time_12h} ({tz_name})\n"
+        f"- The user's local time RIGHT NOW: {time_12h} ({tz_name})\n"
         f"- Time of day: {vibe}\n"
-        f"- ISO timestamp: {iso}\n\n"
+        f"- Local ISO timestamp (already in the user's timezone): {iso}\n\n"
+        f"WHEN YOU STATE THE TIME, say {time_12h} — exactly that, or a relative phrasing of it. "
+        f"NEVER convert it to UTC or any other timezone. NEVER add or subtract the UTC offset. "
+        f"The times above are ALREADY the user's wall-clock time. If a timestamp from somewhere "
+        f"else (a note, an email, a memory) ends in Z or +00:00, that one is UTC — convert THAT "
+        f"to the user's timezone before speaking it, never the reverse.\n\n"
         f"You are aware of time the way a human is — ambient, automatic. When the user asks "
         f'"what time is it" / "what day is it" / "how long ago" / "is it late" — you know. '
         f"You do NOT need to call any tool for the current time. This block is refreshed on "
         f"every message you receive, so it is ALWAYS accurate.\n\n"
-        f"For calculating elapsed time (timers, \"how long since X\"), use the ISO timestamp "
-        f"above as \"now\" and subtract the past event's timestamp.\n\n"
+        f"ELAPSED TIME: the transcript does NOT show when past messages were sent. Do not assume "
+        f"the previous message was moments ago — if LIVE CONTEXT states how long ago the last "
+        f"message was, trust that number. For timers and \"how long since X\", use the local ISO "
+        f"timestamp above as \"now\" and keep the result in the user's timezone.\n\n"
         f"For future events (calendar, reminders), still call create_calendar_event or "
         f"get_calendar_events — those tools handle scheduling and storage. But \"what time is "
         f"it RIGHT NOW\" is answered above, always."

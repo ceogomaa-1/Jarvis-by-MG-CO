@@ -935,6 +935,14 @@ function Message({ msg, isLatest, onRetry, userId, prevUserText }) {
 
 const _THINKING_PHRASES = ["thinking", "processing", "analyzing", "working on it", "on it", "cooking"]
 
+// True while a streaming reply exists but hasn't produced visible text yet —
+// keeps the thinking animation up until the answer actually starts laying out
+// (otherwise there's a gap where only the bare blink caret shows).
+function isAwaitingFirstToken(messages) {
+  const last = messages[messages.length - 1]
+  return !!last && last.streaming === true && typeof last.content === 'string' && !last.content.trim()
+}
+
 function ThinkingIndicator() {
   const [phraseIndex, setPhraseIndex] = useState(0)
 
@@ -1019,11 +1027,13 @@ function Conversation({ messages, loading, onRetry, userId }) {
       }}>
         <div style={{ maxWidth: 720, margin: '0 auto' }}>
           {messages.map((m, i) => (
-            <div key={m.id ?? i} className="msg-enter">
-              <Message msg={m} isLatest={i === messages.length - 1 && !loading} onRetry={onRetry} userId={userId} prevUserText={prevUserTextFor(messages, i)} />
-            </div>
+            (m.streaming && typeof m.content === 'string' && !m.content.trim()) ? null : (
+              <div key={m.id ?? i} className="msg-enter">
+                <Message msg={m} isLatest={i === messages.length - 1 && !loading} onRetry={onRetry} userId={userId} prevUserText={prevUserTextFor(messages, i)} />
+              </div>
+            )
           ))}
-          {loading && <ThinkingIndicator />}
+          {(loading || isAwaitingFirstToken(messages)) && <ThinkingIndicator />}
         </div>
       </div>
       {showJump && (
@@ -2613,11 +2623,13 @@ export default function Home() {
                 }}
               >
                 {messages.map((m, i) => (
-                  <div key={m.id ?? i} className="msg-enter">
-                    <Message msg={m} isLatest={i === messages.length - 1 && !loading} onRetry={handleRetry} userId={userId} prevUserText={prevUserTextFor(messages, i)} />
-                  </div>
+                  (m.streaming && typeof m.content === 'string' && !m.content.trim()) ? null : (
+                    <div key={m.id ?? i} className="msg-enter">
+                      <Message msg={m} isLatest={i === messages.length - 1 && !loading} onRetry={handleRetry} userId={userId} prevUserText={prevUserTextFor(messages, i)} />
+                    </div>
+                  )
                 ))}
-                {loading && <ThinkingIndicator />}
+                {(loading || isAwaitingFirstToken(messages)) && <ThinkingIndicator />}
               </div>
             )}
           </div>

@@ -18,16 +18,10 @@ _SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 _NOTES_TABLE = "personal_notes"
 
 # Anthropic native tool use format
+# NOTE: the datetime tool lives in the registry (tools/datetime_tool.py, user-tz
+# aware). The legacy get_current_datetime returned unlabeled UTC and made Rue
+# state wrong times — it is intentionally NOT offered to the model anymore.
 ANTHROPIC_TOOLS = [
-    {
-        "name": "get_current_datetime",
-        "description": "Get the current date and time. Call this whenever the user asks about the current time, date, or day.",
-        "input_schema": {
-            "type": "object",
-            "properties": {},
-            "required": [],
-        },
-    },
     {
         "name": "save_note",
         "description": "Save a note or reminder for the user",
@@ -375,8 +369,17 @@ async def web_search(query: str) -> str:
         return f"Search failed: {e}"
 
 
-async def get_current_datetime() -> str:
-    return datetime.now(timezone.utc).strftime("%A, %B %d %Y — %I:%M %p")
+async def get_current_datetime(user_id: str = "") -> str:
+    # Legacy path (no longer offered to the model) — kept user-tz correct in
+    # case anything still dispatches it. Never return unlabeled UTC.
+    from zoneinfo import ZoneInfo
+    tz_name = await get_user_timezone(user_id) if user_id else "America/Toronto"
+    try:
+        tz = ZoneInfo(tz_name)
+    except Exception:
+        tz = ZoneInfo("America/Toronto")
+        tz_name = "America/Toronto"
+    return datetime.now(tz).strftime("%A, %B %d %Y — %I:%M %p") + f" ({tz_name})"
 
 
 def _notes_headers(prefer: str = "return=representation") -> dict:
@@ -621,7 +624,7 @@ async def set_note_recurrence(user_id: str, note_id: str, recurrence: str) -> st
 async def execute_tool(user_id: str, tool_name: str, tool_input: dict) -> str:
     try:
         if tool_name == "get_current_datetime":
-            return await get_current_datetime()
+            return await get_current_datetime(user_id)
         elif tool_name == "web_search":
             return await web_search(tool_input.get("query", ""))
         elif tool_name == "save_note":
