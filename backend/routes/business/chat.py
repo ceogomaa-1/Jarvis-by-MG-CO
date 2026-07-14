@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import re
+import time
 from datetime import datetime, timezone
 
 import httpx
@@ -36,6 +37,7 @@ from backend.lib.business.intent_router import classify_message_intent
 from backend.lib.business import crm_enrich
 from backend.lib.business import home_layout as _home_layout
 from backend.lib.business import dashboard_studio as _dashboard_studio
+from backend.lib.business.sse import iter_lines_with_heartbeat
 from backend.usage_limits import check_limit, increment_usage, get_usage, DAILY_MESSAGE_LIMIT
 from backend.lib.billing import entitlements, config as billing_config, store as billing_store
 from backend.tools.citation_context import init_collector
@@ -861,7 +863,13 @@ async def business_chat_stream(request: BusinessChatRequest):
                             yield "data: [DONE]\n\n"
                             return
 
-                        async for raw_line in stream_resp.aiter_lines():
+                        async for raw_line in iter_lines_with_heartbeat(stream_resp):
+                            if raw_line is None:
+                                # Keep the browser/proxy connection alive while Claude is
+                                # thinking between streamed events. The client treats this
+                                # as transport activity, not user-visible content.
+                                yield f'data: {json.dumps({"type": "heartbeat", "stage": "model"})}\n\n'
+                                continue
                             if not raw_line.startswith("data: "):
                                 continue
                             raw = raw_line[6:]
@@ -1041,6 +1049,7 @@ async def business_chat_stream(request: BusinessChatRequest):
                         running_tools.append((block, tool_task, progress_q))
 
                     # Drain progress from every running tool so long research steps stay visible.
+                    last_tool_heartbeat = time.monotonic()
                     while any(not task.done() or not queue.empty() for _, task, queue in running_tools):
                         emitted_progress = False
                         for block, _, progress_q in running_tools:
@@ -1049,6 +1058,10 @@ async def business_chat_stream(request: BusinessChatRequest):
                                 emitted_progress = True
                                 yield f'data: {json.dumps({"type": "tool_progress", "name": block["name"], "value": msg})}\n\n'
                         if not emitted_progress:
+                            now = time.monotonic()
+                            if now - last_tool_heartbeat >= 10.0:
+                                yield f'data: {json.dumps({"type": "heartbeat", "stage": "tool_execution"})}\n\n'
+                                last_tool_heartbeat = now
                             await asyncio.sleep(0.1)
 
                     tool_results = []

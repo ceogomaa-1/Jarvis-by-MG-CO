@@ -27,6 +27,11 @@ import { AttachmentsRow } from './AttachmentDisplay'
 import { BACKEND } from '@/lib/backend'
 const DEPLOY_POLL_MS = 5000
 const DEPLOY_POLL_MAX_MS = 6 * 60 * 1000
+// A business chat turn is an agent run, not a normal request. The old 25s
+// "first token" timer ignored status/tool/progress events, so it aborted Rue
+// while she was actively working and then replayed the whole turn.
+const CHAT_CONNECT_TIMEOUT_MS = 60 * 1000
+const CHAT_IDLE_TIMEOUT_MS = 150 * 1000
 const DIRECT_DEPLOY_RE = /^\s*(?:(?:deploy|publish|ship|launch|push)\s+(?:it|this|the\s+(?:site|website|page))(?:\s+to\s+(?:vercel|github))?|(?:deploy|publish|push)\s+(?:(?:my|the)\s+)?(?:site|website|page)(?:\s+to\s+(?:vercel|github))?|deploy\s+to\s+(?:vercel|github)|(?:make|take|put)\s+(?:it|this|the\s+(?:site|website|page))\s+(?:live|online)|go\s+live|redeploy(?:\s+it)?|deploy)\s*[!?.]*\s*$/i
 
 function cleanProgressLabel(value = '') {
@@ -1007,21 +1012,43 @@ export default function ChatCanvas({
     streamingConvRef.current = activeConvRef.current || 'pending'
 
     let result = await runChatStream(aId, text, history, attachments)
-    if (!result.gotChunk) {
+    if (!result.completed) {
       // Render free-tier cold start can drop the very first request of a session
-      // silently. Retry once, transparently — the thinking indicator stays up
-      // throughout since the bubble is still marked `streaming: true`.
-      result = await runChatStream(aId, text, history, attachments, true)
+      // silently. If Rue had already begun working, tell the recovery turn to
+      // finish the result instead of blindly replaying the same task.
+      const recoveryText = result.gotEvent
+        ? `${text}\n\n[Recovery instruction: the previous stream was interrupted after work began. Continue from the available business state and deliver the final answer. Do not stop after data collection.]`
+        : text
+      result = await runChatStream(aId, recoveryText, history, attachments, true)
     }
 
     streamingConvRef.current = null
     setToolStatus(null)
     setToolProgress(null)
 
-    if (!result.gotChunk) {
+    if (!result.completed) {
+      setIsThinking(false)
+      setMessages(prev => prev.map(m => {
+        if (m.id !== aId) return m
+        const interruption = result.error || 'Rue lost the execution stream before the run completed.'
+        return {
+          ...m,
+          content: m.content ? `${m.content}\n\n${interruption}` : interruption,
+          streaming: false,
+        }
+      }))
+    } else if (!result.gotChunk) {
       setIsThinking(false)
       setMessages(prev => prev.map(m =>
-        m.id === aId ? { ...m, content: 'Something went wrong. Please try again.', streaming: false } : m
+        m.id === aId ? {
+          ...m,
+          content: result.error || (
+            result.gotEvent
+              ? 'Rue started the work but the connection ended before the result arrived. Your work was not treated as complete — send “continue” and Rue will resume it.'
+              : 'Rue could not open the execution stream. Please try again.'
+          ),
+          streaming: false,
+        } : m
       ))
     } else {
       setIsThinking(false)
@@ -1034,14 +1061,28 @@ export default function ChatCanvas({
     setReadinessRefresh(n => n + 1)
   }
 
-  // Runs one attempt of the chat stream for assistant message `aId`. Returns
-  // { gotChunk: boolean } — false means the stream produced nothing (network
-  // error, Render cold-start timeout, or zero content within 25s) so the
-  // caller can retry once before showing an error bubble.
+  // Returns both user-visible content and transport activity. Tool/status events
+  // count as activity even when Claude has not emitted prose yet; confusing those
+  // two states is what caused live agent runs to be killed at 25 seconds.
   async function runChatStream(aId, text, history, attachments, isRetry = false) {
     const controller = new AbortController()
     let gotChunk = false
-    let firstChunkTimer = setTimeout(() => controller.abort(), 25000)
+    let gotEvent = false
+    let completed = false
+    let transportError = ''
+    let watchdogTimer = null
+
+    const armWatchdog = (delay) => {
+      if (watchdogTimer) clearTimeout(watchdogTimer)
+      watchdogTimer = setTimeout(() => controller.abort(), delay)
+    }
+
+    const markActivity = () => {
+      gotEvent = true
+      armWatchdog(CHAT_IDLE_TIMEOUT_MS)
+    }
+
+    armWatchdog(CHAT_CONNECT_TIMEOUT_MS)
 
     try {
       const res = await fetch(`${BACKEND}/api/business/chat/stream`, {
@@ -1058,6 +1099,21 @@ export default function ChatCanvas({
         }),
         signal: controller.signal,
       })
+      if (!res.ok) {
+        let detail = ''
+        try {
+          const payload = await res.json()
+          detail = payload?.detail || payload?.error || ''
+        } catch {
+          try { detail = await res.text() } catch {}
+        }
+        throw new Error(detail || `Rue's execution service returned HTTP ${res.status}.`)
+      }
+      if (!res.body) throw new Error("Rue's execution service returned an empty stream.")
+
+      // Response headers arrived. Planning/model/tool waits are allowed to take
+      // longer, but every SSE event refreshes this idle watchdog.
+      armWatchdog(CHAT_IDLE_TIMEOUT_MS)
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       let buf = ''
@@ -1080,7 +1136,7 @@ export default function ChatCanvas({
         ))
       }
 
-      while (true) {
+      streamLoop: while (true) {
         const { done, value } = await reader.read()
         if (done) break
         buf += decoder.decode(value, { stream: true })
@@ -1090,7 +1146,11 @@ export default function ChatCanvas({
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue
           const raw = line.slice(6)
-          if (raw === '[DONE]') break
+          markActivity()
+          if (raw === '[DONE]') {
+            completed = true
+            break streamLoop
+          }
           try {
             const chunk = JSON.parse(raw)
 
@@ -1128,8 +1188,6 @@ export default function ChatCanvas({
                 // and /business/show-me-how endpoints would have produced.
                 if (!gotChunk) {
                   gotChunk = true
-                  clearTimeout(firstChunkTimer)
-                  firstChunkTimer = null
                 }
                 setIsThinking(false)
                 const data = chunk.data || {}
@@ -1156,8 +1214,6 @@ export default function ChatCanvas({
               } else if (chunk.type === 'pending_action') {
                 if (!gotChunk) {
                   gotChunk = true
-                  clearTimeout(firstChunkTimer)
-                  firstChunkTimer = null
                 }
                 setMessages(prev => prev.map(m =>
                   m.id === aId ? { ...m, pending_action: chunk.action, action_resolved: false } : m
@@ -1171,8 +1227,6 @@ export default function ChatCanvas({
             // Regular text chunk
             if (!gotChunk) {
               gotChunk = true
-              clearTimeout(firstChunkTimer)
-              firstChunkTimer = null
             }
             setIsThinking(false)
             setToolProgress(null)
@@ -1195,12 +1249,17 @@ export default function ChatCanvas({
           m.id === aId ? { ...m, content: acc, chunks: [...allChunks], streaming: false } : m
         ))
       }
-      return { gotChunk }
+      return { gotChunk, gotEvent, completed, error: transportError }
     } catch (err) {
       console.error(`Chat stream failed${isRetry ? ' (retry)' : ''}:`, err)
-      return { gotChunk }
+      transportError = err?.name === 'AbortError'
+        ? (gotEvent
+            ? 'Rue stopped receiving execution progress for too long. The run was interrupted, not completed.'
+            : 'Rue could not connect to the execution service in time.')
+        : (err?.message || 'Rue lost the execution stream.')
+      return { gotChunk, gotEvent, completed, error: transportError }
     } finally {
-      if (firstChunkTimer) clearTimeout(firstChunkTimer)
+      if (watchdogTimer) clearTimeout(watchdogTimer)
     }
   }
 
