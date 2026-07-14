@@ -48,6 +48,7 @@ _EXEMPT_PREFIXES = (
     "/api/channels/whatsapp/webhook",
     "/api/notes/_dispatch",
     "/api/business/email/_dispatch",
+    "/api/business/runtime/_dispatch",
 )
 
 

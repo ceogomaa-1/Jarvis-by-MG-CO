@@ -16,6 +16,8 @@ Budget enforcement: BudgetTracker kills the loop before any cycle that would
 exceed the user's daily cap.
 """
 import os
+from datetime import datetime, timezone
+from typing import Awaitable, Callable
 
 import httpx
 
@@ -83,6 +85,24 @@ async def _patch_run_row(run_id: str, fields: dict) -> None:
         print(f"OPERATOR: patch_run_row exception: {e}")
 
 
+async def _fetch_run_row(run_id: str) -> dict:
+    if not run_id or not SUPABASE_URL or not SUPABASE_KEY:
+        return {}
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{SUPABASE_URL}/rest/v1/business_operator_runs",
+                headers=_headers(),
+                params={"select": "*", "id": f"eq.{run_id}", "limit": "1"},
+                timeout=10.0,
+            )
+        if response.status_code == 200 and response.json():
+            return response.json()[0]
+    except Exception as e:
+        print(f"OPERATOR: fetch_run_row exception: {e}")
+    return {}
+
+
 def _card_row(user_id: str, run_id: str, c: dict, *, legacy: bool) -> dict:
     row = {
         "user_id": user_id_to_uuid(user_id),
@@ -106,6 +126,7 @@ def _card_row(user_id: str, run_id: str, c: dict, *, legacy: bool) -> dict:
     if not legacy:
         row["execution_plan"] = c.get("execution_plan") or {}
         row["expected_impact"] = c.get("expected_impact", "")
+        row["source_key"] = c.get("move_id") or f"card-{c.get('priority', 50)}-{c.get('title', 'untitled')[:80]}"
     return row
 
 
@@ -122,8 +143,12 @@ async def _save_pending_actions(user_id: str, run_id: str, cards: list[dict]) ->
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.post(
-                    f"{SUPABASE_URL}/rest/v1/business_pending_actions",
-                    headers={**_headers(), "Prefer": "return=minimal"},
+                    f"{SUPABASE_URL}/rest/v1/business_pending_actions"
+                    + ("?on_conflict=operator_run_id,source_key" if not legacy else ""),
+                    headers={
+                        **_headers(),
+                        "Prefer": "resolution=merge-duplicates,return=minimal" if not legacy else "return=minimal",
+                    },
                     json=payload,
                     timeout=20.0,
                 )
@@ -195,6 +220,7 @@ async def run_operator_for_user(
     user_id: str,
     existing_run_id: str | None = None,
     notify: bool = False,
+    progress_callback: Callable[[str, str, dict | None], Awaitable[None]] | None = None,
 ) -> dict:
     """Execute the full 4-cycle operator run for one user.
 
@@ -212,6 +238,30 @@ async def run_operator_for_user(
     run_id = existing_run_id or await _create_run_row(user_id)
     if not run_id:
         return {"error": "Could not create run row"}
+    prior_run = await _fetch_run_row(run_id) if existing_run_id else {}
+    if prior_run.get("status") == "complete":
+        return {
+            "status": "complete",
+            "cycles_completed": 4,
+            "total_cost_usd": float(prior_run.get("total_cost_usd") or 0),
+            "resumed": True,
+        }
+    prior_cycles = int(prior_run.get("cycles_completed") or 0)
+    budget.spent_usd = float(prior_run.get("total_cost_usd") or 0)
+
+    active_step = "analyst"
+
+    async def report_progress(step_key: str, status: str, data: dict | None = None) -> None:
+        nonlocal active_step
+        if status == "running":
+            active_step = step_key
+        if not progress_callback:
+            return
+        try:
+            await progress_callback(step_key, status, data)
+        except Exception as progress_error:
+            # Observability can degrade without killing revenue-producing work.
+            print(f"OPERATOR: progress checkpoint failed for {step_key}: {progress_error}")
 
     user_ctx = await _fetch_user_context(user_id)
     connector_summary = await available_connectors_summary(user_id)
@@ -239,47 +289,63 @@ async def run_operator_for_user(
         "goal_context": format_goal_snapshot(goal_snapshot),
     }
 
-    cycles_completed = 0
+    cycles_completed = prior_cycles
 
     try:
         # ─── CYCLE 0: ANALYST (free — no LLM) ─────────────────────
         # The co-founder's walk through the live business before proposing
         # anything. Fail-soft: a dead scan just means a thinner digest.
-        scan_digest = ""
-        try:
-            snapshot = await run_analyst(user_id)
-            scan_digest = snapshot.get("digest", "")
-            # Separate patch: the snapshot column ships in batch71 — if the
-            # migration isn't applied yet this 400s harmlessly on its own.
-            await _patch_run_row(run_id, {"snapshot": snapshot})
-            print(f"OPERATOR: analyst scanned {snapshot.get('sources_ok')} for {user_id}")
-        except Exception as e:
-            print(f"OPERATOR: analyst failed for {user_id}: {e}")
+        snapshot = prior_run.get("snapshot") or {}
+        scan_digest = snapshot.get("digest", "")
+        if not scan_digest:
+            await report_progress("analyst", "running")
+            try:
+                snapshot = await run_analyst(user_id)
+                scan_digest = snapshot.get("digest", "")
+                # Separate patch: the snapshot column ships in batch71 — if the
+                # migration isn't applied yet this 400s harmlessly on its own.
+                await _patch_run_row(run_id, {"snapshot": snapshot})
+                print(f"OPERATOR: analyst scanned {snapshot.get('sources_ok')} for {user_id}")
+            except Exception as e:
+                print(f"OPERATOR: analyst failed for {user_id}: {e}")
+            await report_progress(
+                "analyst",
+                "succeeded",
+                {"sources_ok": snapshot.get("sources_ok"), "degraded": not bool(scan_digest)},
+            )
+        else:
+            await report_progress("analyst", "succeeded", {"resumed": True})
 
         # ─── CYCLE 1: STRATEGIST ──────────────────────────────────
-        if not budget.can_afford(OPUS, input_tokens_est=2500, max_output_tokens=3000):
-            await _patch_run_row(run_id, {
-                "status": "budget_capped",
-                "error": "Daily budget exhausted before Strategist",
-                "completed_at": "now()",
-            })
-            return {"status": "budget_capped", "cycles_completed": 0}
+        strategist_plan = prior_run.get("strategist_output") if prior_cycles >= 1 else None
+        if not strategist_plan:
+            await report_progress("strategist", "running")
+            if not budget.can_afford(OPUS, input_tokens_est=2500, max_output_tokens=3000):
+                await report_progress("strategist", "skipped", {"reason": "budget_capped"})
+                await _patch_run_row(run_id, {
+                    "status": "budget_capped",
+                    "error": "Daily budget exhausted before Strategist",
+                    "completed_at": datetime.now(timezone.utc).isoformat(),
+                })
+                return {"status": "budget_capped", "cycles_completed": 0}
 
-        budget.charge(OPUS, input_tokens_est=2500, max_output_tokens=3000)
-        strategist_plan = await run_strategist(
-            user_context=base_user_ctx,
-            industry_briefing="",
-            latest_metrics=user_ctx.get("metrics_text", ""),
-            latest_flags_summary=user_ctx.get("flags_summary", ""),
-            business_scan_digest=scan_digest,
-            connector_summary=connector_summary,
-        )
-        cycles_completed = 1
-        await _patch_run_row(run_id, {
-            "cycles_completed": 1,
-            "strategist_output": strategist_plan,
-            "total_cost_usd": round(budget.spent_usd, 4),
-        })
+            budget.charge(OPUS, input_tokens_est=2500, max_output_tokens=3000)
+            strategist_plan = await run_strategist(
+                user_context=base_user_ctx,
+                industry_briefing="",
+                latest_metrics=user_ctx.get("metrics_text", ""),
+                latest_flags_summary=user_ctx.get("flags_summary", ""),
+                business_scan_digest=scan_digest,
+                connector_summary=connector_summary,
+            )
+            cycles_completed = 1
+            await _patch_run_row(run_id, {
+                "cycles_completed": 1,
+                "strategist_output": strategist_plan,
+                "total_cost_usd": round(budget.spent_usd, 4),
+            })
+        else:
+            print(f"OPERATOR: resuming run {run_id} after Strategist")
 
         # Detective questions (Batch 72): persist the strategist's 0-3 gap
         # questions. save_questions enforces the open-question caps + dedupe.
@@ -299,12 +365,22 @@ async def run_operator_for_user(
                 print(f"OPERATOR: question save failed for {user_id}: {e}")
 
         if strategist_plan.get("error") or not strategist_plan.get("moves"):
+            await report_progress(
+                "strategist",
+                "failed",
+                {"error": strategist_plan.get("error", "Strategist produced no moves")},
+            )
             await _patch_run_row(run_id, {
                 "status": "failed",
                 "error": strategist_plan.get("error", "Strategist produced no moves"),
-                "completed_at": "now()",
+                "completed_at": datetime.now(timezone.utc).isoformat(),
             })
             return {"status": "failed", "cycles_completed": 1}
+        await report_progress(
+            "strategist",
+            "succeeded",
+            {"moves": len(strategist_plan.get("moves") or []), "resumed": prior_cycles >= 1},
+        )
 
         diagnosis_refs = {}
         try:
@@ -317,63 +393,79 @@ async def run_operator_for_user(
             print(f"OPERATOR: diagnosis persistence failed for {user_id}: {e}")
 
         # ─── CYCLE 2: RESEARCHER ──────────────────────────────────
-        if budget.can_afford(SONNET, input_tokens_est=2000, max_output_tokens=3000):
-            budget.charge(SONNET, input_tokens_est=2000, max_output_tokens=3000)
-            researcher_output = await run_researcher(strategist_plan, industry)
+        researcher_output = prior_run.get("researcher_output") if prior_cycles >= 2 else None
+        if not researcher_output:
+            await report_progress("researcher", "running")
+            if budget.can_afford(SONNET, input_tokens_est=2000, max_output_tokens=3000):
+                budget.charge(SONNET, input_tokens_est=2000, max_output_tokens=3000)
+                researcher_output = await run_researcher(strategist_plan, industry)
+            else:
+                researcher_output = {"research": {}, "skipped": "budget"}
+            cycles_completed = 2
+            await _patch_run_row(run_id, {
+                "cycles_completed": 2,
+                "researcher_output": researcher_output,
+                "total_cost_usd": round(budget.spent_usd, 4),
+            })
+            await report_progress("researcher", "succeeded", {"skipped": researcher_output.get("skipped")})
         else:
-            researcher_output = {"research": {}, "skipped": "budget"}
-        cycles_completed = 2
-        await _patch_run_row(run_id, {
-            "cycles_completed": 2,
-            "researcher_output": researcher_output,
-            "total_cost_usd": round(budget.spent_usd, 4),
-        })
+            print(f"OPERATOR: resuming run {run_id} after Researcher")
+            await report_progress("researcher", "succeeded", {"resumed": True})
 
         # ─── CYCLE 3: CREATOR (parallel sub-agents) ───────────────
-        moves_to_create = strategist_plan.get("moves", [])[:6]
-        creator_cost_multiplier = 0.5 if creator_batch_enabled(len(moves_to_create)) else 1.0
-        affordable_count = 0
-        for _ in moves_to_create:
-            if budget.can_afford(
-                SONNET,
-                input_tokens_est=2000,
-                max_output_tokens=2500,
-                multiplier=creator_cost_multiplier,
-            ):
-                budget.charge(
+        creator_outputs = prior_run.get("creator_outputs") if prior_cycles >= 3 else None
+        if creator_outputs is None:
+            await report_progress("creator", "running")
+            moves_to_create = strategist_plan.get("moves", [])[:6]
+            creator_cost_multiplier = 0.5 if creator_batch_enabled(len(moves_to_create)) else 1.0
+            affordable_count = 0
+            for _ in moves_to_create:
+                if budget.can_afford(
                     SONNET,
                     input_tokens_est=2000,
                     max_output_tokens=2500,
                     multiplier=creator_cost_multiplier,
-                )
-                affordable_count += 1
-            else:
-                break
-        moves_to_create = moves_to_create[:affordable_count]
-        truncated_plan = {**strategist_plan, "moves": moves_to_create}
+                ):
+                    budget.charge(
+                        SONNET,
+                        input_tokens_est=2000,
+                        max_output_tokens=2500,
+                        multiplier=creator_cost_multiplier,
+                    )
+                    affordable_count += 1
+                else:
+                    break
+            moves_to_create = moves_to_create[:affordable_count]
+            truncated_plan = {**strategist_plan, "moves": moves_to_create}
 
-        if moves_to_create:
-            creator_outputs = await run_creator(
-                strategist_plan=truncated_plan,
-                researcher_output=researcher_output,
-                industry=industry,
-                business_name=business_name,
-                north_star_label=north_star_label,
-                connector_summary=connector_summary,
-                max_parallel=len(moves_to_create),
-                scan_digest=scan_digest,
-            )
+            if moves_to_create:
+                creator_outputs = await run_creator(
+                    strategist_plan=truncated_plan,
+                    researcher_output=researcher_output,
+                    industry=industry,
+                    business_name=business_name,
+                    north_star_label=north_star_label,
+                    connector_summary=connector_summary,
+                    max_parallel=len(moves_to_create),
+                    scan_digest=scan_digest,
+                )
+            else:
+                creator_outputs = []
+            cycles_completed = 3
+            await _patch_run_row(run_id, {
+                "cycles_completed": 3,
+                "creator_outputs": creator_outputs,
+                "total_cost_usd": round(budget.spent_usd, 4),
+            })
+            await report_progress("creator", "succeeded", {"artifacts": len(creator_outputs)})
         else:
-            creator_outputs = []
-        cycles_completed = 3
-        await _patch_run_row(run_id, {
-            "cycles_completed": 3,
-            "creator_outputs": creator_outputs,
-            "total_cost_usd": round(budget.spent_usd, 4),
-        })
+            print(f"OPERATOR: resuming run {run_id} after Creator")
+            await report_progress("creator", "succeeded", {"resumed": True})
 
         # ─── CYCLE 4: PACKAGER ────────────────────────────────────
-        if budget.can_afford(OPUS, input_tokens_est=3500, max_output_tokens=4000):
+        packager_output = prior_run.get("packager_output") if prior_cycles >= 4 else None
+        if not packager_output and budget.can_afford(OPUS, input_tokens_est=3500, max_output_tokens=4000):
+            await report_progress("packager", "running")
             budget.charge(OPUS, input_tokens_est=3500, max_output_tokens=4000)
             packager_output = await run_packager(
                 strategist_plan=strategist_plan,
@@ -382,7 +474,8 @@ async def run_operator_for_user(
                 north_star_label=north_star_label,
                 connector_summary=connector_summary,
             )
-        else:
+        elif not packager_output:
+            await report_progress("packager", "running", {"mode": "budget_fallback"})
             # Budget capped — auto-package without the smart tier
             packager_output = {
                 "morning_message": "Operator ran overnight. Budget capped before Packager — raw artifacts queued for review.",
@@ -402,8 +495,12 @@ async def run_operator_for_user(
                     for c in creator_outputs if c.get("ok")
                 ],
             }
+        else:
+            print(f"OPERATOR: resuming run {run_id} after Packager")
+        await report_progress("packager", "succeeded", {"cards": len(packager_output.get("cards") or [])})
         cycles_completed = 4
 
+        await report_progress("finalize", "running")
         cards = packager_output.get("cards", [])
         actions_saved = await _save_pending_actions(user_id, run_id, cards)
 
@@ -422,7 +519,7 @@ async def run_operator_for_user(
             "packager_output": packager_output,
             "status": "complete",
             "total_cost_usd": round(budget.spent_usd, 4),
-            "completed_at": "now()",
+            "completed_at": datetime.now(timezone.utc).isoformat(),
         })
 
         # ─── FINAL STEP: COMPOSE HOME ─────────────────────────────
@@ -464,6 +561,8 @@ async def run_operator_for_user(
             except Exception as e:
                 print(f"OPERATOR: morning brief notify failed for {user_id}: {e}")
 
+        await report_progress("finalize", "succeeded", {"actions_queued": actions_saved})
+
         print(
             f"OPERATOR: Run complete for {user_id}. "
             f"{actions_saved} actions queued. Cost: ${budget.spent_usd:.4f}"
@@ -482,11 +581,12 @@ async def run_operator_for_user(
         import traceback
         traceback.print_exc()
         print(f"OPERATOR: unhandled exception for user {user_id}: {e}")
+        await report_progress(active_step, "failed", {"error": str(e)[:500]})
         await _patch_run_row(run_id, {
             "status": "failed",
             "error": str(e)[:500],
             "cycles_completed": cycles_completed,
             "total_cost_usd": round(budget.spent_usd, 4),
-            "completed_at": "now()",
+            "completed_at": datetime.now(timezone.utc).isoformat(),
         })
         return {"status": "failed", "error": str(e), "cycles_completed": cycles_completed}

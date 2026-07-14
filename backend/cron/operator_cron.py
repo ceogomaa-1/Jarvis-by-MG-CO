@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 
 from backend.lib.business.brand_config import list_operator_enabled_users
 from backend.lib.business.operator.loop import run_operator_for_user
+from backend.lib.business.runtime.store import RuntimeUnavailable, emit_event
 
 
 async def run_operator_nightly():
@@ -29,15 +30,29 @@ async def run_operator_nightly():
         if not uid:
             continue
         try:
-            # notify=True: nightly runs send the capped morning-brief email/in-app
-            # (user-triggered runs don't — the owner is watching live).
-            result = await run_operator_for_user(uid, notify=True)
-            status = result.get("status", "unknown")
-            cost = result.get("total_cost_usd", 0)
-            actions = result.get("actions_queued", 0)
-            print(f"OPERATOR_CRON: user={uid} status={status} cost=${cost:.4f} actions={actions}")
-            if status == "complete":
-                successes += 1
+            # Persist the wake-up before doing work. Duplicate scheduler replicas
+            # collapse onto the same daily idempotency key.
+            day_key = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            event = await emit_event(
+                uid,
+                "operator.requested",
+                {"user_id": uid, "notify": True, "workflow_key": f"operator-nightly:{uid}:{day_key}"},
+                idempotency_key=f"operator-nightly-event:{uid}:{day_key}",
+                source="operator_cron",
+                subject_type="business",
+                subject_id=uid,
+            )
+            print(f"OPERATOR_CRON: user={uid} queued durable event={event.get('id')}")
+            successes += 1
+        except RuntimeUnavailable as e:
+            # Rolling-release fallback until Batch 77 is applied.
+            print(f"OPERATOR_CRON: durable runtime unavailable for {uid}, running legacy path: {e}")
+            try:
+                result = await run_operator_for_user(uid, notify=True)
+                if result.get("status") == "complete":
+                    successes += 1
+            except Exception as legacy_error:
+                print(f"OPERATOR_CRON: user={uid} legacy fallback FAILED: {legacy_error}")
         except Exception as e:
             print(f"OPERATOR_CRON: user={uid} FAILED with exception: {e}")
 

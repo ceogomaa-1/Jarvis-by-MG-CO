@@ -195,8 +195,7 @@ def _summarize_tool_result(result_str: str) -> tuple[bool, str]:
 
 
 async def execute_initiative(action_id: str, user_id: str) -> dict:
-    """Execute one approved initiative end-to-end. Designed to run as a
-    FastAPI background task — always returns a dict, never raises."""
+    """Execute one approved initiative end-to-end; idempotent after success."""
     action = await _fetch_action(action_id)
     if not action:
         return {"ok": False, "error": "Initiative not found"}
@@ -206,6 +205,12 @@ async def execute_initiative(action_id: str, user_id: str) -> dict:
         return {"ok": False, "error": "Invalid user identity"}
     if str(action.get("user_id")) != db_user_id:
         return {"ok": False, "error": "Initiative does not belong to this user"}
+    if action.get("status") in ("executed", "shipped"):
+        return {
+            "ok": True,
+            "already_executed": True,
+            "result": action.get("execution_result") or action.get("shipped_result") or {},
+        }
     if action.get("status") not in ("pending", "edited", "execution_failed"):
         return {"ok": False, "error": f"Initiative is {action.get('status')}, not approvable"}
     if not ANTHROPIC_API_KEY:

@@ -150,8 +150,8 @@ class ApproveRequest(BaseModel):
 async def approve_and_execute(action_id: str, request: ApproveRequest, background_tasks: BackgroundTasks):
     """The moment that matters: the owner approved — Rue executes for real.
 
-    Returns immediately; the Executor agent runs in the background. The
-    frontend polls GET /business/operator/actions/{id} for the receipts.
+    Returns immediately after durably queueing the work. The frontend polls
+    GET /business/operator/actions/{id} for execution receipts.
     """
     if not request.user_id:
         raise HTTPException(status_code=400, detail="user_id required")
@@ -176,8 +176,27 @@ async def approve_and_execute(action_id: str, request: ApproveRequest, backgroun
     if row.get("status") not in ("pending", "edited", "execution_failed"):
         raise HTTPException(status_code=409, detail=f"Initiative is already {row.get('status')}")
 
-    background_tasks.add_task(execute_initiative, action_id, request.user_id)
-    return {"ok": True, "status": "executing", "action_id": action_id}
+    workflow_id = None
+    durable = False
+    try:
+        from backend.lib.business.runtime.store import enqueue_workflow
+        from backend.lib.business.runtime.definitions import INITIATIVE_EXECUTION_STEPS
+        workflow = await enqueue_workflow(
+            request.user_id,
+            "initiative.execute",
+            {"user_id": request.user_id, "legacy_action_id": action_id},
+            idempotency_key=f"initiative-execute:{action_id}:v1",
+            priority=10,
+            max_attempts=3,
+            steps=INITIATIVE_EXECUTION_STEPS,
+        )
+        workflow_id = workflow["id"]
+        durable = True
+    except Exception as e:
+        # Rolling-release fallback until Batch 77 exists in production.
+        print(f"OPERATOR_ROUTES: durable execution unavailable, using background task: {e}")
+        background_tasks.add_task(execute_initiative, action_id, request.user_id)
+    return {"ok": True, "status": "queued" if durable else "executing", "action_id": action_id, "workflow_id": workflow_id, "durable": durable}
 
 
 @router.get("/business/operator/runs")
@@ -221,9 +240,26 @@ async def trigger_run(request: TriggerRunRequest, background_tasks: BackgroundTa
     if not run_id:
         raise HTTPException(status_code=500, detail="Failed to create run record")
 
-    background_tasks.add_task(run_operator_for_user, request.user_id, run_id)
+    workflow_id = None
+    durable = False
+    try:
+        from backend.lib.business.runtime.store import enqueue_workflow
+        from backend.lib.business.runtime.definitions import OPERATOR_WORKFLOW_STEPS
+        workflow = await enqueue_workflow(
+            request.user_id,
+            "operator.run",
+            {"user_id": request.user_id, "operator_run_id": run_id, "notify": False},
+            idempotency_key=f"operator-run:{run_id}",
+            priority=30,
+            steps=OPERATOR_WORKFLOW_STEPS,
+        )
+        workflow_id = workflow["id"]
+        durable = True
+    except Exception as e:
+        print(f"OPERATOR_ROUTES: durable Operator unavailable, using background task: {e}")
+        background_tasks.add_task(run_operator_for_user, request.user_id, run_id)
 
-    return {"run_id": run_id, "status": "started"}
+    return {"run_id": run_id, "status": "queued" if durable else "started", "workflow_id": workflow_id, "durable": durable}
 
 
 @router.get("/business/operator/status/stream")

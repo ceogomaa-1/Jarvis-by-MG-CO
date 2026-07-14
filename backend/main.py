@@ -16,6 +16,7 @@ from contextlib import asynccontextmanager
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -66,6 +67,8 @@ from backend.routes.business.crm_routes import router as business_crm_router
 from backend.routes.business.leads_routes import router as business_leads_router
 from backend.routes.business.home_routes import router as business_home_router
 from backend.routes.business.goals_routes import router as business_goals_router
+from backend.routes.business.runtime_routes import router as business_runtime_router
+from backend.lib.business.runtime.worker import dispatch_runtime_tick
 from backend.cron.home_adaptive_cron import run_home_adaptive_nightly
 from backend.routes.os1_billing import router as os1_billing_router
 from backend.routes.channels import router as channels_router
@@ -132,6 +135,14 @@ async def lifespan(app: FastAPI):
         CronTrigger(minute="*"),
         id="scheduled_emails",
         replace_existing=True,
+    )
+    scheduler.add_job(
+        dispatch_runtime_tick,
+        IntervalTrigger(seconds=10),
+        id="os1_durable_runtime",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
     )
     scheduler.start()
     print(f"CRON: Scheduler started — personal daily check-in at {CHECKIN_HOUR:02d}:{CHECKIN_MINUTE:02d} {CHECKIN_TZ}, business risk at 06:00, operator at 02:00, synapses Sun 03:00 Toronto, notes reminders every 1 min (also reachable via POST /api/notes/_dispatch for external pinger), scheduled emails every 1 min (also reachable via POST /api/business/email/_dispatch)")
@@ -223,6 +234,7 @@ app.include_router(business_crm_router, prefix="/api")
 app.include_router(business_leads_router, prefix="/api")
 app.include_router(business_home_router, prefix="/api")
 app.include_router(business_goals_router, prefix="/api")
+app.include_router(business_runtime_router, prefix="/api")
 app.include_router(os1_billing_router, prefix="/api")
 app.include_router(channels_router, prefix="/api")
 app.include_router(announcements_router, prefix="/api")
