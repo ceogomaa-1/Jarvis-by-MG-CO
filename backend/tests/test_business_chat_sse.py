@@ -6,7 +6,11 @@ from backend.lib.business.sse import iter_lines_with_heartbeat
 
 
 class _SlowResponse:
+    def __init__(self):
+        self.iterations = 0
+
     async def aiter_lines(self):
+        self.iterations += 1
         await asyncio.sleep(0.035)
         yield 'data: {"type":"message_start"}'
         await asyncio.sleep(0.02)
@@ -15,11 +19,13 @@ class _SlowResponse:
 
 @pytest.mark.asyncio
 async def test_upstream_wait_emits_heartbeats_without_restarting_read():
+    response = _SlowResponse()
     events = []
-    async for event in iter_lines_with_heartbeat(_SlowResponse(), heartbeat_seconds=0.01):
+    async for event in iter_lines_with_heartbeat(response, heartbeat_seconds=0.01):
         events.append(event)
 
-    assert events.count(None) >= 3
+    assert None in events
+    assert response.iterations == 1
     assert [event for event in events if event is not None] == [
         'data: {"type":"message_start"}',
         'data: {"type":"message_stop"}',

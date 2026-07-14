@@ -510,6 +510,7 @@ async def get_cost_controls():
 
     return {
         "revision": "prompt-cache-v2",
+        "chat_stream_revision": "heartbeat-v1",
         "website_workflow_revision": "surgical-edit-v1",
         "automatic_conversation_caching": True,
         "static_system_caching": True,
