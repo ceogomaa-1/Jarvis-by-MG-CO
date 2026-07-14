@@ -21,7 +21,7 @@ const PLANS: PricingPlan[] = [
     cta: "Start 7-day trial",
     features: [
       { text: "Rue chat — personality + voice" },
-      { text: "Autonomous Rue sessions (capped)" },
+      { text: "2 autonomous Operator runs / month" },
       { text: "Baseline usage · rolling ~5h window" },
       { text: "Train & feed Rue your knowledge" },
       { text: "9 industry bibles baked in" },
@@ -34,7 +34,7 @@ const PLANS: PricingPlan[] = [
   {
     id: "emperor",
     name: "Rue OS1 Emperor",
-    description: "Maximum power. White-labeled. Unlimited.",
+    description: "Maximum power. White-labeled. High-capacity.",
     monthlyPrice: "$199",
     yearlyPrice: "$1,990",
     yearlyNote: "2 months free",
@@ -44,6 +44,7 @@ const PLANS: PricingPlan[] = [
     highlighted: true,
     prevName: "Pro",
     features: [
+      { text: "15 autonomous Operator runs / month" },
       { text: "5× usage capacity" },
       { text: "Unlimited Buffer social platforms" },
       { text: "Fully customizable, white-labeled CRM" },

@@ -77,3 +77,8 @@ TRIAL_MESSAGE_ALLOWANCE = int(os.getenv("OS1_TRIAL_MESSAGE_ALLOWANCE", "25"))
 TRIAL_COST_CAP_USD = float(os.getenv("OS1_TRIAL_COST_CAP_USD", "2.50"))
 TRIAL_MAX_TOKENS = int(os.getenv("OS1_TRIAL_MAX_TOKENS", "1024"))
 TRIAL_CONTEXT_CHAR_CAP = int(os.getenv("OS1_TRIAL_CONTEXT_CHAR_CAP", "12000"))
+
+# Autonomous Operator capacity is intentionally finite: users buy sustained
+# progress, while Rue's model/tool spend and blast radius remain bounded.
+PRO_AUTONOMOUS_RUNS_MONTHLY = int(os.getenv("OS1_PRO_AUTONOMOUS_RUNS_MONTHLY", "2"))
+EMPEROR_AUTONOMOUS_RUNS_MONTHLY = int(os.getenv("OS1_EMPEROR_AUTONOMOUS_RUNS_MONTHLY", "15"))

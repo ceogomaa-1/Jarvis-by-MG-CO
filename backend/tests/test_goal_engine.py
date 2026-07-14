@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import pytest
 
 from backend.lib.business.goal_engine import _criterion_met, calculate_goal_health, format_goal_snapshot
+from backend.lib.business.measurement_engine import evaluate_measurement
 from backend.lib.business.identity import user_id_to_uuid, uuid_to_app_user_id
 
 
@@ -101,3 +102,79 @@ def test_success_criteria_comparators_are_deterministic():
     assert _criterion_met("<=", 2, 3) is True
     assert _criterion_met("=", 7, 7) is True
     assert _criterion_met("bogus", 7, 7) is False
+
+
+def test_measurement_wins_only_when_target_is_observed():
+    experiment = {
+        "starts_at": "2026-01-01T00:00:00Z",
+        "ends_at": "2026-01-08T00:00:00Z",
+        "baseline_value": 10,
+        "target_operator": ">=",
+        "target_value": 20,
+    }
+    result = evaluate_measurement(
+        experiment,
+        [
+            {"value": 14, "observed_at": "2026-01-03T00:00:00Z"},
+            {"value": 22, "observed_at": "2026-01-05T00:00:00Z"},
+        ],
+        now=datetime(2026, 1, 6, tzinfo=timezone.utc),
+    )
+    assert result["status"] == "won"
+    assert result["absolute_delta"] == 12
+    assert result["sample_count"] == 2
+    assert result["attribution_confidence"] < 1
+
+
+def test_measurement_waits_until_window_closes_before_calling_a_loss():
+    experiment = {
+        "starts_at": "2026-01-01T00:00:00Z",
+        "ends_at": "2026-01-08T00:00:00Z",
+        "baseline_value": 10,
+        "target_operator": ">=",
+        "target_value": 20,
+    }
+    observations = [{"value": 15, "observed_at": "2026-01-05T00:00:00Z"}]
+    running = evaluate_measurement(
+        experiment, observations, now=datetime(2026, 1, 6, tzinfo=timezone.utc)
+    )
+    lost = evaluate_measurement(
+        experiment, observations, now=datetime(2026, 1, 9, tzinfo=timezone.utc)
+    )
+    assert running["status"] == "running"
+    assert lost["status"] == "lost"
+
+
+def test_closed_measurement_without_evidence_is_inconclusive():
+    result = evaluate_measurement(
+        {
+            "starts_at": "2026-01-01T00:00:00Z",
+            "ends_at": "2026-01-02T00:00:00Z",
+            "baseline_value": 10,
+            "target_operator": "<=",
+            "target_value": 5,
+        },
+        [],
+        now=datetime(2026, 1, 3, tzinfo=timezone.utc),
+    )
+    assert result["status"] == "inconclusive"
+    assert result["attribution_confidence"] == 0
+
+
+def test_post_window_observation_cannot_rewrite_a_failed_experiment():
+    result = evaluate_measurement(
+        {
+            "starts_at": "2026-01-01T00:00:00Z",
+            "ends_at": "2026-01-08T00:00:00Z",
+            "baseline_value": 10,
+            "target_operator": ">=",
+            "target_value": 20,
+        },
+        [
+            {"value": 15, "observed_at": "2026-01-07T00:00:00Z"},
+            {"value": 25, "observed_at": "2026-01-09T00:00:00Z"},
+        ],
+        now=datetime(2026, 1, 10, tzinfo=timezone.utc),
+    )
+    assert result["status"] == "lost"
+    assert result["latest_value"] == 15

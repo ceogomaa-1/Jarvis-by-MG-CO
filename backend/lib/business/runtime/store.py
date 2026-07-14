@@ -317,6 +317,41 @@ async def fail_workflow(workflow: dict, error: str, *, retryable: bool = True) -
     return {"ok": updated, "retrying": will_retry if updated else False, "status": status if updated else "lease_lost"}
 
 
+async def deny_workflow(workflow: dict, decision: dict) -> bool:
+    """Cancel work that the autonomy governor refused; denial is not a crash."""
+    now = datetime.now(timezone.utc).isoformat()
+    async with httpx.AsyncClient() as client:
+        response = await client.patch(
+            f"{SUPABASE_URL}/rest/v1/os1_workflows",
+            headers=_headers("return=representation"),
+            params={
+                "id": f"eq.{workflow['id']}",
+                "status": "eq.running",
+                "lease_owner": f"eq.{workflow.get('lease_owner')}",
+            },
+            json={
+                "status": "cancelled",
+                "output": {"autonomy_decision": decision},
+                "last_error": str(decision.get("reason") or "Autonomy denied")[:2000],
+                "completed_at": now,
+                "lease_owner": None,
+                "lease_expires_at": None,
+            },
+            timeout=TIMEOUT,
+        )
+    updated = response.status_code == 200 and bool(response.json())
+    if updated:
+        await append_workflow_event(
+            workflow["id"],
+            "workflow_denied",
+            from_status="running",
+            to_status="cancelled",
+            message=str(decision.get("reason") or "Autonomy denied"),
+            data=decision,
+        )
+    return updated
+
+
 async def get_workflow(user_id: str, workflow_id: str) -> dict | None:
     business = await ensure_primary_business(user_id)
     async with httpx.AsyncClient() as client:

@@ -175,3 +175,18 @@ async def initiatives_index(
         return {"initiatives": initiatives}
     except Exception as exc:
         raise _engine_error(exc) from exc
+
+
+@router.get("/business/experiments")
+async def experiments_index(
+    request: Request,
+    user_id: str,
+    goal_id: str | None = None,
+    limit: int = 30,
+):
+    user_id = _trusted_user_id(request, user_id)
+    try:
+        experiments = await goal_engine.list_experiments(user_id, goal_id=goal_id, limit=limit)
+        return {"experiments": experiments}
+    except Exception as exc:
+        raise _engine_error(exc) from exc

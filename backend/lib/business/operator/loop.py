@@ -216,6 +216,17 @@ async def create_operator_run_row(user_id: str) -> str | None:
     return await _create_run_row(user_id)
 
 
+async def mark_operator_run_skipped(run_id: str, reason: str) -> None:
+    await _patch_run_row(
+        run_id,
+        {
+            "status": "skipped",
+            "error": reason[:500],
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+        },
+    )
+
+
 async def run_operator_for_user(
     user_id: str,
     existing_run_id: str | None = None,

@@ -50,10 +50,14 @@ def test_claimed_workflow_completes_and_cancels_heartbeat(monkeypatch):
     async def fake_extend(*args, **kwargs):
         return True
 
+    async def fake_authorize(*args, **kwargs):
+        return {"allowed": True, "reason": "test"}
+
     monkeypatch.setattr(worker.store, "append_workflow_event", fake_append)
     monkeypatch.setattr(worker, "run_workflow_handler", fake_handler)
     monkeypatch.setattr(worker.store, "complete_workflow", fake_complete)
     monkeypatch.setattr(worker.store, "extend_workflow_lease", fake_extend)
+    monkeypatch.setattr(worker, "authorize_workflow", fake_authorize)
 
     result = asyncio.run(worker._execute_claimed_workflow({
         "id": "wf-1", "kind": "operator.run", "lease_owner": worker.WORKER_NAME,
@@ -74,12 +78,51 @@ def test_nonretryable_failure_goes_directly_to_dead_letter(monkeypatch):
         assert retryable is False
         return {"ok": True, "retrying": False, "status": "dead_letter"}
 
+    async def fake_authorize(*args, **kwargs):
+        return {"allowed": True, "reason": "test"}
+
     monkeypatch.setattr(worker.store, "append_workflow_event", fake_append)
     monkeypatch.setattr(worker, "run_workflow_handler", fake_handler)
     monkeypatch.setattr(worker.store, "fail_workflow", fake_fail)
+    monkeypatch.setattr(worker, "authorize_workflow", fake_authorize)
 
     result = asyncio.run(worker._execute_claimed_workflow({
         "id": "wf-2", "lease_owner": worker.WORKER_NAME, "attempts": 1, "max_attempts": 5,
     }))
     assert result["status"] == "dead_letter"
     assert result["retrying"] is False
+
+
+def test_governor_denial_cancels_without_running_handler(monkeypatch):
+    calls = []
+
+    async def fake_append(*args, **kwargs):
+        return None
+
+    async def fake_authorize(*args, **kwargs):
+        return {"allowed": False, "reason": "monthly_capacity_exhausted"}
+
+    async def fake_deny(workflow, decision):
+        calls.append((workflow["id"], decision["reason"]))
+        return True
+
+    async def must_not_run(workflow):
+        raise AssertionError("denied workflow executed")
+
+    async def fake_mark(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(worker.store, "append_workflow_event", fake_append)
+    monkeypatch.setattr(worker, "authorize_workflow", fake_authorize)
+    monkeypatch.setattr(worker.store, "deny_workflow", fake_deny)
+    monkeypatch.setattr(worker, "run_workflow_handler", must_not_run)
+    monkeypatch.setattr(worker, "mark_operator_run_skipped", fake_mark)
+
+    result = asyncio.run(worker._execute_claimed_workflow({
+        "id": "wf-denied",
+        "kind": "operator.run",
+        "input": {"operator_run_id": "run-1"},
+        "lease_owner": worker.WORKER_NAME,
+    }))
+    assert result["status"] == "cancelled"
+    assert calls == [("wf-denied", "monthly_capacity_exhausted")]

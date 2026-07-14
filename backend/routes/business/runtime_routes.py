@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from backend.lib.business.runtime import store
 from backend.lib.business.runtime.worker import dispatch_runtime_tick
+from backend.lib.business.autonomy_governor import get_autonomy_status, update_autonomy_policy
 
 router = APIRouter()
 
@@ -28,6 +29,15 @@ class EmitEventRequest(BaseModel):
     source: str = Field(default="api", max_length=80)
     subject_type: str | None = Field(default=None, max_length=80)
     subject_id: str | None = Field(default=None, max_length=200)
+
+
+class AutonomyPolicyRequest(BaseModel):
+    user_id: str
+    autonomy_level: str | None = Field(default=None, pattern=r"^(observe|recommend|approve|guardrailed)$")
+    kill_switch: bool | None = None
+    max_daily_external_actions: int | None = Field(default=None, ge=0, le=10000)
+    max_workflow_cost_usd: float | None = Field(default=None, ge=0, le=10000)
+    allowed_risk_levels: list[str] | None = Field(default=None, max_length=4)
 
 
 @router.get("/business/runtime/workflows")
@@ -67,6 +77,30 @@ async def events_create(request: Request, body: EmitEventRequest):
         )
         return {"event": event}
     except store.RuntimeUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@router.get("/business/runtime/autonomy")
+async def autonomy_get(request: Request, user_id: str):
+    user_id = _trusted_user_id(request, user_id)
+    try:
+        return await get_autonomy_status(user_id)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@router.patch("/business/runtime/autonomy")
+async def autonomy_update(request: Request, body: AutonomyPolicyRequest):
+    user_id = _trusted_user_id(request, body.user_id)
+    fields = body.model_dump(exclude={"user_id"}, exclude_none=True)
+    if "allowed_risk_levels" in fields:
+        valid = {"low", "medium", "high", "critical"}
+        if not set(fields["allowed_risk_levels"]).issubset(valid):
+            raise HTTPException(status_code=400, detail="Invalid risk level")
+    try:
+        policy = await update_autonomy_policy(user_id, fields)
+        return {"policy": policy}
+    except Exception as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 

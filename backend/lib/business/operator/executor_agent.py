@@ -194,7 +194,11 @@ def _summarize_tool_result(result_str: str) -> tuple[bool, str]:
     return True, json.dumps(parsed, default=str)[:200]
 
 
-async def execute_initiative(action_id: str, user_id: str) -> dict:
+async def execute_initiative(
+    action_id: str,
+    user_id: str,
+    max_budget_usd: float | None = None,
+) -> dict:
     """Execute one approved initiative end-to-end; idempotent after success."""
     action = await _fetch_action(action_id)
     if not action:
@@ -231,6 +235,7 @@ async def execute_initiative(action_id: str, user_id: str) -> dict:
 
     tools = await build_tools_for_user(user_id)
     usage = UsageAccumulator(SONNET)
+    budget_limit = min(EXEC_BUDGET_USD, max(float(max_budget_usd), 0)) if max_budget_usd is not None else EXEC_BUDGET_USD
     receipts: list[dict] = []
     messages: list[dict] = [{"role": "user", "content": _initiative_prompt(action)}]
     final_text = ""
@@ -238,8 +243,8 @@ async def execute_initiative(action_id: str, user_id: str) -> dict:
 
     try:
         for _round in range(MAX_ROUNDS):
-            if usage.cost()["total_usd"] >= EXEC_BUDGET_USD:
-                error = f"Execution budget (${EXEC_BUDGET_USD:.2f}) reached before completion"
+            if usage.cost()["total_usd"] >= budget_limit:
+                error = f"Execution budget (${budget_limit:.2f}) reached before completion"
                 break
 
             async with httpx.AsyncClient() as client:

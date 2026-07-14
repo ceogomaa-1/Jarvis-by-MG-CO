@@ -49,6 +49,14 @@ def test_emperor_window_is_5x_pro_is_base():
     assert entitlements.message_limit_multiplier(_none()) == 1
 
 
+def test_autonomous_capacity_is_tier_gated():
+    assert entitlements.capabilities(_emperor())["autonomous_runs_monthly"] == config.EMPEROR_AUTONOMOUS_RUNS_MONTHLY
+    assert entitlements.capabilities(_grandfathered())["autonomous_runs_monthly"] == config.EMPEROR_AUTONOMOUS_RUNS_MONTHLY
+    assert entitlements.capabilities(_pro())["autonomous_runs_monthly"] == config.PRO_AUTONOMOUS_RUNS_MONTHLY
+    assert entitlements.capabilities(_trial())["autonomous_runs_monthly"] == 0
+    assert entitlements.capabilities(_none())["autonomous_runs_monthly"] == 0
+
+
 def test_effective_message_limit_scales(monkeypatch):
     monkeypatch.setattr(entitlements.store, "ensure_subscription", lambda uid, *a, **k: _emperor())
     assert entitlements.effective_message_limit("u", 32) == 160

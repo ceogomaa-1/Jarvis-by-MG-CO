@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Activity, ArrowRight, CalendarClock, Crosshair, RefreshCw, Target } from 'lucide-react'
+import { Activity, ArrowRight, CalendarClock, Crosshair, FlaskConical, Power, RefreshCw, ShieldCheck, Target } from 'lucide-react'
 
 import { BACKEND } from '@/lib/backend'
 
@@ -35,6 +35,8 @@ export default function GoalCommandCenter({ userId, onAskRue }) {
   const [error, setError] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [metricValue, setMetricValue] = useState('')
+  const [autonomy, setAutonomy] = useState(null)
+  const [policySaving, setPolicySaving] = useState(false)
   const [form, setForm] = useState({
     objective: 'Reach $30,000 MRR',
     metric_key: 'monthly_recurring_revenue',
@@ -57,6 +59,12 @@ export default function GoalCommandCenter({ userId, onAskRue }) {
       setConfigured(!!data.configured)
       const current = data.snapshot?.goal?.current_value
       if (current != null) setMetricValue(String(current))
+      try {
+        const autonomyResponse = await fetch(`${BACKEND}/api/business/runtime/autonomy?user_id=${encodeURIComponent(userId)}`)
+        if (autonomyResponse.ok) setAutonomy(await autonomyResponse.json())
+      } catch (_) {
+        // Runtime migrations roll out independently; Goal Engine remains usable.
+      }
     } catch (exc) {
       setError(exc.message || 'Could not load Goal Engine')
     } finally {
@@ -125,6 +133,26 @@ export default function GoalCommandCenter({ userId, onAskRue }) {
     }
   }
 
+  const toggleKillSwitch = async () => {
+    if (!autonomy) return
+    setPolicySaving(true)
+    setError('')
+    try {
+      const response = await fetch(`${BACKEND}/api/business/runtime/autonomy`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, kill_switch: !autonomy.policy?.kill_switch }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.detail || 'Could not update autonomy')
+      setAutonomy(current => ({ ...current, policy: data.policy }))
+    } catch (exc) {
+      setError(exc.message || 'Could not update autonomy')
+    } finally {
+      setPolicySaving(false)
+    }
+  }
+
   const goal = snapshot?.goal
   const health = goal?.health || {}
   const healthStyle = HEALTH[health.health] || HEALTH.at_risk
@@ -133,6 +161,7 @@ export default function GoalCommandCenter({ userId, onAskRue }) {
     () => Object.entries(counts).filter(([key]) => !['succeeded', 'failed', 'cancelled'].includes(key)).reduce((sum, [, value]) => sum + value, 0),
     [counts]
   )
+  const latestExperiment = snapshot?.experiments?.[0]
 
   if (loading) {
     return (
@@ -200,7 +229,11 @@ export default function GoalCommandCenter({ userId, onAskRue }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(92px, 1fr))', gap: 8 }}>
           <MiniMetric icon={<CalendarClock size={13} />} label='TIME LEFT' value={`${health.remaining_days} days`} />
           <MiniMetric icon={<Activity size={13} />} label='DAILY PACE' value={moneyLike(goal.unit, health.required_daily_change)} />
-          <MiniMetric icon={<Crosshair size={13} />} label='INITIATIVES' value={String(activeInitiatives)} />
+          <MiniMetric
+            icon={latestExperiment ? <FlaskConical size={13} /> : <Crosshair size={13} />}
+            label={latestExperiment ? 'LATEST TEST' : 'INITIATIVES'}
+            value={latestExperiment ? String(latestExperiment.status || 'running').toUpperCase() : String(activeInitiatives)}
+          />
         </div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.06)', background: '#101012', padding: '8px 12px 8px 16px' }}>
@@ -211,6 +244,22 @@ export default function GoalCommandCenter({ userId, onAskRue }) {
           {error && <span className='os1-serif-micro' style={{ color: '#ef6464', fontSize: 8 }}>{error}</span>}
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
+          {autonomy && (
+            <div className='font-pixel' title='Autonomous Operator capacity this month' style={{ display: 'flex', alignItems: 'center', gap: 5, color: autonomy.policy?.kill_switch ? '#ef6464' : '#8daee3', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '0 8px', fontSize: 7 }}>
+              <ShieldCheck size={11} /> {autonomy.monthly_runs_remaining}/{autonomy.monthly_run_limit} RUNS
+            </div>
+          )}
+          {autonomy && (
+            <button
+              onClick={toggleKillSwitch}
+              disabled={policySaving}
+              title={autonomy.policy?.kill_switch ? 'Resume autonomous work' : 'Emergency stop: pause every autonomous workflow'}
+              className='font-pixel'
+              style={{ display: 'flex', alignItems: 'center', gap: 5, border: `1px solid ${autonomy.policy?.kill_switch ? 'rgba(52,211,153,.3)' : 'rgba(239,100,100,.25)'}`, background: autonomy.policy?.kill_switch ? 'rgba(52,211,153,.08)' : 'rgba(239,100,100,.06)', color: autonomy.policy?.kill_switch ? '#65d8aa' : '#df7b7b', borderRadius: 8, padding: '6px 9px', fontSize: 7, cursor: 'pointer', opacity: policySaving ? 0.5 : 1 }}
+            >
+              <Power size={10} /> {autonomy.policy?.kill_switch ? 'RESUME RUE' : 'PAUSE RUE'}
+            </button>
+          )}
           <button onClick={load} title='Refresh goal state' className='os1-iconbtn' style={{ width: 28, height: 28 }}><RefreshCw size={13} /></button>
           <button onClick={() => onAskRue?.(`Analyze our progress toward: ${goal.objective}. Identify the single biggest bottleneck and tell me what initiative you should execute next.`)} className='font-pixel' style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid rgba(45,127,249,0.28)', background: 'rgba(45,127,249,0.09)', color: '#75a8ff', borderRadius: 8, padding: '6px 10px', fontSize: 8, cursor: 'pointer' }}>Ask Rue for next move <ArrowRight size={11} /></button>
         </div>
@@ -227,4 +276,3 @@ function MiniMetric({ icon, label, value }) {
     </div>
   )
 }
-

@@ -54,6 +54,7 @@ _MATRIX = {
         "usage_multiplier": 5,              # 5x Pro
         "message_allowance": None,          # full-tier
         "trial_cost_cap": None,
+        "autonomous_runs_monthly": config.EMPEROR_AUTONOMOUS_RUNS_MONTHLY,
     },
     "pro": {
         "leads": False,
@@ -63,6 +64,7 @@ _MATRIX = {
         "usage_multiplier": 1,
         "message_allowance": None,
         "trial_cost_cap": None,
+        "autonomous_runs_monthly": config.PRO_AUTONOMOUS_RUNS_MONTHLY,
     },
     "trial": {
         "leads": False,                     # never any Leads on trial
@@ -72,6 +74,7 @@ _MATRIX = {
         "usage_multiplier": 1,
         "message_allowance": config.TRIAL_MESSAGE_ALLOWANCE,  # legacy (no longer gates)
         "trial_cost_cap": config.TRIAL_COST_CAP_USD,          # the real gate
+        "autonomous_runs_monthly": 0,
     },
 }
 
@@ -82,6 +85,7 @@ def capabilities(sub: dict) -> dict:
         "leads": False, "crm_whitelabel": False, "buffer_platform_cap": 0,
         "ui_customization": False, "usage_multiplier": 0, "message_allowance": 0,
         "trial_cost_cap": None,
+        "autonomous_runs_monthly": 0,
     }))
     caps["plan"] = plan
     caps["has_access"] = has_access(sub)

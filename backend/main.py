@@ -69,6 +69,7 @@ from backend.routes.business.home_routes import router as business_home_router
 from backend.routes.business.goals_routes import router as business_goals_router
 from backend.routes.business.runtime_routes import router as business_runtime_router
 from backend.lib.business.runtime.worker import dispatch_runtime_tick
+from backend.lib.business.measurement_engine import sweep_due_experiments
 from backend.cron.home_adaptive_cron import run_home_adaptive_nightly
 from backend.routes.os1_billing import router as os1_billing_router
 from backend.routes.channels import router as channels_router
@@ -140,6 +141,14 @@ async def lifespan(app: FastAPI):
         dispatch_runtime_tick,
         IntervalTrigger(seconds=10),
         id="os1_durable_runtime",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        sweep_due_experiments,
+        IntervalTrigger(minutes=15),
+        id="os1_measurement_sweep",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

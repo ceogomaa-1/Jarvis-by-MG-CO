@@ -53,7 +53,7 @@ const PLANS: HermesPlan[] = [
     cta: "Start 7-day trial →",
     features: [
       { html: "Talk by voice or text — it already knows your business" },
-      { html: "Works while you sleep — autonomous sessions get things done" },
+      { html: "2 autonomous Operator runs each month — goal to finished work" },
       { html: "Builds for you on command — landing pages, campaigns, copy" },
       { html: "Plugs into the apps you run — Gmail, Calendar, socials" },
       { html: "Your own CRM, 9 industry playbooks, post to 2 platforms" },
@@ -64,7 +64,7 @@ const PLANS: HermesPlan[] = [
     id: "emperor",
     tier: "[ tier 02 ]",
     name: "Emperor",
-    promise: "Maximum power. Fully yours. Unlimited reach.",
+    promise: "Maximum power. Fully yours. High-capacity execution.",
     monthly: "$199",
     yearly: "$1,990",
     perMonthly: "/mo · CAD",
@@ -77,6 +77,7 @@ const PLANS: HermesPlan[] = [
     feat: true,
     headFeature: "everything in Pro, plus",
     features: [
+      { html: "15 autonomous Operator runs each month" },
       { html: "5× the horsepower — it runs harder and longer for you" },
       { html: "<b>Rue Leads</b> — it hunts, scores &amp; hands you ready-to-close clients" },
       { html: "A CRM that’s 100% your brand — fully white-labeled" },

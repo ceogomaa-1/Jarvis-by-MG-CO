@@ -11,6 +11,8 @@ import socket
 import uuid
 
 from backend.lib.business.runtime import store
+from backend.lib.business.autonomy_governor import authorize_workflow
+from backend.lib.business.operator.loop import mark_operator_run_skipped
 from backend.lib.business.runtime.handlers import (
     NonRetryableWorkflowError,
     RetryableWorkflowError,
@@ -44,6 +46,25 @@ async def _execute_claimed_workflow(workflow: dict) -> dict:
             to_status="running",
             data={"attempt": workflow.get("attempts"), "worker": WORKER_NAME},
         )
+        autonomy_decision = await authorize_workflow(workflow)
+        await store.append_workflow_event(
+            workflow["id"],
+            "autonomy_decision",
+            message=str(autonomy_decision.get("reason") or ""),
+            data=autonomy_decision,
+        )
+        if not autonomy_decision.get("allowed"):
+            if workflow.get("kind") == "operator.run":
+                run_id = (workflow.get("input") or {}).get("operator_run_id")
+                if run_id:
+                    await mark_operator_run_skipped(run_id, str(autonomy_decision.get("reason") or "Autonomy denied"))
+            denied = await store.deny_workflow(workflow, autonomy_decision)
+            return {
+                "workflow_id": workflow["id"],
+                "status": "cancelled" if denied else "lease_lost",
+                "autonomy_decision": autonomy_decision,
+            }
+        workflow["autonomy_decision"] = autonomy_decision
         output = await run_workflow_handler(workflow)
         completed = await store.complete_workflow(workflow, output)
         return {

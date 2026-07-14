@@ -47,7 +47,11 @@ async def run_workflow_handler(workflow: dict) -> dict:
         if not user_id or not action_id:
             raise NonRetryableWorkflowError("initiative.execute requires user_id and legacy_action_id")
         await store.update_workflow_step(workflow["id"], "execute_approved_scope", "running")
-        result = await execute_initiative(action_id, user_id)
+        result = await execute_initiative(
+            action_id,
+            user_id,
+            max_budget_usd=(workflow.get("autonomy_decision") or {}).get("max_workflow_cost_usd"),
+        )
         if not result.get("ok"):
             message = result.get("error") or (result.get("result") or {}).get("error") or "Initiative execution failed"
             lowered = message.lower()

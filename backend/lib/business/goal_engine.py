@@ -338,7 +338,38 @@ async def record_metric_observation(
         value,
         observed_at=observation_payload["observed_at"],
     )
-    return {"observation": observation.json()[0], "goal": updated, "evaluations": evaluations, "duplicate": False}
+    health_event = None
+    if updated and (updated.get("health") or {}).get("health") == "off_track":
+        try:
+            from backend.lib.business.runtime.store import emit_event
+
+            observed_day = _parse_time(
+                observation_payload["observed_at"], datetime.now(timezone.utc)
+            ).date().isoformat()
+            health_event = await emit_event(
+                user_id,
+                "goal.off_track",
+                {
+                    "user_id": user_id,
+                    "goal_id": goal_id,
+                    "health": updated["health"],
+                    "notify": False,
+                    "workflow_key": f"goal-replan:{goal_id}:{observed_day}",
+                },
+                idempotency_key=f"goal-off-track:{goal_id}:{observed_day}",
+                source="measurement_engine",
+                subject_type="goal",
+                subject_id=goal_id,
+            )
+        except Exception as event_error:
+            print(f"GOAL_ENGINE: off-track wake-up unavailable: {event_error}")
+    return {
+        "observation": observation.json()[0],
+        "goal": updated,
+        "evaluations": evaluations,
+        "health_event": health_event,
+        "duplicate": False,
+    }
 
 
 def _criterion_met(operator: str, actual: float, target: float) -> bool:
@@ -360,6 +391,18 @@ async def evaluate_measuring_initiatives(
     observed_at: str,
 ) -> list[dict]:
     """Evaluate matching success criteria when fresh business evidence arrives."""
+    # Batch 78 experiments add baseline deltas, explicit windows and honest
+    # attribution confidence. Fall back to the Batch 76 evaluator during the
+    # rolling migration or for legacy measuring initiatives without experiments.
+    try:
+        from backend.lib.business.measurement_engine import evaluate_experiments_for_observation
+
+        enhanced = await evaluate_experiments_for_observation(business_id, goal_id, metric_key)
+        if enhanced:
+            return enhanced
+    except Exception as exc:
+        print(f"GOAL_ENGINE: enhanced measurement unavailable, using legacy evaluator: {exc}")
+
     evaluated: list[dict] = []
     async with httpx.AsyncClient() as client:
         response = await client.get(
@@ -456,12 +499,31 @@ async def get_active_goal_snapshot(user_id: str) -> dict | None:
             params={"select": "id,status,title,expected_impact", "business_id": f"eq.{business_id}", "goal_id": f"eq.{goal['id']}", "order": "created_at.desc", "limit": "20"},
             timeout=_TIMEOUT,
         )
+        experiments_response = await client.get(
+            f"{SUPABASE_URL}/rest/v1/os1_experiments",
+            headers=_headers(),
+            params={
+                "select": "id,initiative_id,status,primary_metric_key,target_value,latest_value,absolute_delta,attribution_confidence,ends_at,evaluation",
+                "business_id": f"eq.{business_id}",
+                "goal_id": f"eq.{goal['id']}",
+                "order": "created_at.desc",
+                "limit": "20",
+            },
+            timeout=_TIMEOUT,
+        )
     bottlenecks = bottlenecks_response.json() if bottlenecks_response.status_code == 200 else []
     initiatives = initiatives_response.json() if initiatives_response.status_code == 200 else []
+    experiments = experiments_response.json() if experiments_response.status_code == 200 else []
     counts: dict[str, int] = {}
     for item in initiatives:
         counts[item.get("status", "unknown")] = counts.get(item.get("status", "unknown"), 0) + 1
-    return {"goal": goal, "bottlenecks": bottlenecks, "initiatives": initiatives, "initiative_counts": counts}
+    return {
+        "goal": goal,
+        "bottlenecks": bottlenecks,
+        "initiatives": initiatives,
+        "initiative_counts": counts,
+        "experiments": experiments,
+    }
 
 
 def format_goal_snapshot(snapshot: dict | None) -> str:
@@ -697,6 +759,13 @@ async def transition_legacy_initiative(
                 },
                 timeout=_TIMEOUT,
             )
+        if to_status == "measuring":
+            try:
+                from backend.lib.business.measurement_engine import start_measurement_experiment
+
+                await start_measurement_experiment(legacy_action_id)
+            except Exception as measurement_error:
+                print(f"GOAL_ENGINE: measurement experiment unavailable: {measurement_error}")
         return True
     except Exception as exc:
         print(f"GOAL_ENGINE: initiative transition failed: {exc}")
@@ -719,4 +788,26 @@ async def list_initiatives(user_id: str, goal_id: str | None = None, limit: int 
         )
     if response.status_code != 200:
         raise GoalEngineError(f"Could not list initiatives: {response.text[:180]}")
+    return response.json()
+
+
+async def list_experiments(user_id: str, goal_id: str | None = None, limit: int = 30) -> list[dict]:
+    business = await ensure_primary_business(user_id)
+    params = {
+        "select": "*",
+        "business_id": f"eq.{business['id']}",
+        "order": "created_at.desc",
+        "limit": str(min(max(limit, 1), 100)),
+    }
+    if goal_id:
+        params["goal_id"] = f"eq.{goal_id}"
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"{SUPABASE_URL}/rest/v1/os1_experiments",
+            headers=_headers(),
+            params=params,
+            timeout=_TIMEOUT,
+        )
+    if response.status_code != 200:
+        raise GoalEngineError(f"Could not list experiments: {response.text[:180]}")
     return response.json()
