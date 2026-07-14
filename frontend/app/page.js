@@ -19,6 +19,8 @@ import { LandingPage } from '../components/landing/LandingPage'
 import UsageCounter from '../components/business/UsageCounter'
 import { AttachmentsRow } from '../components/shared/AttachmentDisplay'
 import { uploadChatAttachment } from '../lib/attachments'
+import { RueLoadingShimmer } from '../components/ui/rue-thinking'
+import { RueGlowEffects, RueRipples, useRueBarFx } from '../components/ui/rue-chat-glow'
 
 import { BACKEND } from '@/lib/backend'
 const DEV_MODE = true
@@ -934,15 +936,7 @@ function Message({ msg, isLatest, onRetry, userId, prevUserText }) {
 const _THINKING_PHRASES = ["thinking", "processing", "analyzing", "working on it", "on it", "cooking"]
 
 function ThinkingIndicator() {
-  const [dots, setDots] = useState("")
   const [phraseIndex, setPhraseIndex] = useState(0)
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setDots((prev) => (prev.length >= 3 ? "" : prev + "."))
-    }, 400)
-    return () => clearInterval(interval)
-  }, [])
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -952,27 +946,8 @@ function ThinkingIndicator() {
   }, [])
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 22, maxWidth: '78%' }}>
-      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28 }}>
-        <div style={{
-          position: 'absolute', width: 28, height: 28, borderRadius: '50%',
-          backgroundColor: 'rgba(255,144,114,0.15)',
-          animation: 'thinkPulseOuter 1.5s ease-in-out infinite',
-        }} />
-        <div style={{
-          position: 'relative', width: 10, height: 10, borderRadius: '50%',
-          backgroundColor: 'var(--accent)',
-          boxShadow: '0 0 12px rgba(255,144,114,0.5)',
-          animation: 'thinkPulseInner 1.5s ease-in-out infinite',
-        }} />
-      </div>
-      <span style={{
-        fontFamily: 'var(--font-arcade), monospace',
-        fontSize: 8, color: 'rgba(243,234,217,0.4)',
-        letterSpacing: '0.12em', minWidth: 120,
-      }}>
-        {_THINKING_PHRASES[phraseIndex]}{dots}
-      </span>
+    <div style={{ display: 'flex', alignItems: 'center', marginBottom: 22, maxWidth: '78%' }}>
+      <RueLoadingShimmer text={_THINKING_PHRASES[phraseIndex]} />
     </div>
   )
 }
@@ -1079,6 +1054,14 @@ function InputBar({ orbState, input, setInput, onSend, onStop, onMicClick, voice
   const textareaRef = useRef(null)
   const hasContent = input.trim() || !!pastedImage || (pendingFiles || []).some(f => f.status === 'ready')
 
+  // 21st.dev "prompt-input-dynamic-grow" behavior: glow + ripples + grow-on-focus
+  const [focused, setFocused] = useState(false)
+  const [hovered, setHovered] = useState(false)
+  const { containerRef, mouse, ripples, handleMouseMove, handleClick } = useRueBarFx()
+  const fxActive = focused || hovered || voiceMode
+  const expanded = mobile || focused || !!hasContent || voiceMode || loading || uploadingFile ||
+    (pendingFiles || []).length > 0 || !!pastedImage
+
   // Reset height when message is sent (input cleared externally)
   useEffect(() => {
     if (input === '' && textareaRef.current) {
@@ -1135,7 +1118,7 @@ function InputBar({ orbState, input, setInput, onSend, onStop, onMicClick, voice
   const micColor = voiceMode || voiceConnecting ? '#1a0e08' : 'var(--ink-soft)'
   const micShadow = voiceMode ? '0 0 24px rgba(255,144,114,0.6)' : 'none'
 
-  let placeholder = 'Say something to Rue'
+  let placeholder = 'Ask Rue'
   if (voiceMode) placeholder = isListening ? 'Listening...' : 'Voice active — tap mic to stop'
 
   return (
@@ -1226,15 +1209,31 @@ function InputBar({ orbState, input, setInput, onSend, onStop, onMicClick, voice
           </div>
         </div>
       )}
-      <div style={{
-        width: '100%', maxWidth: 720,
-        display: 'flex', alignItems: 'flex-end', gap: 14,
-        padding: '14px 18px',
-        background: voiceMode ? 'rgba(255,144,114,0.06)' : 'rgba(243,234,217,0.035)',
-        border: `1px solid ${voiceMode ? 'rgba(255,144,114,0.45)' : 'var(--line)'}`,
-        borderRadius: 999, backdropFilter: 'blur(10px)',
-        transition: 'border-color 300ms ease, background 300ms ease',
-      }}>
+      <div
+        ref={containerRef}
+        onMouseMove={handleMouseMove}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        onClick={handleClick}
+        onFocus={() => setFocused(true)}
+        onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setFocused(false) }}
+        style={{
+          position: 'relative',
+          width: '100%', maxWidth: expanded ? 720 : 520,
+          display: 'flex', flexDirection: 'column',
+          padding: '12px 16px',
+          background: voiceMode ? 'rgba(255,144,114,0.06)' : 'rgba(243,234,217,0.035)',
+          border: `1px solid ${voiceMode ? 'rgba(255,144,114,0.45)' : 'var(--line)'}`,
+          borderRadius: 24,
+          backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.25), 0 2px 4px -1px rgba(0,0,0,0.18)',
+          transition: 'max-width 500ms cubic-bezier(0.4,0,0.2,1), border-color 300ms ease, background 300ms ease',
+          overflow: 'visible',
+        }}
+      >
+        <RueGlowEffects active={fxActive} mouse={mouse} />
+        <RueRipples ripples={ripples} />
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14, position: 'relative', zIndex: 20 }}>
         <button
           onClick={onMicClick}
           disabled={voiceConnecting}
@@ -1344,11 +1343,12 @@ function InputBar({ orbState, input, setInput, onSend, onStop, onMicClick, voice
               transition: 'all 200ms ease',
             }}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-              <path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+              <path d="M12 19V5M6 11l6-6 6 6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
         )}
+        </div>
       </div>
     </div>
   )
