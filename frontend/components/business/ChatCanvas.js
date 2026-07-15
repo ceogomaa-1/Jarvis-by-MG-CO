@@ -238,6 +238,7 @@ export default function ChatCanvas({
   injectPrompt,
   onCrmChanged,   // Phase 3: fired after a successful Rue CRM write so the cockpit can refresh
   onLeadsChanged, // mgcoleads: fired after a find/push so the Leads cockpit panel can refresh
+  onSalesChanged, // Sales Advisor: fired after an analysis starts so the cockpit refreshes + polls
   onHomeChanged,  // Batch 67: fired after a Home layout command so the Home cockpit can refresh
   surface = null, // Batch 67: 'home' tags the docked Home chat so layout commands route correctly
   compact = false, // Phase 3: docked in the narrow CRM cockpit panel — tighter padding, no side dock
@@ -1178,6 +1179,9 @@ export default function ChatCanvas({
               } else if (chunk.type === 'leads_changed') {
                 // A find/push landed — tell the Leads cockpit to refresh its panel.
                 onLeadsChanged?.()
+              } else if (chunk.type === 'sales_changed') {
+                // A pitch analysis kicked off — tell the Sales Advisor cockpit to refresh.
+                onSalesChanged?.()
               } else if (chunk.type === 'home_changed') {
                 // A Home layout command applied — tell the Home cockpit to refresh.
                 onHomeChanged?.()

@@ -99,6 +99,10 @@ CRM_WRITE_ACTIONS = frozenset(TWENTY_WRITE_TOOLS.keys()) | TWENTY_METADATA_WRITE
 # (push_to_crm fires both: it adds a CRM Company AND flips the lead's pushed flag.)
 LEADS_CHANGED_ACTIONS = frozenset({"leads__find_leads", "leads__push_to_crm"})
 
+# Sales Advisor cockpit: starting an analysis adds a report row (and its detached job
+# will keep mutating it), so the panel refreshes and starts polling ("feels live").
+SALES_CHANGED_ACTIONS = frozenset({"sales__analyze_business"})
+
 # Batch 68: a dashboard__control call mutated the user's Home dashboard — refresh the
 # Home cockpit so the new/edited/restyled block (or theme) shows immediately ("feels live").
 HOME_CHANGED_ACTIONS = frozenset({"dashboard__control"})
@@ -1088,6 +1092,10 @@ async def business_chat_stream(request: BusinessChatRequest):
                         # Same idea for the Leads cockpit panel after a find/push.
                         if tool_name in LEADS_CHANGED_ACTIONS and '"error"' not in (result_str or ""):
                             yield f'data: {json.dumps({"type": "leads_changed"})}\n\n'
+
+                        # And for the Sales Advisor panel after an analysis kicks off.
+                        if tool_name in SALES_CHANGED_ACTIONS and '"error"' not in (result_str or ""):
+                            yield f'data: {json.dumps({"type": "sales_changed"})}\n\n'
 
                         # Batch 68: a dashboard edit landed — refresh the Home cockpit.
                         if tool_name in HOME_CHANGED_ACTIONS and '"error"' not in (result_str or ""):

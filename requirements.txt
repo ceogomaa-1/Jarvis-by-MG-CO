@@ -23,3 +23,8 @@ playwright==1.60.0
 pywebpush==2.3.0
 dateparser==1.4.0
 youtube-transcript-api==1.2.4
+# Sales Advisor stealth scraping: scrapling base = adaptive parser only (light deps);
+# curl_cffi = the browser-impersonation engine its Fetcher uses. Deliberately NOT
+# scrapling[fetchers] — that extra pins its own playwright and would fight our 1.60.0 pin.
+scrapling==0.4.11
+curl_cffi==0.15.0

@@ -65,6 +65,7 @@ from backend.routes.business.feedback_routes import router as business_feedback_
 from backend.routes.business.email_routes import router as business_email_router
 from backend.routes.business.crm_routes import router as business_crm_router
 from backend.routes.business.leads_routes import router as business_leads_router
+from backend.routes.business.sales_advisor_routes import router as business_sales_advisor_router
 from backend.routes.business.home_routes import router as business_home_router
 from backend.routes.business.goals_routes import router as business_goals_router
 from backend.routes.business.runtime_routes import router as business_runtime_router
@@ -241,6 +242,7 @@ app.include_router(business_feedback_router, prefix="/api")
 app.include_router(business_email_router, prefix="/api")
 app.include_router(business_crm_router, prefix="/api")
 app.include_router(business_leads_router, prefix="/api")
+app.include_router(business_sales_advisor_router, prefix="/api")
 app.include_router(business_home_router, prefix="/api")
 app.include_router(business_goals_router, prefix="/api")
 app.include_router(business_runtime_router, prefix="/api")

@@ -8,6 +8,8 @@ from backend.lib.business.leads.config import leads_enabled
 from backend.lib.business.leads.tools import LEADS_TOOLS
 from backend.lib.business.real_estate.profile import is_real_estate_user
 from backend.lib.business.real_estate.tools import REAL_ESTATE_TOOLS
+from backend.lib.business.sales_advisor.config import enabled as sales_advisor_enabled
+from backend.lib.business.sales_advisor.tools import SALES_TOOLS
 from backend.lib.business.twenty.client import TwentyClient
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1423,6 +1425,23 @@ async def build_tools_for_user(user_id: str) -> list[dict]:
             tools += [
                 {"name": name, "description": defn["description"], "input_schema": defn["input_schema"]}
                 for name, defn in LEADS_TOOLS.items()
+            ]
+
+    # Sales Advisor — deep-research one business → closer pitch report. Additive + env-gated
+    # (needs only the Anthropic key) AND tier-gated exactly like Leads (it burns real Opus +
+    # Places spend). Grandfathered users map to Emperor, so existing users are unaffected.
+    if sales_advisor_enabled():
+        sales_ok = True
+        if user_id:
+            try:
+                from backend.lib.billing import entitlements as _ent
+                sales_ok = bool(_ent.for_user(user_id).get("leads"))
+            except Exception:
+                sales_ok = True  # fail open: don't strip tools on a transient billing error
+        if sales_ok:
+            tools += [
+                {"name": name, "description": defn["description"], "input_schema": defn["input_schema"]}
+                for name, defn in SALES_TOOLS.items()
             ]
 
     return tools

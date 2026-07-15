@@ -14,6 +14,7 @@ from backend.lib.business.connectors.registry import get_connector_for_user
 from backend.lib.business.document_store import resolve_attachments
 from backend.lib.business.leads.tools import execute_leads_tool
 from backend.lib.business.real_estate.tools import execute_real_estate_tool
+from backend.lib.business.sales_advisor.tools import execute_sales_tool
 from backend.lib.business.twenty.tools import execute_twenty_tool
 from backend.lib.business.scheduled_emails import (
     cancel_scheduled_email,
@@ -67,6 +68,17 @@ async def execute_tool(tool_name: str, tool_input: dict, user_id: str, progress_
     if connector_type == "leads":
         try:
             result: ConnectorResult = await execute_leads_tool(action_name, tool_input, user_id)
+        except Exception as e:
+            return json.dumps({"error": f"Tool execution error: {e}"})
+        if result.ok:
+            return json.dumps(result.data or {}, default=str)
+        return json.dumps({"error": result.error or "Action failed with no error message"})
+
+    # Sales Advisor — deep-research pitch engine. Env+tier gated; dispatched specially
+    # (not a connector wrapper). Scoped to user_id internally.
+    if connector_type == "sales":
+        try:
+            result: ConnectorResult = await execute_sales_tool(action_name, tool_input, user_id)
         except Exception as e:
             return json.dumps({"error": f"Tool execution error: {e}"})
         if result.ok:

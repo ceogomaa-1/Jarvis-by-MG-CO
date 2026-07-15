@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Inbox, BookOpen, Wrench, Star, User, Database, Target, Home } from 'lucide-react'
+import { Inbox, BookOpen, Wrench, Star, User, Database, Target, Home, Crosshair } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { setJarvisMode } from '../../lib/userPreferences'
 
@@ -14,6 +14,7 @@ import ProfileModal from './ProfileModal'
 import FontToggle from './FontToggle'
 import CrmCockpit from './CrmCockpit'
 import LeadsCockpit from './LeadsCockpit'
+import SalesAdvisorCockpit from './SalesAdvisorCockpit'
 import HomeCockpit from './home/HomeCockpit'
 
 import { BACKEND } from '@/lib/backend'
@@ -109,6 +110,8 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
   const [crmOpen, setCrmOpen] = useState(false)
   const [leadsEnabled, setLeadsEnabled] = useState(false)  // mgcoleads feature flag (env-gated)
   const [leadsOpen, setLeadsOpen] = useState(false)
+  const [salesEnabled, setSalesEnabled] = useState(false)  // Sales Advisor (env+tier gated)
+  const [salesOpen, setSalesOpen] = useState(false)
   const [homeOpen, setHomeOpen] = useState(false)          // Batch 67 — Rue Home cockpit
 
   // Default-landing: the page resolves the user's Home setting and flips autoOpenHome.
@@ -120,6 +123,7 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
   const handleHomeNavigate = (target) => {
     if (target === 'crm') { setHomeOpen(false); setCrmOpen(true) }
     else if (target === 'leads') { setHomeOpen(false); setLeadsOpen(true) }
+    else if (target === 'sales' || target === 'sales_advisor') { setHomeOpen(false); setSalesOpen(true) }
     else if (target === 'morning_queue') { setHomeOpen(false); openM('queue') }
     else if (target === 'connections') { openM('connections') }
     else if (target === 'workflow') { router.push('/business/workflow') }
@@ -148,6 +152,15 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
       .then(r => r.json())
       .then(d => setLeadsEnabled(!!d?.enabled))
       .catch(() => setLeadsEnabled(false))
+  }, [userId])
+
+  // Gate the Sales Advisor nav item (env + tier, same shape as Leads).
+  useEffect(() => {
+    if (!userId) return
+    fetch(`${BACKEND}/api/business/sales-advisor/status?user_id=${encodeURIComponent(userId)}`)
+      .then(r => r.json())
+      .then(d => setSalesEnabled(!!d?.enabled))
+      .catch(() => setSalesEnabled(false))
   }, [userId])
 
   useEffect(() => {
@@ -197,6 +210,12 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
       label: 'Leads', icon: <Target size={17} />,
       hint: 'scored B2B leads — find, filter, and push them to your CRM',
       onClick: () => { onClose?.(); setLeadsOpen(true) },
+    }] : []),
+    // Sales Advisor cockpit — deep-research one business → a closer-grade pitch deck.
+    ...(salesEnabled ? [{
+      label: 'Sales Advisor', icon: <Crosshair size={17} />,
+      hint: 'point me at a business — I hand you the pitch that closes it',
+      onClick: () => { onClose?.(); setSalesOpen(true) },
     }] : []),
     { label: 'Knowledge Base',        icon: <BookOpen size={17} />, hint: "stuff you're ready to paste and want me to know right away", onClick: () => openM('knowledge') },
     { label: 'Connections',           icon: <Wrench size={17} />,   onClick: () => openM('connections') },
@@ -316,6 +335,9 @@ export default function ChatHeaderMenu({ userId, onBrandSaved, open, onToggle, o
 
       {/* mgcoleads — Leads cockpit (scored pipeline) with the same docked chat */}
       <LeadsCockpit open={leadsOpen} onClose={() => setLeadsOpen(false)} userId={userId} />
+
+      {/* Sales Advisor — deep-research pitch cockpit with the same docked chat */}
+      <SalesAdvisorCockpit open={salesOpen} onClose={() => setSalesOpen(false)} userId={userId} />
 
       {/* Batch 67 — Rue Home: adaptive command center with the same docked chat */}
       <HomeCockpit open={homeOpen} onClose={() => setHomeOpen(false)} userId={userId} onNavigate={handleHomeNavigate} />

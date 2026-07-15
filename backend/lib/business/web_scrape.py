@@ -3,8 +3,10 @@
 Entry point: scrape(url, max_pages=1) -> {url, title, text, links, source_type, error}
 
 - Renders JS-heavy pages (Wix, Squarespace, etc.) with headless Playwright/Chromium.
-- Falls back to httpx + trafilatura for static pages or if Playwright isn't
-  available at runtime.
+- Falls back to a stealth static fetch (curl_cffi browser impersonation — the same
+  engine Scrapling's Fetcher uses — with Scrapling's parser as a text-extraction
+  fallback) for sites whose bot walls block a plain httpx UA.
+- Falls back to httpx + trafilatura for static pages or if neither is available.
 - Extracts text from linked PDFs (e.g. restaurant menu PDFs) with pypdf.
 - When max_pages > 1, auto-discovers and fetches obvious sub-pages (menu, about,
   contact, location, hours, and linked PDFs) from the same domain and merges
@@ -35,7 +37,8 @@ MAX_CONTENT_CHARS = 20000
 MAX_LINKS = 40
 MAX_PAGES = 5
 
-SUBPAGE_KEYWORDS = ["menu", "hours", "contact", "about", "location", "order"]
+SUBPAGE_KEYWORDS = ["menu", "hours", "contact", "about", "location", "order",
+                    "service", "pricing", "book", "team"]
 
 LINK_REGEX = re.compile(r'href=["\']([^"\'#]+)', re.IGNORECASE)
 TITLE_REGEX = re.compile(r'<title[^>]*>(.*?)</title>', re.IGNORECASE | re.DOTALL)
@@ -154,6 +157,61 @@ async def _fetch_httpx(url: str) -> dict:
     return {"url": final_url, "title": title, "text": _truncate(extracted), "links": links, "source_type": "static", "error": None}
 
 
+def _extract_main_text(html_text: str) -> str:
+    """trafilatura first; Scrapling's parser as fallback for pages trafilatura rejects."""
+    extracted = trafilatura.extract(
+        html_text,
+        include_comments=False,
+        include_tables=True,
+        include_images=False,
+        output_format="txt",
+        favor_precision=True,
+    )
+    if extracted and len(extracted.strip()) >= 50:
+        return extracted
+    try:  # Scrapling (base install) — adaptive parser, no browser deps
+        from scrapling.parser import Selector
+        text = Selector(html_text).get_all_text(ignore_tags=("script", "style"))
+        return text if text and len(text.strip()) >= 50 else ""
+    except Exception:
+        return ""
+
+
+async def _fetch_stealth(url: str) -> dict:
+    """Static fetch with real-browser TLS/header impersonation via curl_cffi (the engine
+    behind Scrapling's Fetcher). Gets past bot walls that 403 the plain httpx UA. Optional
+    dependency — returns a soft error (→ httpx fallback) if not installed."""
+    try:
+        from curl_cffi.requests import AsyncSession
+    except ImportError:
+        return {"url": url, "title": "", "text": "", "links": [], "source_type": "stealth", "error": "curl_cffi not available at runtime"}
+
+    try:
+        async with AsyncSession() as s:
+            resp = await s.get(url, impersonate="chrome", timeout=int(HTTPX_TIMEOUT) + 5,
+                               allow_redirects=True)
+    except Exception as e:
+        return {"url": url, "title": "", "text": "", "links": [], "source_type": "stealth", "error": f"fetch failed: {type(e).__name__}"}
+
+    final_url = str(resp.url)
+    if resp.status_code >= 400:
+        return {"url": final_url, "title": "", "text": "", "links": [], "source_type": "stealth", "error": f"HTTP {resp.status_code}"}
+
+    ctype = (resp.headers.get("content-type") or "").lower()
+    if "application/pdf" in ctype or _is_pdf_url(final_url):
+        return await _fetch_pdf(final_url)
+    if "html" not in ctype and "text" not in ctype:
+        return {"url": final_url, "title": "", "text": "", "links": [], "source_type": "stealth", "error": f"unsupported content-type: {ctype}"}
+
+    html_text = resp.text
+    links = _extract_links(html_text, final_url)
+    title = _extract_title(html_text, final_url)
+    extracted = _extract_main_text(html_text)
+    if not extracted:
+        return {"url": final_url, "title": title, "text": "", "links": links, "source_type": "stealth", "error": "could not extract main content"}
+    return {"url": final_url, "title": title, "text": _truncate(extracted), "links": links, "source_type": "stealth", "error": None}
+
+
 async def _fetch_playwright(url: str) -> dict:
     try:
         from playwright.async_api import async_playwright
@@ -185,7 +243,8 @@ async def _fetch_playwright(url: str) -> dict:
 
 
 async def _fetch_one_page(url: str) -> dict:
-    """Fetch a single URL. Renders JS with Playwright, falls back to static httpx fetch."""
+    """Fetch a single URL. Renders JS with Playwright, falls back to the stealth
+    impersonated fetch (curl_cffi/Scrapling), then to the plain httpx fetch."""
     if _is_pdf_url(url):
         return await _fetch_pdf(url)
 
@@ -193,12 +252,16 @@ async def _fetch_one_page(url: str) -> dict:
     if rendered["text"]:
         return rendered
 
+    stealth = await _fetch_stealth(url)
+    if stealth["text"]:
+        return stealth
+
     static = await _fetch_httpx(url)
     if static["text"]:
         return static
 
-    # Both failed — the httpx error tends to be more specific (HTTP status etc.)
-    return static if static["error"] else rendered
+    # All failed — the httpx error tends to be more specific (HTTP status etc.)
+    return static if static["error"] else (stealth if stealth["error"] else rendered)
 
 
 def _select_subpages(links: list[str], base_url: str, limit: int) -> list[str]:
