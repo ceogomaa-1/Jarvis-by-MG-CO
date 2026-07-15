@@ -1,3 +1,4 @@
+import asyncio
 import os
 from datetime import datetime, timezone, timedelta
 
@@ -14,7 +15,7 @@ def _client():
     return create_client(url, key)
 
 
-async def get_or_create_active_session(user_id: str) -> dict:
+def _get_or_create_active_session_sync(user_id: str) -> dict:
     """
     Return the user's active session. If last message was >15 min ago, close it
     and open a new one. The returned dict always includes 'away_minutes'.
@@ -69,6 +70,11 @@ async def get_or_create_active_session(user_id: str) -> dict:
     except Exception as e:
         print(f"SESSIONS: get_or_create_active_session failed for {user_id}: {e}")
         return _blank_session(now)
+
+
+async def get_or_create_active_session(user_id: str) -> dict:
+    """Async wrapper around the synchronous Supabase session transaction."""
+    return await asyncio.to_thread(_get_or_create_active_session_sync, user_id)
 
 
 def _blank_session(now: datetime) -> dict:

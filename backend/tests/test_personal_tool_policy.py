@@ -1,7 +1,10 @@
 """Personal tool routing must keep companion turns out of agent loops."""
 import pytest
 
-from backend.lib.personal.tool_policy import should_offer_personal_tools
+from backend.lib.personal.tool_policy import (
+    should_offer_personal_tools,
+    should_search_personal_documents,
+)
 
 
 FAILED_PRODUCTION_MESSAGE = """I feel like I’m genuinely overwhelmed, overthinking,
@@ -41,3 +44,29 @@ def test_companion_conversations_do_not_offer_tools(message):
 )
 def test_explicit_actions_and_live_lookups_offer_tools(message):
     assert should_offer_personal_tools(message) is True
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        FAILED_PRODUCTION_MESSAGE,
+        "Can I talk with you about my family?",
+        "Help me diagnose why my agency is stuck",
+        "What should I do today?",
+    ],
+)
+def test_normal_chat_skips_document_embedding_search(message):
+    assert should_search_personal_documents(message) is False
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Search my uploaded documents for the contract",
+        "What does the PDF I uploaded say about termination?",
+        "Find this clause inside my files",
+        "According to my documents, when is payment due?",
+    ],
+)
+def test_document_grounded_chat_runs_document_search(message):
+    assert should_search_personal_documents(message) is True

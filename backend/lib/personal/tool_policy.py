@@ -42,3 +42,17 @@ def should_offer_personal_tools(message: str) -> bool:
         return False
     text = message.strip()
     return any(pattern.search(text) for pattern in _EXPLICIT_TOOL_PATTERNS)
+
+
+_DOCUMENT_CONTEXT_RE = re.compile(
+    r"\b(?:search|find|read|check|review|summarize|summarise|according to|what does|"
+    r"look (?:in|through|for))\b.{0,80}\b(?:my|uploaded|connected|the)\b.{0,30}"
+    r"\b(?:documents?|files?|pdfs?|uploads?)\b|"
+    r"\b(?:in|from|inside)\b.{0,20}\b(?:my|the)\b.{0,20}\b(?:documents?|files?|pdfs?)\b",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def should_search_personal_documents(message: str) -> bool:
+    """Gate embedding/vector retrieval to explicit document-grounded questions."""
+    return isinstance(message, str) and bool(_DOCUMENT_CONTEXT_RE.search(message.strip()))

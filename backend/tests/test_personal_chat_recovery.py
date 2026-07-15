@@ -151,3 +151,51 @@ async def test_structured_extraction_keeps_sonnet_but_skips_companion_stack(monk
     assert "tools" not in calls[0]
     if llm.SONNET.startswith("claude-sonnet-5"):
         assert calls[0]["thinking"] == {"type": "disabled"}
+
+
+@pytest.mark.asyncio
+async def test_normal_personal_chat_uses_native_provider_stream(monkeypatch):
+    final = _text_result("First token then the rest")
+    stream_calls = []
+
+    class FakeStream:
+        def __init__(self):
+            self.text_stream = self._deltas()
+
+        async def _deltas(self):
+            yield "First token "
+            yield "then the rest"
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return False
+
+        async def get_final_message(self):
+            return final
+
+    def fake_stream(**kwargs):
+        stream_calls.append(kwargs)
+        return FakeStream()
+
+    calls = _patch_personal_runtime(monkeypatch, [])
+    monkeypatch.setattr(llm._client.messages, "stream", fake_stream)
+    deltas = []
+
+    async def on_text(delta):
+        deltas.append(delta)
+
+    answer = await llm.jarvis_think(
+        user_message="I need to talk through something important.",
+        conversation_history=[],
+        available_tools=None,
+        user_id="user_test",
+        on_text=on_text,
+    )
+
+    assert answer == "First token then the rest"
+    assert deltas == ["First token ", "then the rest"]
+    assert len(stream_calls) == 1
+    assert calls == []  # non-streaming create was never used
+    assert "tools" not in stream_calls[0]

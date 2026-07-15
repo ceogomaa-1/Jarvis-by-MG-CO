@@ -3,6 +3,7 @@
 import asyncio
 import inspect
 import logging
+from collections.abc import Awaitable, Callable
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -508,6 +509,7 @@ async def jarvis_think(
     user_id: str = "",
     live_context: str = "",
     voice_mode: bool = False,
+    on_text: Callable[[str], Awaitable[None]] | None = None,
 ) -> str:
     # Local imports to avoid circular deps at module load time
     from backend.agent import execute_tool, ANTHROPIC_TOOLS
@@ -601,7 +603,17 @@ async def jarvis_think(
     tools_offered = [t["name"] for t in all_tools] if available_tools else []
     print(f"LLM_TOOLS_OFFERED: {tools_offered if tools_offered else 'NONE'}")
 
-    result = await _client.messages.create(**kwargs)
+    if on_text is not None and not available_tools:
+        # Real provider streaming for normal Personal conversation. Tool turns
+        # remain on the bounded agent loop below because each tool result must be
+        # executed before the next model request can begin.
+        async with _client.messages.stream(**kwargs) as stream:
+            async for text_delta in stream.text_stream:
+                if text_delta:
+                    await on_text(text_delta)
+            result = await stream.get_final_message()
+    else:
+        result = await _client.messages.create(**kwargs)
     usage_acc.add_sdk_usage(getattr(result, "usage", None))
     print(f"LLM_RESPONSE_TYPES: {[block.type for block in result.content]}")
 
@@ -714,8 +726,13 @@ async def jarvis_think_stream(
     user_id: str = "",
     live_context: str = "",
 ):
-    """Calls jarvis_think() (which handles tool use) then fake-streams the result char by char."""
-    result = await jarvis_think(
+    """Native-stream normal chat; bounded tool turns flush their final text once."""
+    queue: asyncio.Queue[str] = asyncio.Queue()
+
+    async def _on_text(delta: str) -> None:
+        queue.put_nowait(delta)
+
+    task = asyncio.create_task(jarvis_think(
         user_message=user_message,
         conversation_history=conversation_history,
         memory_context=memory_context,
@@ -725,7 +742,23 @@ async def jarvis_think_stream(
         tone_context=tone_context,
         user_id=user_id,
         live_context=live_context,
-    )
-    for char in result:
-        yield char
-        await asyncio.sleep(0.01)
+        on_text=_on_text,
+    ))
+    streamed: list[str] = []
+    try:
+        while not task.done() or not queue.empty():
+            try:
+                delta = await asyncio.wait_for(queue.get(), timeout=0.05)
+            except TimeoutError:
+                continue
+            streamed.append(delta)
+            yield delta
+        result = await task
+        prefix = "".join(streamed)
+        if not prefix:
+            yield result
+        elif result.startswith(prefix) and len(result) > len(prefix):
+            yield result[len(prefix):]
+    finally:
+        if not task.done():
+            task.cancel()

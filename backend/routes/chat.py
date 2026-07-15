@@ -17,7 +17,7 @@ from backend.llm import jarvis_think
 from backend.memory import get_relevant_memories, save_interaction
 from backend.user_model import get_user_model, summarize_user_for_prompt, update_user_model, get_onboarding_prompt, is_onboarding_complete
 from backend.agent import ANTHROPIC_TOOLS as AVAILABLE_TOOLS
-from backend.conversation import get_conversation_history, get_minutes_since_last_turn, save_conversation_turn
+from backend.conversation import get_conversation_history, get_minutes_since_history, save_conversation_turn
 from backend.utils.user_context import format_user_time_context
 from backend.lib.sessions import format_session_context
 from backend.routes.documents import search_user_documents
@@ -26,7 +26,10 @@ from backend.tools.url_fetch import extract_urls, fetch_url_content
 from backend.usage_limits import check_limit, increment_usage, get_usage, DAILY_MESSAGE_LIMIT
 from backend.farida_personal_loader import _is_farida, load_greeting as _load_farida_greeting
 from backend.lib.personal.relationship_bible import is_relationship_context, build_relationship_injection
-from backend.lib.personal.tool_policy import should_offer_personal_tools
+from backend.lib.personal.tool_policy import (
+    should_offer_personal_tools,
+    should_search_personal_documents,
+)
 from backend.lib.business.model_router import SONNET
 from backend.lib import diag
 
@@ -318,6 +321,13 @@ async def _get_context(user_id: str, message: str):
     )
 
 
+async def _get_document_context(user_id: str, message: str) -> str:
+    """Avoid embeddings/vector search when the user did not reference documents."""
+    if not should_search_personal_documents(message):
+        return ""
+    return await search_user_documents(user_id, message)
+
+
 def _format_message_gap(minutes: int | None) -> str:
     """Human line telling the model how long ago the previous message was."""
     if minutes is None:
@@ -357,15 +367,16 @@ async def chat(request: ChatRequest):
     # Gather context + history snapshot BEFORE saving user message to avoid duplication
     (
         (memory_context, user_model_context, skills_summary),
-        time_ctx, session_ctx, doc_ctx, history, last_gap_min,
+        time_ctx, session_ctx, doc_ctx, history, onboarding_done,
     ) = await asyncio.gather(
         _get_context(request.user_id, request.message),
         format_user_time_context(request.user_id),
         format_session_context(request.user_id),
-        search_user_documents(request.user_id, request.message),
+        _get_document_context(request.user_id, request.message),
         get_conversation_history(request.user_id, limit=20),
-        get_minutes_since_last_turn(request.user_id),
+        is_onboarding_complete(request.user_id),
     )
+    last_gap_min = get_minutes_since_history(history)
     live_context = f"{time_ctx}\n{session_ctx}"
     _gap_line = _format_message_gap(last_gap_min)
     if _gap_line:
@@ -394,7 +405,6 @@ async def chat(request: ChatRequest):
                 _resp["usage"] = updated_usage
             return JSONResponse(_resp)
 
-    onboarding_done = await is_onboarding_complete(request.user_id)
     system_override = None
     if not onboarding_done:
         system_override = await get_onboarding_prompt(request.user_id)
@@ -493,6 +503,7 @@ async def chat(request: ChatRequest):
 
 @router.post("/chat/stream")
 async def chat_stream(request: ChatRequest):
+    request_t0 = time.perf_counter()
     # ── Usage limit check ─────────────────────────────────────────────────────
     sb = _get_supabase()
     if sb and request.user_id:
@@ -514,15 +525,18 @@ async def chat_stream(request: ChatRequest):
     # Gather context + history snapshot BEFORE saving user message
     (
         (memory_context, user_model_context, skills_summary),
-        time_ctx, session_ctx, doc_ctx, history, last_gap_min,
+        time_ctx, session_ctx, doc_ctx, history, onboarding_done,
     ) = await asyncio.gather(
         _get_context(request.user_id, request.message),
         format_user_time_context(request.user_id),
         format_session_context(request.user_id),
-        search_user_documents(request.user_id, request.message),
+        _get_document_context(request.user_id, request.message),
         get_conversation_history(request.user_id, limit=20),
-        get_minutes_since_last_turn(request.user_id),
+        is_onboarding_complete(request.user_id),
     )
+    context_ms = int((time.perf_counter() - request_t0) * 1000)
+    last_gap_min = get_minutes_since_history(history)
+    print(f"CHAT_CONTEXT_DONE: {context_ms}ms docs={bool(doc_ctx)}")
     live_context = f"{time_ctx}\n{session_ctx}"
     _gap_line = _format_message_gap(last_gap_min)
     if _gap_line:
@@ -551,10 +565,17 @@ async def chat_stream(request: ChatRequest):
         url_block_parts.append("\n--- END USER-PROVIDED URLS ---")
         memory_context = (memory_context or "") + "\n".join(url_block_parts)
 
-    # Persist user message BEFORE streaming starts
-    await save_conversation_turn(request.user_id, "user", request.message, attachments=_attachments_meta(request.attachments))
+    # Persist concurrently with model startup instead of adding another database
+    # round-trip to time-to-first-token. The task is awaited before completion.
+    user_save_task = asyncio.create_task(
+        save_conversation_turn(
+            request.user_id,
+            "user",
+            request.message,
+            attachments=_attachments_meta(request.attachments),
+        )
+    )
 
-    onboarding_done = await is_onboarding_complete(request.user_id)
     system_override = None
     if not onboarding_done:
         system_override = await get_onboarding_prompt(request.user_id)
@@ -646,9 +667,9 @@ async def chat_stream(request: ChatRequest):
         if _is_farida(request.user_id) and not any(m.get("role") == "assistant" for m in history):
             _greeting = _load_farida_greeting()
             if _greeting:
+                await user_save_task
                 for _ch in _greeting:
                     yield f"data: {json.dumps(_ch)}\n\n"
-                    await asyncio.sleep(0.01)
                 await save_conversation_turn(request.user_id, "assistant", _greeting)
                 _record_interaction(request.user_id)
                 if sb and request.user_id:
@@ -662,6 +683,9 @@ async def chat_stream(request: ChatRequest):
 
         response_text = _FALLBACK_LLM_ERROR
         debug_str = None
+        _response_streamed = False
+        _streamed_parts: list[str] = []
+        first_text_ms = 0
         _study_injection = STUDY_MODE_INSTRUCTION if (request.study_mode and not system_override) else ""
         _combined_tone = "\n\n".join(b for b in (_study_injection, tone_context, _relationship_injection, _fb_injection) if b)
 
@@ -674,7 +698,7 @@ async def chat_stream(request: ChatRequest):
         try:
             # Claude path — byte-identical to today's call, just wrapped so the Grok
             # branch can reuse it as a fallback without altering it.
-            async def _claude_answer():
+            async def _claude_answer(on_text=None):
                 return await jarvis_think(
                     user_message=user_content,
                     conversation_history=safe_history,
@@ -686,6 +710,7 @@ async def chat_stream(request: ChatRequest):
                     user_id=request.user_id,
                     live_context=live_context,
                     voice_mode=request.voice_mode,
+                    on_text=on_text,
                 )
 
             if _study_provider == "grok":
@@ -711,8 +736,49 @@ async def chat_stream(request: ChatRequest):
                     yield f'data: {json.dumps({"type": "provider", "value": "claude"})}\n\n'
                     response_text = await _claude_answer()
             else:
-                response_text = await _claude_answer()
+                if request.voice_mode:
+                    # Voice TTS currently needs the complete answer. Text chat—the
+                    # latency-sensitive path—streams provider deltas immediately.
+                    response_text = await _claude_answer()
+                else:
+                    delta_queue: asyncio.Queue[str] = asyncio.Queue()
+
+                    async def _on_text(delta: str) -> None:
+                        nonlocal first_text_ms
+                        if not first_text_ms:
+                            first_text_ms = int((time.perf_counter() - request_t0) * 1000)
+                            print(f"CHAT_TTFT: {first_text_ms}ms")
+                        delta_queue.put_nowait(delta)
+
+                    model_task = asyncio.create_task(_claude_answer(_on_text))
+                    try:
+                        while not model_task.done() or not delta_queue.empty():
+                            try:
+                                delta = await asyncio.wait_for(delta_queue.get(), timeout=0.05)
+                            except TimeoutError:
+                                continue
+                            _streamed_parts.append(delta)
+                            yield f"data: {json.dumps(delta)}\n\n"
+                        response_text = await model_task
+                    finally:
+                        if not model_task.done():
+                            model_task.cancel()
+
+                    streamed_prefix = "".join(_streamed_parts)
+                    _response_streamed = bool(streamed_prefix)
+                    # Empty-response recovery can produce a final answer after a
+                    # native stream emitted nothing. A prefix-safe remainder also
+                    # protects against SDK buffering differences without duplicates.
+                    if response_text.startswith(streamed_prefix) and len(response_text) > len(streamed_prefix):
+                        remainder = response_text[len(streamed_prefix):]
+                        if remainder:
+                            if not first_text_ms:
+                                first_text_ms = int((time.perf_counter() - request_t0) * 1000)
+                            yield f"data: {json.dumps(remainder)}\n\n"
+                            _streamed_parts.append(remainder)
+                            _response_streamed = True
             llm_ms = int((time.time() - voice_t0) * 1000)
+            model_done_ms = int((time.perf_counter() - request_t0) * 1000)
             print(f"CHAT_LLM_DONE: {llm_ms}ms chars={len(response_text)}")
             # Handle empty / soft-refusal responses
             if not response_text or not response_text.strip():
@@ -720,20 +786,32 @@ async def chat_stream(request: ChatRequest):
                 response_text = _FALLBACK_EMPTY
         except Exception as e:
             debug_str = _log_fallback("LLM_EXCEPTION", request.message, exc=e)
-            response_text = _FALLBACK_LLM_ERROR
+            if _streamed_parts:
+                # Do not append a generic error sentence to a partially rendered
+                # answer or save content the user never saw.
+                response_text = "".join(_streamed_parts)
+                _response_streamed = True
+            else:
+                response_text = _FALLBACK_LLM_ERROR
+            model_done_ms = int((time.perf_counter() - request_t0) * 1000)
 
         if request.voice_mode and response_text:
+            if not first_text_ms:
+                first_text_ms = int((time.perf_counter() - request_t0) * 1000)
             tts_ms = int((time.time() - voice_t0) * 1000)
             print(f"CHAT_TTS_FIRE: {tts_ms}ms full_response chars={len(response_text)}")
             yield f"data: {json.dumps({'__vs': response_text})}\n\n"
-            for char in response_text:
-                yield f"data: {json.dumps(char)}\n\n"
-        else:
-            for char in response_text:
-                yield f"data: {json.dumps(char)}\n\n"
-                await asyncio.sleep(0.01)
+            yield f"data: {json.dumps(response_text)}\n\n"
+        elif not _response_streamed:
+            if not first_text_ms:
+                first_text_ms = int((time.perf_counter() - request_t0) * 1000)
+                print(f"CHAT_TTFT: {first_text_ms}ms buffered_path=true")
+            # One SSE payload, no artificial per-character sleep. The frontend
+            # accepts string chunks of any length.
+            yield f"data: {json.dumps(response_text)}\n\n"
 
         _record_interaction(request.user_id)
+        await user_save_task
         async def _run_post_tasks():
             from backend.memory import extract_and_save_feedback_memory
             await asyncio.gather(
@@ -756,8 +834,16 @@ async def chat_stream(request: ChatRequest):
         if sb and request.user_id:
             updated_usage = await asyncio.to_thread(increment_usage, request.user_id, sb)
             yield f"data: {json.dumps({'type': 'usage', 'data': updated_usage})}\n\n"
-        done_ms = int((time.time() - voice_t0) * 1000)
-        print(f"CHAT_DONE: {done_ms}ms")
+        total_ms = int((time.perf_counter() - request_t0) * 1000)
+        diag.record_timing("personal_chat", {
+            "context_ms": context_ms,
+            "ttft_ms": first_text_ms,
+            "model_done_ms": model_done_ms,
+            "total_ms": total_ms,
+            "native_stream": _response_streamed and not request.voice_mode and not bool(tools),
+            "tools": bool(tools),
+        })
+        print(f"CHAT_DONE: total={total_ms}ms ttft={first_text_ms}ms")
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(

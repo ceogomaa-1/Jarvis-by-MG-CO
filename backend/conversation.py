@@ -105,7 +105,7 @@ async def get_conversation_history(user_id: str, limit: int = 20) -> list[dict]:
                     "user_id": f"eq.{user_id}",
                     "order": "created_at.desc",
                     "limit": limit,
-                    "select": "role,content,attachments",
+                    "select": "role,content,attachments,created_at",
                 },
                 timeout=10.0,
             )
@@ -121,7 +121,7 @@ async def get_conversation_history(user_id: str, limit: int = 20) -> list[dict]:
                         "user_id": f"eq.{user_id}",
                         "order": "created_at.desc",
                         "limit": limit,
-                        "select": "role,content",
+                        "select": "role,content,created_at",
                     },
                     timeout=10.0,
                 )
@@ -138,3 +138,17 @@ async def get_conversation_history(user_id: str, limit: int = 20) -> list[dict]:
     except Exception as e:
         print(f"CONV: get_conversation_history error: {e}")
         return []
+
+
+def get_minutes_since_history(history: list[dict]) -> int | None:
+    """Derive the latest-message gap from an already-fetched history snapshot."""
+    if not history:
+        return None
+    raw = history[-1].get("created_at")
+    if not raw:
+        return None
+    try:
+        last = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+        return max(0, int((datetime.now(timezone.utc) - last).total_seconds() / 60))
+    except (TypeError, ValueError):
+        return None
