@@ -11,7 +11,9 @@ import pytest
 from backend import user_model
 from backend.user_model import (
     _fresh_model,
+    _summarize_model_for_prompt,
     get_user_model,
+    should_extract_profile_updates,
     summarize_user_for_prompt,
     update_user_model,
 )
@@ -139,3 +141,96 @@ async def test_update_skips_save_when_lookup_failed(monkeypatch):
 
     result = await update_user_model("user-1", "hello", "hi there")
     assert result is False
+
+
+def test_profile_summary_bounds_runaway_never_forget_history():
+    model = _fresh_model("user-1")
+    model["identity"]["name"] = "Mo"
+    model["jarvis_relationship"]["interaction_count"] = 500
+    model["jarvis_relationship"]["things_jarvis_should_never_forget"] = [
+        f"fact-{i} " + ("detail " * 120) for i in range(300)
+    ]
+
+    summary = _summarize_model_for_prompt(model)
+
+    assert len(summary) < 8_000
+    assert "fact-0" in summary
+    assert "fact-1" in summary
+    assert "fact-299" in summary
+    assert "fact-150" not in summary
+
+
+@pytest.mark.parametrize(
+    "message,expected",
+    [
+        ("thanks", False),
+        ("what time is it?", False),
+        ("Can I talk?", False),
+        ("My dad retired", True),
+        ("I feel depressed", True),
+        ("I prefer short, direct answers", True),
+        ("This is a substantive message " * 8, True),
+    ],
+)
+def test_profile_extraction_gate(message, expected):
+    assert should_extract_profile_updates(message) is expected
+
+
+@pytest.mark.asyncio
+async def test_trivial_turn_updates_counter_without_paid_extraction(monkeypatch):
+    model = _fresh_model("user-1")
+
+    async def fake_get(_user_id):
+        return model, False
+
+    saved = {}
+
+    async def fake_save(_user_id, value):
+        saved["model"] = value
+        return True
+
+    async def extractor_must_not_run(**_kwargs):
+        raise AssertionError("trivial turns must not launch profile extraction")
+
+    monkeypatch.setattr(user_model, "get_user_model", fake_get)
+    monkeypatch.setattr(user_model, "save_user_model", fake_save)
+    monkeypatch.setattr(user_model, "extract_structured_json", extractor_must_not_run)
+
+    assert await update_user_model("user-1", "thanks", "always") is True
+    assert saved["model"]["jarvis_relationship"]["interaction_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_meaningful_turn_extracts_from_compact_profile(monkeypatch):
+    model = _fresh_model("user-1")
+    model["identity"]["name"] = "Mo"
+    model["jarvis_relationship"]["things_jarvis_should_never_forget"] = [
+        f"fact-{i} " + ("detail " * 120) for i in range(300)
+    ]
+
+    async def fake_get(_user_id):
+        return model, False
+
+    async def fake_save(_user_id, _value):
+        return True
+
+    captured = {}
+
+    async def fake_extract(**kwargs):
+        captured.update(kwargs)
+        return "{}"
+
+    monkeypatch.setattr(user_model, "get_user_model", fake_get)
+    monkeypatch.setattr(user_model, "save_user_model", fake_save)
+    monkeypatch.setattr(user_model, "extract_structured_json", fake_extract)
+
+    result = await update_user_model(
+        "user-1",
+        "My dad retired and I am carrying the household income now.",
+        "I hear you.",
+    )
+
+    assert result is True
+    assert len(captured["prompt"]) < 12_000
+    assert "fact-299" in captured["prompt"]
+    assert "fact-150" not in captured["prompt"]

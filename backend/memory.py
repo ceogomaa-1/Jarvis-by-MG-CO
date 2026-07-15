@@ -87,7 +87,7 @@ async def extract_emotional_context(
 ) -> dict:
     """Extract emotional signals from a conversation exchange."""
     import json
-    from backend.llm import jarvis_think
+    from backend.llm import extract_structured_json
 
     prompt = (
         f'Analyze this conversation exchange for emotional signals.\n\n'
@@ -104,10 +104,10 @@ async def extract_emotional_context(
     )
 
     try:
-        raw = await jarvis_think(
-            user_message=prompt,
-            conversation_history=[],
-            system_override="Extract emotional signals. Return only valid JSON. No markdown.",
+        raw = await extract_structured_json(
+            prompt=prompt,
+            system="Extract emotional signals. Return only valid JSON. No markdown.",
+            where="personal_emotion_extraction",
         )
         raw = raw.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
         return json.loads(raw)
@@ -127,12 +127,10 @@ async def extract_and_save_feedback_memory(
     Two things it does:
     1. If feedback was requested this turn, saves a 'feedback_requested: <date>' memory
        so should_ask_for_feedback() won't ask again for 7 days.
-    2. If the user's message looks like feedback about Rue, runs a quick
-       Claude call to extract it and saves it tagged with 'jarvis_feedback:'.
+    2. If the user's message contains explicit feedback about Rue, saves the
+       user's wording directly with a 'jarvis_feedback:' tag.
     """
-    import json
     from datetime import date as _date
-    from backend.llm import jarvis_think
 
     today = _date.today().isoformat()
 
@@ -147,42 +145,30 @@ async def extract_and_save_feedback_memory(
         except Exception as e:
             print(f"MEMORY: ERROR saving feedback_requested tag: {e}")
 
-    # Quick heuristic — only run extraction if user message is plausibly about Rue
-    jarvis_keywords = {
-        "you", "jarvis", "helpful", "help", "like you", "love this", "prefer",
-        "missing", "wish you", "better if", "honest", "actually", "feel like",
-        "talking to you", "experience", "think of you", "feedback", "improve",
-        "different", "more like", "less like", "amazing", "not great", "annoying",
-    }
-    msg_lower = user_message.lower()
-    if not any(kw in msg_lower for kw in jarvis_keywords):
+    # Only capture explicit feedback about Rue. The old keyword set included
+    # generic words such as "you", "help", and "feel like", which launched a
+    # second Sonnet call on ordinary emotional conversations.
+    import re
+    feedback_pattern = re.compile(
+        r"(?:\b(?:rue|jarvis|you(?:'re| are)?)\b.{0,60}\b(?:helpful|unhelpful|"
+        r"too formal|too verbose|too long|too short|annoying|amazing|better if|"
+        r"wish you|prefer when|love how|like how|hate how|need you to)\b)|"
+        r"(?:\b(?:feedback|better if|wish you|prefer when)\b.{0,60}\b(?:rue|jarvis|you)\b)",
+        re.IGNORECASE | re.DOTALL,
+    )
+    if not feedback_pattern.search(user_message):
         return
 
-    # Run a targeted extraction
+    # Preserve the user's own wording directly. Mem0 can index this fact without
+    # paying another model to paraphrase it (and without risking a false rewrite).
     try:
-        extraction_prompt = (
-            f"A user is talking to an AI named Rue. Look at this exchange and determine "
-            f"if the user is giving feedback ABOUT Rue itself — what they like, dislike, "
-            f"or want changed.\n\n"
-            f"User said: \"{user_message}\"\n"
-            f"Rue said: \"{assistant_response[:300]}\"\n\n"
-            f"If the user IS giving feedback about Rue, return a JSON array with one or more "
-            f"strings, each prefixed with 'jarvis_feedback:'. Example:\n"
-            f'["jarvis_feedback: User finds Rue too formal, wants more casual energy"]\n\n'
-            f"If there is NO feedback about Rue, return: []\n\n"
-            f"Return ONLY the JSON array. No explanation."
+        fact = "jarvis_feedback: " + re.sub(r"\s+", " ", user_message).strip()[:700]
+        await asyncio.to_thread(
+            _client.add,
+            [{"role": "user", "content": fact}],
+            user_id=user_id,
         )
-        raw = await jarvis_think(
-            user_message=extraction_prompt,
-            conversation_history=[],
-            system_override="Extract feedback facts. Return only a valid JSON array of strings.",
-        )
-        raw = raw.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
-        facts = json.loads(raw)
-        if facts and isinstance(facts, list):
-            messages = [{"role": "user", "content": f} for f in facts]
-            await asyncio.to_thread(_client.add, messages, user_id=user_id)
-            print(f"MEMORY: saved {len(facts)} jarvis_feedback memories for {user_id}")
+        print(f"MEMORY: saved explicit Rue feedback for {user_id}")
     except Exception as e:
         print(f"MEMORY: ERROR in extract_and_save_feedback_memory: {e}")
 

@@ -117,6 +117,7 @@ async def test_normal_text_response_is_unchanged(monkeypatch):
 
     assert answer == "Normal answer"
     assert len(calls) == 1
+    assert calls[0]["max_tokens"] == 4096
 
 
 def test_extract_text_joins_multiple_text_blocks():
@@ -126,3 +127,27 @@ def test_extract_text_joins_multiple_text_blocks():
         SimpleNamespace(type="text", text="second"),
     ]
     assert llm._extract_text(content) == "First second"
+
+
+@pytest.mark.asyncio
+async def test_structured_extraction_keeps_sonnet_but_skips_companion_stack(monkeypatch):
+    calls = []
+
+    async def fake_create(**kwargs):
+        calls.append(kwargs)
+        return _text_result('{"identity": {"name": "Mo"}}')
+
+    monkeypatch.setattr(llm._client.messages, "create", fake_create)
+    answer = await llm.extract_structured_json(
+        prompt="Extract the name from: my name is Mo",
+        system="Return JSON only",
+        where="test_extraction",
+    )
+
+    assert answer == '{"identity": {"name": "Mo"}}'
+    assert len(calls) == 1
+    assert calls[0]["model"] == llm.SONNET
+    assert calls[0]["system"] == "Return JSON only"
+    assert "tools" not in calls[0]
+    if llm.SONNET.startswith("claude-sonnet-5"):
+        assert calls[0]["thinking"] == {"type": "disabled"}

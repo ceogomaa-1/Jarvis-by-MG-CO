@@ -13,7 +13,12 @@ from backend.lib.grounding import GROUNDING_CONTRACT, CAPABILITY_CONTRACT, rende
 from backend.lib.jarvis_core import JARVIS_CORE_CONTRACT
 from backend.lib.business.model_router import select_personal_model, SONNET
 from backend.lib.business.cost import UsageAccumulator
-from backend.lib.business.prompt_budget import cap_dynamic_prompt, cap_tool_result, trim_history
+from backend.lib.business.prompt_budget import (
+    cap_dynamic_prompt,
+    cap_tool_result,
+    chat_output_token_budget,
+    trim_history,
+)
 from backend.lib import diag
 
 logger = logging.getLogger(__name__)
@@ -443,7 +448,7 @@ async def _finalize_personal_answer(
     print(f"PERSONAL_FINALIZER: reason={reason} model={model}")
     result = await _client.messages.create(
         model=model,
-        max_tokens=1536,
+        max_tokens=chat_output_token_budget(model),
         system=system_blocks,
         messages=recovery_messages,
         cache_control={"type": "ephemeral"},
@@ -455,6 +460,41 @@ async def _finalize_personal_answer(
         f"reason={reason} stop_reason={getattr(result, 'stop_reason', None)} chars={len(text)}"
     )
     return text
+
+
+async def extract_structured_json(
+    *,
+    prompt: str,
+    system: str,
+    where: str = "personal_background",
+    max_tokens: int = 1024,
+) -> str:
+    """Run a minimal Sonnet extraction without loading Rue's companion prompt.
+
+    Background JSON work used to call ``jarvis_think`` and therefore paid for
+    Rue's soul, capability contracts, grounding rules, and other conversational
+    context. It also inherited Sonnet 5 adaptive thinking. Structured extraction
+    needs none of that; keeping the same Sonnet model while disabling thinking
+    makes the operation cheaper and more deterministic without changing the
+    visible companion response model.
+    """
+    kwargs: dict = {
+        "model": SONNET,
+        "max_tokens": max_tokens,
+        "system": system,
+        "messages": [{"role": "user", "content": prompt}],
+    }
+    if SONNET.startswith("claude-sonnet-5"):
+        kwargs["thinking"] = {"type": "disabled"}
+    result = await _client.messages.create(**kwargs)
+    usage = UsageAccumulator(SONNET)
+    usage.add_sdk_usage(getattr(result, "usage", None))
+    try:
+        print(usage.log_line())
+        diag.record_usage(where, usage.cost())
+    except Exception:
+        pass
+    return _extract_text(result.content).strip()
 
 
 async def jarvis_think(
@@ -547,7 +587,10 @@ async def jarvis_think(
 
     kwargs: dict = {
         "model": model,
-        "max_tokens": 1024,
+        # Sonnet 5 adaptive thinking counts against max_tokens. The old 1,024
+        # ceiling could spend the whole budget on thinking and return no visible
+        # text for difficult Personal messages.
+        "max_tokens": chat_output_token_budget(model),
         "system": system_blocks,
         "messages": messages,  # type: ignore[arg-type]
         "cache_control": {"type": "ephemeral"},
@@ -615,7 +658,7 @@ async def jarvis_think(
 
         result = await _client.messages.create(
             model=model,
-            max_tokens=1024,
+            max_tokens=chat_output_token_budget(model),
             system=system_blocks,
             messages=messages,  # type: ignore[arg-type]
             tools=all_tools,  # type: ignore[arg-type]

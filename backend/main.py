@@ -281,7 +281,7 @@ async def chat_diag():
     can be pinpointed without server-log access. No secrets or user data."""
     from backend.lib import diag
     return {
-        "personal_chat_revision": "tool-gate-and-empty-recovery-v2",
+        "personal_chat_revision": "personal-cost-guard-v3",
         "recent_errors": diag.recent_errors(),
         "recent_usage": diag.recent_usage(),
     }

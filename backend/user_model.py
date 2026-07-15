@@ -1,10 +1,11 @@
 import json
 import os
+import re
 import traceback
 from datetime import datetime, timezone
 
 import httpx
-from backend.llm import jarvis_think
+from backend.llm import extract_structured_json
 
 # Required Supabase table — run once in SQL editor:
 #   CREATE TABLE user_models (
@@ -239,12 +240,20 @@ async def update_user_model(user_id: str, user_message: str, jarvis_response: st
             model["emotional_patterns"]["current_energy_level"] = "high"
             model["emotional_patterns"]["last_emotional_signal"] = "energized"
 
-        # Ask Claude to extract any new structured facts from this exchange
+        # Ask Sonnet to extract durable facts only for substantive turns. Simple
+        # greetings, acknowledgements, and mechanical lookups still update the
+        # interaction counter but do not need a second paid model call.
+        if not should_extract_profile_updates(user_message):
+            save_result = await save_user_model(user_id, model)
+            print(f"USER_MODEL: skipped extraction for non-substantive turn; save={save_result}")
+            return save_result
+
+        current_profile = _summarize_model_for_prompt(model)
         extraction_prompt = (
             f'Analyze this conversation exchange and extract any new information about the user to update their profile.\n\n'
             f'User message: "{user_message}"\n'
             f'Rue response: "{jarvis_response}"\n\n'
-            f'Current user profile:\n{json.dumps(model, indent=2)}\n\n'
+            f'Current compact user profile:\n{current_profile}\n\n'
             f'Return ONLY a valid JSON object with ONLY the fields that should be updated based on this exchange. '
             f'Do not include fields that have not changed. Do not include any explanation or markdown. Only return the JSON.\n\n'
             f'Examples of what to extract:\n'
@@ -269,15 +278,14 @@ async def update_user_model(user_id: str, user_message: str, jarvis_response: st
         )
 
         try:
-            raw = await jarvis_think(
-                user_message=extraction_prompt,
-                conversation_history=[],
-                system_override=(
-                    "You are a JSON data extraction assistant. Your only job is to analyze "
-                    "conversation exchanges and extract structured user profile updates. "
-                    "Respond with valid JSON only. Never include markdown, code fences, "
-                    "explanations, or any text outside the JSON object."
+            raw = await extract_structured_json(
+                prompt=extraction_prompt,
+                system=(
+                    "Extract durable user-profile facts from the exchange. Return valid JSON "
+                    "only, with only changed fields. Do not repeat facts already present in "
+                    "the compact profile. No markdown or explanation."
                 ),
+                where="personal_profile_extraction",
             )
             print(f"USER_MODEL: Claude extraction result: {raw}")
             # Strip markdown fences in case Claude wraps the JSON anyway
@@ -307,18 +315,56 @@ async def update_user_model(user_id: str, user_message: str, jarvis_response: st
 
 # ─── Prompt summary ───────────────────────────────────────────────────────────
 
-async def summarize_user_for_prompt(user_id: str) -> str:
-    """Convert the user model into a readable block for injection into jarvis_think()."""
-    try:
-        model, lookup_failed = await get_user_model(user_id)
-        if lookup_failed:
-            return (
-                "PROFILE LOOKUP UNAVAILABLE right now (Supabase error) — this is NOT necessarily a new user. "
-                "Do not say \"I don't know you\" or treat them as new. If they ask about something that "
-                "would normally be in their profile, say the profile lookup is having an issue right now "
-                "rather than guessing or claiming you have no information about them."
-            )
+def _clip_profile_value(value: object, limit: int = 360) -> str:
+    text = re.sub(r"\s+", " ", str(value)).strip()
+    return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
+
+def _compact_profile_items(
+    values: object,
+    *,
+    limit: int,
+    item_char_limit: int = 360,
+    keep_first: int = 2,
+) -> list[str]:
+    """Keep foundational and recent unique facts inside a hard prompt budget."""
+    if not isinstance(values, list):
+        return []
+    unique: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        text = _clip_profile_value(value, item_char_limit)
+        key = re.sub(r"\W+", " ", text.casefold()).strip()
+        if not text or key in seen:
+            continue
+        seen.add(key)
+        unique.append(text)
+    if len(unique) <= limit:
+        return unique
+    head_count = min(keep_first, limit)
+    return unique[:head_count] + unique[-(limit - head_count):]
+
+
+def should_extract_profile_updates(message: str) -> bool:
+    """Gate the paid profile extractor to turns likely to contain durable facts."""
+    if not isinstance(message, str):
+        return False
+    text = message.strip()
+    if len(text) >= 120:
+        return True
+    return bool(re.search(
+        r"\b(my name|call me|i am \d{1,3}|i'm \d{1,3}|i live|i work|my job|my company|"
+        r"my business|my agency|my (?:mom|dad|mother|father|sister|brother|wife|husband|family)|"
+        r"my goal|i want to|i need to|i prefer|i love|i hate|remember (?:that|this)|"
+        r"depressed|overwhelmed|anxious|stressed|terrified|burned out|burnt out)\b",
+        text,
+        re.IGNORECASE,
+    ))
+
+
+def _summarize_model_for_prompt(model: dict) -> str:
+    """Convert a stored model into a bounded, high-signal prompt block."""
+    try:
         identity = model.get("identity", {})
         personality = model.get("personality", {})
         focus = model.get("current_focus", {})
@@ -326,15 +372,14 @@ async def summarize_user_for_prompt(user_id: str) -> str:
         emotional = model.get("emotional_patterns", {})
         relationship = model.get("jarvis_relationship", {})
 
-        name = identity.get("preferred_name") or identity.get("name") or ""
-        role = identity.get("role") or ""
-        company = identity.get("company") or ""
-        trust = relationship.get("trust_level", "new")
+        name = _clip_profile_value(
+            identity.get("preferred_name") or identity.get("name") or "", 100
+        )
+        role = _clip_profile_value(identity.get("role") or "", 200)
+        company = _clip_profile_value(identity.get("company") or "", 200)
+        trust = _clip_profile_value(relationship.get("trust_level", "new"), 40)
         count = relationship.get("interaction_count", 0)
-        energy = emotional.get("current_energy_level", "")
-
-        if not name and count < 2:
-            return "New user — still getting to know them. Ask questions."
+        energy = _clip_profile_value(emotional.get("current_energy_level", ""), 100)
 
         lines = ["USER PROFILE:"]
 
@@ -351,29 +396,36 @@ async def summarize_user_for_prompt(user_id: str) -> str:
 
         goals = focus.get("top_goals", [])
         if goals:
-            lines.append("TOP GOALS:\n" + "\n".join(f"- {g}" for g in goals))
+            items = _compact_profile_items(goals, limit=8, item_char_limit=300)
+            lines.append("TOP GOALS:\n" + "\n".join(f"- {g}" for g in items))
 
         projects = focus.get("active_projects", [])
         if projects:
-            lines.append("ACTIVE PROJECTS:\n" + "\n".join(f"- {p}" for p in projects))
+            items = _compact_profile_items(projects, limit=8)
+            lines.append("ACTIVE PROJECTS:\n" + "\n".join(f"- {p}" for p in items))
 
         challenges = focus.get("biggest_challenges", [])
         if challenges:
-            lines.append("CURRENT CHALLENGES:\n" + "\n".join(f"- {c}" for c in challenges))
+            items = _compact_profile_items(challenges, limit=8)
+            lines.append("CURRENT CHALLENGES:\n" + "\n".join(f"- {c}" for c in items))
 
         key_people = work.get("key_people", [])
         if key_people:
-            lines.append("KEY PEOPLE IN THEIR WORLD:\n" + "\n".join(f"- {p}" for p in key_people))
+            items = _compact_profile_items(key_people, limit=8)
+            lines.append("KEY PEOPLE IN THEIR WORLD:\n" + "\n".join(f"- {p}" for p in items))
 
         critical = relationship.get("things_jarvis_should_never_forget", [])
         if critical:
-            lines.append("THINGS TO NEVER FORGET:\n" + "\n".join(f"- {t}" for t in critical))
+            items = _compact_profile_items(
+                critical, limit=10, item_char_limit=420, keep_first=2
+            )
+            lines.append("THINGS TO NEVER FORGET:\n" + "\n".join(f"- {t}" for t in items))
 
         style_parts = list(filter(None, [
-            personality.get("communication_style", ""),
-            personality.get("tone_preference", ""),
+            _clip_profile_value(personality.get("communication_style", ""), 500),
+            _clip_profile_value(personality.get("tone_preference", ""), 500),
         ]))
-        pref = personality.get("response_length_preference", "")
+        pref = _clip_profile_value(personality.get("response_length_preference", ""), 200)
         if style_parts or pref:
             style_str = ", ".join(style_parts)
             if pref:
@@ -385,7 +437,11 @@ async def summarize_user_for_prompt(user_id: str) -> str:
             lines.append(
                 "LEARNED FROM THEIR FEEDBACK (this user rated your past replies 👍/👎 — these are "
                 "their personal preferences for how YOU should respond; apply them):\n"
-                + "\n".join(f"- {l}" for l in fb_lessons[:10])
+                + "\n".join(
+                    f"- {l}" for l in _compact_profile_items(
+                        fb_lessons, limit=10, item_char_limit=300, keep_first=0
+                    )
+                )
             )
 
         thinking = model.get("thinking_patterns", {})
@@ -395,16 +451,36 @@ async def summarize_user_for_prompt(user_id: str) -> str:
         what_lights_up = thinking.get("what_makes_them_light_up", "")
 
         if decision_style:
-            lines.append(f"Decision style: {decision_style}")
+            lines.append(f"Decision style: {_clip_profile_value(decision_style, 600)}")
         if motivation:
-            lines.append(f"Motivation: {motivation}")
+            lines.append(f"Motivation: {_clip_profile_value(motivation, 600)}")
         if values:
-            lines.append("Core values: " + ", ".join(values[:3]))
+            lines.append("Core values: " + ", ".join(_compact_profile_items(values, limit=3)))
         if what_lights_up:
-            lines.append(f"Gets excited about: {what_lights_up}")
+            lines.append(f"Gets excited about: {_clip_profile_value(what_lights_up, 600)}")
 
         return "\n\n".join(lines)
+    except Exception:
+        return ""
 
+
+async def summarize_user_for_prompt(user_id: str) -> str:
+    """Load and compact the user model for injection into jarvis_think()."""
+    try:
+        model, lookup_failed = await get_user_model(user_id)
+        if lookup_failed:
+            return (
+                "PROFILE LOOKUP UNAVAILABLE right now (Supabase error) — this is NOT necessarily a new user. "
+                "Do not say \"I don't know you\" or treat them as new. If they ask about something that "
+                "would normally be in their profile, say the profile lookup is having an issue right now "
+                "rather than guessing or claiming you have no information about them."
+            )
+        relationship = model.get("jarvis_relationship", {})
+        identity = model.get("identity", {})
+        name = identity.get("preferred_name") or identity.get("name") or ""
+        if not name and relationship.get("interaction_count", 0) < 2:
+            return "New user — still getting to know them. Ask questions."
+        return _summarize_model_for_prompt(model)
     except Exception as e:
         print(f"USER_MODEL: ERROR in summarize_user_for_prompt for {user_id}: {e}")
         return ""
