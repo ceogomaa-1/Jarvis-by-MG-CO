@@ -26,7 +26,9 @@ from backend.tools.url_fetch import extract_urls, fetch_url_content
 from backend.usage_limits import check_limit, increment_usage, get_usage, DAILY_MESSAGE_LIMIT
 from backend.farida_personal_loader import _is_farida, load_greeting as _load_farida_greeting
 from backend.lib.personal.relationship_bible import is_relationship_context, build_relationship_injection
+from backend.lib.personal.tool_policy import should_offer_personal_tools
 from backend.lib.business.model_router import SONNET
+from backend.lib import diag
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -211,6 +213,13 @@ def _log_fallback(fallback_type: str, user_msg: str, exc: Exception | None = Non
         "debug": debug_str,
     }
     _error_buffer.append(entry)
+    # Privacy-safe production visibility. The shared diagnostic ring stores only
+    # the failure type and exception summary, never the user's message.
+    diag.record_error(
+        "personal_chat",
+        fallback_type,
+        exc if exc is not None else RuntimeError(fallback_type),
+    )
     if exc:
         logger.exception(f"{fallback_type} user_msg={user_msg[:200]!r}")
     else:
@@ -406,7 +415,12 @@ async def chat(request: ChatRequest):
     else:
         user_content = request.message
 
-    tools = AVAILABLE_TOOLS if not system_override else None
+    tools = (
+        AVAILABLE_TOOLS
+        if not system_override and should_offer_personal_tools(request.message)
+        else None
+    )
+    print(f"PERSONAL_TOOL_GATE: offered={bool(tools)}")
 
     _recent = " ".join(
         m.get("content", "") if isinstance(m.get("content"), str) else ""
@@ -586,7 +600,12 @@ async def chat_stream(request: ChatRequest):
         for m in history
         if isinstance(m.get("content"), str) and m["content"].strip()
     ]
-    tools = AVAILABLE_TOOLS if not system_override else None
+    tools = (
+        AVAILABLE_TOOLS
+        if not system_override and should_offer_personal_tools(request.message)
+        else None
+    )
+    print(f"PERSONAL_TOOL_GATE: offered={bool(tools)}")
 
     message_count = len(history) + 1
     recent_text = " ".join(

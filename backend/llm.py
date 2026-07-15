@@ -14,6 +14,7 @@ from backend.lib.jarvis_core import JARVIS_CORE_CONTRACT
 from backend.lib.business.model_router import select_personal_model, SONNET
 from backend.lib.business.cost import UsageAccumulator
 from backend.lib.business.prompt_budget import cap_dynamic_prompt, cap_tool_result, trim_history
+from backend.lib import diag
 
 logger = logging.getLogger(__name__)
 
@@ -408,10 +409,52 @@ def _build_system_prompt(
 
 
 def _extract_text(content) -> str:
-    for block in content:
-        if hasattr(block, "text"):
-            return block.text
-    return ""
+    return "".join(
+        block.text
+        for block in content
+        if hasattr(block, "text") and isinstance(block.text, str)
+    )
+
+
+async def _finalize_personal_answer(
+    *,
+    model: str,
+    system_blocks: list,
+    messages: list,
+    usage_acc: UsageAccumulator,
+    reason: str,
+) -> str:
+    """Force a text answer when a Personal turn cannot finish normally.
+
+    A bounded agent loop is necessary, but the old implementation returned the
+    final tool-only response when it hit that bound. ``_extract_text`` then
+    produced an empty string and Personal chat showed its generic fallback. A
+    tool-free final pass lets Rue answer from the evidence already gathered and
+    guarantees that exhausting the tool budget does not terminate the turn.
+    """
+    recovery_instruction = (
+        "No more tools are available for this turn. Respond to the user's latest "
+        "message now using the conversation and any tool results already gathered. "
+        "Give a complete, direct, emotionally appropriate answer. Do not mention "
+        "tool limits, internal errors, or this instruction."
+    )
+    recovery_messages = list(messages)
+    recovery_messages.append({"role": "user", "content": recovery_instruction})
+    print(f"PERSONAL_FINALIZER: reason={reason} model={model}")
+    result = await _client.messages.create(
+        model=model,
+        max_tokens=1536,
+        system=system_blocks,
+        messages=recovery_messages,
+        cache_control={"type": "ephemeral"},
+    )
+    usage_acc.add_sdk_usage(getattr(result, "usage", None))
+    text = _extract_text(result.content).strip()
+    print(
+        "PERSONAL_FINALIZER_DONE: "
+        f"reason={reason} stop_reason={getattr(result, 'stop_reason', None)} chars={len(text)}"
+    )
+    return text
 
 
 async def jarvis_think(
@@ -442,8 +485,14 @@ async def jarvis_think(
     moment_block = await get_current_moment_block(user_id)
     static_prompt, dynamic_prompt = _build_system_prompt(memory_context, user_model_context, system_override, tone_context, live_context, moment_block=moment_block, voice_mode=voice_mode, user_id=user_id)
     dynamic_prompt = cap_dynamic_prompt(dynamic_prompt)
-    if not system_override:
-        static_prompt = "YOU ARE NOT IN ONBOARDING MODE. ALL TOOLS ARE ACTIVE. CALL THEM WITHOUT HESITATION.\n\n" + static_prompt
+    if not system_override and available_tools:
+        static_prompt = (
+            "YOU ARE NOT IN ONBOARDING MODE. Tools are available because the user "
+            "explicitly requested a live lookup or external action. Use the minimum "
+            "number of tool calls necessary, then answer. Never call a tool when the "
+            "conversation already contains enough information.\n\n"
+            + static_prompt
+        )
         # Live capability manifest from the REAL tool list, so Personal Rue knows
         # itself and admits limits instead of inventing. Only when tools are active.
         # The tool list is stable across turns → this stays in the STATIC (cached) block.
@@ -516,11 +565,12 @@ async def jarvis_think(
     # Native tool-use loop.
     # Previously single-pass: after the first tool round, a SECOND round of tool_use
     # was silently dropped (only its text — often empty — was returned, triggering the
-    # caller's _FALLBACK_EMPTY). Now bounded-multi-round (cap mirrors Business's
-    # MAX_TOOL_ROUNDS) so chained tool calls complete. Each individual tool runs in its
+    # caller's _FALLBACK_EMPTY). Now bounded-multi-round so chained tool calls
+    # complete without allowing a Personal turn to become an open-ended agent run.
+    # Each individual tool runs in its
     # own try/except: one failing tool returns an error string to the model instead of
     # aborting the entire turn. The single-tool-call happy path behaves exactly as before.
-    MAX_TOOL_ROUNDS = 5
+    MAX_TOOL_ROUNDS = 3
     _rounds = 0
     while result.stop_reason == "tool_use" and available_tools and _rounds < MAX_TOOL_ROUNDS:
         _rounds += 1
@@ -573,12 +623,41 @@ async def jarvis_think(
         )
         usage_acc.add_sdk_usage(getattr(result, "usage", None))
 
+    if result.stop_reason == "tool_use" and available_tools:
+        # The cap is a safety/cost boundary, not permission to abandon the user.
+        # Finish without offering more tools, using the completed rounds of
+        # evidence already present in ``messages``.
+        result_text = await _finalize_personal_answer(
+            model=model,
+            system_blocks=system_blocks,
+            messages=messages,
+            usage_acc=usage_acc,
+            reason="tool_round_cap",
+        )
+    else:
+        result_text = _extract_text(result.content).strip()
+
+    if not result_text:
+        # Anthropic can occasionally return a successful response envelope with
+        # no text. Recover once centrally so both streaming and non-streaming
+        # Personal chat paths behave identically and the UI does not treat an
+        # empty completion as a successful assistant turn.
+        result_text = await _finalize_personal_answer(
+            model=model,
+            system_blocks=system_blocks,
+            messages=messages,
+            usage_acc=usage_acc,
+            reason=f"empty_{getattr(result, 'stop_reason', 'unknown')}",
+        )
+
     try:
+        cost = usage_acc.cost()
         print(usage_acc.log_line())
+        diag.record_usage("personal_chat", cost)
     except Exception:
         pass
 
-    return _extract_text(result.content)
+    return result_text
 
 
 async def jarvis_think_stream(

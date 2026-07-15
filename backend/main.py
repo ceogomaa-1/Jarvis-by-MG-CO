@@ -280,4 +280,8 @@ async def chat_diag():
     """Recent backend error captures (type + short message) so production failures
     can be pinpointed without server-log access. No secrets or user data."""
     from backend.lib import diag
-    return {"recent_errors": diag.recent_errors()}
+    return {
+        "personal_chat_revision": "tool-gate-and-empty-recovery-v2",
+        "recent_errors": diag.recent_errors(),
+        "recent_usage": diag.recent_usage(),
+    }
