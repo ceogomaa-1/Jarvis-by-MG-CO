@@ -27,9 +27,10 @@ crm.jarvismgco.com, *.crm.jarvismgco.com {
         on_demand
     }
 
-    # Let the Rue app embed the cockpit (Phase 3).
+    # Let the Rue app embed the cockpit (Phase 3) and the MG&CO team dashboard
+    # embed the shared CRM (mgcodashboard /crm page).
     header -X-Frame-Options
-    header Content-Security-Policy "frame-ancestors 'self' https://jarvismgco.com https://*.jarvismgco.com"
+    header Content-Security-Policy "frame-ancestors 'self' https://jarvismgco.com https://*.jarvismgco.com https://mgcodashboard.com https://*.mgcodashboard.com"
 
     # Apex + every subdomain proxy to the same Twenty server. The apex stays public
     # because it is the shared API; public workspace creation is blocked in-app
